@@ -17,6 +17,7 @@ import org.grit.daynomy.auth.oauth.OAuth2LoginSuccessHandler;
 import org.grit.daynomy.auth.service.TokenService;
 import org.grit.daynomy.auth.token.JwtAuthenticationFilter;
 import org.grit.daynomy.auth.token.TokenCookieManager;
+import org.grit.daynomy.emailsubscription.service.EmailUnsubscribeService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -76,6 +77,7 @@ class SecurityConfigTest {
 
   static Stream<String> publicReads() {
     return Stream.of(
+        EmailUnsubscribeService.PATH,
         "/api/auth/google",
         "/api/auth/csrf",
         "/api/portfolio/analysis/tasks",
@@ -139,6 +141,14 @@ class SecurityConfigTest {
         .andExpect(status().isOk());
   }
 
+  @Test
+  void unsubscribePostRemainsAccessibleWithoutSessionOrCsrf() throws Exception {
+    mvc.perform(
+            request(HttpMethod.POST, EmailUnsubscribeService.PATH)
+                .servletPath(EmailUnsubscribeService.PATH))
+        .andExpect(status().isOk());
+  }
+
   @ParameterizedTest
   @ValueSource(strings = {"/api/portfolio/analysis/tasks", "/api/portfolio/analysis/tasks/1/retry"})
   void guestTaskWritesRemainAnonymousOnly(String path) throws Exception {
@@ -152,7 +162,9 @@ class SecurityConfigTest {
     "GET, /api/unclassified-private",
     "POST, /api/unclassified-private",
     "GET, /api/news/1/internal",
-    "POST, /api/news"
+    "POST, /api/news",
+    "PUT, /api/email-subscriptions/unsubscribe",
+    "DELETE, /api/email-subscriptions/unsubscribe"
   })
   void unlistedHandlerAndUnlistedMethodAreDeniedEvenWhenRegistered(String method, String path)
       throws Exception {
@@ -209,6 +221,7 @@ class SecurityConfigTest {
   @RestController
   static class ProbeController {
     @GetMapping({
+      EmailUnsubscribeService.PATH,
       "/api/auth/google",
       "/api/auth/csrf",
       "/api/portfolio/analysis/tasks",
@@ -254,6 +267,7 @@ class SecurityConfigTest {
     }
 
     @PostMapping({
+      EmailUnsubscribeService.PATH,
       "/api/auth/refresh",
       "/api/auth/logout",
       "/api/feedback",

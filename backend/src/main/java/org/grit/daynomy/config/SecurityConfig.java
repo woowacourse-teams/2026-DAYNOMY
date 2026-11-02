@@ -8,6 +8,7 @@ import org.grit.daynomy.auth.oauth.CustomOidcUserService;
 import org.grit.daynomy.auth.oauth.OAuth2LoginSuccessHandler;
 import org.grit.daynomy.auth.token.JwtAuthenticationFilter;
 import org.grit.daynomy.auth.token.TokenCookieManager;
+import org.grit.daynomy.emailsubscription.service.EmailUnsubscribeService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -37,6 +38,7 @@ public class SecurityConfig {
       throws Exception {
     CsrfTokenRequestAttributeHandler csrfHandler = new CsrfTokenRequestAttributeHandler();
     String[] publicReadPaths = {
+      EmailUnsubscribeService.PATH,
       "/api/auth/google",
       "/api/auth/csrf",
       "/api/portfolio/analysis/tasks",
@@ -83,6 +85,10 @@ public class SecurityConfig {
                 csrf.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
                     .ignoringRequestMatchers(
                         request ->
+                            "POST".equals(request.getMethod())
+                                && EmailUnsubscribeService.PATH.equals(request.getServletPath()))
+                    .ignoringRequestMatchers(
+                        request ->
                             ("/api/portfolio/analysis".equals(request.getServletPath())
                                     || "/api/portfolio/analysis/tasks"
                                         .equals(request.getServletPath())
@@ -109,6 +115,7 @@ public class SecurityConfig {
                     .permitAll()
                     .requestMatchers(
                         HttpMethod.POST,
+                        EmailUnsubscribeService.PATH,
                         "/api/auth/refresh",
                         "/api/auth/logout",
                         "/api/feedback",

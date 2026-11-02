@@ -57,6 +57,7 @@ dependencies {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+    systemProperty("spring.test.context.cache.maxSize", "8")
     maxHeapSize = "2g"
     if (System.getenv("LEAGUE_BENCHMARK") == "true") maxHeapSize = "3g"
 }
