@@ -380,11 +380,20 @@ Sentry Alerts에서 다음 조건을 설정합니다.
 | `view_content`, `view_content_list`, `view_content_empty`                         | 대표 콘텐츠·콘텐츠 목록 또는 빈 상태 확인                | `surface`, `source_type`, `content_id`, `result_count`, `page_number`, `status`, `reason` |
 | `click_content`, `click_content_original`, `expand_content`, `open_content_video` | 콘텐츠 선택·원문 이동·글 펼치기·종목 영상 열기           | `surface`, `source_type`, `content_id`, `position`                                        |
 | `filter_content_source`, `change_content_page`                                    | 출처 필터·페이지 변경                                    | `surface`, `source_type`, `previous_source`, `previous_page`, `page_number`               |
+| `sort_content`                                                                    | 전체 콘텐츠 최신순·인기순 변경                           | `surface`, `sort`                                                                         |
 | `click_content_more`, `retry_content_load`                                        | 더 보기 이동·조회 재시도                                 | `surface`, `destination`, `area`, `attempt`                                               |
 | `click_person_preview`, `select_featured_person`                                  | 인물 미리보기·인물 선택                                  | `surface`, `person_id`, `position`                                                        |
+| `toggle_people_finder`, `click_person_profile`                                    | 인물 찾기 열기·닫기, 외부 프로필 이동                    | `surface`, `expanded`, `person_id`, `source_type`                                         |
 | `view_portfolio_news`                                                             | 보유 자산 소식 제목이 50% 이상 노출                      | `surface=portfolio_news`, `status`, `result_count`                                        |
 | `open_keyword_analysis`                                                           | 키워드 설명이 닫힘에서 열림으로 전환                     | `news_id`, `keyword_category`, `trigger`                                                  |
 | `view_market_analysis`                                                            | 정상 시장 분석의 제목이 50% 이상 노출                    | `surface=news_detail`, `news_id`                                                          |
+| `investment_calendar_load_result`                                                 | 투자 캘린더 조회 성공·실패                               | `surface`, `scope`, `status`, `result_count`, `attempt`, `duration_ms`, `is_logged_in`    |
+| `investment_calendar_action`                                                      | 월·범위·보기 변경, 일정 선택, 과거 반응 펼치기, 재시도   | `surface`, `action`, `direction`, `scope`, `view`, `position`, `attempt`                  |
+
+소식 홈 개편 화면도 기존 콘텐츠 이벤트를 유지합니다. 트렌딩은 카드가 50% 이상 실제로
+노출됐을 때 `view_content`를 한 번만 보내며, 전체 소식은 조회 결과·빈 상태·출처 변경과
+더 보기 이동을 기록합니다. 투자 캘린더 이벤트에는 일정 제목·종목명·금액·수량을 포함하지
+않습니다.
 
 포트폴리오 대시보드는 `/`에서 다음 이벤트를 수집합니다. 로그인 여부·시세 상태·입력
 방식·정렬·조회 기간·실패 유형만 허용하며 종목 이름·금액·수량은 전송하지 않습니다.

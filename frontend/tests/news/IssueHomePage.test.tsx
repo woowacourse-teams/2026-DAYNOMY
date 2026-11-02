@@ -518,6 +518,26 @@ it('출처별 빈 결과를 기록하고 같은 필터의 반복 선택은 중�
   expect(vi.mocked(trackEvent).mock.calls).toHaveLength(count);
 });
 
+it('전체 콘텐츠 정렬 변경은 선택한 기준만 기록하고 반복 선택은 무시한다', async () => {
+  mockApi();
+  const view = render(
+    <MemoryRouter>
+      <IssueHomePage fullFeed />
+    </MemoryRouter>,
+  );
+  await view.findByRole('button', { name: '인기순' });
+  fireEvent.click(view.getByRole('button', { name: '인기순' }));
+  expect(trackEvent).toHaveBeenCalledWith('sort_content', {
+    surface: 'news_contents',
+    sort: 'popular',
+  });
+  const count = vi.mocked(trackEvent).mock.calls.filter(([name]) => name === 'sort_content').length;
+  fireEvent.click(view.getByRole('button', { name: '인기순' }));
+  expect(vi.mocked(trackEvent).mock.calls.filter(([name]) => name === 'sort_content')).toHaveLength(
+    count,
+  );
+});
+
 it('주목받는 인물의 글은 같은 인물도 포함해 최신 글 세 개만 제공한다', async () => {
   const people = [
     {
