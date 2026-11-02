@@ -88,6 +88,7 @@ for (const viewport of [
     await installAccessibilityFixtures(page);
     await page.goto('/');
     await page.getByRole('button', { name: '종목 추가', exact: true }).click();
+    await page.getByRole('button', { name: '한 종목 추가', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: '거래 기록' });
     await dialog.getByRole('searchbox').fill('삼성');
     await dialog.getByRole('button', { name: /삼성전자.*005930/ }).click();
@@ -271,6 +272,7 @@ for (const viewport of [
     await dialog.getByRole('button', { name: '닫기', exact: true }).click();
     await page.reload();
     await open.click();
+    await page.getByRole('button', { name: '한 종목 추가', exact: true }).click();
     const recent = dialog.getByRole('region', { name: '최근 검색어' });
     await expect(recent.getByRole('button', { name: 'S&P', exact: true })).toBeVisible();
     await expect(recent.getByText('이 브라우저에 저장된 검색어예요.')).toHaveCount(0);
