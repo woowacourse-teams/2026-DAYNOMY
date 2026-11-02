@@ -142,7 +142,7 @@ java -jar build/libs/daynomy-0.0.1-SNAPSHOT.jar
 
 ### AI 복기 질문
 
-`POST /api/users/me/portfolio/decisions/{transactionId}/review-guide`는 로그인·CSRF가 필요한 본인 전용 요청이다. 복기가 없는 판단의 종목에 연결된 기사와 DAYNOMY 기사 검색 결과에서 판단 저장 후 90일 이내 발행 기사만 최대 5개 가져온다. LangChain4j의 읽기 전용 검색 도구가 초점 검색어를 정하고, AI는 기사 ID가 연결된 질문 세 개를 만든다. 응답은 `{ transactionId, retrievalStatus, evidence, basis, questions }`이며 `Cache-Control: no-store`이다. 기사가 없으면 `NO_EVIDENCE`와 빈 근거 ID로 질문한다. `basis`는 판단 마지막 저장일보다 늦게 시작한 최근 3주 내 확정 주간 포트폴리오 성과가 있을 때만 포함하며 AI 입력에는 넣지 않는다. 다른 회원의 기록은 404, 이미 복기한 기록은 409, 요청 한도는 429, 검색·AI 실패는 503이다. 질문은 저장하지 않는다. 운영에는 `OPENAI_API_KEY`가 필요하다. 자세한 범위는 [기술명세서](../docs/league-ai-review-technical.md)에 있다.
+`POST /api/users/me/portfolio/decisions/{transactionId}/review-guide`는 로그인·CSRF가 필요한 본인 전용 요청이다. 복기가 없는 판단의 종목에 연결된 기사와 DAYNOMY 기사 검색 결과에서 최근 90일 중 판단 최종 저장 시각 이후 발행 기사만 최대 5개 가져온다. 자산에 직접 연결되지 않은 검색 결과는 기사 제목이나 본문에서 자산명을 확인한 경우에만 포함한다. LangChain4j의 읽기 전용 검색 도구가 초점 검색어를 정하고, AI는 기사 ID가 연결된 질문 세 개를 만든다. 응답은 `{ transactionId, retrievalStatus, evidence, basis, questions }`이며 `Cache-Control: no-store`이다. 기사가 없으면 `NO_EVIDENCE`와 빈 근거 ID로 질문한다. `basis`는 판단 마지막 저장일보다 늦게 시작한 최근 3주 내 확정 주간 포트폴리오 성과가 있을 때만 포함하며 AI 입력에는 넣지 않는다. 다른 회원의 기록은 404, 이미 복기한 기록은 409, 요청 한도는 429, 검색·AI 실패는 503이다. 질문은 저장하지 않는다. 운영에는 `OPENAI_API_KEY`가 필요하다. 자세한 범위는 [기술명세서](../docs/league-ai-review-technical.md)에 있다.
 
 리그 종류는 `WEEKLY_RETURN`(주간 수익률), `STABLE`(안정형), `BEGINNER`(초보리그)만 지원한다.
 주간 확정도 이 세 종류만 생성한다. `/api/league/weeks`, 순위·일별 조회와 공개 주간 이력은 KST 기준 이번 주를 포함한 최근 3주를 제공한다. 이전 계산·확정 기록은 보존한다. 같은 순위 점수는 공동 순위이며 다음 순위는 한 단계씩 증가한다(1·1·2위).

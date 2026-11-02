@@ -60,6 +60,51 @@ class LeagueReviewEvidenceServiceTest {
   }
 
   @Test
+  void excludesUnlinkedSearchResultsWithoutTheAssetNameInTheTitleOrBody() {
+    Instant saved = now.minusSeconds(24 * 3600);
+    given(
+            links.findPublishedNewsIdsForAsset(
+                2L, NewsStatus.PUBLISHED, saved, now, PageRequest.of(0, 20)))
+        .willReturn(List.of(1L));
+    given(search.search("삼성전자 반도체", ContentSearchSource.DAYNOMY, 1, 20, ContentSearchSort.LATEST))
+        .willReturn(
+            new ContentSearchResponse(
+                List.of(item("NEWS", 2L), item("NEWS", 3L), item("NEWS", 4L)), 1, 20, 3, 1));
+    Instant published = now.minusSeconds(3600);
+    given(news.getNewsDetail(1L))
+        .willReturn(detail(1L, "연결된 실적 기사", "<p>자산에 연결된 발행 기사입니다.</p>", published));
+    given(news.getNewsDetail(2L))
+        .willReturn(detail(2L, "경쟁사 실적", "<p>다른 회사의 반도체 매출입니다.</p>", published));
+    given(news.getNewsDetail(3L))
+        .willReturn(detail(3L, "삼성전자 실적 발표", "<p>반도체 매출이 늘었습니다.</p>", published));
+    given(news.getNewsDetail(4L))
+        .willReturn(detail(4L, "반도체 시장 동향", "<p>삼성전자 매출을 확인합니다.</p>", published));
+
+    var result = service.search(2L, "삼성전자", saved, "반도체");
+
+    assertThat(result)
+        .extracting(candidate -> candidate.evidence().id())
+        .containsExactly("NEWS:1", "NEWS:3", "NEWS:4");
+  }
+
+  @Test
+  void matchesSupplementalAssetNamesWithoutDependingOnLetterCase() {
+    Instant saved = now.minusSeconds(24 * 3600);
+    given(
+            links.findPublishedNewsIdsForAsset(
+                2L, NewsStatus.PUBLISHED, saved, now, PageRequest.of(0, 20)))
+        .willReturn(List.of());
+    given(search.search("Tesla", ContentSearchSource.DAYNOMY, 1, 20, ContentSearchSort.LATEST))
+        .willReturn(new ContentSearchResponse(List.of(item("NEWS", 2L)), 1, 20, 1, 1));
+    given(news.getNewsDetail(2L))
+        .willReturn(detail(2L, "TESLA 실적 발표", "<p>판매량을 확인합니다.</p>", now.minusSeconds(3600)));
+
+    var result = service.search(2L, "Tesla", saved, "");
+
+    assertThat(result).extracting(candidate -> candidate.evidence().id()).containsExactly("NEWS:2");
+  }
+
+  @Test
   void limitsOldRecordsToNinetyDaysAndBoundsExcerpts() {
     Instant cutoff = now.minusSeconds(90L * 24 * 3600);
     given(

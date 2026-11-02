@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.content.repository.AssetContentRepository;
 import org.grit.daynomy.league.dto.LeagueDto.ReviewGuideEvidence;
@@ -77,6 +78,10 @@ public class LeagueReviewEvidenceService {
               .replaceAll("\\s+", " ")
               .trim();
       if (body.isBlank()) continue;
+      if (!linked.contains(id)
+          && !(detail.title() + " " + body)
+              .toLowerCase(Locale.ROOT)
+              .contains(assetName.toLowerCase(Locale.ROOT))) continue;
       String excerpt = window(body, focus.isBlank() ? assetName : focus, 160);
       String context = window(body, focus.isBlank() ? assetName : focus, 800);
       var evidence =
@@ -101,7 +106,7 @@ public class LeagueReviewEvidenceService {
 
   private String window(String body, String term, int limit) {
     if (body.length() <= limit) return body;
-    int match = body.toLowerCase().indexOf(term.toLowerCase());
+    int match = body.toLowerCase(Locale.ROOT).indexOf(term.toLowerCase(Locale.ROOT));
     int start = match < 0 ? 0 : Math.max(0, match - limit / 4);
     return body.substring(start, Math.min(body.length(), start + limit));
   }
