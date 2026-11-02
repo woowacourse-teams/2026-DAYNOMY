@@ -1,6 +1,7 @@
 package org.grit.daynomy.portfolio.service;
 
 import java.time.DayOfWeek;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -63,6 +64,29 @@ public class PortfolioPriceHistoryService {
     READY,
     PROCESSING,
     FAILED
+  }
+
+  public void prepareLeagueUsPrices(List<Long> assetIds, LocalDate from, LocalDate to) {
+    if (assetIds.isEmpty()) return;
+    Map<Long, Target> targets = new LinkedHashMap<>();
+    for (Asset asset : assetRepository.findAllById(assetIds)) {
+      if (asset.getMarket() != null && asset.getMarket().isUs())
+        addTarget(targets, asset, from, to);
+    }
+    if (targets.isEmpty()) return;
+    portfolioPriceHistoryTaskExecutor.execute(
+        () -> {
+          for (Target target : targets.values()) {
+            try {
+              collect(target);
+            } catch (RuntimeException exception) {
+              log.warn(
+                  "League US price collection failed: assetId={}, errorType={}",
+                  target.assetId(),
+                  exception.getClass().getSimpleName());
+            }
+          }
+        });
   }
 
   public synchronized Status prepare(
@@ -320,6 +344,16 @@ public class PortfolioPriceHistoryService {
                       }
                     }
                     priceRepository.saveAll(additions);
+                    if (storedAsset.getMarket() != null && storedAsset.getMarket().isUs()) {
+                      List<LocalDate> collectedDates =
+                          fetched.stream()
+                              .map(HistoricalPrice::baseDate)
+                              .filter(java.util.Objects::nonNull)
+                              .distinct()
+                              .toList();
+                      if (!collectedDates.isEmpty())
+                        tradingDayRepository.markUsCollectedDates(collectedDates, Instant.now());
+                    }
                     List<LocalDate> missing =
                         tradingDates.stream().filter(date -> !present.contains(date)).toList();
                     LocalDate coveredFrom = fetchFrom;

@@ -35,6 +35,7 @@ class PortfolioTransactionServiceV2Test {
   @Mock PortfolioSnapshotServiceV2 snapshotService;
   @Mock private org.springframework.transaction.PlatformTransactionManager transactionManager;
   @Mock private org.grit.daynomy.portfolio.service.PortfolioExchangeRateService exchangeRates;
+  @Mock private org.springframework.context.ApplicationEventPublisher events;
   @InjectMocks PortfolioTransactionServiceV2 service;
 
   @Test

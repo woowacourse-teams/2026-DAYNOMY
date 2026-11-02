@@ -104,7 +104,15 @@ public class InvestorProfile extends BaseEntity implements LeagueInvestorValue {
   public LocalDate eligibleFrom() {
     return participations.stream()
         .filter(period -> period.getEndedAt() == null)
-        .map(LeagueParticipation::eligibleFrom)
+        .map(
+            period -> {
+              LocalDate date = period.eligibleFrom();
+              return period.getPerformanceStartedAt() != null
+                      && trackingStartedOn != null
+                      && trackingStartedOn.isBefore(date)
+                  ? trackingStartedOn
+                  : date;
+            })
         .findFirst()
         .orElse(null);
   }
