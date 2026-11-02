@@ -105,6 +105,29 @@ describe('회원 저장 분석 API', () => {
     analysis: null,
   };
 
+  it('오늘 남은 횟수와 한국 시간 자정 초기화 시각을 보존한다', async () => {
+    const response = { ...empty, remainingRefreshCount: 0, refreshResetAt: '2026-10-29T15:00:00Z' };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => jsonResponse(response)),
+    );
+    await expect(getSavedPortfolioAnalysis()).resolves.toEqual(response);
+  });
+
+  it.each([
+    { remainingRefreshCount: -1, refreshResetAt: '2026-10-29T15:00:00Z' },
+    { remainingRefreshCount: 4, refreshResetAt: '2026-10-29T15:00:00Z' },
+    { remainingRefreshCount: 1.5, refreshResetAt: '2026-10-29T15:00:00Z' },
+    { remainingRefreshCount: 0, refreshResetAt: 'invalid' },
+    { remainingRefreshCount: 0 },
+  ])('잘못된 확인 한도 응답을 거부한다: %j', async (limit) => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => jsonResponse({ ...empty, ...limit })),
+    );
+    await expect(getSavedPortfolioAnalysis()).rejects.toThrow('저장된 분석 응답 형식');
+  });
+
   it.each([false, true])(
     '회원 분석은 비동기 API에 CSRF를 포함하고 자산을 보내지 않는다 (갱신: %s)',
     async (refresh) => {
