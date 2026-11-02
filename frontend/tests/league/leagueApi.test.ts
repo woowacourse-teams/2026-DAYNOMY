@@ -9,6 +9,7 @@ import {
   getFollowSummary,
   updateReview,
   updateDecisionReason,
+  getReviewGuide,
 } from '../../src/features/league/api.ts';
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -17,6 +18,70 @@ function jsonResponse(body: unknown, status = 200): Response {
     headers: { 'content-type': 'application/json' },
   });
 }
+
+test('AI 복기 질문은 CSRF로 요청하고 거래·성과·질문 형식을 검증한다', async () => {
+  const calls: Array<{ url: string; init?: RequestInit }> = [];
+  const guide = {
+    transactionId: 7,
+    retrievalStatus: 'FOUND',
+    evidence: [
+      {
+        id: 'NEWS:12',
+        title: '실적 발표',
+        publishedAt: '2026-10-20T00:00:00Z',
+        excerpt: '매출 증가',
+        href: '/news/12',
+      },
+    ],
+    basis: { weekStart: '2026-10-19', asOfDate: '2026-10-23', portfolioWeeklyReturnRate: 1.25 },
+    questions: {
+      actualResult: { text: '지금 확인할 수 있는 결과는 무엇인가요?', evidenceIds: ['NEWS:12'] },
+      differenceFromExpectation: { text: '기대와 어떤 차이가 있나요?', evidenceIds: [] },
+      nextAction: { text: '다음에는 무엇을 확인할 건가요?', evidenceIds: [] },
+    },
+  };
+  globalThis.fetch = async (input, init) => {
+    calls.push({ url: String(input), init });
+    return String(input) === '/api/auth/csrf'
+      ? jsonResponse({ headerName: 'X-XSRF-TOKEN', token: 'csrf-token' })
+      : jsonResponse(guide);
+  };
+  assert.deepEqual(await getReviewGuide(7), guide);
+  assert.equal(calls[1]?.url, '/api/users/me/portfolio/decisions/7/review-guide');
+  assert.equal(calls[1]?.init?.method, 'POST');
+  assert.equal(new Headers(calls[1]?.init?.headers).get('X-XSRF-TOKEN'), 'csrf-token');
+  assert.equal(calls[1]?.init?.body, undefined);
+
+  globalThis.fetch = async (input) =>
+    String(input) === '/api/auth/csrf'
+      ? jsonResponse({ headerName: 'X-XSRF-TOKEN', token: 'csrf-token' })
+      : jsonResponse({ ...guide, transactionId: 8 });
+  await assert.rejects(getReviewGuide(7), /응답 형식/);
+  globalThis.fetch = async (input) =>
+    String(input) === '/api/auth/csrf'
+      ? jsonResponse({ headerName: 'X-XSRF-TOKEN', token: 'csrf-token' })
+      : jsonResponse({ ...guide, evidence: [{ ...guide.evidence[0], publishedAt: 'tomorrow' }] });
+  await assert.rejects(getReviewGuide(7), /응답 형식/);
+  globalThis.fetch = async (input) =>
+    String(input) === '/api/auth/csrf'
+      ? jsonResponse({ headerName: 'X-XSRF-TOKEN', token: 'csrf-token' })
+      : jsonResponse({
+          ...guide,
+          questions: { ...guide.questions, nextAction: { text: '', evidenceIds: [] } },
+        });
+  await assert.rejects(getReviewGuide(7), /응답 형식/);
+  globalThis.fetch = async (input) =>
+    String(input) === '/api/auth/csrf'
+      ? jsonResponse({ headerName: 'X-XSRF-TOKEN', token: 'csrf-token' })
+      : jsonResponse({
+          ...guide,
+          questions: {
+            ...guide.questions,
+            nextAction: { text: '무엇을 확인하나요?', evidenceIds: ['NEWS:99'] },
+          },
+        });
+  await assert.rejects(getReviewGuide(7), /응답 형식/);
+});
 
 test('팔로우 비교는 지난 확정 순위의 차이를 검증하고 이전 응답도 읽는다', async () => {
   const entry = {

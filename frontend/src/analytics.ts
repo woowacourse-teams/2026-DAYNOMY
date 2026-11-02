@@ -43,6 +43,7 @@ const analyticsPropertyKeys = new Set([
   'record_type',
   'relative_week',
   'result_count',
+  'retrieval_status',
   'scope',
   'search_length',
   'selection_valid',

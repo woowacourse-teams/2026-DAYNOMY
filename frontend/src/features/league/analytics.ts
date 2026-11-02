@@ -36,6 +36,7 @@ type Action =
   | 'open_review'
   | 'save_review'
   | 'edit_review'
+  | 'review_guide'
   | 'save_publication'
   | 'change_daily_week'
   | 'toggle_daily_history';
@@ -70,6 +71,9 @@ type Params = {
   hidden?: boolean;
   overwrite_existing?: boolean;
   view?: 'daily' | 'weekly';
+  guide_used?: boolean;
+  retrieval_status?: 'FOUND' | 'NO_EVIDENCE';
+  duration_ms?: number;
 };
 const keys = new Set([
   'surface',
@@ -91,6 +95,9 @@ const keys = new Set([
   'hidden',
   'overwrite_existing',
   'view',
+  'guide_used',
+  'retrieval_status',
+  'duration_ms',
 ]);
 
 export function leagueErrorType(error: unknown): ErrorType {
