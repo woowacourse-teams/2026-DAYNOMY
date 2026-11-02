@@ -178,9 +178,11 @@ function ExternalLinkIcon() {
 
 function PortfolioAnalysisPreview({
   action,
+  actionInContent = false,
   title = '반도체 수요 회복에 따른 긍정적 영향',
 }: {
   action: ReactNode;
+  actionInContent?: boolean;
   title?: string;
 }) {
   const previewRef = useRef<HTMLDivElement>(null);
@@ -188,7 +190,7 @@ function PortfolioAnalysisPreview({
 
   useLayoutEffect(() => {
     const preview = previewRef.current;
-    if (!preview || !hasAction || typeof ResizeObserver === 'undefined') return;
+    if (!preview || !hasAction || actionInContent || typeof ResizeObserver === 'undefined') return;
     const layout = preview.querySelector<HTMLElement>('.portfolio-preview-layout');
     const canvas = preview.closest<HTMLElement>('.portfolio-canvas') ?? preview;
     if (!layout) return;
@@ -216,7 +218,7 @@ function PortfolioAnalysisPreview({
     const overview = canvas.querySelector('.portfolio-overview');
     if (overview) observer.observe(overview);
     return () => observer.disconnect();
-  }, [hasAction]);
+  }, [hasAction, actionInContent]);
   const previewImpacts: PortfolioAssetImpactResponse[] = [
     {
       ...tourAnalysis.impacts[0],
@@ -243,7 +245,7 @@ function PortfolioAnalysisPreview({
   return (
     <div
       ref={previewRef}
-      className="portfolio-analysis-preview"
+      className={`portfolio-analysis-preview${actionInContent ? ' has-inline-action' : ''}`}
       role="region"
       aria-label="가상 분석 미리보기"
     >
@@ -266,6 +268,7 @@ function PortfolioAnalysisPreview({
               있습니다. 새로운 소식이 반영될 때마다 주요 자산의 영향이 어떻게 달라지는지 살펴봅니다.
             </p>
           </div>
+          {actionInContent && <div className="portfolio-preview-action is-inline">{action}</div>}
         </div>
         <div className="portfolio-analysis-overview" inert aria-hidden="true">
           <PortfolioDonut
@@ -282,7 +285,7 @@ function PortfolioAnalysisPreview({
           />
         </div>
       </div>
-      <div className="portfolio-preview-action">{action}</div>
+      {!actionInContent && <div className="portfolio-preview-action">{action}</div>}
     </div>
   );
 }
@@ -290,15 +293,17 @@ function PortfolioAnalysisPreview({
 function PortfolioEmpty({ onAddAsset, title }: { onAddAsset?: () => void; title?: string }) {
   return (
     <PortfolioAnalysisPreview
+      actionInContent
       title={title}
       action={
         <button
           type="button"
-          className="portfolio-analysis-button is-primary"
+          className="portfolio-analysis-button portfolio-analysis-add-button is-primary"
+          aria-label="AI 분석에서 종목 추가"
           onClick={onAddAsset}
           disabled={!onAddAsset}
         >
-          자산 추가하기
+          종목 추가
         </button>
       }
     />
@@ -334,11 +339,24 @@ function PortfolioAnalysisLoading() {
   );
 }
 
-function PortfolioAnalysisError({ onRetry, message }: { onRetry: () => void; message: string }) {
+function PortfolioAnalysisError({
+  onRetry,
+  message,
+  retryDisabled = false,
+}: {
+  onRetry: () => void;
+  message: string;
+  retryDisabled?: boolean;
+}) {
   return (
     <div className="portfolio-analysis-state portfolio-analysis-empty" role="alert">
       <strong>{message}</strong>
-      <button className="portfolio-analysis-retry-button" type="button" onClick={onRetry}>
+      <button
+        className="portfolio-analysis-retry-button"
+        type="button"
+        onClick={onRetry}
+        disabled={retryDisabled}
+      >
         다시 시도
       </button>
     </div>
@@ -858,7 +876,15 @@ function PortfolioAnalysisView({
       }))
     : assets;
   const hasAnalysisTarget = displayAssets.length > 0;
-  const canAnalyze = !loading && (assets.length > 0 || (isLoggedIn && !loaded));
+  const refreshExhausted = Boolean(
+    isLoggedIn && currentAnalysis && !portfolioChanged && saved?.remainingRefreshCount === 0,
+  );
+  const canAnalyze =
+    !loading &&
+    !processing &&
+    summaryStatus !== 'PENDING' &&
+    !refreshExhausted &&
+    (assets.length > 0 || (isLoggedIn && !loaded));
 
   const showIntroduction =
     hasAnalysisTarget && !analysis && !loading && !error && !trialExhausted && !processing;
@@ -870,14 +896,19 @@ function PortfolioAnalysisView({
         : '자산을 추가하고 AI 분석을 시작해 보세요.'
       : undefined;
   const updateNotice =
-    analysis && !loading && saved?.status === 'READY' && saved.lastCheckOutcome === 'UPDATED'
+    analysis &&
+    !loading &&
+    summaryStatus !== 'PENDING' &&
+    summaryStatus !== 'FAILED' &&
+    saved?.status === 'READY' &&
+    saved.lastCheckOutcome === 'UPDATED'
       ? saved.changeReason
       : null;
   const analysisAction = !hasAnalysisTarget ? null : !isLoggedIn && trialExhausted ? (
     <a className="portfolio-analysis-button" href="/login?returnTo=%2F">
       로그인하고 다시 분석하기
     </a>
-  ) : !error ? (
+  ) : !error || refreshExhausted ? (
     <button
       className={`portfolio-analysis-button${saved?.status !== 'PROCESSING' && (showIntroduction || portfolioChanged || analysis || (!isLoggedIn && !loading)) ? ' is-primary' : ''}`}
       type="button"
@@ -888,12 +919,16 @@ function PortfolioAnalysisView({
         ? currentAnalysis
           ? '확인 중'
           : '분석 중'
-        : processing
-          ? '진행 상태 확인'
+        : processing || summaryStatus === 'PENDING'
+          ? summaryStatus === 'PENDING'
+            ? '설명 작성 중'
+            : '분석 중'
           : portfolioChanged
             ? '다시 분석하기'
             : analysis
-              ? '새 소식 확인'
+              ? refreshExhausted
+                ? '오늘 확인 완료'
+                : '새 소식 확인'
               : isLoggedIn
                 ? 'AI 분석하기'
                 : '1회 분석 체험하기'}
@@ -919,6 +954,16 @@ function PortfolioAnalysisView({
       </div>
 
       <div className="portfolio-analysis-meta">
+        {isLoggedIn &&
+        currentAnalysis &&
+        !portfolioChanged &&
+        saved?.remainingRefreshCount !== undefined ? (
+          <p role="status">
+            {refreshExhausted
+              ? '오늘 새 소식 확인 3회를 모두 사용했어요. 내일 다시 확인할 수 있어요.'
+              : `오늘 새 소식 확인 ${saved.remainingRefreshCount}회 남음 · 하루 최대 3회`}
+          </p>
+        ) : null}
         {analysis?.excludedAssets?.length ? (
           <p>
             보유 비중 상위 5종목을 분석했어요. 나머지 {analysis.excludedAssets.length}종목은 분석
@@ -972,7 +1017,11 @@ function PortfolioAnalysisView({
       ) : null}
 
       {hasAnalysisTarget && !loading && error ? (
-        <PortfolioAnalysisError onRetry={handleRetry} message={error} />
+        <PortfolioAnalysisError
+          onRetry={handleRetry}
+          message={error}
+          retryDisabled={refreshExhausted}
+        />
       ) : null}
 
       {hasAnalysisTarget && !loading && !error && trialExhausted && !analysis ? (

@@ -103,6 +103,7 @@ class LeagueLoggingTest {
   @Mock private LeagueCalculationMetrics metrics;
   @Mock private EntityManager entityManager;
   @Mock private AssetRepository assets;
+  @Mock private org.grit.daynomy.portfolio.repository.PortfolioHoldingRepository originalHoldings;
   @Mock private PlatformTransactionManager transactionManager;
   @Mock private LeagueService finalization;
   @Mock private LeagueAggregationService aggregationService;
@@ -134,11 +135,24 @@ class LeagueLoggingTest {
             members,
             assets,
             stockPriceService,
+            mock(org.grit.daynomy.asset.repository.StockDailyPriceRepository.class),
+            mock(org.grit.daynomy.exchangerate.repository.UsdKrwRateRepository.class),
             calendar,
             profiles,
             decisions,
             decisionService,
-            rankingCache);
+            rankingCache,
+            mock(LeagueAutoSyncService.class),
+            originalHoldings);
+  }
+
+  private org.grit.daynomy.portfolio.domain.PortfolioHolding sourceHolding(
+      Long assetId, long quantity, String price) {
+    return new org.grit.daynomy.portfolio.domain.PortfolioHolding(
+        mock(org.grit.daynomy.portfolio.domain.Portfolio.class),
+        asset(assetId),
+        quantity,
+        new BigDecimal(price));
   }
 
   @AfterEach
@@ -222,6 +236,12 @@ class LeagueLoggingTest {
             });
     given(holdings.findAllByPortfolioIdOrderById(2L)).willReturn(values);
 
+    given(originalHoldings.findAllByPortfolioMemberId(1L))
+        .willReturn(
+            List.of(
+                sourceHolding(3L, 2, "100"),
+                sourceHolding(4L, 4, "200"),
+                sourceHolding(5L, 7, "333.33")));
     sharedService.importHoldings(
         1L,
         new ImportRequest(
@@ -261,6 +281,8 @@ class LeagueLoggingTest {
             });
     given(decisions.save(any(InvestmentDecision.class))).willAnswer(call -> call.getArgument(0));
     var input = new HoldingInput(3L, 2, BigDecimal.TEN, decisionRequest());
+    given(originalHoldings.findAllByPortfolioMemberId(1L))
+        .willReturn(List.of(sourceHolding(3L, 2, "10")));
 
     assertThatThrownBy(
             () -> sharedService.importHoldings(1L, new ImportRequest(List.of(input, input), false)))
@@ -322,8 +344,9 @@ class LeagueLoggingTest {
     given(members.findById(1L)).willReturn(Optional.of(follower));
     given(profiles.findByPublicIdAndProfilePublicTrue("investor")).willReturn(Optional.of(target));
     given(follows.findByFollowerIdAndProfileId(1L, 3L))
-        .willReturn(
-            Optional.empty(), Optional.of(existing), Optional.of(existing), Optional.empty());
+        .willReturn(Optional.empty(), Optional.of(existing));
+    given(follows.findByFollowerIdAndProfilePublicId(1L, "investor"))
+        .willReturn(Optional.of(existing), Optional.empty());
 
     leagueService.follow(1L, "investor");
     leagueService.follow(1L, "investor");
@@ -362,6 +385,7 @@ class LeagueLoggingTest {
         .containsEntry("collectionStatus", CollectionStatus.CALENDAR_PENDING)
         .containsEntry("totalCount", 0);
     assertThat(fields(event(LogEvent.LEAGUE_DAILY_HISTORY_LOADED)))
+        .containsEntry("displayedDayCount", 7)
         .containsEntry("tradingDayCount", 0)
         .containsEntry("calculatedDayCount", 0)
         .doesNotContainKeys("weeklyReturnRate", "dailyReturnRate");
@@ -499,6 +523,10 @@ class LeagueLoggingTest {
   @ValueSource(booleans = {false, true})
   void weeklyFinalizationDistinguishesMissingCalendarAndPendingPrices(boolean missingCalendar) {
     var profile = profile();
+    ReflectionTestUtils.setField(
+        profile.getParticipations().getFirst(),
+        "startedAt",
+        WEEK.minusDays(3).atTime(15, 0).atZone(ZoneId.of("Asia/Seoul")).toInstant());
     given(profiles.findAllByLeagueEnabledAtIsNotNull()).willReturn(List.of(profile));
     List<MarketTradingDay> days =
         WEEK.datesUntil(WEEK.plusDays(missingCalendar ? 6 : 7))

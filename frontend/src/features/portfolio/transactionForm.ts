@@ -17,7 +17,25 @@ export function todayInSeoul() {
 export type TransactionFields = Record<
   Exclude<keyof PortfolioTransactionUpdateRequest, 'exchangeRate'>,
   string
-> & { exchangeRate?: string };
+> & { exchangeRate?: string; tradeTime?: string };
+
+export function getTransactionCostValidationError(
+  fields: Pick<TransactionFields, 'fee' | 'tax'>,
+  currency: 'KRW' | 'USD' = 'KRW',
+): { field: 'fee' | 'tax'; message: string } | null {
+  for (const key of ['fee', 'tax'] as const) {
+    if (!/^\d{1,15}(\.\d{1,2})?$/.test(fields[key]) || Number(fields[key]) < 0) {
+      return {
+        field: key,
+        message:
+          currency === 'KRW'
+            ? '수수료와 세금은 0원 이상, 소수점 둘째 자리까지 입력해 주세요.'
+            : '수수료와 세금은 0 USD 이상, 소수점 둘째 자리까지 입력해 주세요.',
+      };
+    }
+  }
+  return null;
+}
 export function getTransactionValidationError(
   fields: TransactionFields,
   currency: 'KRW' | 'USD' = 'KRW',
@@ -34,6 +52,9 @@ export function getTransactionValidationError(
       message: '거래일은 오늘 또는 과거의 올바른 날짜로 입력해 주세요.',
     };
   }
+  if (fields.tradeTime !== undefined && !/^([01]\d|2[0-3]):[0-5]\d$/.test(fields.tradeTime)) {
+    return { field: 'tradeTime', message: '거래 시간을 올바르게 입력해 주세요.' };
+  }
   if (
     !/^\d+$/.test(fields.quantity) ||
     !Number.isSafeInteger(Number(fields.quantity)) ||
@@ -49,26 +70,16 @@ export function getTransactionValidationError(
   ) {
     return { field: 'exchangeRate', message: '1 USD당 원화 환율을 0보다 크게 입력해 주세요.' };
   }
-  for (const key of ['unitPrice', 'fee', 'tax'] as const) {
-    const minimum = key === 'unitPrice' ? (currency === 'USD' ? 0.0001 : 0.01) : 0;
-    if (
-      !(key === 'unitPrice' ? /^\d{1,15}(\.\d{1,4})?$/ : /^\d{1,15}(\.\d{1,2})?$/).test(
-        fields[key],
-      ) ||
-      Number(fields[key]) < minimum
-    ) {
-      return {
-        field: key,
-        message:
-          key === 'unitPrice'
-            ? `거래 단가는 ${currency === 'USD' ? '0.0001' : '0.01'} ${currency} 이상, 소수점 넷째 자리까지 입력해 주세요.`
-            : currency === 'KRW'
-              ? '수수료와 세금은 0원 이상, 소수점 둘째 자리까지 입력해 주세요.'
-              : '수수료와 세금은 0 USD 이상, 소수점 둘째 자리까지 입력해 주세요.',
-      };
-    }
+  if (
+    !/^\d{1,15}(\.\d{1,4})?$/.test(fields.unitPrice) ||
+    Number(fields.unitPrice) < (currency === 'USD' ? 0.0001 : 0.01)
+  ) {
+    return {
+      field: 'unitPrice',
+      message: `거래 단가는 ${currency === 'USD' ? '0.0001' : '0.01'} ${currency} 이상, 소수점 넷째 자리까지 입력해 주세요.`,
+    };
   }
-  return null;
+  return getTransactionCostValidationError(fields, currency);
 }
 
 export function validateTransaction(

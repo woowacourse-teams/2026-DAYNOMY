@@ -87,9 +87,25 @@ function PeopleFinderSearch({
 }
 
 export function PeoplePage() {
-  const { people, loading, error, retry } = useFeaturedPeople();
   const [params, setParams] = useSearchParams();
   const selectedId = params.get('person');
+  const selectedNumber = selectedId === null ? undefined : Number(selectedId);
+  const personId =
+    selectedNumber !== undefined && Number.isSafeInteger(selectedNumber) && selectedNumber > 0
+      ? selectedNumber
+      : undefined;
+  const [pagination, setPagination] = useState({ person: selectedId, page: 1 });
+  // Reset before committing a view so a URL change cannot request the previous person's page.
+  if (pagination.person !== selectedId) setPagination({ person: selectedId, page: 1 });
+  const page = pagination.person === selectedId ? pagination.page : 1;
+  const {
+    people,
+    loading,
+    error,
+    retry,
+    totalElements,
+    totalPages: responseTotalPages,
+  } = useFeaturedPeople('people', page, 6, personId);
   const [finderOpen, setFinderOpen] = useState(false);
   const [finderLeft, setFinderLeft] = useState(0);
   const selectorRef = useRef<HTMLDivElement>(null);
@@ -187,10 +203,6 @@ export function PeoplePage() {
     };
   }, [finderOpen]);
 
-  const [pagination, setPagination] = useState({ person: selectedId, page: 1 });
-  // Reset before committing a view so a URL change cannot report the previous person's page.
-  if (pagination.person !== selectedId) setPagination({ person: selectedId, page: 1 });
-  const page = pagination.person === selectedId ? pagination.page : 1;
   const setPage = (next: number) => setPagination({ person: selectedId, page: next });
   const selected = people.find((person) => String(person.id) === selectedId);
   const items = useMemo(
@@ -215,18 +227,14 @@ export function PeoplePage() {
     setParams(next);
     setPagination({ person: id || null, page: 1 });
   }
-  const totalPages = Math.max(1, Math.ceil(items.length / 6));
+  const totalPages = Math.max(1, responseTotalPages);
   const currentPage = Math.min(page, totalPages);
-  const visibleItems = useMemo(
-    () => items.slice((currentPage - 1) * 6, currentPage * 6),
-    [items, currentPage],
-  );
 
   useContentView(!loading && !error, 'view_content_list', {
     surface: 'people',
     person_id: selected?.id ?? 'all',
     selection_valid: !selectedId || !!selected,
-    result_count: items.length,
+    result_count: totalElements,
     page_number: currentPage,
   });
   useContentView(
@@ -318,7 +326,13 @@ export function PeoplePage() {
             className="people-selector-item people-find-link"
             aria-expanded={finderOpen}
             aria-controls="people-finder"
-            onClick={() => setFinderOpen(!finderOpen)}
+            onClick={() => {
+              trackEvent('toggle_people_finder', {
+                surface: 'people',
+                expanded: !finderOpen,
+              });
+              setFinderOpen(!finderOpen);
+            }}
           >
             <span className="people-selector-avatar" aria-hidden="true">
               <svg viewBox="0 0 24 24">
@@ -373,6 +387,13 @@ export function PeoplePage() {
                     {selected.xProfileUrl && (
                       <a
                         href={selected.xProfileUrl}
+                        onClick={() =>
+                          trackEvent('click_person_profile', {
+                            surface: 'people',
+                            person_id: selected.id,
+                            source_type: 'X',
+                          })
+                        }
                         target="_blank"
                         rel="noreferrer"
                         aria-label="X 프로필 보기 (새 탭)"
@@ -396,6 +417,13 @@ export function PeoplePage() {
                     {selected.threadsProfileUrl && (
                       <a
                         href={selected.threadsProfileUrl}
+                        onClick={() =>
+                          trackEvent('click_person_profile', {
+                            surface: 'people',
+                            person_id: selected.id,
+                            source_type: 'THREADS',
+                          })
+                        }
                         target="_blank"
                         rel="noreferrer"
                         aria-label="Threads 프로필 보기 (새 탭)"
@@ -419,6 +447,13 @@ export function PeoplePage() {
                     {selected.youtubeProfileUrl && (
                       <a
                         href={selected.youtubeProfileUrl}
+                        onClick={() =>
+                          trackEvent('click_person_profile', {
+                            surface: 'people',
+                            person_id: selected.id,
+                            source_type: 'YOUTUBE',
+                          })
+                        }
                         target="_blank"
                         rel="noreferrer"
                         aria-label="YouTube 채널 보기 (새 탭)"
@@ -458,13 +493,13 @@ export function PeoplePage() {
                 surface="people"
                 key={`${selectedId ?? 'all'}-${currentPage}`}
                 offset={(currentPage - 1) * 6}
-                items={visibleItems}
+                items={items}
               />
             </>
           ) : (
             <p className="issue-state">아직 등록된 게시물이 없습니다.</p>
           )}
-          {items.length > 0 && (
+          {totalElements > 0 && (
             <IssuePagination
               analytics={{ surface: 'people', person_id: selected?.id ?? 'all' }}
               page={currentPage}

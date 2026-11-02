@@ -466,7 +466,7 @@ class LeagueRankingsLoadtestSeedTest {
         .get(publicPath + "/daily-history")
         .then()
         .statusCode(200)
-        .body("days", hasSize(5));
+        .body("days", hasSize(7));
 
     long memberId =
         jdbc.queryForObject(
@@ -569,10 +569,10 @@ class LeagueRankingsLoadtestSeedTest {
         .statusCode(200)
         .body("investors", hasSize(20));
     String shared = mine + "/shared-portfolio";
-    userApiClient(memberId).get(shared).then().statusCode(200).body("holdings", hasSize(5));
+    userApiClient(memberId).get(shared).then().statusCode(200).body("holdings", hasSize(7));
     long sourceAssetId =
         jdbc.queryForObject(
-            "SELECT h.asset_id FROM portfolio_holdings h JOIN portfolios p ON p.id=h.portfolio_id WHERE p.member_id=? AND NOT EXISTS (SELECT FROM shared_holdings s JOIN shared_portfolios sp ON sp.id=s.portfolio_id WHERE sp.member_id=p.member_id AND s.asset_id=h.asset_id) ORDER BY h.id LIMIT 1",
+            "SELECT h.asset_id FROM portfolio_holdings h JOIN portfolios p ON p.id=h.portfolio_id WHERE p.member_id=? ORDER BY h.id LIMIT 1",
             Long.class,
             memberId);
     userApiClient(memberId)
@@ -588,13 +588,13 @@ class LeagueRankingsLoadtestSeedTest {
                         "averagePurchasePrice",
                         10000,
                         "decision",
-                        Map.of("reason", "추가한 테스트 종목"))),
+                        Map.of("reason", "자동 반영한 테스트 종목"))),
                 "overwriteExisting",
-                false))
+                true))
         .post(shared + "/import")
         .then()
         .statusCode(200)
-        .body("holdings", hasSize(6));
+        .body("holdings", hasSize(7));
     userApiClient(memberId)
         .body(Map.of("hidden", true))
         .patch(shared + "/holdings/" + sourceAssetId + "/visibility")
@@ -603,8 +603,8 @@ class LeagueRankingsLoadtestSeedTest {
     userApiClient(memberId)
         .delete(shared + "/holdings/" + sourceAssetId)
         .then()
-        .statusCode(200)
-        .body("holdings", hasSize(5));
+        .statusCode(409)
+        .body("code", equalTo("SHARED_HOLDING_SOURCE_MANAGED"));
     assertThat(count("portfolio_holdings")).isEqualTo(7000);
     assertThatThrownBy(this::seed).isInstanceOf(SQLException.class).hasMessageContaining("이미 있습니다");
     assertThat(count("members")).isEqualTo(10001);

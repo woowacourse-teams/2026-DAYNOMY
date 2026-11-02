@@ -92,7 +92,7 @@ describe('첫 방문 서비스 소개', () => {
     expect(localStorage.getItem(SERVICE_STARTED_KEY)).toBe('1');
     cleanup();
     const revisit = render(<App />);
-    expect(await revisit.findByRole('button', { name: '거래 기록' })).toBeTruthy();
+    expect(await revisit.findByRole('button', { name: '종목 추가' })).toBeTruthy();
     expect(window.location.pathname).toBe('/');
   });
 
@@ -105,7 +105,7 @@ describe('첫 방문 서비스 소개', () => {
     );
     await waitFor(() => expect(localStorage.getItem(SERVICE_STARTED_KEY)).toBe('1'));
     fireEvent.click(view.getByRole('link', { name: '포트폴리오' }));
-    expect(await view.findByRole('button', { name: '거래 기록' })).toBeTruthy();
+    expect(await view.findByRole('button', { name: '종목 추가' })).toBeTruthy();
     expect(window.location.pathname).toBe('/');
   });
 
@@ -127,7 +127,7 @@ describe('첫 방문 서비스 소개', () => {
       await waitFor(() => expect(window.location.pathname).toBe('/'));
       finishAuth(response({}, 401));
 
-      expect(await view.findByRole('button', { name: '거래 기록' })).toBeTruthy();
+      expect(await view.findByRole('button', { name: '종목 추가' })).toBeTruthy();
       expect(window.location.pathname).toBe('/');
       expect(localStorage.getItem(SERVICE_STARTED_KEY)).toBe('1');
       expect(localStorage.getItem('daynomy:financial-plans:v1')).toBe('보존할 기록');
@@ -151,7 +151,7 @@ describe('첫 방문 서비스 소개', () => {
       }),
     );
     const view = render(<App />);
-    expect(await view.findByRole('button', { name: '거래 기록' })).toBeTruthy();
+    expect(await view.findByRole('button', { name: '종목 추가' })).toBeTruthy();
     expect(window.location.pathname).toBe('/');
     await waitFor(() => expect(localStorage.getItem(SERVICE_STARTED_KEY)).toBe('1'));
   });
@@ -165,7 +165,7 @@ describe('첫 방문 서비스 소개', () => {
     expect(view.container.querySelector('.service-header')).toBeNull();
     expect(view.container.querySelector('.daynomy-footer')).toBeNull();
     fireEvent.click(view.getByRole('button', { name: '시작하기' }));
-    expect(await view.findByRole('button', { name: '거래 기록' })).toBeTruthy();
+    expect(await view.findByRole('button', { name: '종목 추가' })).toBeTruthy();
   });
 
   it('모든 브라우저 저장소가 차단되어도 시작하기로 서비스에 들어간다', async () => {
@@ -181,7 +181,7 @@ describe('첫 방문 서비스 소개', () => {
     vi.stubGlobal('sessionStorage', blocked);
     const view = render(<App />);
     fireEvent.click(await view.findByRole('button', { name: '시작하기' }));
-    expect(await view.findByRole('button', { name: '거래 기록' })).toBeTruthy();
+    expect(await view.findByRole('button', { name: '종목 추가' })).toBeTruthy();
     expect(window.location.pathname).toBe('/');
   });
 

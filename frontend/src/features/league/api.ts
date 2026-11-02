@@ -191,6 +191,8 @@ function isPublicInvestor(value: unknown): value is PublicInvestor {
     isNullableNumber(performance.volatilityRate) &&
     isNullableNumber(performance.maxHoldingWeight) &&
     isPerformanceExtension(performance) &&
+    optionalDate(performance.asOfDate) &&
+    optionalDate(performance.rankingAsOfDate) &&
     (performance.weeklyRank === undefined ||
       performance.weeklyRank === null ||
       (Number.isInteger(performance.weeklyRank) && Number(performance.weeklyRank) > 0)) &&
@@ -398,7 +400,14 @@ function isDailyHistory(value: unknown): value is DailyHistory {
     if (calculated) begun = true;
     if (!calculated && (begun || day.status !== 'NOT_PARTICIPATING')) complete = false;
     if ((complete && calculated) !== (day.cumulativeReturnRate !== null)) return false;
-    if (calculated) {
+    if (calculated && day.reason === 'MARKET_CLOSED') {
+      if (
+        !asOfDate ||
+        day.dailyReturnRate !== 0 ||
+        day.cumulativeReturnRate !== latestCumulativeReturnRate
+      )
+        return false;
+    } else if (calculated && complete) {
       asOfDate = day.baseDate;
       latestCumulativeReturnRate = day.cumulativeReturnRate;
     }

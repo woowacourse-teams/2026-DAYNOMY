@@ -13,6 +13,7 @@ import org.slf4j.MDC;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
+import org.springframework.core.annotation.Order;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -50,6 +51,7 @@ public class LeagueReturnScheduler {
     }
   }
 
+  @Order(1)
   @EventListener(StockPriceSyncResult.class)
   public synchronized void recalculateAfterPriceSync(StockPriceSyncResult result) {
     if (pendingPriceFrom == null || result.earliestBaseDate().isBefore(pendingPriceFrom)) {

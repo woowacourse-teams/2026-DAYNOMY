@@ -3,6 +3,7 @@ import type { StockMarket, StockSearchItem } from '../stocks/types';
 export type PortfolioHoldingInput = StockSearchItem & {
   quantity: number;
   averagePurchasePrice: number;
+  nativeAveragePurchasePrice?: number | null;
 };
 
 export type PortfolioHoldingChangeType =
@@ -20,6 +21,7 @@ export type PortfolioTransactionUpdateRequest = {
 export type PortfolioTransactionRequest = PortfolioTransactionUpdateRequest & {
   assetId: number;
   type: PortfolioTransactionType;
+  tradeTime?: string;
 };
 export type PortfolioTransactionResponse = {
   transactionId: number;
@@ -34,7 +36,9 @@ export type PortfolioHoldingHistory = {
   changeType: PortfolioHoldingChangeType;
   quantity: number;
   averagePurchasePrice: number;
+  nativeAveragePurchasePrice?: number | null;
   effectiveDate: string;
+  tradeTime?: string | null;
   transactionQuantity: number | null;
   unitPrice: number | null;
   fee: number;
@@ -157,6 +161,8 @@ export type PortfolioAnalysisResponse = {
 };
 
 export type SavedPortfolioAnalysisResponse = {
+  remainingRefreshCount?: number;
+  refreshResetAt?: string;
   summaryStatus?: 'PENDING' | 'READY' | 'FAILED' | null;
   status: 'EMPTY' | 'READY' | 'PORTFOLIO_CHANGED' | 'PROCESSING' | 'RECHECK_REQUIRED' | 'FAILED';
   lastCheckOutcome: 'UPDATED' | 'UNCHANGED' | 'UNCONFIRMED' | null;

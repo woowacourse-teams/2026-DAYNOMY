@@ -4,6 +4,25 @@ export type AnalyticsParams = Record<string, string | number | boolean | undefin
 
 const analyticsPropertyKeys = new Set([
   'action',
+  'aggregation_reason',
+  'basis_relation',
+  'baseline_only',
+  'closed_day_count',
+  'collection_status',
+  'confirmed',
+  'delayed',
+  'has_expected_at',
+  'has_first_return_expected_at',
+  'has_rank',
+  'has_result',
+  'journey_source',
+  'market_scope',
+  'overwrite_existing',
+  'page',
+  'participating',
+  'pending_day_count',
+  'ready_to_join',
+  'source_managed_count',
   'analyzed_asset_count',
   'area',
   'asset_count',
@@ -88,6 +107,17 @@ const measurementId = import.meta.env?.GA_MEASUREMENT_ID;
 let initialized = false;
 let lastPageLocation = '';
 let currentPageReferrer = '';
+let lastLeagueVisitAt: number | undefined;
+
+// SPA 메모리에서만 30분간 리그 이후 행동을 구분한다. 계정·URL·투자 내역은 저장하지 않는다.
+function leagueJourney() {
+  const path = window.location.pathname;
+  if (/^\/league(?:\/|$)/.test(path) || path === '/portfolio/publication')
+    lastLeagueVisitAt = Date.now();
+  return lastLeagueVisitAt !== undefined && Date.now() - lastLeagueVisitAt < 30 * 60_000
+    ? { journey_source: 'league' }
+    : {};
+}
 
 function isPublicPage(pathname: string) {
   const section = pathname.split('/')[1]?.toLowerCase();
@@ -210,6 +240,7 @@ export function trackPageView(path: string) {
     page_referrer: pageReferrer,
   });
   const properties = {
+    ...leagueJourney(),
     page_path: new URL(pageLocation).pathname,
     page_location: pageLocation,
     page_referrer: pageReferrer,
@@ -222,9 +253,11 @@ export function trackEvent(name: string, params: AnalyticsParams = {}) {
   if (!canTrack()) return;
   initAnalytics();
   const properties = {
+    ...leagueJourney(),
     ...Object.fromEntries(
       Object.entries(params).filter(
-        ([key, value]) => analyticsPropertyKeys.has(key) && value !== undefined,
+        ([key, value]) =>
+          analyticsPropertyKeys.has(key) && key !== 'journey_source' && value !== undefined,
       ),
     ),
     page_path: new URL(cleanUrl(window.location.href)).pathname,

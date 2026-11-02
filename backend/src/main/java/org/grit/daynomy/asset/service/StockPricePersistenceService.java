@@ -92,6 +92,11 @@ public class StockPricePersistenceService {
           .findByIdForUpdate(baseDate)
           .ifPresent(day -> day.collected(java.time.Instant.now()));
     }
+    if (!markDomesticCalendar && !entries.isEmpty()) {
+      tradingDayRepository
+          .findByIdForUpdate(baseDate)
+          .ifPresent(day -> day.usCollected(java.time.Instant.now()));
+    }
     return new StockPriceSyncResult(
         baseDate, entries.size(), createdCount, updatedCount, skippedCount);
   }

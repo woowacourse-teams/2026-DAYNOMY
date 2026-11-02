@@ -131,7 +131,7 @@ public final class LeagueDto {
           transaction.getId(),
           transaction.getAsset().getId(),
           transaction.getAsset().getAssetCode(),
-          transaction.getAsset().getName(),
+          transaction.getAsset().getDisplayName(),
           transaction.getAsset().getCategory().name(),
           transaction.getTransactionType(),
           transaction.getQuantity(),
@@ -210,7 +210,9 @@ public final class LeagueDto {
       LocalDate eligibleFrom,
       BigDecimal currentHoldingWeight,
       int consecutiveRecordedWeeks,
-      Integer weeklyRank) {}
+      Integer weeklyRank,
+      LocalDate asOfDate,
+      LocalDate rankingAsOfDate) {}
 
   public record HistoryPointResponse(
       LocalDate weekStart,

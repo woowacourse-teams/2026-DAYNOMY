@@ -41,7 +41,8 @@ import { CardDesignPreviewPage } from './features/stock-content/CardDesignPrevie
 import { FeedbackWidget } from './features/feedback/FeedbackWidget';
 import { hasStartedService, rememberServiceStart } from './features/landing/startedService';
 import { loadGuestPortfolioHoldings } from './features/portfolio/portfolioHoldingsStorage';
-import { isStaffHostname, isUserHostname } from './serviceDomain';
+import { isAdminOnlyHostname, isUserHostname } from './serviceDomain';
+import { EmailSubscriptionPrompt } from './features/email-subscription/EmailSubscriptionPrompt';
 import './App.css';
 import './features/admin/admin.css';
 
@@ -123,7 +124,12 @@ function AdminRoute({ children }: { children: ReactNode }) {
     );
   }
 
-  return <AdminShell>{children}</AdminShell>;
+  return (
+    <AdminShell>
+      {children}
+      <FeedbackWidget variant="admin" />
+    </AdminShell>
+  );
 }
 
 function AuthenticatedRoute({ children }: { children: ReactNode }) {
@@ -221,15 +227,15 @@ function StaffAccessDeniedPage() {
 export function ServiceDomainBoundary({ children }: { children: ReactNode }) {
   const location = useLocation();
   const { isLoggedIn, loading, role } = useAuth();
-  const isStaff = isStaffHostname(window.location.hostname);
+  const isAdminOnlyDomain = isAdminOnlyHostname(window.location.hostname);
   const isAdminPath = location.pathname === '/admin' || location.pathname.startsWith('/admin/');
-  const isStaffPublicPath = ['/login', '/terms', '/privacy'].includes(location.pathname);
+  const isPublicPath = ['/login', '/terms', '/privacy'].includes(location.pathname);
 
   if (isUserHostname(window.location.hostname) && isAdminPath) {
     return <Navigate to="/" replace />;
   }
 
-  if (!isStaff || isStaffPublicPath) {
+  if (!isAdminOnlyDomain || isPublicPath) {
     return children;
   }
 
@@ -281,6 +287,7 @@ function AppContent() {
       <AnalyticsTracker />
       <ScrollToTop />
       <PostLoginRedirect />
+      <EmailSubscriptionPrompt />
       <div className="app-shell">
         {!awaitingWelcome && <AppHeader />}
         <LeagueNavigation />
