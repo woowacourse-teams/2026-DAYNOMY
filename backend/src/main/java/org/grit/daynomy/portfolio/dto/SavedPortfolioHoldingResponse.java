@@ -14,7 +14,9 @@ public record SavedPortfolioHoldingResponse(
     @Schema(description = "상장 시장", example = "KOSPI") StockMarket market,
     @Schema(description = "보유 수량(주)", example = "10") long quantity,
     @Schema(description = "원화(KRW) 기준 주당 평균 매입가", example = "70000.00")
-        BigDecimal averagePurchasePrice) {
+        BigDecimal averagePurchasePrice,
+    @Schema(description = "종목 통화 기준 평균 매입가. 과거 원가를 확인할 수 없으면 null", nullable = true)
+        BigDecimal nativeAveragePurchasePrice) {
   @Schema(description = "평균 매입가의 통화. 항상 KRW", example = "KRW")
   @com.fasterxml.jackson.annotation.JsonProperty("averagePurchasePriceCurrency")
   public String averagePurchasePriceCurrency() {
@@ -28,6 +30,11 @@ public record SavedPortfolioHoldingResponse(
   }
 
   public static SavedPortfolioHoldingResponse from(PortfolioHolding holding) {
+    return from(holding, holding.getNativeAveragePurchasePrice());
+  }
+
+  public static SavedPortfolioHoldingResponse from(
+      PortfolioHolding holding, BigDecimal nativeAveragePurchasePrice) {
     return new SavedPortfolioHoldingResponse(
         holding.getAsset().getId(),
         holding.getAsset().getAssetCode(),
@@ -35,6 +42,7 @@ public record SavedPortfolioHoldingResponse(
         holding.getAsset().getCategory(),
         holding.getAsset().getMarket(),
         holding.getQuantity(),
-        holding.getAveragePurchasePrice());
+        holding.getAveragePurchasePrice(),
+        nativeAveragePurchasePrice);
   }
 }

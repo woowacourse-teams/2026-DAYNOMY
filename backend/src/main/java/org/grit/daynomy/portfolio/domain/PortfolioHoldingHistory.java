@@ -51,6 +51,9 @@ public class PortfolioHoldingHistory extends BaseEntity {
   @Column(name = "average_purchase_price", nullable = false, precision = 19, scale = 2)
   private BigDecimal averagePurchasePrice;
 
+  @Column(name = "native_average_purchase_price", precision = 21, scale = 4)
+  private BigDecimal nativeAveragePurchasePrice;
+
   @Column(name = "effective_date", nullable = false)
   private LocalDate effectiveDate;
 
@@ -73,6 +76,7 @@ public class PortfolioHoldingHistory extends BaseEntity {
         changeType,
         holding.getQuantity(),
         holding.getAveragePurchasePrice());
+    this.nativeAveragePurchasePrice = holding.getNativeAveragePurchasePrice();
   }
 
   public PortfolioHoldingHistory(

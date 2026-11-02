@@ -127,6 +127,41 @@ class SavedPortfolioServiceTest {
     then(historyRepository).shouldHaveNoInteractions();
   }
 
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  void bulkUpdatesPublishOneSyncEventOnlyWhenHoldingsChange(boolean changed) {
+    Portfolio portfolio = mock(Portfolio.class);
+    given(portfolio.getId()).willReturn(10L);
+    Asset firstAsset = asset();
+    Asset secondAsset = asset();
+    org.springframework.test.util.ReflectionTestUtils.setField(secondAsset, "id", 3L);
+    var first = new PortfolioHolding(portfolio, firstAsset, 3L, new BigDecimal("10000"));
+    var second = new PortfolioHolding(portfolio, secondAsset, 3L, new BigDecimal("10000"));
+    given(portfolioRepository.findByMemberId(1L)).willReturn(Optional.of(portfolio));
+    given(portfolioRepository.findByIdForUpdate(10L)).willReturn(Optional.of(portfolio));
+    given(holdingRepository.findByPortfolioIdAndAssetId(10L, 2L)).willReturn(Optional.of(first));
+    given(holdingRepository.findByPortfolioIdAndAssetId(10L, 3L)).willReturn(Optional.of(second));
+
+    service.updateHoldings(
+        1L,
+        new org.grit.daynomy.portfolio.dto.PortfolioHoldingsUpdateRequest(
+            List.of(
+                new org.grit.daynomy.portfolio.dto.PortfolioHoldingsUpdateRequest.Holding(
+                    2L, changed ? 4L : 3L, new BigDecimal("10000"), null),
+                new org.grit.daynomy.portfolio.dto.PortfolioHoldingsUpdateRequest.Holding(
+                    3L, changed ? 5L : 3L, new BigDecimal("10000"), null))));
+
+    if (changed) {
+      then(events).should().publishEvent(new OriginalPortfolioChanged(1L));
+      then(historyRepository)
+          .should(org.mockito.Mockito.times(2))
+          .save(any(PortfolioHoldingHistory.class));
+    } else {
+      then(events).shouldHaveNoInteractions();
+      then(historyRepository).shouldHaveNoInteractions();
+    }
+  }
+
   @Test
   void removeHoldingRecordsRemovedHistory() {
     Portfolio portfolio = mock(Portfolio.class);
@@ -189,7 +224,7 @@ class SavedPortfolioServiceTest {
 
     var response = service.transact(1L, request);
 
-    then(holding).should().change(8L, new BigDecimal("70000.00"));
+    then(holding).should().change(8L, new BigDecimal("70000.00"), null);
     assertThat(response.totalRealizedProfitLoss()).isEqualByComparingTo("19700.00");
     ArgumentCaptor<PortfolioHoldingHistory> historyCaptor =
         ArgumentCaptor.forClass(PortfolioHoldingHistory.class);
@@ -252,7 +287,7 @@ class SavedPortfolioServiceTest {
     assertThat(history.getEffectiveDate()).isEqualTo(LocalDate.of(2026, 10, 1));
     assertThat(history.getTransactionQuantity()).isEqualTo(3L);
     assertThat(history.getUnitPrice()).isEqualByComparingTo("81000");
-    then(holding).should().change(3L, new BigDecimal("81000.00"));
+    then(holding).should().change(3L, new BigDecimal("81000.00"), null);
     then(snapshotTransactionService)
         .should()
         .refreshSnapshotsFrom(10L, LocalDate.of(2026, 9, 30), java.util.Map.of());
@@ -355,7 +390,7 @@ class SavedPortfolioServiceTest {
 
     then(historyRepository).should().delete(history);
     then(historyRepository).should().flush();
-    then(holding).should().change(5L, new BigDecimal("70000.00"));
+    then(holding).should().change(5L, new BigDecimal("70000.00"), null);
     assertThat(response.transactionId()).isEqualTo(7L);
     assertThat(response.totalRealizedProfitLoss()).isEqualByComparingTo("0");
     then(snapshotTransactionService)

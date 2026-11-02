@@ -11,6 +11,7 @@ export type GuestPortfolioHistory = PortfolioHoldingHistory &
 export type GuestPortfolioLedger = {
   openingHoldings: PortfolioHoldingInput[];
   histories: GuestPortfolioHistory[];
+  importFingerprints?: string[];
 };
 
 export function replayGuestPortfolio(ledger: GuestPortfolioLedger): PortfolioHoldingInput[] {
@@ -40,7 +41,31 @@ export function replayGuestPortfolio(ledger: GuestPortfolioLedger): PortfolioHol
         transactionUnits(item, false);
       const denominator = BigInt(quantity) * 100000000n;
       const averagePurchasePrice = Number(roundDivide(cost, denominator)) / 100;
-      positions.set(item.assetId, { ...stock, quantity, averagePurchasePrice });
+      const previousNative = current
+        ? stockCurrency(current) === 'KRW'
+          ? current.averagePurchasePrice
+          : current.nativeAveragePurchasePrice
+        : 0;
+      const nativeAveragePurchasePrice =
+        previousNative == null
+          ? null
+          : Number(
+              roundDivide(
+                scaled(previousNative, 4) * BigInt(current?.quantity ?? 0) +
+                  scaled(item.unitPrice!, 4) * BigInt(item.transactionQuantity!) +
+                  scaled(item.fee, 4) +
+                  scaled(item.tax, 4),
+                BigInt(quantity),
+              ),
+            ) / 10000;
+      positions.set(item.assetId, {
+        ...stock,
+        quantity,
+        averagePurchasePrice,
+        ...(stockCurrency(stock) === 'USD' && nativeAveragePurchasePrice != null
+          ? { nativeAveragePurchasePrice }
+          : {}),
+      });
     } else if (item.changeType === 'SELL') {
       if (!current || current.quantity < item.transactionQuantity!) {
         throw new Error(
@@ -55,6 +80,9 @@ export function replayGuestPortfolio(ledger: GuestPortfolioLedger): PortfolioHol
         ...stock,
         quantity: item.quantity,
         averagePurchasePrice: item.averagePurchasePrice,
+        ...(item.nativeAveragePurchasePrice != null
+          ? { nativeAveragePurchasePrice: item.nativeAveragePurchasePrice }
+          : {}),
       });
     }
   }
@@ -64,7 +92,7 @@ export function replayGuestPortfolio(ledger: GuestPortfolioLedger): PortfolioHol
 export function guestHoldingHistory(
   ledger: GuestPortfolioLedger,
   holding: PortfolioHoldingInput,
-  changeType: 'ADJUSTED' | 'REMOVED',
+  changeType: 'ADJUSTED' | 'REMOVED' | 'OPENING_BALANCE',
 ): GuestPortfolioHistory {
   return {
     ...holding,
@@ -119,13 +147,14 @@ export function guestTransactionHistory(
   };
 }
 
+function scaled(value: number, scale: number) {
+  const [whole, fraction = ''] = String(value).split('.');
+  return (
+    BigInt(whole) * 10n ** BigInt(scale) + BigInt((fraction + '0'.repeat(scale)).slice(0, scale))
+  );
+}
+
 function transactionUnits(item: GuestPortfolioHistory, sell: boolean) {
-  const scaled = (value: number, scale: number) => {
-    const [whole, fraction = ''] = String(value).split('.');
-    return (
-      BigInt(whole) * 10n ** BigInt(scale) + BigInt((fraction + '0'.repeat(scale)).slice(0, scale))
-    );
-  };
   const gross = scaled(item.unitPrice!, 4) * BigInt(item.transactionQuantity!);
   const fees = scaled(item.fee, 4) + scaled(item.tax, 4);
   const native = sell ? gross - fees : gross + fees;

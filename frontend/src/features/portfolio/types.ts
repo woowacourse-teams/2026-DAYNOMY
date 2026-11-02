@@ -3,6 +3,7 @@ import type { StockMarket, StockSearchItem } from '../stocks/types';
 export type PortfolioHoldingInput = StockSearchItem & {
   quantity: number;
   averagePurchasePrice: number;
+  nativeAveragePurchasePrice?: number | null;
 };
 
 export type PortfolioHoldingChangeType =
@@ -35,6 +36,7 @@ export type PortfolioHoldingHistory = {
   changeType: PortfolioHoldingChangeType;
   quantity: number;
   averagePurchasePrice: number;
+  nativeAveragePurchasePrice?: number | null;
   effectiveDate: string;
   tradeTime?: string | null;
   transactionQuantity: number | null;
