@@ -16,6 +16,7 @@ import { getMyInvestorProfile } from './api';
 import { leagueErrorType, trackLeagueEvent } from './analytics';
 import type { InvestorProfile, InvestmentDecisionInput, InvestmentDecisionRecord } from './types';
 import { useLeaguePageHeading } from './useLeaguePageHeading';
+import { LeagueReviewReminder } from './LeagueReviewReminder';
 
 const won = (value: number | null) =>
   value === null
@@ -35,7 +36,6 @@ export function SharedPortfolioPage() {
   const [retry, setRetry] = useState(0);
   const [source, setSource] = useState<SourceHolding[] | null>(null);
   const [selection, setSelection] = useState<number[]>([]);
-  const [overwrite, setOverwrite] = useState(false);
   const [records, setRecords] = useState<InvestmentDecisionRecord[] | null>(null);
   const [recordRefresh, setRecordRefresh] = useState(0);
   const [importReasons, setImportReasons] = useState<Record<number, string>>({});
@@ -201,7 +201,6 @@ export function SharedPortfolioPage() {
           .filter((h) => !data?.holdings.some((s) => s.assetId === h.assetId))
           .map((h) => h.assetId),
       );
-      setOverwrite(false);
       setImportReasons({});
       trackLeagueEvent('league_action', {
         surface: 'source_holdings',
@@ -221,8 +220,10 @@ export function SharedPortfolioPage() {
       setBusy(false);
     }
   }
-  const selected = (source ?? []).filter((h) => selection.includes(h.assetId));
-  const conflicts = selected.filter((h) => data?.holdings.some((s) => s.assetId === h.assetId));
+  const availableSource = (source ?? []).filter(
+    (holding) => !data?.holdings.some((existing) => existing.assetId === holding.assetId),
+  );
+  const selected = availableSource.filter((holding) => selection.includes(holding.assetId));
   const detailsPublic = profile?.profilePublic && profile.detailPublic;
   const selectedStatus = profileLoading
     ? '공개 확인 중'
@@ -252,7 +253,7 @@ export function SharedPortfolioPage() {
           invalidationCondition: '',
           maximumAcceptableLossRate: null,
         };
-    const saved = await importSharedHoldings(selected, overwrite, decisions);
+    const saved = await importSharedHoldings(selected, false, decisions);
     setRecordRefresh((value) => value + 1);
     return saved;
   }
@@ -305,6 +306,10 @@ export function SharedPortfolioPage() {
               <button onClick={() => setProfileRetry((value) => value + 1)}>다시 확인</button>
             </p>
           ) : null}
+          <LeagueReviewReminder
+            records={records}
+            onReviewed={() => setRecordRefresh((value) => value + 1)}
+          />
           {source ? (
             <section
               className="shared-panel shared-import-panel"
@@ -331,14 +336,14 @@ export function SharedPortfolioPage() {
                           <label className="shared-import-row">
                             <input
                               type="checkbox"
-                              checked={selection.includes(h.assetId)}
+                              disabled={Boolean(existing)}
+                              checked={!existing && selection.includes(h.assetId)}
                               onChange={() => {
                                 setSelection((ids) =>
                                   ids.includes(h.assetId)
                                     ? ids.filter((id) => id !== h.assetId)
                                     : [...ids, h.assetId],
                                 );
-                                setOverwrite(false);
                               }}
                             />
                             <span>
@@ -351,16 +356,9 @@ export function SharedPortfolioPage() {
                               <small>
                                 {h.quantity}주 · 평균 {won(h.averagePurchasePrice)}
                               </small>
-                              {existing ? (
-                                <small>
-                                  리그: {existing.quantity}주 · 평균{' '}
-                                  {won(existing.averagePurchasePrice)}
-                                  {existing.hidden ? ' · 숨김' : ''}
-                                </small>
-                              ) : null}
                             </span>
                           </label>
-                          {selection.includes(h.assetId) && !hasReason(h.assetId) ? (
+                          {!existing && selection.includes(h.assetId) && !hasReason(h.assetId) ? (
                             <label className="shared-import-reason">
                               {h.assetName} 보유 이유 (필수)
                               <textarea
@@ -385,28 +383,18 @@ export function SharedPortfolioPage() {
                     })}
                   </fieldset>
                   <p id={importGuidanceId} role="status">
-                    {selected.length === 0
-                      ? '추가할 종목을 선택해 주세요.'
-                      : missingImportReasons.length > 0
-                        ? `${missingImportReasons.length}개 종목의 보유 이유를 작성해 주세요.`
-                        : '선택한 종목을 추가할 수 있어요.'}
+                    {availableSource.length === 0
+                      ? '추가할 새 종목이 없어요.'
+                      : selected.length === 0
+                        ? '추가할 종목을 선택해 주세요.'
+                        : missingImportReasons.length > 0
+                          ? `${missingImportReasons.length}개 종목의 보유 이유를 작성해 주세요.`
+                          : '선택한 종목을 추가할 수 있어요.'}
                   </p>
-                  {conflicts.length > 0 ? (
-                    <label className="shared-confirm">
-                      <input
-                        type="checkbox"
-                        disabled={busy}
-                        checked={overwrite}
-                        onChange={(event) => setOverwrite(event.target.checked)}
-                      />
-                      등록된 {conflicts.length}개 종목의 수량·평균 매수가를 업데이트합니다. 공개
-                      여부와 보유 이유는 유지됩니다.
-                    </label>
-                  ) : null}
                 </>
               )}
               <div className="shared-form-actions">
-                {source.length > 0 ? (
+                {availableSource.length > 0 ? (
                   <button
                     className="shared-primary-button"
                     aria-describedby={importGuidanceId}
@@ -416,15 +404,14 @@ export function SharedPortfolioPage() {
                       profileLoading ||
                       profileError ||
                       selected.length === 0 ||
-                      missingImportReasons.length > 0 ||
-                      (conflicts.length > 0 && !overwrite)
+                      missingImportReasons.length > 0
                     }
                     onClick={() =>
                       void mutate(
                         importSelection,
                         `${selected.length}개 종목을 추가했습니다.`,
                         'import_holdings',
-                        { overwrite_existing: overwrite },
+                        { overwrite_existing: false },
                       )
                     }
                   >

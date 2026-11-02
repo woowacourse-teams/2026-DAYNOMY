@@ -19,6 +19,7 @@ import { IssuePagination } from '../news/issue/IssuePagination';
 import '../news/issue/issue.css';
 import './league.css';
 import { useLeaguePageHeading } from './useLeaguePageHeading';
+import { LeagueReviewReminder } from './LeagueReviewReminder';
 
 const emptyCollectionStates: Partial<
   Record<CollectionStatus, { title: string; description: string }>
@@ -310,6 +311,7 @@ export function LeaguePage() {
           ) : null}
         </div>
       </header>
+      {isLoggedIn && memberId ? <LeagueReviewReminder key={memberId} /> : null}
       <section className="league-controls" aria-label="리그 조회 조건">
         <LeagueWeekNavigation
           weeks={weeks}
