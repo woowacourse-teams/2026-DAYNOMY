@@ -87,6 +87,7 @@ class LeagueReturnServiceTest {
               assertThat(value.getBaseDate()).isBetween(monday, monday.plusDays(1));
             });
     assertThat(investor.getTrackingStartedOn()).isEqualTo(monday);
+    then(holdingRepository).should().hasActiveUsHolding(1L);
   }
 
   @Test

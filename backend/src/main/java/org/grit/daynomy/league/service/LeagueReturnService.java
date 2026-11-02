@@ -298,14 +298,14 @@ public class LeagueReturnService {
       if (starting != null && day.getBaseDate().isBefore(starting)) continue;
       LeagueParticipation period =
           profile.getParticipations().stream()
-              .filter(value -> value.contains(closeForProfile(profile, day)))
+              .filter(value -> value.contains(closeForProfile(usRelevant, day)))
               .findFirst()
               .orElse(null);
       if (period == null) continue;
       if (firstCalculated == null) firstCalculated = day.getBaseDate();
       if (starting != null && checked.add(period)) {
         LocalDate first = period.calculationStartedAt().atZone(SEOUL).toLocalDate();
-        if (period.calculationStartedAt().isAfter(closeForProfile(profile, day))) {
+        if (period.calculationStartedAt().isAfter(closeForProfile(usRelevant, day))) {
           first = first.plusDays(1);
         }
         LocalDate prior = day.getBaseDate().minusDays(1);
@@ -313,7 +313,8 @@ public class LeagueReturnService {
             && returnRepository.existsLatestEligibleByPortfolioIdAndBaseDateBetween(
                 portfolio.getId(), first, prior)) baselined.add(period);
       }
-      PortfolioDailyReturn value = calculate(portfolio, day, !baselined.contains(period), period);
+      PortfolioDailyReturn value =
+          calculate(portfolio, day, !baselined.contains(period), period, usRelevant);
       outcomes.merge(
           value.isEligible() ? "CALCULATED" : value.getIneligibleReason(), 1, Integer::sum);
       if (value.isEligible()) {
@@ -330,7 +331,8 @@ public class LeagueReturnService {
       SharedPortfolio portfolio,
       MarketTradingDay day,
       boolean baseline,
-      LeagueParticipation period) {
+      LeagueParticipation period,
+      boolean usRelevant) {
     LocalDate baseDate = day.getBaseDate();
     PortfolioDailyReturn previousResult =
         returnRepository
@@ -347,7 +349,7 @@ public class LeagueReturnService {
       return exclude(result, previousResult, "PRICE_COLLECTION_PENDING", calculatedAt);
     boolean imported = period.getPerformanceStartedAt() != null;
     if (imported
-        && closeForProfile(period.getProfile(), day).isBefore(period.getStartedAt())
+        && closeForProfile(usRelevant, day).isBefore(period.getStartedAt())
         && (previousResult == null || !previousResult.isEligible())
         && !snapshotRepository.existsByPortfolioMemberIdAndBaseDate(
             period.getProfile().getMember().getId(), baseDate))
@@ -453,10 +455,8 @@ public class LeagueReturnService {
     return result;
   }
 
-  private Instant closeForProfile(InvestorProfile profile, MarketTradingDay day) {
-    return holdingRepository.hasActiveUsHolding(profile.getMember().getId())
-        ? day.leagueClosesAt()
-        : day.closesAt();
+  private Instant closeForProfile(boolean usRelevant, MarketTradingDay day) {
+    return usRelevant ? day.leagueClosesAt() : day.closesAt();
   }
 
   private List<SharedHoldingHistory> marketHoldings(

@@ -44,6 +44,10 @@ class SharedPortfolioServiceTest {
   @Mock private MarketTradingDayRepository tradingDayRepository;
   @Mock private LeagueRankingCache rankingCache;
   @Mock private LeagueAutoSyncService autoSyncService;
+  @Mock private org.grit.daynomy.member.repository.MemberRepository memberRepository;
+  @Mock private org.grit.daynomy.asset.repository.AssetRepository assetRepository;
+  @Mock private org.grit.daynomy.league.repository.InvestorProfileRepository profileRepository;
+  @Mock private org.grit.daynomy.league.repository.SharedHoldingHistoryRepository historyRepository;
   @Mock private org.grit.daynomy.portfolio.repository.PortfolioHoldingRepository originalHoldings;
   @InjectMocks private SharedPortfolioService service;
 
@@ -137,6 +141,79 @@ class SharedPortfolioServiceTest {
     assertThat(response.holdings().getFirst().closePrice()).isEqualByComparingTo("100");
     assertThat(response.holdings().getFirst().evaluationAmount()).isEqualByComparingTo("130000");
     assertThat(response.totalReturnRate()).isEqualByComparingTo("8.33");
+  }
+
+  @ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+  void importsUseCurrentSourceValuesAndPreserveVisibilityWithoutTransientHistory(
+      boolean alreadyShared) {
+    var owner = mock(Member.class);
+    var portfolio = SharedPortfolio.create(owner);
+    ReflectionTestUtils.setField(portfolio, "id", 2L);
+    var asset = asset(3L);
+    var source =
+        new org.grit.daynomy.portfolio.domain.PortfolioHolding(
+            mock(org.grit.daynomy.portfolio.domain.Portfolio.class),
+            asset,
+            2,
+            new BigDecimal("100"));
+    given(memberRepository.findByIdForUpdate(1L)).willReturn(Optional.of(owner));
+    given(portfolioRepository.findByMemberId(1L)).willReturn(Optional.of(portfolio));
+    given(originalHoldings.findAllByPortfolioMemberId(1L)).willReturn(List.of(source));
+    var shared = new SharedHolding(portfolio, asset, 2, new BigDecimal("100"));
+    if (alreadyShared) {
+      shared.changeVisibility(true);
+      given(holdingRepository.findByPortfolioIdAndAssetId(2L, 3L)).willReturn(Optional.of(shared));
+    } else {
+      given(assetRepository.findById(3L)).willReturn(Optional.of(asset));
+    }
+    service.importHoldings(
+        1L,
+        new org.grit.daynomy.league.dto.SharedPortfolioDto.ImportRequest(
+            List.of(
+                new org.grit.daynomy.league.dto.SharedPortfolioDto.HoldingInput(
+                    3L, 999, new BigDecimal("1"), null)),
+            true));
+    if (alreadyShared) {
+      assertThat(shared.getQuantity()).isEqualTo(2);
+      assertThat(shared.getAveragePurchasePrice()).isEqualByComparingTo("100");
+      assertThat(shared.isHidden()).isTrue();
+      then(historyRepository).shouldHaveNoInteractions();
+      then(holdingRepository).should(org.mockito.Mockito.never()).save(any());
+    } else {
+      var stored = org.mockito.ArgumentCaptor.forClass(SharedHolding.class);
+      then(holdingRepository).should().save(stored.capture());
+      assertThat(stored.getValue().getQuantity()).isEqualTo(2);
+      assertThat(stored.getValue().getAveragePurchasePrice()).isEqualByComparingTo("100");
+      then(historyRepository).should().save(any());
+    }
+  }
+
+  @Test
+  void importRejectsAssetsNotOwnedInTheSourceBeforeWritingHistory() {
+    var owner = mock(Member.class);
+    var portfolio = SharedPortfolio.create(owner);
+    ReflectionTestUtils.setField(portfolio, "id", 2L);
+    given(memberRepository.findByIdForUpdate(1L)).willReturn(Optional.of(owner));
+    given(portfolioRepository.findByMemberId(1L)).willReturn(Optional.of(portfolio));
+    org.assertj.core.api.Assertions.assertThatThrownBy(
+            () ->
+                service.importHoldings(
+                    1L,
+                    new org.grit.daynomy.league.dto.SharedPortfolioDto.ImportRequest(
+                        List.of(
+                            new org.grit.daynomy.league.dto.SharedPortfolioDto.HoldingInput(
+                                3L, 1, BigDecimal.TEN, null)),
+                        true)))
+        .isInstanceOfSatisfying(
+            org.grit.daynomy.common.exception.BusinessException.class,
+            error ->
+                assertThat(error.errorCode())
+                    .isEqualTo(
+                        org.grit.daynomy.portfolio.exception.PortfolioErrorCode
+                            .PORTFOLIO_HOLDING_NOT_FOUND));
+    then(historyRepository).shouldHaveNoInteractions();
+    then(holdingRepository).should(org.mockito.Mockito.never()).save(any());
   }
 
   private Asset asset(Long id) {

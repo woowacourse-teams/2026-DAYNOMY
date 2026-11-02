@@ -272,6 +272,50 @@ class SharedPortfolioAcceptanceTest {
   }
 
   @Test
+  void unchangedSharedReadsDoNotWaitForTheMemberWriteLock() throws Exception {
+    Member owner = member();
+    Asset asset = asset();
+    sourceHolding(owner, asset, 2, "100");
+    client(owner).get(SHARED).then().statusCode(200).body("holdings", hasSize(1));
+    var requests = List.of(client(owner), client(owner), client(owner));
+    try (var executor = Executors.newFixedThreadPool(3);
+        var connection =
+            DriverManager.getConnection(
+                POSTGRESQL.getJdbcUrl(), POSTGRESQL.getUsername(), POSTGRESQL.getPassword())) {
+      connection.setAutoCommit(false);
+      try {
+        try (var statement =
+            connection.prepareStatement("SELECT id FROM members WHERE id=? FOR UPDATE")) {
+          statement.setLong(1, owner.getId());
+          try (var rows = statement.executeQuery()) {
+            assertThat(rows.next()).isTrue();
+          }
+        }
+        var calls =
+            requests.stream()
+                .map(
+                    request ->
+                        executor.submit(
+                            () ->
+                                request
+                                    .get(SHARED)
+                                    .then()
+                                    .statusCode(200)
+                                    .body("holdings[0].quantity", equalTo(2))))
+                .toList();
+        for (var call : calls) call.get(5, TimeUnit.SECONDS);
+      } finally {
+        connection.rollback();
+      }
+    }
+    jdbc.update(
+        "UPDATE portfolio_holdings SET quantity=3 WHERE asset_id=? AND portfolio_id=(SELECT id FROM portfolios WHERE member_id=?)",
+        asset.getId(),
+        owner.getId());
+    client(owner).get(SHARED).then().statusCode(200).body("holdings[0].quantity", equalTo(3));
+  }
+
+  @Test
   void swaggerRemainsPublicInJsonAndYaml() {
     for (String path : List.of("/v3/api-docs", "/v3/api-docs.yaml", "/swagger-ui/index.html")) {
       given().port(port).get(path).then().statusCode(200);
@@ -457,6 +501,7 @@ class SharedPortfolioAcceptanceTest {
   void editsOwnedReasonAndPreservesRecordReviewsAndHoldings() {
     Member owner = member();
     Asset asset = asset();
+    sourceHolding(owner, asset, 2, "100");
     client(owner)
         .body(
             Map.of(
@@ -548,6 +593,7 @@ class SharedPortfolioAcceptanceTest {
   void reasonEditsPreserveOriginalRequestAcrossDatabaseReloads() {
     Member owner = member();
     Asset asset = asset();
+    sourceHolding(owner, asset, 2, "100");
     client(owner)
         .body(
             Map.of(
@@ -648,6 +694,7 @@ class SharedPortfolioAcceptanceTest {
   void newParticipantHasPartialReturnAndEntersThatWeeksRankings() {
     Member owner = member();
     Asset asset = asset();
+    sourceHolding(owner, asset, 1, "100");
     client(owner)
         .body(
             """
@@ -795,6 +842,14 @@ class SharedPortfolioAcceptanceTest {
         Member.createGoogleMember(key, key + "@example.invalid", key.substring(0, 12), null));
   }
 
+  private void sourceHolding(Member owner, Asset asset, long quantity, String price) {
+    Portfolio source =
+        originals
+            .findByMemberId(owner.getId())
+            .orElseGet(() -> originals.save(Portfolio.create(owner)));
+    originalHoldings.save(new PortfolioHolding(source, asset, quantity, new BigDecimal(price)));
+  }
+
   private Asset asset() {
     String code = UUID.randomUUID().toString();
     return assets.save(
@@ -858,6 +913,7 @@ class SharedPortfolioAcceptanceTest {
   void holidayWeekFinalizesAfterLastTradingDayAndKeepsVersionsAndCurrentConsent() {
     Member owner = member();
     Asset stock = asset();
+    sourceHolding(owner, stock, 1, "100");
     client(owner)
         .body(
             Map.of(
@@ -1124,6 +1180,7 @@ class SharedPortfolioAcceptanceTest {
         .ifValidationFails()
         .statusCode(400)
         .body("code", equalTo("LEAGUE_HOLDINGS_REQUIRED"));
+    sourceHolding(owner, first, 2, "70000");
     client(owner)
         .body(
             Map.of(
@@ -1177,6 +1234,7 @@ class SharedPortfolioAcceptanceTest {
         .log()
         .ifValidationFails()
         .statusCode(200);
+    sourceHolding(owner, second, 1, "10000");
     client(owner)
         .body(
             Map.of(
@@ -1210,13 +1268,12 @@ class SharedPortfolioAcceptanceTest {
         .log()
         .ifValidationFails()
         .statusCode(400);
-    client(owner)
-        .get(SHARED)
-        .then()
-        .log()
-        .ifValidationFails()
-        .statusCode(200)
-        .body("holdings", hasSize(1));
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT COUNT(*) FROM shared_holdings h JOIN shared_portfolios p ON p.id=h.portfolio_id WHERE p.member_id=?",
+                Integer.class,
+                owner.getId()))
+        .isEqualTo(1);
     client(owner)
         .get("/api/users/me/portfolio/transactions")
         .then()
@@ -1377,18 +1434,22 @@ class SharedPortfolioAcceptanceTest {
         .isEqualTo(1);
 
     client(owner)
-        .body(request.replace("false", "true").replace("\"quantity\":10", "\"quantity\":20"))
+        .body(
+            request
+                .replace("false", "true")
+                .replace("\"quantity\":10", "\"quantity\":20")
+                .replace("70000", "1"))
         .post(SHARED + "/import")
         .then()
         .statusCode(200)
-        .body("holdings[0].quantity", equalTo(20));
+        .body("holdings[0].quantity", equalTo(10));
     assertThat(
             jdbc.queryForObject(
                 "SELECT COUNT(*) FROM shared_holding_histories WHERE portfolio_id ="
                     + " (SELECT id FROM shared_portfolios WHERE member_id = ?)",
                 Integer.class,
                 owner.getId()))
-        .isEqualTo(2);
+        .isEqualTo(1);
     assertThat(
             originalHoldings
                 .findByPortfolioIdAndAssetId(original.getId(), asset.getId())
@@ -1436,11 +1497,13 @@ class SharedPortfolioAcceptanceTest {
 
   @ParameterizedTest
   @ValueSource(
-      strings = {"SHARED_IMPORT_CONFLICT", "DUPLICATE_SHARED_ASSET", "INVALID_LEAGUE_ASSET"})
+      strings = {"SHARED_IMPORT_CONFLICT", "DUPLICATE_SHARED_ASSET", "PORTFOLIO_HOLDING_NOT_FOUND"})
   void failedBatchImportRollsBackEarlierHoldingsAndHistory(String errorCode) {
     Member owner = member();
     Asset existing = asset();
     Asset added = asset();
+    sourceHolding(owner, existing, 10, "70000");
+    sourceHolding(owner, added, 5, "70000");
     String holding = "{\"assetId\":%d,\"quantity\":%d,\"averagePurchasePrice\":70000}";
     client(owner)
         .body(
@@ -1450,7 +1513,8 @@ class SharedPortfolioAcceptanceTest {
         .then()
         .statusCode(200);
     boolean overwrite = !errorCode.equals("SHARED_IMPORT_CONFLICT");
-    long failingAssetId = errorCode.equals("INVALID_LEAGUE_ASSET") ? Long.MAX_VALUE : added.getId();
+    long failingAssetId =
+        errorCode.equals("PORTFOLIO_HOLDING_NOT_FOUND") ? Long.MAX_VALUE : added.getId();
 
     client(owner)
         .body(
@@ -1462,16 +1526,14 @@ class SharedPortfolioAcceptanceTest {
                     overwrite))
         .post(SHARED + "/import")
         .then()
-        .statusCode(overwrite ? 400 : 409)
+        .statusCode(errorCode.equals("PORTFOLIO_HOLDING_NOT_FOUND") ? 404 : overwrite ? 400 : 409)
         .body("code", equalTo(errorCode));
 
-    client(owner)
-        .get(SHARED)
-        .then()
-        .statusCode(200)
-        .body("holdings", hasSize(1))
-        .body("holdings[0].assetId", equalTo(existing.getId().intValue()))
-        .body("holdings[0].quantity", equalTo(10));
+    assertThat(
+            jdbc.queryForList(
+                "SELECT h.asset_id,h.quantity FROM shared_holdings h JOIN shared_portfolios p ON p.id=h.portfolio_id WHERE p.member_id=?",
+                owner.getId()))
+        .containsExactly(Map.of("asset_id", existing.getId(), "quantity", 10L));
     assertThat(
             jdbc.queryForObject(
                 "SELECT COUNT(*) FROM shared_holding_histories WHERE portfolio_id ="

@@ -63,7 +63,7 @@ public interface SharedHoldingRepository extends JpaRepository<SharedHolding, Lo
         JOIN public_investor_profiles p ON p.member_id = sp.member_id
         JOIN assets a ON a.id = h.asset_id
         WHERE p.league_enabled = TRUE
-          AND a.market IN ('KOSPI', 'KOSDAQ')
+          AND (a.market IS NULL OR a.market IN ('KOSPI', 'KOSDAQ'))
       )
       """,
       nativeQuery = true)
@@ -77,7 +77,7 @@ public interface SharedHoldingRepository extends JpaRepository<SharedHolding, Lo
       JOIN public_investor_profiles p ON p.member_id = sp.member_id
       JOIN assets a ON a.id = h.asset_id
       WHERE p.league_enabled = TRUE
-        AND a.market IN ('KOSPI', 'KOSDAQ')
+        AND (a.market IS NULL OR a.market IN ('KOSPI', 'KOSDAQ'))
       """,
       nativeQuery = true)
   List<Long> findActiveDomesticLeagueMemberIds();
@@ -94,7 +94,7 @@ public interface SharedHoldingRepository extends JpaRepository<SharedHolding, Lo
         SELECT 1 FROM shared_holdings h JOIN shared_portfolios sp ON sp.id = h.portfolio_id
         JOIN assets a ON a.id = h.asset_id
         WHERE sp.member_id = :memberId
-          AND a.market IN ('KOSPI', 'KOSDAQ')
+          AND (a.market IS NULL OR a.market IN ('KOSPI', 'KOSDAQ'))
       )
       """,
       nativeQuery = true)

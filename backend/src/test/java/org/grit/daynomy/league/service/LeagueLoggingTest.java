@@ -103,6 +103,7 @@ class LeagueLoggingTest {
   @Mock private LeagueCalculationMetrics metrics;
   @Mock private EntityManager entityManager;
   @Mock private AssetRepository assets;
+  @Mock private org.grit.daynomy.portfolio.repository.PortfolioHoldingRepository originalHoldings;
   @Mock private PlatformTransactionManager transactionManager;
   @Mock private LeagueService finalization;
   @Mock private LeagueAggregationService aggregationService;
@@ -142,7 +143,16 @@ class LeagueLoggingTest {
             decisionService,
             rankingCache,
             mock(LeagueAutoSyncService.class),
-            mock(org.grit.daynomy.portfolio.repository.PortfolioHoldingRepository.class));
+            originalHoldings);
+  }
+
+  private org.grit.daynomy.portfolio.domain.PortfolioHolding sourceHolding(
+      Long assetId, long quantity, String price) {
+    return new org.grit.daynomy.portfolio.domain.PortfolioHolding(
+        mock(org.grit.daynomy.portfolio.domain.Portfolio.class),
+        asset(assetId),
+        quantity,
+        new BigDecimal(price));
   }
 
   @AfterEach
@@ -226,6 +236,12 @@ class LeagueLoggingTest {
             });
     given(holdings.findAllByPortfolioIdOrderById(2L)).willReturn(values);
 
+    given(originalHoldings.findAllByPortfolioMemberId(1L))
+        .willReturn(
+            List.of(
+                sourceHolding(3L, 2, "100"),
+                sourceHolding(4L, 4, "200"),
+                sourceHolding(5L, 7, "333.33")));
     sharedService.importHoldings(
         1L,
         new ImportRequest(
@@ -265,6 +281,8 @@ class LeagueLoggingTest {
             });
     given(decisions.save(any(InvestmentDecision.class))).willAnswer(call -> call.getArgument(0));
     var input = new HoldingInput(3L, 2, BigDecimal.TEN, decisionRequest());
+    given(originalHoldings.findAllByPortfolioMemberId(1L))
+        .willReturn(List.of(sourceHolding(3L, 2, "10")));
 
     assertThatThrownBy(
             () -> sharedService.importHoldings(1L, new ImportRequest(List.of(input, input), false)))

@@ -51,6 +51,8 @@ class LeagueRankingRepositoryTest {
 
   @Autowired private TestEntityManager entityManager;
   @Autowired private PortfolioDailyReturnRepository returns;
+  @Autowired private SharedHoldingRepository holdings;
+  @Autowired private org.grit.daynomy.portfolio.repository.PortfolioHoldingRepository originals;
   @Autowired private InvestorProfileRepository profiles;
   @Autowired private InvestmentDecisionRepository decisions;
 
@@ -279,6 +281,118 @@ class LeagueRankingRepositoryTest {
     entityManager.flush();
     assertThat(returns.findEarliestPendingPriceDateByMemberIdIn(List.of(first.getMember().getId())))
         .isEmpty();
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.NullSource
+  @org.junit.jupiter.params.provider.EnumSource(
+      value = org.grit.daynomy.asset.domain.StockMarket.class,
+      names = {"KOSPI", "KOSDAQ"})
+  void domesticMarketsIncludeLegacyNullAndRespectActiveParticipation(
+      org.grit.daynomy.asset.domain.StockMarket market) {
+    var mixed = portfolio("mixed");
+    var onlyUs = portfolio("only-us");
+    var profile =
+        InvestorProfile.create(
+            mixed.getMember(), "mixed", "", ExperienceLevel.BEGINNER, RiskProfile.BALANCED);
+    profile.changePublication(true, true, false, false, Instant.now());
+    entityManager.persist(profile);
+    var usProfile =
+        InvestorProfile.create(
+            onlyUs.getMember(), "only-us", "", ExperienceLevel.BEGINNER, RiskProfile.BALANCED);
+    usProfile.changePublication(true, true, false, false, Instant.now());
+    entityManager.persist(usProfile);
+    var kr =
+        entityManager.persist(
+            Asset.listedStock(
+                "domestic", "KR-legacy", market, "KR-legacy", LocalDate.of(2026, 10, 19)));
+    var us =
+        entityManager.persist(
+            Asset.listedStock(
+                "us",
+                "US-test",
+                org.grit.daynomy.asset.domain.StockMarket.NASDAQ,
+                "US-test",
+                LocalDate.of(2026, 10, 19)));
+    entityManager.persist(
+        new org.grit.daynomy.league.domain.SharedHolding(mixed, kr, 1, BigDecimal.TEN));
+    entityManager.persist(
+        new org.grit.daynomy.league.domain.SharedHolding(mixed, us, 1, BigDecimal.TEN));
+    entityManager.persist(
+        new org.grit.daynomy.league.domain.SharedHolding(onlyUs, us, 1, BigDecimal.TEN));
+    entityManager.flush();
+    assertThat(holdings.existsActiveDomesticLeagueHolding()).isTrue();
+    assertThat(holdings.findActiveDomesticLeagueMemberIds())
+        .containsExactly(mixed.getMember().getId());
+    assertThat(holdings.hasOnlyUsHoldings(mixed.getMember().getId())).isFalse();
+    assertThat(holdings.hasOnlyUsHoldings(onlyUs.getMember().getId())).isTrue();
+    profile.changePublication(true, false, false, false, Instant.now());
+    entityManager.flush();
+    assertThat(holdings.existsActiveDomesticLeagueHolding()).isFalse();
+    assertThat(holdings.findActiveDomesticLeagueMemberIds()).isEmpty();
+  }
+
+  @Test
+  void readReconciliationComparesActualMembershipQuantityAndPriceForOnlyTheOwner() {
+    var shared = portfolio("sync-check");
+    var original =
+        entityManager.persist(
+            org.grit.daynomy.portfolio.domain.Portfolio.create(shared.getMember()));
+    var asset =
+        entityManager.persist(
+            Asset.listedStock("source", "KR-sync", null, "KR-sync", LocalDate.of(2026, 10, 19)));
+    var source =
+        entityManager.persist(
+            new org.grit.daynomy.portfolio.domain.PortfolioHolding(
+                original, asset, 1, BigDecimal.TEN));
+    entityManager.flush();
+    Long memberId = shared.getMember().getId();
+    assertThat(originals.hasSharedPortfolioChanges(memberId)).isTrue();
+    var copy =
+        entityManager.persist(
+            new org.grit.daynomy.league.domain.SharedHolding(
+                shared, asset, 1, new BigDecimal("10.00")));
+    copy.changeVisibility(true);
+    copy.awaitReason();
+    entityManager.flush();
+    assertThat(originals.hasSharedPortfolioChanges(memberId)).isFalse();
+    source.change(2, BigDecimal.TEN);
+    entityManager.flush();
+    assertThat(originals.hasSharedPortfolioChanges(memberId)).isTrue();
+    copy.change(2, BigDecimal.TEN);
+    entityManager.flush();
+    assertThat(originals.hasSharedPortfolioChanges(memberId)).isFalse();
+    source.change(2, new BigDecimal("11"));
+    entityManager.flush();
+    assertThat(originals.hasSharedPortfolioChanges(memberId)).isTrue();
+    copy.change(2, new BigDecimal("11"));
+    entityManager.flush();
+    assertThat(originals.hasSharedPortfolioChanges(memberId)).isFalse();
+    var other = portfolio("other-sync");
+    var otherOriginal =
+        entityManager.persist(
+            org.grit.daynomy.portfolio.domain.Portfolio.create(other.getMember()));
+    entityManager.persist(
+        new org.grit.daynomy.portfolio.domain.PortfolioHolding(
+            otherOriginal, asset, 99, BigDecimal.TEN));
+    var unlisted =
+        entityManager.persist(new Asset("unlisted", AssetCategory.STOCK, "unlisted-sync"));
+    entityManager.persist(
+        new org.grit.daynomy.portfolio.domain.PortfolioHolding(
+            original, unlisted, 1, BigDecimal.TEN));
+    entityManager.flush();
+    assertThat(originals.hasSharedPortfolioChanges(memberId)).isFalse();
+    entityManager.remove(source);
+    entityManager.flush();
+    assertThat(originals.hasSharedPortfolioChanges(memberId)).isTrue();
+    entityManager.remove(copy);
+    entityManager.flush();
+    assertThat(originals.hasSharedPortfolioChanges(memberId)).isFalse();
+    var legacy = portfolio("legacy-no-source");
+    entityManager.persist(
+        new org.grit.daynomy.league.domain.SharedHolding(legacy, asset, 1, BigDecimal.TEN));
+    entityManager.flush();
+    assertThat(originals.hasSharedPortfolioChanges(legacy.getMember().getId())).isFalse();
   }
 
   private SharedPortfolio portfolio(String name) {

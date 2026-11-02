@@ -88,6 +88,7 @@ class LeagueServiceTest {
   @Mock private InvestorFollowRepository followRepository;
   @Mock private MemberRepository memberRepository;
   @Mock private StockDailyPriceRepository priceRepository;
+  @Mock private org.grit.daynomy.exchangerate.repository.UsdKrwRateRepository exchangeRates;
   @Mock private StockPriceService stockPriceService;
   @Mock private MarketTradingDayRepository tradingDayRepository;
   @Mock private WeeklyLeaderboardRepository leaderboardRepository;
@@ -753,8 +754,19 @@ class LeagueServiceTest {
     var monday = dailyReturn(portfolio, week, "10");
     var tuesday = dailyReturn(portfolio, week.plusDays(1), "-10");
     var nextMonday = dailyReturn(portfolio, week.plusWeeks(1), "2");
-    calendar(week, List.of(week, week.plusDays(1)));
-    calendar(week.plusWeeks(1), List.of(week.plusWeeks(1)));
+    given(tradingDayRepository.findAllByBaseDateBetweenOrderByBaseDate(any(), any()))
+        .willAnswer(
+            call -> {
+              LocalDate from = call.getArgument(0);
+              LocalDate to = call.getArgument(1);
+              return from.datesUntil(to.plusDays(1))
+                  .map(
+                      date ->
+                          List.of(week, week.plusDays(1), week.plusWeeks(1)).contains(date)
+                              ? tradingDay(date)
+                              : new MarketTradingDay(date, false))
+                  .toList();
+            });
     given(
             leaderboardRepository.findFirstByWeekStartAndLeagueTypeOrderByCalculationVersionDesc(
                 week, LeagueTypes.LeagueType.WEEKLY_RETURN))
@@ -1267,10 +1279,6 @@ class LeagueServiceTest {
     lenient()
         .when(holdingRepository.findActiveDomesticLeagueMemberIds())
         .thenReturn(usOnly ? List.of() : List.of(2L));
-    given(holdingRepository.hasActiveUsHolding(2L)).willReturn(usOnly);
-    given(holdingRepository.hasOnlyUsHoldings(2L)).willReturn(usOnly);
-    given(holdingRepository.existsActiveUsLeagueHolding()).willReturn(usOnly);
-    if (usOnly) given(holdingRepository.existsActiveDomesticLeagueHolding()).willReturn(false);
     given(tradingDayRepository.findAllByBaseDateBetweenOrderByBaseDate(any(), any()))
         .willAnswer(
             call -> {
@@ -1309,6 +1317,11 @@ class LeagueServiceTest {
               assertThat(day.dailyReturnRate()).isZero();
               assertThat(day.cumulativeReturnRate()).isEqualByComparingTo("10");
             });
+    then(holdingRepository).should(times(2)).findActiveUsLeagueMemberIds();
+    then(holdingRepository).should(never()).hasActiveUsHolding(any());
+    then(holdingRepository).should(never()).hasOnlyUsHoldings(any());
+    then(holdingRepository).should(never()).existsActiveUsLeagueHolding();
+    then(holdingRepository).should(never()).existsActiveDomesticLeagueHolding();
   }
 
   @Test
@@ -1476,6 +1489,110 @@ class LeagueServiceTest {
     var day = new MarketTradingDay(date, true);
     day.collected(date.atTime(17, 0).atZone(ZoneId.of("Asia/Seoul")).toInstant());
     return day;
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void profileAndHistoryClearRequestMarketCacheAfterAnException(boolean daily) {
+    for (int call = 0; call < 2; call++) {
+      assertThatThrownBy(
+              () -> {
+                if (daily) service.dailyHistory("missing", null);
+                else service.publicInvestor(null, "missing");
+              })
+          .isInstanceOf(BusinessException.class);
+    }
+    then(holdingRepository).should(times(2)).findActiveUsLeagueMemberIds();
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void usdDetailAndAllocationRequireTheActualCloseDateRate(boolean fallback) {
+    var seoul = ZoneId.of("Asia/Seoul");
+    LocalDate week = LocalDate.now(seoul).with(DayOfWeek.MONDAY).minusWeeks(1);
+    var portfolio = dailyProfile(week.minusWeeks(1));
+    var profile = profileRepository.findByPublicIdAndProfilePublicTrue("investor-1").orElseThrow();
+    profile.changePublication(true, true, true, true, Instant.now());
+    var asset =
+        Asset.listedStock(
+            "미국 종목", "AAPL.US", org.grit.daynomy.asset.domain.StockMarket.NASDAQ, "US-test", week);
+    org.springframework.test.util.ReflectionTestUtils.setField(asset, "id", 4L);
+    given(holdingRepository.findActiveUsLeagueMemberIds()).willReturn(List.of(2L));
+    given(holdingRepository.findAllByPortfolioIdOrderById(3L))
+        .willReturn(List.of(new SharedHolding(portfolio, asset, 1, new BigDecimal("100000"))));
+    var day = new MarketTradingDay(week, true);
+    day.collected(day.closesAt().plusSeconds(1));
+    day.usCollected(day.usClosesAt().plusSeconds(1));
+    given(tradingDayRepository.findAllByBaseDateBetweenOrderByBaseDate(any(), any()))
+        .willAnswer(
+            call -> {
+              LocalDate from = call.getArgument(0);
+              LocalDate to = call.getArgument(1);
+              return !week.isBefore(from) && !week.isAfter(to) ? List.of(day) : List.of();
+            });
+    given(tradingDayRepository.findAllByTradingTrueAndBaseDateLessThanEqualOrderByBaseDate(any()))
+        .willReturn(List.of(day, day, day));
+    given(
+            priceRepository.findFirstByAssetIdAndBaseDateLessThanEqualOrderByBaseDateDesc(
+                eq(4L), any()))
+        .willReturn(Optional.of(new StockDailyPrice(asset, week, new BigDecimal("100"))));
+    given(exchangeRates.findById(week))
+        .willReturn(
+            Optional.of(
+                new org.grit.daynomy.exchangerate.domain.UsdKrwRate(
+                    week, fallback ? week.minusDays(3) : week, new BigDecimal("1300"))));
+    var detail = service.investorDetail("investor-1");
+    var response = service.publicInvestor(null, "investor-1");
+    if (fallback) {
+      assertThat(detail.holdings().getFirst().weight()).isNull();
+      assertThat(detail.holdings().getFirst().returnRate()).isNull();
+      assertThat(response.allocation()).isNull();
+    } else {
+      assertThat(detail.holdings().getFirst().weight()).isEqualByComparingTo("100");
+      assertThat(detail.holdings().getFirst().returnRate()).isEqualByComparingTo("30");
+      assertThat(response.allocation()).isNotNull();
+    }
+    then(holdingRepository).should(times(2)).findActiveUsLeagueMemberIds();
+    then(holdingRepository).should(never()).existsActiveUsLeagueHolding();
+    then(holdingRepository).should(never()).existsActiveDomesticLeagueHolding();
+    then(holdingRepository).should(never()).hasActiveUsHolding(any());
+    then(holdingRepository).should(never()).hasOnlyUsHoldings(any());
+  }
+
+  @Test
+  void historyOfAPublicNonParticipantUsesItsUsHoldingsWithoutChangingLeagueMarkets() {
+    var seoul = ZoneId.of("Asia/Seoul");
+    LocalDate week = LocalDate.now(seoul).with(DayOfWeek.MONDAY).minusWeeks(1);
+    var portfolio = dailyProfile(week.minusDays(3));
+    var profile = profileRepository.findByPublicIdAndProfilePublicTrue("investor-1").orElseThrow();
+    profile.changePublication(
+        true, false, false, false, week.plusWeeks(1).atStartOfDay(seoul).toInstant());
+    given(holdingRepository.hasActiveUsHolding(2L)).willReturn(true);
+    given(holdingRepository.hasOnlyUsHoldings(2L)).willReturn(true);
+    given(tradingDayRepository.findAllByBaseDateBetweenOrderByBaseDate(any(), any()))
+        .willAnswer(
+            call -> {
+              LocalDate from = call.getArgument(0);
+              LocalDate to = call.getArgument(1);
+              return from.datesUntil(to.plusDays(1))
+                  .map(
+                      date -> {
+                        var day = new MarketTradingDay(date, false);
+                        day.reviseUsTrading(date.equals(week));
+                        if (Boolean.TRUE.equals(day.getUsTrading()))
+                          day.usCollected(day.usClosesAt().plusSeconds(1));
+                        return day;
+                      })
+                  .toList();
+            });
+    given(returnRepository.findLatestByPortfolioIdAndBaseDateBetween(3L, week, week.plusDays(6)))
+        .willReturn(List.of(dailyReturn(portfolio, week, "10")));
+    var response = service.dailyHistory("investor-1", week);
+    assertThat(response.weeklyReturnRate()).isEqualByComparingTo("10");
+    assertThat(response.days().getFirst().status())
+        .isEqualTo(LeagueTypes.DailyReturnStatus.CALCULATED);
+    then(holdingRepository).should().hasActiveUsHolding(2L);
+    then(holdingRepository).should().hasOnlyUsHoldings(2L);
   }
 
   private List<MarketTradingDay> calendar(LocalDate week, List<LocalDate> open) {

@@ -127,6 +127,7 @@ public class LeagueService {
       new ThreadLocal<>();
   private final ThreadLocal<List<MarketTradingDay>> rankingCalendarDays = new ThreadLocal<>();
   private final ThreadLocal<Set<Long>> calculationUsMembers = new ThreadLocal<>();
+  private final ThreadLocal<ProfileMarkets> calculationProfileMarkets = new ThreadLocal<>();
   private final ThreadLocal<Set<Long>> calculationDomesticMembers = new ThreadLocal<>();
 
   @Transactional(readOnly = true)
@@ -737,169 +738,208 @@ public class LeagueService {
 
   @Transactional(readOnly = true)
   public PublicInvestorResponse publicInvestor(Long viewerMemberId, String publicId) {
-    InvestorProfile profile = getPublicProfile(publicId);
-    LocalDate weekStart = normalizeWeek(null);
-    RankedProfile ranked = metrics(profile, weekStart);
-    Metric metric = ranked.metric();
-    List<HistoryPointResponse> history = history(profile, weekStart);
-    return new PublicInvestorResponse(
-        profile.getPublicId(),
-        profile.getDisplayName(),
-        profile.getBio(),
-        profile.getExperienceLevel(),
-        profile.getRiskProfile(),
-        performance(profile, metric, history.getLast()),
-        profile.isAllocationPublic() ? allocation(profile.getMember().getId()) : null,
-        history,
-        ranked.decisionCount(),
-        ranked.reviewCompletionRate(),
-        isFollowed(viewerMemberId, profile.getId()),
-        profile.isDetailPublic(),
-        profile.getMember().getProfileImageUrl());
+    boolean ownsMarketCache = calculationUsMembers.get() == null;
+    boolean ownsCalendarCache = rankingCalendarCache.get() == null;
+    ProfileMarkets previousProfileMarkets = calculationProfileMarkets.get();
+    try {
+      if (ownsMarketCache) cacheCalculationMarkets();
+      if (ownsCalendarCache) rankingCalendarCache.set(new HashMap<>());
+      InvestorProfile profile = getPublicProfile(publicId);
+      if (!profile.isLeagueEnabled()) {
+        calculationProfileMarkets.set(
+            new ProfileMarkets(
+                profile.memberId(),
+                holdingRepository.hasActiveUsHolding(profile.memberId()),
+                !holdingRepository.hasOnlyUsHoldings(profile.memberId())));
+      }
+      LocalDate weekStart = normalizeWeek(null);
+      RankedProfile ranked = metrics(profile, weekStart);
+      Metric metric = ranked.metric();
+      List<HistoryPointResponse> history = history(profile, weekStart);
+      return new PublicInvestorResponse(
+          profile.getPublicId(),
+          profile.getDisplayName(),
+          profile.getBio(),
+          profile.getExperienceLevel(),
+          profile.getRiskProfile(),
+          performance(profile, metric, history.getLast()),
+          profile.isAllocationPublic() ? allocation(profile.getMember().getId()) : null,
+          history,
+          ranked.decisionCount(),
+          ranked.reviewCompletionRate(),
+          isFollowed(viewerMemberId, profile.getId()),
+          profile.isDetailPublic(),
+          profile.getMember().getProfileImageUrl());
+    } finally {
+      if (ownsCalendarCache) rankingCalendarCache.remove();
+      if (ownsMarketCache) clearCalculationMarkets();
+      if (previousProfileMarkets == null) calculationProfileMarkets.remove();
+      else calculationProfileMarkets.set(previousProfileMarkets);
+    }
   }
 
   @Transactional(readOnly = true)
   public DailyHistoryResponse dailyHistory(String publicId, LocalDate requestedWeek) {
-    InvestorProfile profile = getPublicProfile(publicId);
-    LocalDate weekStart = normalizeWeek(requestedWeek);
-    validateWeek(weekStart);
-    LocalDate weekEnd = weekStart.plusDays(6);
-    LocalDate eligibleFrom = profile.eligibleFrom();
-    LocalDate start = weeklyStart(profile, weekStart);
-    SharedPortfolio portfolio =
-        portfolioRepository.findByMemberId(profile.getMember().getId()).orElse(null);
-    Map<LocalDate, PortfolioDailyReturn> values =
-        portfolio == null ? Map.of() : dailyValues(portfolio.getId(), weekStart, weekEnd);
-    List<DailyReturnPointResponse> days = new ArrayList<>();
-    List<PortfolioDailyReturn> calculated = new ArrayList<>();
-    boolean complete = true;
-    boolean begun = false;
-    LocalDate asOf = null;
-    Map<LocalDate, MarketTradingDay> marketDays =
-        calendar(weekStart, weekEnd).stream()
-            .collect(Collectors.toMap(MarketTradingDay::getBaseDate, day -> day));
-    LocalDate calculationEnd =
-        marketDays.values().stream()
-            .filter(
-                day -> profileRelevantTrading(profile, day) && profileFullyCollected(profile, day))
-            .filter(day -> !profileClose(profile, day).isAfter(Instant.now()))
-            .map(MarketTradingDay::getBaseDate)
-            .max(LocalDate::compareTo)
-            .orElse(null);
-    boolean awaitingData = false;
-    for (LocalDate date = weekStart; !date.isAfter(weekEnd); date = date.plusDays(1)) {
-      MarketTradingDay marketDay = marketDays.get(date);
-      PortfolioDailyReturn value = values.get(date);
-      DailyReturnStatus status;
-      String reason = null;
-      boolean afterCalculationEnd = calculationEnd == null || date.isAfter(calculationEnd);
-      if (!participates(profile, date) || date.isBefore(start)) {
-        status = DailyReturnStatus.NOT_PARTICIPATING;
-        if (begun && !afterCalculationEnd) complete = false;
-      } else if (date.isAfter(LocalDate.now(SEOUL))) {
-        status = DailyReturnStatus.PENDING;
-        reason = "FUTURE_DATE";
-      } else if (marketDay == null
-          || (hasActiveUsHolding(profile.memberId()) && marketDay.getUsTrading() == null)) {
-        status = DailyReturnStatus.PENDING;
-        reason = "CALENDAR_PENDING";
-        complete = false;
-        awaitingData = true;
-      } else if (!profileRelevantTrading(profile, marketDay)) {
-        status =
-            begun && complete && !awaitingData
-                ? DailyReturnStatus.CALCULATED
-                : DailyReturnStatus.PENDING;
-        reason = "MARKET_CLOSED";
-      } else if (afterCalculationEnd) {
-        awaitingData = true;
-        status =
-            value != null && !value.isEligible()
-                ? DailyReturnStatus.EXCLUDED
-                : DailyReturnStatus.PENDING;
-        reason = value != null ? value.getIneligibleReason() : "PRICE_COLLECTION_PENDING";
-      } else if (value != null && value.isEligible()) {
-        status = DailyReturnStatus.CALCULATED;
-        if (value.isTrackingBaseline()) reason = "TRACKING_BASELINE";
-        if (complete && !awaitingData) {
-          asOf = date;
-          calculated.add(value);
-        }
-        begun = true;
-      } else if (value != null) {
-        reason = value.getIneligibleReason();
-        status =
-            "SNAPSHOT_PENDING".equals(reason)
-                ? DailyReturnStatus.PENDING
-                : DailyReturnStatus.EXCLUDED;
-        complete = false;
-      } else {
-        status = DailyReturnStatus.PENDING;
-        complete = false;
+    boolean ownsMarketCache = calculationUsMembers.get() == null;
+    boolean ownsCalendarCache = rankingCalendarCache.get() == null;
+    ProfileMarkets previousProfileMarkets = calculationProfileMarkets.get();
+    try {
+      if (ownsMarketCache) cacheCalculationMarkets();
+      if (ownsCalendarCache) rankingCalendarCache.set(new HashMap<>());
+      InvestorProfile profile = getPublicProfile(publicId);
+      if (!profile.isLeagueEnabled()) {
+        calculationProfileMarkets.set(
+            new ProfileMarkets(
+                profile.memberId(),
+                holdingRepository.hasActiveUsHolding(profile.memberId()),
+                !holdingRepository.hasOnlyUsHoldings(profile.memberId())));
       }
-      days.add(
-          new DailyReturnPointResponse(
-              date,
-              status == DailyReturnStatus.CALCULATED
-                  ? "MARKET_CLOSED".equals(reason) ? BigDecimal.ZERO : value.getDailyReturnRate()
-                  : null,
-              complete && begun && status == DailyReturnStatus.CALCULATED
-                  ? chainedReturn(calculated)
-                  : null,
-              status,
-              reason));
+      LocalDate weekStart = normalizeWeek(requestedWeek);
+      validateWeek(weekStart);
+      LocalDate weekEnd = weekStart.plusDays(6);
+      LocalDate eligibleFrom = profile.eligibleFrom();
+      LocalDate start = weeklyStart(profile, weekStart);
+      SharedPortfolio portfolio =
+          portfolioRepository.findByMemberId(profile.getMember().getId()).orElse(null);
+      Map<LocalDate, PortfolioDailyReturn> values =
+          portfolio == null ? Map.of() : dailyValues(portfolio.getId(), weekStart, weekEnd);
+      List<DailyReturnPointResponse> days = new ArrayList<>();
+      List<PortfolioDailyReturn> calculated = new ArrayList<>();
+      boolean complete = true;
+      boolean begun = false;
+      LocalDate asOf = null;
+      Map<LocalDate, MarketTradingDay> marketDays =
+          calendar(weekStart, weekEnd).stream()
+              .collect(Collectors.toMap(MarketTradingDay::getBaseDate, day -> day));
+      LocalDate calculationEnd =
+          marketDays.values().stream()
+              .filter(
+                  day ->
+                      profileRelevantTrading(profile, day) && profileFullyCollected(profile, day))
+              .filter(day -> !profileClose(profile, day).isAfter(Instant.now()))
+              .map(MarketTradingDay::getBaseDate)
+              .max(LocalDate::compareTo)
+              .orElse(null);
+      boolean awaitingData = false;
+      for (LocalDate date = weekStart; !date.isAfter(weekEnd); date = date.plusDays(1)) {
+        MarketTradingDay marketDay = marketDays.get(date);
+        PortfolioDailyReturn value = values.get(date);
+        DailyReturnStatus status;
+        String reason = null;
+        boolean afterCalculationEnd = calculationEnd == null || date.isAfter(calculationEnd);
+        if (!participates(profile, date) || date.isBefore(start)) {
+          status = DailyReturnStatus.NOT_PARTICIPATING;
+          if (begun && !afterCalculationEnd) complete = false;
+        } else if (date.isAfter(LocalDate.now(SEOUL))) {
+          status = DailyReturnStatus.PENDING;
+          reason = "FUTURE_DATE";
+        } else if (marketDay == null
+            || (hasActiveUsHolding(profile.memberId()) && marketDay.getUsTrading() == null)) {
+          status = DailyReturnStatus.PENDING;
+          reason = "CALENDAR_PENDING";
+          complete = false;
+          awaitingData = true;
+        } else if (!profileRelevantTrading(profile, marketDay)) {
+          status =
+              begun && complete && !awaitingData
+                  ? DailyReturnStatus.CALCULATED
+                  : DailyReturnStatus.PENDING;
+          reason = "MARKET_CLOSED";
+        } else if (afterCalculationEnd) {
+          awaitingData = true;
+          status =
+              value != null && !value.isEligible()
+                  ? DailyReturnStatus.EXCLUDED
+                  : DailyReturnStatus.PENDING;
+          reason = value != null ? value.getIneligibleReason() : "PRICE_COLLECTION_PENDING";
+        } else if (value != null && value.isEligible()) {
+          status = DailyReturnStatus.CALCULATED;
+          if (value.isTrackingBaseline()) reason = "TRACKING_BASELINE";
+          if (complete && !awaitingData) {
+            asOf = date;
+            calculated.add(value);
+          }
+          begun = true;
+        } else if (value != null) {
+          reason = value.getIneligibleReason();
+          status =
+              "SNAPSHOT_PENDING".equals(reason)
+                  ? DailyReturnStatus.PENDING
+                  : DailyReturnStatus.EXCLUDED;
+          complete = false;
+        } else {
+          status = DailyReturnStatus.PENDING;
+          complete = false;
+        }
+        days.add(
+            new DailyReturnPointResponse(
+                date,
+                status == DailyReturnStatus.CALCULATED
+                    ? "MARKET_CLOSED".equals(reason) ? BigDecimal.ZERO : value.getDailyReturnRate()
+                    : null,
+                complete && begun && status == DailyReturnStatus.CALCULATED
+                    ? chainedReturn(calculated)
+                    : null,
+                status,
+                reason));
+      }
+      BigDecimal weekly = calculated.isEmpty() ? null : chainedReturn(calculated);
+      WeeklyLeaderboard result = finalized(weekStart);
+      boolean confirmed =
+          result != null
+              && complete
+              && !awaitingData
+              && weekly != null
+              && result.getEntries().stream()
+                  .anyMatch(
+                      entry ->
+                          entry.profileId().equals(profile.getId())
+                              && entry.weeklyReturnRate().compareTo(weekly) == 0);
+      DailyHistoryResponse response =
+          new DailyHistoryResponse(
+              weekStart,
+              weekEnd,
+              asOf,
+              eligibleFrom,
+              confirmed,
+              weekly,
+              days,
+              profile.getTrackingStartedOn(),
+              collectionStatus(weekStart),
+              confirmed
+                  ? null
+                  : hasActiveUsHolding(profile.getMember().getId())
+                      ? aggregationService.investor(
+                          weekStart,
+                          profile,
+                          values,
+                          true,
+                          hasDomesticHolding(profile.getMember().getId()))
+                      : aggregationService.investor(weekStart, profile, values));
+      log.atDebug()
+          .addKeyValue("event", LogEvent.LEAGUE_DAILY_HISTORY_LOADED.code())
+          .addKeyValue("profileId", profile.getId())
+          .addKeyValue("weekStart", weekStart)
+          .addKeyValue("asOfDate", response.asOfDate())
+          .addKeyValue("confirmed", response.confirmed())
+          .addKeyValue("collectionStatus", response.collectionStatus())
+          .addKeyValue("displayedDayCount", days.size())
+          .addKeyValue(
+              "tradingDayCount",
+              (int)
+                  marketDays.values().stream()
+                      .filter(day -> profileRelevantTrading(profile, day))
+                      .filter(day -> !profileClose(profile, day).isAfter(Instant.now()))
+                      .count())
+          .addKeyValue("calculatedDayCount", calculated.size())
+          .log(LogEvent.LEAGUE_DAILY_HISTORY_LOADED.message());
+      return response;
+    } finally {
+      if (ownsCalendarCache) rankingCalendarCache.remove();
+      if (ownsMarketCache) clearCalculationMarkets();
+      if (previousProfileMarkets == null) calculationProfileMarkets.remove();
+      else calculationProfileMarkets.set(previousProfileMarkets);
     }
-    BigDecimal weekly = calculated.isEmpty() ? null : chainedReturn(calculated);
-    WeeklyLeaderboard result = finalized(weekStart);
-    boolean confirmed =
-        result != null
-            && complete
-            && !awaitingData
-            && weekly != null
-            && result.getEntries().stream()
-                .anyMatch(
-                    entry ->
-                        entry.profileId().equals(profile.getId())
-                            && entry.weeklyReturnRate().compareTo(weekly) == 0);
-    DailyHistoryResponse response =
-        new DailyHistoryResponse(
-            weekStart,
-            weekEnd,
-            asOf,
-            eligibleFrom,
-            confirmed,
-            weekly,
-            days,
-            profile.getTrackingStartedOn(),
-            collectionStatus(weekStart),
-            confirmed
-                ? null
-                : holdingRepository.hasActiveUsHolding(profile.getMember().getId())
-                    ? aggregationService.investor(
-                        weekStart,
-                        profile,
-                        values,
-                        true,
-                        !holdingRepository.hasOnlyUsHoldings(profile.getMember().getId()))
-                    : aggregationService.investor(weekStart, profile, values));
-    log.atDebug()
-        .addKeyValue("event", LogEvent.LEAGUE_DAILY_HISTORY_LOADED.code())
-        .addKeyValue("profileId", profile.getId())
-        .addKeyValue("weekStart", weekStart)
-        .addKeyValue("asOfDate", response.asOfDate())
-        .addKeyValue("confirmed", response.confirmed())
-        .addKeyValue("collectionStatus", response.collectionStatus())
-        .addKeyValue("displayedDayCount", days.size())
-        .addKeyValue(
-            "tradingDayCount",
-            (int)
-                marketDays.values().stream()
-                    .filter(day -> profileRelevantTrading(profile, day))
-                    .filter(day -> !profileClose(profile, day).isAfter(Instant.now()))
-                    .count())
-        .addKeyValue("calculatedDayCount", calculated.size())
-        .log(LogEvent.LEAGUE_DAILY_HISTORY_LOADED.message());
-    return response;
   }
 
   private void validateWeek(LocalDate week) {
@@ -995,30 +1035,35 @@ public class LeagueService {
         : !usLeagueRelevant() || !members.isEmpty();
   }
 
+  private record ProfileMarkets(Long memberId, boolean us, boolean domestic) {}
+
   private boolean hasActiveUsHolding(Long memberId) {
+    ProfileMarkets individual = calculationProfileMarkets.get();
+    if (individual != null && individual.memberId().equals(memberId)) return individual.us();
     Set<Long> members = calculationUsMembers.get();
     return members == null
         ? holdingRepository.hasActiveUsHolding(memberId)
         : members.contains(memberId);
   }
 
+  private boolean hasDomesticHolding(Long memberId) {
+    ProfileMarkets individual = calculationProfileMarkets.get();
+    if (individual != null && individual.memberId().equals(memberId)) return individual.domestic();
+    Set<Long> domestic = calculationDomesticMembers.get();
+    return domestic == null
+        ? !holdingRepository.hasOnlyUsHoldings(memberId)
+        : !hasActiveUsHolding(memberId) || domestic.contains(memberId);
+  }
+
   private boolean profileRelevantTrading(LeagueInvestorValue profile, MarketTradingDay day) {
     boolean us = hasActiveUsHolding(profile.memberId());
-    Set<Long> domestic = calculationDomesticMembers.get();
-    boolean kr =
-        domestic == null
-            ? !holdingRepository.hasOnlyUsHoldings(profile.memberId())
-            : !us || domestic.contains(profile.memberId());
+    boolean kr = hasDomesticHolding(profile.memberId());
     return (kr && day.isTrading()) || (us && Boolean.TRUE.equals(day.getUsTrading()));
   }
 
   private boolean profileFullyCollected(LeagueInvestorValue profile, MarketTradingDay day) {
     boolean us = hasActiveUsHolding(profile.memberId());
-    Set<Long> domestic = calculationDomesticMembers.get();
-    boolean kr =
-        domestic == null
-            ? !holdingRepository.hasOnlyUsHoldings(profile.memberId())
-            : !us || domestic.contains(profile.memberId());
+    boolean kr = hasDomesticHolding(profile.memberId());
     return (!kr || !day.isTrading() || day.getCollectedAt() != null)
         && (!us || !Boolean.TRUE.equals(day.getUsTrading()) || day.getUsCollectedAt() != null);
   }
@@ -1052,12 +1097,7 @@ public class LeagueService {
 
   private LocalDate weeklyStart(LeagueInvestorValue profile, LocalDate week) {
     boolean us = hasActiveUsHolding(profile.memberId());
-    Set<Long> domesticMembers = calculationDomesticMembers.get();
-    boolean domestic =
-        !us
-            || (domesticMembers == null
-                ? !holdingRepository.hasOnlyUsHoldings(profile.memberId())
-                : domesticMembers.contains(profile.memberId()));
+    boolean domestic = hasDomesticHolding(profile.memberId());
     LocalDate start =
         calendar(week, week.plusDays(6)).stream()
             .filter(
@@ -1353,6 +1393,7 @@ public class LeagueService {
     if (!"USD".equals(price.getAsset().getCurrency())) return price.getClosePrice();
     return exchangeRates
         .findById(price.getBaseDate())
+        .filter(rate -> rate.getBaseDate().equals(price.getBaseDate()))
         .map(rate -> price.getClosePrice().multiply(rate.getRate()))
         .orElse(null);
   }

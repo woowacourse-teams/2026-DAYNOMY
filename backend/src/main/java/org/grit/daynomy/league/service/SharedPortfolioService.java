@@ -41,11 +41,13 @@ import org.grit.daynomy.league.repository.SharedPortfolioRepository;
 import org.grit.daynomy.member.domain.Member;
 import org.grit.daynomy.member.exception.MemberErrorCode;
 import org.grit.daynomy.member.repository.MemberRepository;
+import org.grit.daynomy.portfolio.domain.PortfolioHolding;
+import org.grit.daynomy.portfolio.exception.PortfolioErrorCode;
 import org.grit.daynomy.portfolio.repository.PortfolioHoldingRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** 읽기도 쓰기도 공유용 테이블만 사용한다. 원본은 명시적 입력 사본으로만 가져온다. */
+/** 원본 보유를 공유용 테이블에 동기화하고 공개 범위를 별도로 관리한다. */
 @Slf4j
 @RequiredArgsConstructor
 @Service
@@ -69,7 +71,7 @@ public class SharedPortfolioService {
 
   @Transactional
   public PortfolioResponse getMine(Long memberId) {
-    autoSyncService.reconcile(memberId);
+    if (originalHoldings.hasSharedPortfolioChanges(memberId)) autoSyncService.reconcile(memberId);
     return response(portfolioRepository.findByMemberId(memberId).orElse(null));
   }
 
@@ -84,6 +86,9 @@ public class SharedPortfolioService {
     Map<Long, String> reasons =
         InvestmentDecision.latestReasons(
             decisionRepository.findAllByPortfolioMemberIdOrderByTradedOnDescIdDesc(memberId));
+    Map<Long, PortfolioHolding> source =
+        originalHoldings.findAllByPortfolioMemberId(memberId).stream()
+            .collect(Collectors.toMap(value -> value.getAsset().getId(), value -> value));
     HashSet<Long> seen = new HashSet<>();
     int added = 0;
     int updated = 0;
@@ -109,15 +114,21 @@ public class SharedPortfolioService {
           && input.decision() == null) {
         throw new BusinessException(LeagueErrorCode.HOLDING_REASON_REQUIRED);
       }
+      PortfolioHolding original = source.get(input.assetId());
+      if (original == null)
+        throw new BusinessException(PortfolioErrorCode.PORTFOLIO_HOLDING_NOT_FOUND);
       ChangeType changeType = holding == null ? ChangeType.ADDED : ChangeType.UPDATED;
       boolean changed = true;
       if (holding == null) {
         holding =
             new SharedHolding(
-                portfolio, asset(input.assetId()), input.quantity(), input.averagePurchasePrice());
+                portfolio,
+                asset(input.assetId()),
+                original.getQuantity(),
+                original.getAveragePurchasePrice());
       } else {
         // 재가져오기로 숨김과 판단 근거를 덮어쓰지 않는다.
-        changed = holding.change(input.quantity(), input.averagePurchasePrice());
+        changed = holding.change(original.getQuantity(), original.getAveragePurchasePrice());
       }
       if (changed) holdingRepository.save(holding);
       if (needsReason && input.decision() != null) {
