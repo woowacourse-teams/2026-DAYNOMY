@@ -15,7 +15,7 @@
 | MyLeagueController, InvestmentRecords                                                 | 기존 본인 전용 API와 두 복기 화면의 진입점                                                         |
 | 기존 LeagueReviewGuideRateLimiter                                                     | 회원별 요청 횟수와 동시 실행 제한                                                                  |
 
-기존 review-guide 경로를 유지하되 응답에 근거 목록과 질문별 참조를 추가한다. BE 브랜치의 단발성 OpenAI 클라이언트와 FE 브랜치의 질문 표시를 이 계약에 맞게 교체한다. 기존 복기 저장 API·테이블과 공개 투자자 API는 변경하지 않는다. 새 마이그레이션도 없다.
+기존 review-guide 경로를 유지하되 응답에 근거 목록과 질문별 참조를 추가한다. BE 브랜치의 단발성 OpenAI 클라이언트와 FE 브랜치의 질문 표시를 이 계약에 맞게 교체한다. 기존 복기 저장 API·테이블과 공개 투자자 API는 변경하지 않는다. 알림 정책용 V57 마이그레이션으로 league_review_reminders를 추가하며 기존 복기 데이터 구조는 유지한다.
 
 ## 처리 흐름
 
@@ -103,23 +103,52 @@ retrievalStatus는 FOUND 또는 NO_EVIDENCE다. NO_EVIDENCE에서는 evidence와
 
 ## 프론트엔드 계약
 
-LeagueReviewReminder는 `/league`에서 인증된 회원에 한해 본인 투자 기록을 조회한다. 복기 0건 기록이 있을 때만 고양이·알림을 표시하고, 조회 실패·기록 없음·모두 복기 완료에서는 표시하지 않는다. 생성된 복기는 기존 `createReview` API로 저장하며 완료 화면을 닫으면 해당 기록을 알림 대상에서 제거한다. AI 조회는 리그 진입이나 알림 표시만으로는 실행하지 않는다. 고양이 또는 바로 작성하기로 폼을 열면 autoGuide를 활성화한다.
+LeagueReviewReminder는 리그·종목 관리·추가 화면의 보이는 탭에서 서버에 알림 수신을 요청한다. 서버가 현재 참여·기록 생성 후 7일, 성과 집계, 복기 0건, 계정별 재안내 주기를 확인해 반환한 기록만 고양이·알림에 표시한다. 조회 실패나 대상 없음에서는 표시하지 않는다. 생성된 복기는 기존 `createReview` API로 저장하며 완료 화면을 닫으면 해당 기록을 알림 대상에서 제거한다. AI 조회는 리그 진입이나 알림 표시만으로는 실행하지 않는다. 고양이 또는 바로 작성하기로 폼을 열면 autoGuide를 활성화한다.
 
-LeaguePage와 공통 리그 UI는 origin/dev를 기준으로 사용하고 고양이 알림 진입점만 추가한다. InvestmentReviewsPage는 dev의 기존 InvestmentRecords 기록 카드·작성 폼을 그대로 사용한다. 별도 renderReviewEditor, inline 입력기, 질문 단계, 최종 확인 창은 두지 않는다. 새 복기를 작성할 때 중복 작성 버튼과 빈 복기 안내만 숨긴다.
+LeaguePage와 공통 리그 UI는 origin/dev를 기준으로 사용하고 고양이 알림 진입점만 추가한다. InvestmentReviewsPage는 기존 InvestmentRecords의 검증·저장 흐름을 사용하며, PC에서는 보유 이유와 작성 폼을 나란히 표시한다. 판단 조건·참고 기사는 접어 확인하고 작성 진행률과 하단 저장 영역을 구분한다. 별도 renderReviewEditor, inline 입력기, 질문 단계, 최종 확인 창은 두지 않는다. 새 복기를 작성할 때 중복 작성 버튼과 빈 복기 안내만 숨긴다.
 
 FloatingReviewCoach는 고양이·창 열기/접기·완료 상태만 관리한다. 작성 내용, 검증, AI 도움, 저장은 기존 InvestmentRecords의 editorOnly 경로를 재사용한다. 접기·숨기기는 폼을 숨겨 마운트를 유지하고 경로 이동·창 제거 시에는 기존 요청 정리를 따른다. 저장은 기존 createReview API 한 곳에서 실행한다.
 
-editorOnly에서는 상단의 판단·기사 영역을 details로 접어 표시하고, 본문 스크롤과 저장 영역을 분리한다. 세 필드는 한 번에 수정하며 공백이 아닌 항목 수를 표시한다. 근거 ID는 편집기별로 고유하게 만들어 질문에서 참조하면 해당 기사 details를 열고 본문 안에서 이동한다. 이때 페이지의 기존 hash는 변경하지 않는다. 나중에 버튼은 초안·AI 결과를 초기화하지 않고 플로팅만 접는다. 일반 복기 페이지의 배치와 취소 동작은 유지한다.
+editorOnly에서는 상단의 판단·기사 영역을 details로 접어 표시하고, 본문 스크롤과 저장 영역을 분리한다. 세 필드는 한 번에 수정하며 공백이 아닌 항목 수를 표시한다. 근거 ID는 편집기별로 고유하게 만들어 질문에서 참조하면 해당 기사 details를 열고 본문 안에서 이동한다. 이때 페이지의 기존 hash는 변경하지 않는다. 나중에 버튼은 초안·AI 결과를 초기화하지 않고 플로팅만 접는다. 일반 복기 페이지도 참고 기사를 입력창 위에서 접어 확인하고, 기존 취소·검증·저장 동작을 유지한다.
 
 플로팅은 열기 동작에 따라 외부 전송 안내와 함께 `getReviewGuide`를 자동 호출한다. 기존 일반 작성 폼의 수동 근거 찾기도 유지한다. 자동 요청은 기록별로 한 번 실행하며 진행 중 요청과 준비된 결과를 재사용하고 실패 시 명시적으로 재시도한다. 로딩·실패는 입력·저장을 막지 않는다. 결과는 각 항목의 보조 질문과 공통 기사 참조로 표시하며 기존 항목 이름이나 초안을 덮어쓰지 않는다. AI 없이 같은 폼에서 저장할 수 있고, 각 항목의 공백·500자 제한을 검사한다. 실제 저장 화면은 기존 공개 설정 안내를 표시한다.
 
-플로팅은 Portal과 visualViewport를 사용한다. 복기 페이지는 기존 일반 페이지 흐름을 따른다. 고양이는 투명 PNG와 발밑 그림자로 표시한다. 창 열기 시 제목에 초점을 두며 키보드를 자동으로 열지 않는다. 키보드 높이에 맞춰 창과 입력칸·하단 버튼을 조정하고 리스너와 animation frame을 정리한다. npm run dev:review-preview는 127.0.0.1:5199에서 실제 리그·복기·기사 페이지에 메모리 목데이터 API를 연결한다. 모든 /api 요청을 로컬에서 처리해 실제 서버로 전송하지 않는다. 기존 /demo/review-guide 링크는 실제 페이지로 이동한다. 목데이터 스크립트는 프로덕션 번들에 들어가지 않는다. 종목 관리·종목 추가도 원본 자산 조회와 리그 가져오기 API의 목데이터로 확인한다.
+플로팅은 Portal과 visualViewport를 사용한다. 복기 페이지는 기존 일반 페이지 흐름을 따른다. 고양이는 투명 PNG와 발밑 그림자로 표시한다. 창 열기 시 제목에 초점을 두며 키보드를 자동으로 열지 않는다. 키보드 높이에 맞춰 창과 입력칸·하단 버튼을 조정하고 리스너와 animation frame을 정리한다. 복기용 목업 서버·가상 기사·데모 라우트는 제거했다. 로컬도 일반 Vite 개발 서버의 /api 프록시(기본 localhost:8080)를 통해 실제 인증과 API를 사용하며 예시 응답으로 대체하지 않는다.
 
-SharedPortfolioPage도 LeagueReviewReminder를 사용한다. HoldingDecisions가 읽은 본인 투자 기록을 records로 전달하며, null은 아직 로딩 중이거나 조회 실패한 상태로 취급한다. 기록을 전달받은 알림은 별도로 API를 다시 조회하지 않는다. 미복기 기록에서만 고양이를 표시하고 복기 완료 창을 닫을 때 onReviewed로 기존 목록 갱신을 요청한다. 필수 보유 이유 안내용 고양이와 별도 종목 추가 단계 안내는 사용하지 않는다.
+SharedPortfolioPage도 LeagueReviewReminder를 사용한다. HoldingDecisions가 읽은 본인 투자 기록은 이미 복기한 기록의 알림 제거에만 사용하며 알림 주기는 서버 claim 응답으로 결정한다. 미복기 기록에서만 고양이를 표시하고 복기 완료 창을 닫을 때 onReviewed로 기존 목록 갱신을 요청한다. 필수 보유 이유 안내용 고양이와 별도 종목 추가 단계 안내는 사용하지 않는다.
 
 종목 추가에서는 이미 등록된 종목을 선택할 수 없고 새 종목만 기존 가져오기 API로 전달한다. 등록된 종목의 수량 비교·덮어쓰기 확인 UI를 제거하며, 기존 포트폴리오의 자동 반영을 수동 작업으로 안내하지 않는다. 신규 종목의 필수 보유 이유와 가져오기 중 중복 저장 방지는 기존 검증을 유지한다.
 
 응답은 런타임에서 transactionId, 날짜, article ID 형식, 내부 href, 5개 제한, 질문별 ID가 evidence에 존재하는지 검증한다. 다른 기록으로 이동하거나 컴포넌트가 해제되면 진행 중 요청을 취소하고 늦은 응답을 버린다. 409에서는 기록을 다시 읽는다. 오류·재시도·질문 닫기·저장 실패에도 초안을 보존한다. 기존 공개 설정 안내를 저장 버튼 가까이에 둔다. 분석에는 화면·요청 상태·검색 결과 유무·지연 시간·가이드 사용 여부만 넣고 개인 기록이나 기사 본문은 넣지 않는다.
+
+## 알림 주기와 HTTP 계약
+
+V57의 `league_review_reminders`는 `profile_id`를 PK로 사용하며 현재 `participation_id`, 수신 요청 UUID, 마지막 안내 시각, 다음 안내 시각, 미루기 여부를 보관한다. 회원별 프로필 행에 PESSIMISTIC_WRITE 잠금을 걸어 두 기기·탭·서버 인스턴스의 최초 생성과 수신을 직렬화한다. 시각은 주입된 서버 Clock의 Instant를 사용하며 클라이언트의 회원 ID·날짜는 받지 않는다.
+
+- **POST `/api/users/me/league/review-reminder/claim`**: 인증·CSRF 필수, 본문 `{ "requestKey": "UUID" }`. 응답은 `{ requestKey, transactions, nextNotificationAt }`, 200과 `Cache-Control: no-store`다. 대상이 없거나 아직 주기가 아니면 requestKey=null, transactions=[]이며 nextNotificationAt은 저장된 다음 시각 또는 null이다.
+- 현재 활성 LeagueParticipation.startedAt에서 연속 168시간 이상, 각 InvestmentDecision.createdAt에서도 168시간 이상 지나야 한다. 과거 tradedOn이나 최초 leagueEnabledAt으로 우회하지 않는다. 복기 0건인 본인 기록만 생성 시각·ID 순으로 합쳐 반환한다.
+- 현재 참여의 eligibleFrom부터 서울 오늘까지 거래일의 최신 계산 버전에 유효한 성과 집계가 최소 1건 있어야 한다. 0% 기준 성과도 허용한다. 미집계·대상 없음에서는 새로운 수신 주기를 소비하지 않는다. 확정 주간 수익률을 표시하는 basis 규칙과 별개다.
+- 수신을 선점하면 다음 시각은 서버 수신 시각+168시간이다. 같은 UUID 재요청은 기존 안내를 반환하고 기간을 늘리지 않아 StrictMode 취소·재시도를 처리한다. 다른 UUID는 다음 시각 전까지 대상 없음이다. 이미 미룬 UUID는 안내를 다시 열지 않는다.
+- **POST `/api/users/me/league/review-reminder/snooze`**: 같은 본문, 응답 `{ nextNotificationAt }`, 200과 no-store다. 본인 현재 참여의 수신 UUID일 때 첫 미루기 시각+168시간으로 갱신한다. 재전송은 기존 값을 반환하고, 다른/만료 UUID는 `REVIEW_REMINDER_EXPIRED` 409다.
+- 재가입은 새로운 participation_id로 주기를 초기화하고 다시 7일을 기다린다. 주기 확인·기록 반환은 모델을 호출하지 않는다. 일반 복기 페이지의 수동 작성·AI 요청에는 7일 제한이 없다.
+
+수신 선점 후 화면 이탈·응답 유실이 발생하면 실제 노출 없이 7일이 소비될 수 있다. 화면이 보이지 않는 탭은 선점하지 않으며, 컴포넌트 수명 동안 같은 UUID를 유지하고 취소된 응답은 무시한다. 미루기 실패 시 초안을 보존한 채 오류와 재시도를 제공한다. 초안은 현재 마운트된 폼 안에서만 보존되며 서버 자동 저장이나 새로고침 복원은 제공하지 않는다. 별도 푸시·메일·예약 작업은 없다.
+
+## GA4·PostHog 이벤트
+
+기존 `trackLeagueEvent` → `trackEvent` 경로로 두 공급자에 동일한 명시적 이벤트를 보낸다. 새 SDK·회원 identify는 추가하지 않는다. `GA_MEASUREMENT_ID`, `VITE_POSTHOG_PROJECT_TOKEN`, `VITE_POSTHOG_HOST`는 기존 환경 설정을 사용하며, staff 도메인·수집 제외 경로·분석 비활성화 정책을 유지한다.
+
+| 이벤트 | 발생과 허용 속성 |
+| --- | --- |
+| view_league_review_reminder | 실제 알림 렌더 후 한 번. surface=review_coach, entry_point=ranking/holdings/source_holdings, result_count |
+| league_review_reminder_action | 열기: action=open_review, target=bubble/cat/entry, status=clicked. 닫기·미루기: action=dismiss_reminder/snooze_reminder, target=bubble/minimize/hide/later, status=success/error, error_type |
+| league_action | action=review_guide의 submitted/success/error, entry_point, retrieval_status, duration_ms. AI 분석 시작·성공률 측정 |
+| league_review_article_click | 기사 링크 클릭. surface, entry_point, position(1부터 시작). 기사 제목·ID·URL 미전송 |
+| league_review_saved | 실제 저장 API 성공 후만. surface, entry_point, status=success, action=save_review/edit_review, guide_used. 이미 저장된 기록을 409로 재조회한 경우는 제외 |
+
+기존 save_investment_review·edit_investment_review는 호환성을 유지한다. 같은 저장을 나타내므로 새 league_review_saved와 합산하지 않는다. 첫 복기 전환에는 action=save_review만 사용한다. 기존 view_league로 노출 이후 7일 재방문을 분석한다. 계정 식별자는 보내지 않으므로 분석은 각 공급자의 익명 브라우저 기준이며 여러 기기를 같은 사용자로 합치지 않는다.
+
+GA4 맞춤 이벤트 차원 surface·entry_point·action·target·status·guide_used와 필요시 건수·위치 측정항목을 등록한다. PostHog에서는 같은 속성으로 퍼널을 구성하고 AI 성공과 기사 클릭은 각각의 분기로 본다. 대시보드 생성이나 실제 운영 이벤트 수신 확인은 별도 운영 점검이다. 종목명·회원 ID·요청 키·수량·가격·수익률·판단/복기 원문·AI 질문·기사 본문을 이벤트에 넣지 않는다.
 
 ## 비용·보안·관측
 
@@ -134,6 +163,7 @@ AI 클라이언트 로그에는 토큰 수, 지연 시간, 실패 유형만 남�
 | 검색 저장소   | 종목 연결/키워드 검색, 발행 상태, 기준 시각·90일 경계, 중복 제거·정렬, 외부 제목만 있는 자료 제외                   |
 | 권한·도구     | 타인 기록 404, 복기 409, 도구의 assetId·기간 고정, 임의 SQL/URL 인자 거부, 2회 제한                                 |
 | 모델 경계     | store=false·본문 로깅 없음, 빈 근거, 잘못된 JSON·기사 ID·매매 지시·프롬프트 주입 실패 처리                          |
+| 알림 정책 | 168시간 경계, 기록 생성일·복기 여부, 재가입·성과 미집계, 계정별 주기·미루기·UUID 재전송, 소유권 |
 | 프론트엔드    | 두 화면의 명시적 요청, 근거 카드와 질문 연결, NO_EVIDENCE, 409, 로딩·오류·초안 보존                                 |
 | 오프라인 평가 | 가상 판단·기사 30건 이상에 기대 기사 ID와 허용 질문 조건을 기록; Recall@5·잘못된 참조·근거 없는 주장·매매 지시 측정 |
 

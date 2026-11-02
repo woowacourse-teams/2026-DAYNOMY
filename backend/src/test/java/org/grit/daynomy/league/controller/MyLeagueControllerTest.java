@@ -17,6 +17,7 @@ import org.grit.daynomy.league.dto.LeagueDto.ReviewGuideResponse;
 import org.grit.daynomy.league.service.InvestmentDecisionService;
 import org.grit.daynomy.league.service.InvestorProfileService;
 import org.grit.daynomy.league.service.LeagueReviewGuideService;
+import org.grit.daynomy.league.service.LeagueReviewReminderService;
 import org.grit.daynomy.league.service.LeagueService;
 import org.grit.daynomy.member.domain.MemberRole;
 import org.junit.jupiter.api.AfterEach;
@@ -51,10 +52,55 @@ class MyLeagueControllerTest {
   @MockitoBean private InvestmentDecisionService transactions;
   @MockitoBean private LeagueService league;
   @MockitoBean private LeagueReviewGuideService reviewGuides;
+  @MockitoBean private LeagueReviewReminderService reminders;
 
   @AfterEach
   void clearAuthentication() {
     SecurityContextHolder.clearContext();
+  }
+
+  @Test
+  void reminderEndpointsUseAuthenticatedMemberAndNeverCache() throws Exception {
+    SecurityContextHolder.getContext()
+        .setAuthentication(
+            new UsernamePasswordAuthenticationToken(
+                new AuthenticatedMember(1L, MemberRole.USER), null, java.util.List.of()));
+    var key = java.util.UUID.randomUUID();
+    var next = java.time.Instant.parse("2026-11-09T00:00:00Z");
+    given(reminders.claim(1L, key))
+        .willReturn(
+            new org.grit.daynomy.league.dto.LeagueDto.ReviewReminderResponse(
+                null, java.util.List.of(), next));
+    given(reminders.snooze(1L, key))
+        .willReturn(new org.grit.daynomy.league.dto.LeagueDto.ReviewReminderSnoozeResponse(next));
+    for (String action : java.util.List.of("claim", "snooze")) {
+      mvc.perform(
+              post("/api/users/me/league/review-reminder/" + action)
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content("{\"requestKey\":\"" + key + "\"}"))
+          .andExpect(status().isOk())
+          .andExpect(
+              org.springframework.test.web.servlet.result.MockMvcResultMatchers.header()
+                  .string("Cache-Control", "no-store"))
+          .andExpect(jsonPath("$.nextNotificationAt").value(next.toString()));
+    }
+    verify(reminders).claim(1L, key);
+    verify(reminders).snooze(1L, key);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"{}", "{\"requestKey\":\"invalid\"}"})
+  void reminderRejectsMissingOrInvalidKey(String body) throws Exception {
+    SecurityContextHolder.getContext()
+        .setAuthentication(
+            new UsernamePasswordAuthenticationToken(
+                new AuthenticatedMember(1L, MemberRole.USER), null, java.util.List.of()));
+    mvc.perform(
+            post("/api/users/me/league/review-reminder/claim")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
+        .andExpect(status().isBadRequest());
+    verifyNoInteractions(reminders);
   }
 
   @Test

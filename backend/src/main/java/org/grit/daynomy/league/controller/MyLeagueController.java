@@ -15,11 +15,15 @@ import org.grit.daynomy.league.dto.LeagueDto.ProfileRequest;
 import org.grit.daynomy.league.dto.LeagueDto.ProfileResponse;
 import org.grit.daynomy.league.dto.LeagueDto.PublicationRequest;
 import org.grit.daynomy.league.dto.LeagueDto.ReviewGuideResponse;
+import org.grit.daynomy.league.dto.LeagueDto.ReviewReminderRequest;
+import org.grit.daynomy.league.dto.LeagueDto.ReviewReminderResponse;
+import org.grit.daynomy.league.dto.LeagueDto.ReviewReminderSnoozeResponse;
 import org.grit.daynomy.league.dto.LeagueDto.ReviewRequest;
 import org.grit.daynomy.league.dto.LeagueDto.ReviewResponse;
 import org.grit.daynomy.league.service.InvestmentDecisionService;
 import org.grit.daynomy.league.service.InvestorProfileService;
 import org.grit.daynomy.league.service.LeagueReviewGuideService;
+import org.grit.daynomy.league.service.LeagueReviewReminderService;
 import org.grit.daynomy.league.service.LeagueService;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
@@ -44,6 +48,7 @@ public class MyLeagueController {
   private final InvestmentDecisionService decisionService;
   private final LeagueService leagueService;
   private final LeagueReviewGuideService reviewGuideService;
+  private final LeagueReviewReminderService reminderService;
 
   @Operation(summary = "내 공개 투자자 프로필 조회")
   @GetMapping("/investor-profile")
@@ -78,6 +83,26 @@ public class MyLeagueController {
     return ResponseEntity.ok()
         .cacheControl(CacheControl.noStore())
         .body(decisionService.getMine(member.memberId()));
+  }
+
+  @Operation(summary = "7일 간격 복기 알림 수신 (계정 단위 중복 방지)")
+  @PostMapping("/league/review-reminder/claim")
+  public ResponseEntity<ReviewReminderResponse> claimReminder(
+      @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember member,
+      @Valid @RequestBody ReviewReminderRequest request) {
+    return ResponseEntity.ok()
+        .cacheControl(CacheControl.noStore())
+        .body(reminderService.claim(member.memberId(), request.requestKey()));
+  }
+
+  @Operation(summary = "복기 알림을 7일 뒤로 미루기")
+  @PostMapping("/league/review-reminder/snooze")
+  public ResponseEntity<ReviewReminderSnoozeResponse> snoozeReminder(
+      @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember member,
+      @Valid @RequestBody ReviewReminderRequest request) {
+    return ResponseEntity.ok()
+        .cacheControl(CacheControl.noStore())
+        .body(reminderService.snooze(member.memberId(), request.requestKey()));
   }
 
   @Operation(summary = "내 투자 판단의 AI 복기 질문 생성")

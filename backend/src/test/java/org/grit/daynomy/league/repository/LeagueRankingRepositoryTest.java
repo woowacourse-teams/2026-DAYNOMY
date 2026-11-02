@@ -108,6 +108,38 @@ class LeagueRankingRepositoryTest {
             tuple(first.getMember().getId(), 2L, 1L), tuple(second.getMember().getId(), 1L, 0L));
   }
 
+  @Test
+  void reminderRecordsRespectOwnerCreationBoundaryAndAnyCompletedReview() {
+    var mine = portfolio("mine");
+    var other = portfolio("other");
+    var asset = entityManager.persist(new Asset("test", AssetCategory.STOCK, "TEST"));
+    var cutoff = Instant.parse("2026-10-26T00:00:00Z");
+    var old = decision(mine, asset, LocalDate.of(2026, 10, 20), "old");
+    var boundary = decision(mine, asset, LocalDate.of(2026, 10, 19), "boundary");
+    var fresh = decision(mine, asset, LocalDate.of(2026, 10, 1), "fresh-backdated-trade");
+    var reviewed = decision(mine, asset, LocalDate.of(2026, 10, 20), "reviewed");
+    var otherRecord = decision(other, asset, LocalDate.of(2026, 10, 20), "other");
+    entityManager.persist(new InvestmentReview(reviewed, "result", "difference", "next"));
+    entityManager.flush();
+    for (var record : List.of(old, boundary, fresh, reviewed, otherRecord)) {
+      Instant created =
+          record == fresh
+              ? cutoff.plusNanos(1000)
+              : record == boundary ? cutoff : cutoff.minusSeconds(1);
+      entityManager
+          .getEntityManager()
+          .createNativeQuery(
+              "update portfolio_transactions set created_at = :created where id = :id")
+          .setParameter("created", created)
+          .setParameter("id", record.getId())
+          .executeUpdate();
+    }
+    entityManager.clear();
+    assertThat(decisions.findUnreviewedCreatedBefore(mine.getMember().getId(), cutoff))
+        .extracting(InvestmentDecision::getId)
+        .containsExactly(old.getId(), boundary.getId());
+  }
+
   private SharedPortfolio portfolio(String name) {
     var member =
         entityManager.persist(

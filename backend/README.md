@@ -140,6 +140,12 @@ java -jar build/libs/daynomy-0.0.1-SNAPSHOT.jar
 
 ## 투자 리그 참여와 공개
 
+### 복기 알림 주기
+
+리그 참여와 각 기록 생성 후 7일(168시간)이 지나고 현재 참여의 거래일 성과가 집계된 경우, 미복기 기록을 묶어 안내한다. 마지막 안내 또는 해당 안내의 첫 닫기 후 7일이 지난 다음 화면 방문에서 다시 안내한다. 새 종목도 생성 후 7일을 기다리고, 재가입은 새 참여 기준으로 초기화한다. 수동 복기는 언제든 가능하다.
+
+인증·CSRF가 필요한 `POST /api/users/me/league/review-reminder/claim`과 `/snooze`는 `{ "requestKey": "UUID" }`를 받는다. claim은 `{ requestKey, transactions, nextNotificationAt }`, snooze는 `{ nextNotificationAt }`를 반환하며 모두 no-store다. 대상이 없으면 claim의 requestKey=null, transactions=[]다. V57 테이블과 프로필 행 잠금으로 계정별 중복 수신을 막으며, 동일 UUID 재전송은 기간을 중복 연장하지 않는다. 알림은 실제 화면 노출 직전 서버에서 선점하므로 응답 유실·화면 이탈 시에도 주기가 소비될 수 있다. 푸시·메일이나 AI 자동 호출은 없다. FE와 함께 배포하고 Flyway V57을 적용해야 한다.
+
 ### AI 복기 질문
 
 `POST /api/users/me/portfolio/decisions/{transactionId}/review-guide`는 로그인·CSRF가 필요한 본인 전용 요청이다. 복기가 없는 판단의 종목에 연결된 기사와 DAYNOMY 기사 검색 결과에서 최근 90일 중 판단 최종 저장 시각 이후 발행 기사만 최대 5개 가져온다. 자산에 직접 연결되지 않은 검색 결과는 기사 제목이나 본문에서 자산명을 확인한 경우에만 포함한다. LangChain4j의 읽기 전용 검색 도구가 초점 검색어를 정하고, AI는 기사 ID가 연결된 질문 세 개를 만든다. 응답은 `{ transactionId, retrievalStatus, evidence, basis, questions }`이며 `Cache-Control: no-store`이다. 기사가 없으면 `NO_EVIDENCE`와 빈 근거 ID로 질문한다. `basis`는 판단 마지막 저장일보다 늦게 시작한 최근 3주 내 확정 주간 포트폴리오 성과가 있을 때만 포함하며 AI 입력에는 넣지 않는다. 다른 회원의 기록은 404, 이미 복기한 기록은 409, 요청 한도는 429, 검색·AI 실패는 503이다. 질문은 저장하지 않는다. 운영에는 `OPENAI_API_KEY`가 필요하다. 자세한 범위는 [기술명세서](../docs/league-ai-review-technical.md)에 있다.

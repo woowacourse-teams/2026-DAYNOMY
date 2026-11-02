@@ -13,6 +13,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.UUID;
 import org.grit.daynomy.league.domain.InvestmentDecision;
 import org.grit.daynomy.league.domain.InvestmentReview;
 import org.grit.daynomy.league.domain.InvestorProfile;
@@ -26,6 +27,13 @@ import org.grit.daynomy.league.domain.LeagueTypes.TransactionType;
 
 public final class LeagueDto {
   private LeagueDto() {}
+
+  public record ReviewReminderRequest(@NotNull UUID requestKey) {}
+
+  public record ReviewReminderResponse(
+      UUID requestKey, List<DecisionResponse> transactions, Instant nextNotificationAt) {}
+
+  public record ReviewReminderSnoozeResponse(Instant nextNotificationAt) {}
 
   public record ProfileRequest(
       @NotBlank @Size(max = 20) String displayName,

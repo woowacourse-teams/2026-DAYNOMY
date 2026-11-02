@@ -5,6 +5,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import org.grit.daynomy.league.domain.InvestmentDecision;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
@@ -17,6 +18,16 @@ public interface InvestmentDecisionRepository extends JpaRepository<InvestmentDe
 
   List<InvestmentDecision> findAllByPortfolioIdAndTradedOnLessThanEqualOrderByTradedOnDescIdDesc(
       Long portfolioId, LocalDate tradedOn);
+
+  @EntityGraph(attributePaths = "asset")
+  @Query(
+      """
+      select d from InvestmentDecision d
+      where d.portfolio.member.id = :memberId and d.createdAt <= :createdBefore
+        and not exists (select r.id from InvestmentReview r where r.transaction = d)
+      order by d.createdAt, d.id
+      """)
+  List<InvestmentDecision> findUnreviewedCreatedBefore(Long memberId, Instant createdBefore);
 
   @Query(
       """
