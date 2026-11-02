@@ -220,9 +220,13 @@ bash scripts/test-release-version.sh
 ```
 
 `dev` 또는 `main` 대상 Pull Request에서 프론트엔드 파일이 변경되면 Frontend CI가
-포맷, 린트, 타입 검사, 기존 테스트, Docker 배포 검증, 빌드와 브라우저 E2E를
-순서대로 실행합니다. `Frontend checks`는 `dev`·`main`의 필수 검사이며,
-E2E 실패 시 스크린샷과 trace를 Actions 아티팩트에서 확인할 수 있습니다.
+포맷·린트·타입 검사·기존 테스트·빌드·브라우저 E2E와 Docker 배포 검증을
+별도 job에서 병렬로 실행합니다. `Frontend checks`는 두 job의 성공을 확인하는
+`dev`·`main`의 필수 검사입니다. 변경 파일 조회 실패나 검사 실패·취소·예상치 못한
+건너뛰기는 통과시키지 않으며, 프론트 변경이 없을 때만 검사를 생략하고 통과합니다.
+E2E는 CI에서 worker 2개로 실행합니다. 실행 시간이 긴 거래 원장 파일의 독립 테스트는
+파일 안에서도 병렬로 실행하며, 실패 시 스크린샷과 trace를 Actions 아티팩트에서 확인할 수 있습니다.
+측정 기준과 개선 전 실행 시간은 [CI/CD 성능 기록](docs/ci-cd-performance.md)을 확인합니다.
 
 ---
 
@@ -249,7 +253,12 @@ E2E 실패 시 스크린샷과 trace를 Actions 아티팩트에서 확인할 수
 
 `.github/workflows/deploy-frontend.yml`은 브랜치에 맞는 Vite mode로 빌드하고,
 `dev`는 개발 EC2의 `frontend-dev` 라벨 Runner로, `main`은 운영 EC2의
-`frontend-prod` 라벨 Runner로 배포합니다. 각 EC2에서 프론트 컨테이너 두 개를
+`frontend-prod` 라벨 Runner로 배포합니다. 일반 검사·환경별 빌드와 Docker 배포 검증을
+병렬로 실행합니다. 두 job이 성공하면 같은 실행에서 생성한 빌드 아티팩트의 ID로
+결과물을 받아 커밋·환경을 확인한 뒤 이미지를 발행하고 배포합니다.
+의존성 설치와 앱 빌드는 한 job에서 수행하며, 같은 커밋의 기존 릴리스 이미지를
+재사용하는 경우에는 빌드 아티팩트를 만들거나 받지 않습니다.
+각 EC2에서 프론트 컨테이너 두 개를
 `127.0.0.1:3000`·`3001`에 번갈아 실행하고, 검증 후 호스트 Nginx 연결을 전환합니다.
 개발·운영 모두 저장소의 `frontend/compose.yml`을 사용하며 앱 EC2와 DB는 각각 분리합니다.
 최초 Nginx 설정과 이전 해시 파일 보관·실패 복구는 [RELEASING.md](RELEASING.md)를 확인합니다.
