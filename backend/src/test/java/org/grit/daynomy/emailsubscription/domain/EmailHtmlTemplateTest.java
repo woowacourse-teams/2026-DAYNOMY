@@ -42,7 +42,11 @@ class EmailHtmlTemplateTest {
             "데이노미 등록일 2026-10-26")
         .doesNotContain("분석이 달라졌어요", "분석이 바뀌었을", "출처:", "trillion", "내 자산의 변화예요");
     assertThat(Jsoup.parse(html).select("a").eachAttr("href"))
-        .contains(item.url(), base + "/", base + "/mypage", unsubscribe);
+        .contains(
+            item.url(),
+            EmailCampaignLink.to(base, "/"),
+            EmailCampaignLink.to(base, "/mypage"),
+            unsubscribe);
   }
 
   @Test
@@ -141,7 +145,35 @@ class EmailHtmlTemplateTest {
               "알림 설정");
       assertThat(text).doesNotContain("내 자산의 주요 변화와 새 관련 자료를 모아 전해드려요.", "내 포트폴리오 확인하기");
     }
-    assertThat(Jsoup.parse(html).select("a[href='" + base + "/']")).hasSize(1);
+    assertThat(Jsoup.parse(html).select("a[href='" + EmailCampaignLink.to(base, "/") + "']"))
+        .hasSize(1);
+  }
+
+  @Test
+  void internalLinksHaveTheSameAnonymousCampaignInHtmlAndPlainText() {
+    var item =
+        new EmailStockDigest.Content(
+            1L, "key", 1L, "종목", ContentSourceType.INTERNAL_NEWS, "소식", "/news/42", NOW);
+    var digest = EmailStockDigest.current(null, null, Map.of(1L, 1L), List.of(), List.of(item));
+    var mail = new EmailDelivery(member(), NOW, digest, EmailDigestSupplement.empty(), MAIL_DATE);
+    mail.attachUnsubscribeLink(unsubscribe);
+    mail.completeTemplate("회원", base);
+    var campaign = "utm_source=daynomy&utm_medium=email&utm_campaign=portfolio_updates";
+    var links = Jsoup.parse(mail.getHtmlBody()).select("a").eachAttr("href");
+    assertThat(links)
+        .contains(
+            base + "/?" + campaign,
+            base + "/mypage?" + campaign,
+            base + "/news/42?" + campaign,
+            unsubscribe);
+    assertThat(mail.getBody())
+        .contains(
+            base + "/?" + campaign,
+            base + "/mypage?" + campaign,
+            base + "/news/42?" + campaign,
+            unsubscribe);
+    assertThat(links.stream().filter(url -> url.startsWith(base)).toList())
+        .allMatch(url -> java.net.URI.create(url).getQuery().equals(campaign));
   }
 
   private String render(EmailStockDigest digest, EmailDigestSupplement supplement) {

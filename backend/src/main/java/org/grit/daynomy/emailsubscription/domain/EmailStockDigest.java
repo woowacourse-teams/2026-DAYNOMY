@@ -131,7 +131,7 @@ public record EmailStockDigest(
     }
 
     public String link(String frontendBaseUrl) {
-      return url.startsWith("/news/") ? frontendBaseUrl + url : url;
+      return url.startsWith("/news/") ? EmailCampaignLink.to(frontendBaseUrl, url) : url;
     }
   }
 }

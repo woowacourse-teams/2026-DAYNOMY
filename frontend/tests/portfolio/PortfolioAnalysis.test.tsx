@@ -1232,3 +1232,19 @@ describe('포트폴리오 분석 이벤트', () => {
     );
   });
 });
+
+it('분석 출처 클릭은 URL·종목명 없이 위치와 범위만 기록한다', async () => {
+  memberFetch(() => saved());
+  const view = render(<PortfolioAnalysis assets={assets} />);
+  const link = await view.findByRole('link', { name: '반도체 산업 동향' });
+  fireEvent.click(link);
+  expect(trackEvent).toHaveBeenCalledWith('click_portfolio_analysis_source', {
+    surface: 'portfolio_analysis',
+    scope: 'overall',
+    position: 1,
+  });
+  const events = vi
+    .mocked(trackEvent)
+    .mock.calls.filter(([name]) => name === 'click_portfolio_analysis_source');
+  expect(JSON.stringify(events)).not.toMatch(/삼성전자|example.com|반도체/);
+});

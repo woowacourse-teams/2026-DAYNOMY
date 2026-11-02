@@ -1,4 +1,6 @@
 /** @vitest-environment jsdom */
+import { trackEvent } from '../../src/analytics';
+vi.mock('../../src/analytics', () => ({ trackEvent: vi.fn(), trackPageView: vi.fn() }));
 import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -69,6 +71,7 @@ afterAll(() => {
 });
 afterEach(() => {
   cleanup();
+  vi.clearAllMocks();
   vi.unstubAllGlobals();
   sessionStorage.clear();
   localStorage.clear();
@@ -88,6 +91,14 @@ describe('최초 이메일 구독 안내', () => {
     expect(view.queryByText(/분석 근거|투자 일정/)).toBeNull();
     expect(view.queryByRole('textbox')).toBeNull();
     expect(view.queryByText(/하루 최대|예시 계정|구독은 선택/)).toBeNull();
+    expect(trackEvent).toHaveBeenCalledWith('email_subscription_prompt_viewed', {
+      surface: 'email_subscription_prompt',
+    });
+    expect(
+      vi
+        .mocked(trackEvent)
+        .mock.calls.filter(([name]) => name === 'email_subscription_prompt_viewed'),
+    ).toHaveLength(1);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock.mock.calls[0][1]?.credentials).toBe('include');
   });
@@ -162,6 +173,18 @@ describe('최초 이메일 구독 안내', () => {
     fireEvent.click(view.getByRole('button', { name: '확인' }));
     expect(view.queryByRole('dialog')).toBeNull();
     expect(view.getByTestId('path').textContent).toBe('/news');
+    expect(
+      vi.mocked(trackEvent).mock.calls.filter(([name]) => name === 'email_subscription_submitted'),
+    ).toHaveLength(1);
+    expect(trackEvent).toHaveBeenCalledWith(
+      'email_subscription_result',
+      expect.objectContaining({
+        action: 'subscribe',
+        status: 'success',
+        duration_ms: expect.any(Number),
+      }),
+    );
+    expect(JSON.stringify(vi.mocked(trackEvent).mock.calls)).not.toContain(subscription.email);
   });
 
   it.each(['지금은 괜찮아요', '구독 안내 닫기', 'Escape'])(
@@ -197,6 +220,10 @@ describe('최초 이메일 구독 안내', () => {
     const view = renderPrompt();
     fireEvent.click(await view.findByRole('button', { name: '지금은 괜찮아요' }));
     expect(await view.findByRole('alert')).toBeTruthy();
+    expect(trackEvent).toHaveBeenCalledWith(
+      'email_subscription_result',
+      expect.objectContaining({ action: 'dismiss', status: 'error' }),
+    );
     expect(view.getByTestId('path').textContent).toBe('/news');
     expect(view.getByRole('dialog')).toBeTruthy();
     fail = false;
@@ -244,6 +271,9 @@ describe('최초 이메일 구독 안내', () => {
       finish(json({ ...subscription, status: 'SUBSCRIBED', promptRequired: false })),
     );
     expect(view.queryByText(subscription.email)).toBeNull();
+    expect(
+      vi.mocked(trackEvent).mock.calls.filter(([name]) => name === 'email_subscription_result'),
+    ).toHaveLength(0);
     expect(view.queryByRole('heading', { name: '이메일 알림 구독 완료' })).toBeNull();
     expect(view.getByRole('button', { name: '이메일 알림 구독하기' })).toHaveProperty(
       'disabled',

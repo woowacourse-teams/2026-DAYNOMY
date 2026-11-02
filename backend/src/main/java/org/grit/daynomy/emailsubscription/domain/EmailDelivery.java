@@ -140,14 +140,18 @@ public class EmailDelivery {
             + supplementDigest.body()
             + (supplementDigest.analysis() == null
                 ? ""
-                : supplementDigest.analysis().body() + "업데이트된 분석 보기: " + base + "/\n\n")
+                : supplementDigest.analysis().body()
+                    + "업데이트된 분석 보기: "
+                    + EmailCampaignLink.to(base, "/")
+                    + "\n\n")
             + stockDigest.emailSections(base)
             + (supplementDigest.analysis() == null
-                ? "자세한 자산 현황은 포트폴리오에서 확인해보세요.\n\n내 포트폴리오 확인하기: " + base + "/\n"
+                ? "자세한 자산 현황은 포트폴리오에서 확인해보세요.\n\n내 포트폴리오 확인하기: "
+                    + EmailCampaignLink.to(base, "/")
+                    + "\n"
                 : "")
             + "\nDAYNOMY\n알림 설정: "
-            + base
-            + "/mypage"
+            + EmailCampaignLink.to(base, "/mypage")
             + "\n수신 해지: "
             + unsubscribeUrl;
     htmlBody =
