@@ -89,6 +89,26 @@ public final class LeagueDto {
       @NotBlank @Size(max = 500) String differenceFromExpectation,
       @NotBlank @Size(max = 500) String nextAction) {}
 
+  public record ReviewGuideBasis(
+      LocalDate weekStart, LocalDate asOfDate, BigDecimal portfolioWeeklyReturnRate) {}
+
+  public record ReviewGuideEvidence(
+      String id, String title, Instant publishedAt, String excerpt, String href) {}
+
+  public record ReviewGuideQuestion(String text, List<String> evidenceIds) {}
+
+  public record ReviewGuideQuestions(
+      ReviewGuideQuestion actualResult,
+      ReviewGuideQuestion differenceFromExpectation,
+      ReviewGuideQuestion nextAction) {}
+
+  public record ReviewGuideResponse(
+      Long transactionId,
+      String retrievalStatus,
+      List<ReviewGuideEvidence> evidence,
+      ReviewGuideBasis basis,
+      ReviewGuideQuestions questions) {}
+
   public record ReviewResponse(
       Long id,
       String actualResult,

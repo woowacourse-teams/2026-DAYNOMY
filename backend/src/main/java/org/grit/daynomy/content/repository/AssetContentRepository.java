@@ -1,9 +1,11 @@
 package org.grit.daynomy.content.repository;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import org.grit.daynomy.content.domain.AssetContent;
 import org.grit.daynomy.content.domain.ContentSourceType;
+import org.grit.daynomy.news.domain.NewsStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -16,6 +18,20 @@ public interface AssetContentRepository extends JpaRepository<AssetContent, Long
       List<ContentSourceType> sources, Pageable pageable);
 
   List<AssetContent> findAllByAssetIdOrderByCreatedAtDescIdDesc(Long assetId);
+
+  @Query(
+      """
+      select news.id from AssetContent content join content.news news
+      where content.asset.id = :assetId and news.status = :status
+        and news.publishedAt > :after and news.publishedAt <= :before
+      order by news.publishedAt desc, news.id desc
+      """)
+  List<Long> findPublishedNewsIdsForAsset(
+      @Param("assetId") Long assetId,
+      @Param("status") NewsStatus status,
+      @Param("after") Instant after,
+      @Param("before") Instant before,
+      Pageable pageable);
 
   boolean existsByAssetIdAndUrl(Long assetId, String url);
 
