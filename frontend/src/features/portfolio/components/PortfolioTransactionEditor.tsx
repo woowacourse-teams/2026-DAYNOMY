@@ -1,11 +1,11 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useImperativeHandle, useRef, useState, type Ref } from 'react';
 import { createPortal } from 'react-dom';
 import { XIcon } from '@phosphor-icons/react/dist/csr/X';
 import { PortfolioQuickTradeFields } from './PortfolioQuickTradeFields';
 import { PortfolioDialog } from './PortfolioDialog';
 import { tourStock } from './portfolioTourExample';
 import { getLatestStockPrice, searchStocks, getUsdKrwRate } from '../../stocks/api';
-import { trackPortfolioEvent } from '../analytics';
+import { portfolioErrorType, trackPortfolioEvent } from '../analytics';
 import {
   todayInSeoul,
   toTransactionRequest,
@@ -26,7 +26,10 @@ function formatUnitPrice(value: string) {
   return value.replace(/^\d+(?=\.|$)/, (integer) => integer.replace(/\B(?=(\d{3})+(?!\d))/g, ','));
 }
 
+export type PortfolioTransactionEditorHandle = { close: () => void };
+
 type Props = {
+  ref?: Ref<PortfolioTransactionEditorHandle>;
   demoStep?: number;
   stock?: StockSearchItem;
   type?: PortfolioTransactionType;
@@ -36,11 +39,12 @@ type Props = {
   onSave: (request: PortfolioTransactionRequest, stock?: StockSearchItem) => Promise<void>;
 };
 export function PortfolioTransactionEditor({
+  ref,
   demoStep,
   stock,
   type = 'BUY',
   transaction,
-  onClose,
+  onClose: dismiss,
   onDelete,
   onSave,
 }: Props) {
@@ -89,6 +93,29 @@ export function PortfolioTransactionEditor({
   const [searchRetry, setSearchRetry] = useState(0);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const openedAt = useRef(performance.now());
+  const changed = useRef(false);
+  const closed = useRef(false);
+  const lastValidation = useRef('');
+  function close() {
+    if (saving || closed.current) return;
+    closed.current = true;
+    if (demoStep === undefined)
+      trackPortfolioEvent('portfolio_editor_closed', {
+        mode: transaction ? 'transaction_update' : 'transaction_create',
+        stage: !selected
+          ? 'search'
+          : invalid && lastValidation.current
+            ? 'validation_error'
+            : error
+              ? 'save_error'
+              : 'input',
+        has_changes: changed.current,
+        duration_ms: Math.max(0, Math.round(performance.now() - openedAt.current)),
+      });
+    dismiss();
+  }
+  useImperativeHandle(ref, () => ({ close }));
   useEffect(() => {
     if (demoStep !== undefined) return;
     if (selected || !keyword.trim()) {
@@ -102,16 +129,35 @@ export function PortfolioTransactionEditor({
     setSearchLoading(true);
     setSearchError('');
     const timer = window.setTimeout(() => {
+      const startedAt = performance.now();
       Promise.all([
         searchStocks(keyword.trim(), controller.signal),
         searchStocks(keyword.trim(), controller.signal, 'US'),
       ])
         .then((items) => {
-          if (!controller.signal.aborted)
-            setResults([...new Map(items.flat().map((item) => [item.assetId, item])).values()]);
+          if (controller.signal.aborted) return;
+          const results = [...new Map(items.flat().map((item) => [item.assetId, item])).values()];
+          setResults(results);
+          trackPortfolioEvent('portfolio_search_result', {
+            surface: 'transaction_editor',
+            search_length: keyword.trim().length,
+            status: 'success',
+            result_count: results.length,
+            kr_result_count: items[0].length,
+            us_result_count: items[1].length,
+            duration_ms: Math.max(0, Math.round(performance.now() - startedAt)),
+          });
         })
-        .catch(() => {
-          if (!controller.signal.aborted) setSearchError('검색 결과를 불러오지 못했어요.');
+        .catch((caught: unknown) => {
+          if (controller.signal.aborted) return;
+          setSearchError('검색 결과를 불러오지 못했어요.');
+          trackPortfolioEvent('portfolio_search_result', {
+            surface: 'transaction_editor',
+            search_length: keyword.trim().length,
+            status: 'error',
+            error_type: portfolioErrorType(caught),
+            duration_ms: Math.max(0, Math.round(performance.now() - startedAt)),
+          });
         })
         .finally(() => {
           if (!controller.signal.aborted) setSearchLoading(false);
@@ -192,7 +238,28 @@ export function PortfolioTransactionEditor({
   const amount = transactionType === 'BUY' ? gross + costs : gross - costs;
   const format = (value: number) =>
     `${value.toLocaleString('ko-KR', { maximumFractionDigits: 4 })}${currency === 'USD' ? ' USD' : '원'}`;
+  function recordValidation(
+    issue: { field: keyof TransactionFields } | null,
+    trigger: 'blur' | 'submit',
+  ) {
+    if (demoStep !== undefined || !issue) return;
+    const key = `${issue.field}:${fields[issue.field]}`;
+    if (lastValidation.current === key) return;
+    lastValidation.current = key;
+    trackPortfolioEvent('portfolio_validation_failed', {
+      mode: transaction ? 'transaction_update' : 'transaction_create',
+      field: issue.field,
+      reason: 'invalid_value',
+      trigger,
+    });
+  }
+  function recordBlur(event: React.FocusEvent<HTMLFormElement>) {
+    if (event.target instanceof HTMLInputElement && event.target.name === invalid?.field)
+      recordValidation(invalid, 'blur');
+  }
   function change(key: keyof TransactionFields, value: string) {
+    lastValidation.current = '';
+    changed.current = true;
     if (key === 'unitPrice') priceEdited.current = true;
     if (key === 'exchangeRate') rateEdited.current = true;
     if (key === 'tradeDate' && currency === 'USD') {
@@ -224,6 +291,7 @@ export function PortfolioTransactionEditor({
     event.preventDefault();
     if (demoStep !== undefined || saving || !selected) return;
     if (invalid) {
+      recordValidation(invalid, 'submit');
       setError(invalid.message);
       window.requestAnimationFrame(() => {
         const input =
@@ -356,6 +424,7 @@ export function PortfolioTransactionEditor({
       <form
         autoComplete="off"
         ref={formRef}
+        onBlurCapture={recordBlur}
         onSubmit={submit}
         noValidate
         className={
@@ -391,7 +460,7 @@ export function PortfolioTransactionEditor({
               className="portfolio-icon-button"
               aria-label="닫기"
               disabled={saving}
-              onClick={onClose}
+              onClick={close}
             >
               {compactAdd ? <XIcon size={26} weight="thin" aria-hidden="true" /> : '×'}
             </button>
@@ -426,7 +495,10 @@ export function PortfolioTransactionEditor({
                     autoComplete="off"
                     spellCheck={false}
                     value={keyword}
-                    onChange={(event) => setKeyword(event.target.value)}
+                    onChange={(event) => {
+                      changed.current = true;
+                      setKeyword(event.target.value);
+                    }}
                   />
                   {keyword && (
                     <button
@@ -446,7 +518,7 @@ export function PortfolioTransactionEditor({
                   type="button"
                   className="portfolio-stock-search-close"
                   aria-label="닫기"
-                  onClick={onClose}
+                  onClick={close}
                 >
                   ×
                 </button>
@@ -548,6 +620,7 @@ export function PortfolioTransactionEditor({
                           type="button"
                           onClick={() => {
                             trackPortfolioEvent('portfolio_stock_selected', {
+                              surface: 'transaction_editor',
                               category: item.category,
                               market: item.market,
                               mode: 'transaction_create',
@@ -561,6 +634,7 @@ export function PortfolioTransactionEditor({
                                 ]),
                               );
                             }
+                            changed.current = true;
                             setSelected(item);
                           }}
                         >
@@ -768,7 +842,7 @@ export function PortfolioTransactionEditor({
                     type="button"
                     className="portfolio-secondary-button"
                     disabled={saving}
-                    onClick={onClose}
+                    onClick={close}
                   >
                     취소
                   </button>
@@ -802,6 +876,7 @@ export function PortfolioTransactionEditor({
             >
               <form
                 ref={costsFormRef}
+                onBlurCapture={recordBlur}
                 autoComplete="off"
                 noValidate
                 onSubmit={(event) => {

@@ -1,7 +1,7 @@
 import { tourAnalysis } from './portfolioTourExample';
 import { trackEvent } from '../../../analytics';
 import { useContentImpression } from '../../news/issue/analytics';
-import { memo, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { memo, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type Ref } from 'react';
 import { usePortfolioAnalysis } from '../hooks/usePortfolioAnalysis';
 import type {
   PortfolioAsset,
@@ -343,15 +343,18 @@ function PortfolioAnalysisError({
   onRetry,
   message,
   retryDisabled = false,
+  buttonRef,
 }: {
   onRetry: () => void;
   message: string;
   retryDisabled?: boolean;
+  buttonRef?: Ref<HTMLButtonElement>;
 }) {
   return (
     <div className="portfolio-analysis-state portfolio-analysis-empty" role="alert">
       <strong>{message}</strong>
       <button
+        ref={buttonRef}
         className="portfolio-analysis-retry-button"
         type="button"
         onClick={onRetry}
@@ -779,6 +782,7 @@ type PortfolioAnalysisProps = {
   isLoggedIn?: boolean;
   memberId?: number;
   holdingsKey?: string;
+  pricingStatus?: 'COMPLETE' | 'PARTIAL' | 'MIXED_DATES';
   onAddAsset?: () => void;
 };
 
@@ -818,6 +822,7 @@ function PortfolioAnalysisView({
   isLoggedIn = true,
   demoStep,
   onAddAsset,
+  pricingStatus,
   state,
 }: PortfolioAnalysisProps & { state: ReturnType<typeof usePortfolioAnalysis> }) {
   const {
@@ -898,6 +903,49 @@ function PortfolioAnalysisView({
     !refreshExhausted &&
     (assets.length > 0 || (isLoggedIn && !loaded));
 
+  const ctaRef = useRef<HTMLButtonElement | HTMLAnchorElement>(null);
+  const ctaAction =
+    !isLoggedIn && trialExhausted
+      ? 'login'
+      : error && !refreshExhausted
+        ? 'retry'
+        : processing || summaryStatus === 'PENDING'
+          ? 'check_status'
+          : analysis && !portfolioChanged
+            ? 'refresh'
+            : 'analyze';
+  const ctaReason =
+    ctaAction === 'login'
+      ? 'trial_exhausted'
+      : refreshExhausted
+        ? 'refresh_limit_exceeded'
+        : summaryStatus === 'PENDING'
+          ? 'summary_pending'
+          : loading
+            ? 'loading'
+            : processing
+              ? 'processing'
+              : !loaded
+                ? 'restoring'
+                : error
+                  ? 'retry'
+                  : 'none';
+  const ctaEnabled = ctaAction === 'login' || ctaAction === 'retry' || canAnalyze;
+  useContentImpression(
+    ctaRef,
+    `${ctaAction}:${ctaReason}:${ctaEnabled}`,
+    'portfolio_analysis_cta_viewed',
+    {
+      action: ctaAction,
+      enabled: ctaEnabled,
+      reason: ctaReason,
+      user_type: isLoggedIn ? 'member' : 'guest',
+      has_holdings: assets.length > 0,
+      pricing_status: pricingStatus,
+    },
+    demoStep === undefined && (hasAnalysisTarget || Boolean(error)),
+  );
+
   const showIntroduction =
     hasAnalysisTarget && !analysis && !loading && !error && !trialExhausted && !processing;
   const previewTitle = portfolioChanged
@@ -917,13 +965,18 @@ function PortfolioAnalysisView({
       ? saved.changeReason
       : null;
   const analysisAction = !hasAnalysisTarget ? null : !isLoggedIn && trialExhausted ? (
-    <a className="portfolio-analysis-button" href="/login?returnTo=%2F">
+    <a
+      ref={ctaRef as Ref<HTMLAnchorElement>}
+      className="portfolio-analysis-button"
+      href="/login?returnTo=%2F"
+    >
       로그인하고 다시 분석하기
     </a>
   ) : !error || refreshExhausted ? (
     <button
       className={`portfolio-analysis-button${saved?.status !== 'PROCESSING' && (showIntroduction || portfolioChanged || analysis || (!isLoggedIn && !loading)) ? ' is-primary' : ''}`}
       type="button"
+      ref={ctaRef as Ref<HTMLButtonElement>}
       disabled={!canAnalyze}
       onClick={analyze}
     >
@@ -1030,6 +1083,7 @@ function PortfolioAnalysisView({
 
       {hasAnalysisTarget && !loading && error ? (
         <PortfolioAnalysisError
+          buttonRef={refreshExhausted ? undefined : (ctaRef as Ref<HTMLButtonElement>)}
           onRetry={handleRetry}
           message={error}
           retryDisabled={refreshExhausted}

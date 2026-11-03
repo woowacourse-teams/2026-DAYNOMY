@@ -398,6 +398,8 @@ describe('포트폴리오 화면', () => {
       has_holdings: true,
       market_scope: 'domestic',
       pricing_status: 'COMPLETE',
+      holding_count_bucket: '1',
+      duration_ms: expect.any(Number),
     });
     fireEvent.click(view.getByRole('button', { name: '금액 숨기기' }));
     expect(
@@ -547,6 +549,7 @@ describe('포트폴리오 화면', () => {
       is_logged_in: false,
     });
     expect(trackPortfolioEvent).toHaveBeenCalledWith('portfolio_stock_selected', {
+      surface: 'transaction_editor',
       category: 'STOCK',
       market: 'KOSPI',
       mode: 'transaction_create',

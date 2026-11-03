@@ -2,6 +2,7 @@
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { trackEvent } from '../../src/analytics';
+import { ApiError } from '../../src/api/client';
 import { usePortfolioAnalysis } from '../../src/features/portfolio/hooks/usePortfolioAnalysis';
 import {
   getSavedPortfolioAnalysis,
@@ -88,6 +89,7 @@ it.each(['READY', 'FAILED'] as const)(
       ...empty,
       status: 'READY',
       summaryStatus: terminal,
+      lastCheckOutcome: 'UNCHANGED',
     });
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1000);
@@ -96,6 +98,7 @@ it.each(['READY', 'FAILED'] as const)(
     expect(completed()[0][1]).toMatchObject({
       status: terminal,
       summary_status: terminal,
+      last_check_outcome: 'UNCHANGED',
       action: 'analyze',
       user_type: 'member',
       duration_ms: 2000,
@@ -179,4 +182,32 @@ it('비회원 비동기 분석도 최종 실패를 한 번 기록한다', async 
     duration_ms: 1000,
   });
   expect(JSON.stringify(completed())).not.toContain('private-task');
+});
+
+it.each([
+  [new ApiError(400), 'ERROR'],
+  [new ApiError(409), 'CONFLICT'],
+  [new ApiError(429, 'PORTFOLIO_ANALYSIS_REFRESH_LIMIT_EXCEEDED'), 'REFRESH_LIMIT_EXCEEDED'],
+])('요청 거절 %s는 복원된 결과와 구분해 %s 완료를 한 번 기록한다', async (error, status) => {
+  vi.mocked(getSavedPortfolioAnalysis).mockResolvedValue(empty);
+  vi.mocked(updateSavedPortfolioAnalysis).mockRejectedValue(error);
+  const { result } = renderHook(() => usePortfolioAnalysis(assets, true));
+  await waitFor(() => expect(result.current.loaded).toBe(true));
+  vi.mocked(getSavedPortfolioAnalysis).mockResolvedValue({ ...empty, status: 'READY' });
+  await act(async () => {
+    await result.current.analyze();
+  });
+  expect(completed()).toHaveLength(1);
+  expect(completed()[0][1]).toMatchObject({ status, action: 'analyze', user_type: 'member' });
+});
+
+it('빈 작업 응답은 분석 완료로 집계하지 않는다', async () => {
+  vi.mocked(getSavedPortfolioAnalysis).mockResolvedValue(empty);
+  vi.mocked(updateSavedPortfolioAnalysis).mockResolvedValue(empty);
+  const { result } = renderHook(() => usePortfolioAnalysis(assets, true));
+  await waitFor(() => expect(result.current.loaded).toBe(true));
+  await act(async () => {
+    await result.current.analyze();
+  });
+  expect(completed()).toHaveLength(0);
 });

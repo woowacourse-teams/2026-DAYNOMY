@@ -24,7 +24,10 @@ import type {
 import type { AssetCategory } from '../stocks/types';
 import './portfolio.css';
 import './portfolioLedger.css';
-import { PortfolioTransactionEditor } from './components/PortfolioTransactionEditor';
+import {
+  PortfolioTransactionEditor,
+  type PortfolioTransactionEditorHandle,
+} from './components/PortfolioTransactionEditor';
 import { PortfolioHistory } from './components/PortfolioHistory';
 import { PortfolioDialog } from './components/PortfolioDialog';
 import { PortfolioHoldingDetail } from './components/PortfolioHoldingDetail';
@@ -984,6 +987,8 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
   const [trendDialogOpen, setTrendDialogOpen] = useState(false);
   const trendDialogTriggerRef = useRef<HTMLButtonElement | null>(null);
   const [selectedStock, setSelectedStock] = useState<StockSearchItem | null>(null);
+  const transactionEditorRef = useRef<PortfolioTransactionEditorHandle>(null);
+  const dashboardStartedAt = useRef(window.performance.now());
   const viewedRef = useRef(false);
   const loadedRef = useRef(false);
 
@@ -1152,6 +1157,17 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
       has_holdings: holdings.length > 0,
       market_scope: portfolioMarketScope(holdings),
       pricing_status: dashboardCalculation.pricingStatus,
+      duration_ms: Math.max(0, Math.round(window.performance.now() - dashboardStartedAt.current)),
+      holding_count_bucket:
+        holdings.length === 0
+          ? '0'
+          : holdings.length === 1
+            ? '1'
+            : holdings.length <= 5
+              ? '2_5'
+              : holdings.length <= 20
+                ? '6_20'
+                : '21_plus',
     });
   }, [
     calculation,
@@ -1571,6 +1587,7 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                   <PortfolioAnalysis
                     demoStep={tourStep ?? undefined}
                     assets={analysisAssets}
+                    pricingStatus={dashboardCalculation.pricingStatus}
                     onAddAsset={addAnalysisAsset}
                     isLoggedIn={isLoggedIn}
                     holdingsKey={JSON.stringify(
@@ -1997,7 +2014,7 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
           onClose={() => {
             if (removing) setRemoving(null);
             else if (editor) setEditor(null);
-            else if (transactionEditor) setTransactionEditor(null);
+            else if (transactionEditor) transactionEditorRef.current?.close();
             else setSelectedStock(null);
           }}
           className={
@@ -2044,6 +2061,7 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
             <div hidden={!!removing}>
               <PortfolioTransactionEditor
                 {...transactionEditor}
+                ref={transactionEditorRef}
                 onClose={() => setTransactionEditor(null)}
                 onDelete={
                   transactionEditor.transaction

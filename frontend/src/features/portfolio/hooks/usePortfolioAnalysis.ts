@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { trackEvent } from '../../../analytics';
+import { trackPortfolioEvent } from '../analytics';
 import { ApiError } from '../../../api/client';
 import {
   getGuestPortfolioAnalysis,
@@ -39,34 +40,35 @@ export function usePortfolioAnalysis(
     () => !isLoggedIn && hasGuestPortfolioAnalysisTrialBeenUsed(),
   );
   const active = useRef<AbortController | null>(null);
-  // Track only work started in this mounted view; restored/automatic jobs have no local start time.
+  // 이 화면에서 시작한 작업만 측정하고 복원·자동 분석에는 시작 시간을 붙이지 않는다.
   const pendingMeasurement = useRef<{
     startedAt: number;
-    properties: { action: string; user_type: string; asset_count: number };
+    action: 'analyze' | 'refresh';
+    user_type: 'member' | 'guest';
+    asset_count: number;
   } | null>(null);
-  const recordCompletion = useCallback(
-    (response: SavedPortfolioAnalysisResponse | GuestPortfolioAnalysisTaskResponse) => {
-      const pending = pendingMeasurement.current;
-      if (
-        !pending ||
-        response.status === 'EMPTY' ||
-        response.status === 'PROCESSING' ||
-        response.summaryStatus === 'PENDING'
-      )
-        return;
+  const completeMeasurement = useCallback(
+    (
+      status:
+        | Exclude<SavedPortfolioAnalysisResponse['status'], 'PROCESSING'>
+        | 'ERROR'
+        | 'CONFLICT'
+        | 'TRIAL_EXHAUSTED'
+        | 'REFRESH_LIMIT_EXCEEDED',
+      summaryStatus?: string,
+      lastCheckOutcome?: SavedPortfolioAnalysisResponse['lastCheckOutcome'],
+    ) => {
+      const attempt = pendingMeasurement.current;
+      if (!attempt || summaryStatus === 'PENDING') return;
       pendingMeasurement.current = null;
-      try {
-        trackEvent('portfolio_analysis_completed', {
-          ...pending.properties,
-          status: response.summaryStatus === 'FAILED' ? 'FAILED' : response.status,
-          summary_status: response.summaryStatus ?? undefined,
-          last_check_outcome:
-            'lastCheckOutcome' in response ? (response.lastCheckOutcome ?? undefined) : undefined,
-          duration_ms: Math.max(0, Math.round(performance.now() - pending.startedAt)),
-        });
-      } catch {
-        // Measurement failures must not stop polling or hide the completed analysis.
-      }
+      const { startedAt, ...properties } = attempt;
+      trackPortfolioEvent('portfolio_analysis_completed', {
+        ...properties,
+        status: summaryStatus === 'FAILED' ? 'FAILED' : status,
+        summary_status: summaryStatus,
+        last_check_outcome: lastCheckOutcome ?? undefined,
+        duration_ms: Math.max(0, Math.round(performance.now() - startedAt)),
+      });
     },
     [],
   );
@@ -76,7 +78,8 @@ export function usePortfolioAnalysis(
 
   const acceptGuest = useCallback(
     (response: GuestPortfolioAnalysisTaskResponse) => {
-      recordCompletion(response);
+      if (response.status !== 'PROCESSING' && response.status !== 'EMPTY')
+        completeMeasurement(response.status, response.summaryStatus ?? undefined);
       setGuest(response);
       setLoaded(true);
       if (response.analysis && matchesGuestPortfolioAnalysisHoldings(holdingsKey)) {
@@ -97,12 +100,17 @@ export function usePortfolioAnalysis(
         response.status === 'FAILED' && response.retryAllowed ? '분석을 완료하지 못했어요.' : null,
       );
     },
-    [holdingsKey, recordCompletion],
+    [holdingsKey, completeMeasurement],
   );
 
   const accept = useCallback(
     (response: SavedPortfolioAnalysisResponse) => {
-      recordCompletion(response);
+      if (response.status !== 'PROCESSING' && response.status !== 'EMPTY')
+        completeMeasurement(
+          response.status,
+          response.summaryStatus ?? undefined,
+          response.lastCheckOutcome,
+        );
       setSaved(response);
       setAnalysis(response.analysis);
       setLoaded(true);
@@ -119,7 +127,7 @@ export function usePortfolioAnalysis(
           : null,
       );
     },
-    [snapshotKey, recordCompletion],
+    [snapshotKey, completeMeasurement],
   );
 
   const restore = useCallback(
@@ -206,9 +214,17 @@ export function usePortfolioAnalysis(
       action: isLoggedIn && analysis && !portfolioChanged ? 'refresh' : 'analyze',
       user_type: isLoggedIn ? 'member' : 'guest',
       asset_count: assets.length,
-    };
+    } as const;
+    pendingMeasurement.current = { ...properties, startedAt };
     const recordResult = (status: string, outcome?: string | null) => {
       if (controller.signal.aborted) return;
+      if (
+        status === 'ERROR' ||
+        status === 'CONFLICT' ||
+        status === 'TRIAL_EXHAUSTED' ||
+        status === 'REFRESH_LIMIT_EXCEEDED'
+      )
+        completeMeasurement(status);
       trackEvent('portfolio_analysis_result', {
         ...properties,
         status,
@@ -216,7 +232,6 @@ export function usePortfolioAnalysis(
         duration_ms: Math.max(0, Math.round(performance.now() - startedAt)),
       });
     };
-    pendingMeasurement.current = { startedAt, properties };
     trackEvent('start_portfolio_analysis', properties);
     try {
       if (isLoggedIn) {
@@ -248,7 +263,6 @@ export function usePortfolioAnalysis(
         caught instanceof ApiError &&
         caught.code === 'PORTFOLIO_ANALYSIS_TRIAL_EXHAUSTED'
       ) {
-        pendingMeasurement.current = null;
         recordResult('TRIAL_EXHAUSTED');
         markGuestPortfolioAnalysisTrialUsed();
         setTrialExhausted(true);
@@ -257,7 +271,6 @@ export function usePortfolioAnalysis(
         caught instanceof ApiError &&
         caught.code === 'PORTFOLIO_ANALYSIS_REFRESH_LIMIT_EXCEEDED'
       ) {
-        pendingMeasurement.current = null;
         recordResult('REFRESH_LIMIT_EXCEEDED');
         try {
           const response = await getSavedPortfolioAnalysis(controller.signal);
@@ -267,7 +280,6 @@ export function usePortfolioAnalysis(
             setError('오늘 남은 확인 횟수를 불러오지 못했어요. 새로고침해 주세요.');
         }
       } else if (isLoggedIn && caught instanceof ApiError && caught.status === 409) {
-        pendingMeasurement.current = null;
         recordResult('CONFLICT');
         // 다른 탭의 실행 여부와 자산 변경 상태를 서버에서 다시 확인한다.
         try {
@@ -311,7 +323,6 @@ export function usePortfolioAnalysis(
             if (controller.signal.aborted) return;
           }
         }
-        pendingMeasurement.current = null;
         recordResult('ERROR');
         setError(
           analysis && !portfolioChanged

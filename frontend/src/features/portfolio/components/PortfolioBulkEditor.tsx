@@ -22,6 +22,7 @@ import {
   type TransactionFields,
 } from '../transactionForm';
 import { PortfolioDialog } from './PortfolioDialog';
+import { portfolioErrorType, trackPortfolioEvent } from '../analytics';
 import { holdingReturn } from '../holdingDisplay';
 import { useBulkCellSelection, type BulkCell } from '../hooks/useBulkCellSelection';
 import { PortfolioBulkStockSearch } from './PortfolioBulkStockSearch';
@@ -83,6 +84,19 @@ export function PortfolioBulkEditor({
   onAddHoldings: (items: PortfolioHoldingInput[]) => Promise<void>;
   onSaveTransactions: (items: BulkTransaction[], csv: boolean) => Promise<boolean>;
 }) {
+  const openedAt = useRef(performance.now());
+  const recordedOpen = useRef(false);
+  const dismissed = useRef(false);
+  const storage: 'server' | 'temporary' = isLoggedIn ? 'server' : 'temporary';
+  useEffect(() => {
+    if (recordedOpen.current) return;
+    recordedOpen.current = true;
+    trackPortfolioEvent('portfolio_bulk_opened', {
+      mode,
+      storage,
+      entry_point: mode === 'holdings' ? 'ledger' : 'header',
+    });
+  }, [mode, storage]);
   const [csvKind, setCsvKind] = useState<'balances' | 'transactions'>('balances');
   const [pendingCsvKind, setPendingCsvKind] = useState<typeof csvKind | null>(null);
   const [csvTable, setCsvTable] = useState<CsvHoldingTable | null>(null);
@@ -198,6 +212,7 @@ export function PortfolioBulkEditor({
   const [discarding, setDiscarding] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const fileRequest = useRef<AbortController | null>(null);
+  const csvStage = useRef<'file' | 'parse' | 'matching'>('file');
   const csvInputRef = useRef<HTMLInputElement>(null);
   const tableRef = useRef<HTMLDivElement>(null);
   const cells = useBulkCellSelection({
@@ -278,16 +293,39 @@ export function PortfolioBulkEditor({
       : mode === 'add'
         ? '여러 종목 일괄 추가'
         : 'CSV 파일 업로드';
+  function dismiss() {
+    if (dismissed.current) return;
+    dismissed.current = true;
+    trackPortfolioEvent('portfolio_bulk_closed', {
+      mode,
+      storage,
+      csv_kind: mode === 'csv' ? csvKind : undefined,
+      stage: reading
+        ? csvStage.current
+        : error
+          ? 'validation_error'
+          : mode !== 'csv'
+            ? 'input'
+            : trades.length
+              ? 'preview'
+              : csvTable
+                ? 'mapping'
+                : 'file',
+      has_changes: dirty,
+      duration_ms: Math.max(0, Math.round(performance.now() - openedAt.current)),
+    });
+    onClose();
+  }
   function close() {
     if (busy) return;
     if (reading) {
       fileRequest.current?.abort();
       setReading(false);
-      onClose();
+      dismiss();
       return;
     }
     if (dirty) setDiscarding(true);
-    else onClose();
+    else dismiss();
   }
   function change(next: HoldingDraft[]) {
     setHistory([...history.slice(0, cursor + 1), next].slice(-100));
@@ -398,14 +436,37 @@ export function PortfolioBulkEditor({
     setCsvTable(null);
     setCsvSkipped(0);
     setFileName(file.name);
+    const startedAt = performance.now();
+    let stage: 'file' | 'parse' | 'matching' = 'file';
+    csvStage.current = 'file';
+    let previewReason: 'request_failed' | 'stock_not_found' = 'request_failed';
+    let readRecorded = false;
+    let previewStartedAt = startedAt;
+    const recordRead = (status: 'success' | 'error', rowCount?: number) => {
+      if (controller.signal.aborted || readRecorded) return;
+      readRecorded = true;
+      trackPortfolioEvent('portfolio_csv_read_result', {
+        mode,
+        storage,
+        csv_kind: csvKind,
+        status,
+        stage,
+        row_count: rowCount,
+        reason: status === 'success' ? 'none' : stage === 'file' ? 'invalid_file' : 'invalid_csv',
+        duration_ms: Math.max(0, Math.round(performance.now() - startedAt)),
+      });
+    };
     try {
       if (!file.name.toLowerCase().endsWith('.csv') || file.size > 500_000)
         throw new Error('500KB 이하의 CSV 파일을 선택해 주세요.');
       const text = await readCsvText(file);
+      stage = 'parse';
+      csvStage.current = stage;
       if (controller.signal.aborted) return;
       if (csvKind === 'balances') {
         const table = inspectHoldingCsv(text);
         const mapping = guessCsvColumns(table.rows[table.headerIndex].cells);
+        recordRead('success', Math.max(0, table.rows.length - table.headerIndex - 1));
         setCsvTable(table);
         setCsvHeader(table.headerIndex);
         setCsvMapping(mapping);
@@ -415,6 +476,10 @@ export function PortfolioBulkEditor({
         return;
       }
       const rows = parseTransactionCsv(text);
+      recordRead('success', rows.length);
+      stage = 'matching';
+      csvStage.current = stage;
+      previewStartedAt = performance.now();
       const stocks = new Map<string, StockSearchItem>();
       const unique = [
         ...new Map(rows.map((row) => [`${row.market}:${row.assetCode}`, row])).values(),
@@ -431,10 +496,12 @@ export function PortfolioBulkEditor({
             const matches = results.filter(
               (item) => item.assetCode === row.assetCode && item.market === row.market,
             );
-            if (matches.length !== 1)
+            if (matches.length !== 1) {
+              previewReason = 'stock_not_found';
               throw new Error(
                 `${row.line}행: 종목 코드와 시장에 맞는 종목을 찾을 수 없어요. 국내 코드는 앞자리 0까지 입력해 주세요.`,
               );
+            }
             stocks.set(`${row.market}:${row.assetCode}`, matches[0]);
           }),
         );
@@ -446,10 +513,35 @@ export function PortfolioBulkEditor({
         type: row.type,
         sourceLine: row.line,
       }));
-      if (!controller.signal.aborted) setTrades(next);
+      if (!controller.signal.aborted) {
+        setTrades(next);
+        trackPortfolioEvent('portfolio_csv_preview_ready', {
+          mode,
+          storage,
+          csv_kind: csvKind,
+          mapping_mode: 'automatic',
+          row_count: next.length,
+          matched_count: next.length,
+          unmatched_count: 0,
+          skipped_count: 0,
+          duration_ms: Math.max(0, Math.round(performance.now() - previewStartedAt)),
+        });
+      }
     } catch (caught) {
-      if (!controller.signal.aborted)
+      if (!controller.signal.aborted) {
+        if (!readRecorded) recordRead('error');
+        else
+          trackPortfolioEvent('portfolio_csv_preview_failed', {
+            mode,
+            storage,
+            csv_kind: csvKind,
+            stage,
+            reason: previewReason,
+            error_type: portfolioErrorType(caught),
+            duration_ms: Math.max(0, Math.round(performance.now() - previewStartedAt)),
+          });
         setError(caught instanceof Error ? caught.message : 'CSV 파일을 읽지 못했어요.');
+      }
     } finally {
       if (!controller.signal.aborted) setReading(false);
     }
@@ -474,10 +566,13 @@ export function PortfolioBulkEditor({
     header: number;
     mapping: CsvColumnMapping;
     controller?: AbortController;
+    mappingMode?: 'automatic' | 'manual';
   }) {
     if (busy) return;
     if (!source.controller) fileRequest.current?.abort();
+    csvStage.current = 'matching';
     const controller = source.controller ?? new AbortController();
+    const startedAt = performance.now();
     fileRequest.current = controller;
     setReading(true);
     setError('');
@@ -558,10 +653,31 @@ export function PortfolioBulkEditor({
         setQuotes((current) => new Map([...current, ...fetchedQuotes]));
         setTradeState({ past: [], present: next, future: [] });
         setCsvSkipped(imported.skipped);
+        const matched = next.filter((row) => row.stock).length;
+        trackPortfolioEvent('portfolio_csv_preview_ready', {
+          mode,
+          storage,
+          csv_kind: 'balances',
+          mapping_mode: source.mappingMode ?? 'automatic',
+          row_count: next.length + imported.skipped,
+          matched_count: matched,
+          unmatched_count: next.length - matched,
+          skipped_count: imported.skipped,
+          duration_ms: Math.max(0, Math.round(performance.now() - startedAt)),
+        });
       }
     } catch (caught) {
       if (!controller.signal.aborted) {
         setTradeState({ past: [], present: [], future: [] });
+        trackPortfolioEvent('portfolio_csv_preview_failed', {
+          mode,
+          storage,
+          csv_kind: 'balances',
+          stage: 'matching',
+          reason: 'invalid_csv',
+          error_type: portfolioErrorType(caught),
+          duration_ms: Math.max(0, Math.round(performance.now() - startedAt)),
+        });
         setError(caught instanceof Error ? caught.message : '보유현황을 확인하지 못했어요.');
       }
     } finally {
@@ -569,6 +685,13 @@ export function PortfolioBulkEditor({
     }
   }
   function updateCsvColumns(table: CsvHoldingTable, header: number, mapping: CsvColumnMapping) {
+    trackPortfolioEvent('portfolio_csv_mapping_changed', {
+      mode,
+      storage,
+      csv_kind: csvKind,
+      mapping_mode: 'manual',
+      status: csvMappingError(mapping) ? 'error' : 'success',
+    });
     fileRequest.current?.abort();
     setCsvTable(table);
     setCsvHeader(header);
@@ -578,7 +701,7 @@ export function PortfolioBulkEditor({
     if (csvMappingError(mapping)) {
       setTradeState({ past: [], present: [], future: [] });
     } else {
-      void previewCsvHoldings({ table, header, mapping });
+      void previewCsvHoldings({ table, header, mapping, mappingMode: 'manual' });
     }
   }
   function template() {
@@ -599,6 +722,15 @@ export function PortfolioBulkEditor({
   async function save() {
     if (!valid || saving.current || reading) return;
     saving.current = true;
+    const startedAt = performance.now();
+    const properties = {
+      mode,
+      storage,
+      csv_kind: mode === 'csv' ? csvKind : undefined,
+      row_count: mode === 'holdings' ? changed.length : trades.length,
+    };
+    trackPortfolioEvent('portfolio_bulk_save_submitted', properties);
+    let duplicate = false;
     setBusy(true);
     setError('');
     try {
@@ -637,7 +769,7 @@ export function PortfolioBulkEditor({
           trades.map((trade) => balanceHolding(trade.stock!, balanceFields(trade))),
         );
       } else
-        await onSaveTransactions(
+        duplicate = await onSaveTransactions(
           trades.map((trade) => ({
             stock: trade.stock!,
             transaction: csvTransaction(
@@ -654,8 +786,21 @@ export function PortfolioBulkEditor({
           })),
           mode === 'csv',
         );
+      trackPortfolioEvent('portfolio_bulk_save_result', {
+        ...properties,
+        status: duplicate ? 'duplicate' : 'success',
+        imported_count: duplicate ? 0 : properties.row_count,
+        duration_ms: Math.max(0, Math.round(performance.now() - startedAt)),
+      });
       onClose();
     } catch (caught) {
+      trackPortfolioEvent('portfolio_bulk_save_result', {
+        ...properties,
+        status: 'error',
+        error_type: portfolioErrorType(caught),
+        imported_count: 0,
+        duration_ms: Math.max(0, Math.round(performance.now() - startedAt)),
+      });
       setError(
         caught instanceof Error
           ? caught.message
@@ -1493,7 +1638,7 @@ export function PortfolioBulkEditor({
             <button type="button" onClick={() => setDiscarding(false)}>
               계속 편집
             </button>
-            <button type="button" onClick={onClose}>
+            <button type="button" onClick={dismiss}>
               변경 취소하고 닫기
             </button>
           </div>

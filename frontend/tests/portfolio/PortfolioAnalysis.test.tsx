@@ -155,6 +155,13 @@ describe('포트폴리오 분석 화면', () => {
     ).toBe(true);
     expect(view.queryByRole('alert')).toBeNull();
     expect(view.getByText(analysisResponse.overallImpact)).toBeTruthy();
+    expect(trackEvent).toHaveBeenCalledWith(
+      'portfolio_analysis_completed',
+      expect.objectContaining({ status: 'REFRESH_LIMIT_EXCEEDED' }),
+    );
+    expect(
+      vi.mocked(trackEvent).mock.calls.filter(([name]) => name === 'portfolio_analysis_completed'),
+    ).toHaveLength(1);
   });
 
   it('한국 시간 자정이 되면 조회만으로 확인 버튼을 다시 활성화한다', async () => {
@@ -1185,10 +1192,14 @@ describe('포트폴리오 분석 이벤트', () => {
     vi.stubGlobal(
       'IntersectionObserver',
       class {
+        callback: IntersectionObserverCallback;
         constructor(callback: IntersectionObserverCallback) {
-          intersect = callback;
+          this.callback = callback;
         }
-        observe = observe;
+        observe = (element: HTMLElement) => {
+          observe(element);
+          if (element.matches('.portfolio-analysis-layout')) intersect = this.callback;
+        };
         disconnect() {}
       },
     );
@@ -1231,6 +1242,131 @@ describe('포트폴리오 분석 이벤트', () => {
       expect.objectContaining({ scope: 'asset', source_count: 1 }),
     );
   });
+});
+
+it('분석 CTA는 실제 노출 후 한 번만 기록하고 단순 복원은 완료로 세지 않는다', async () => {
+  const callbacks = new Map<Element, IntersectionObserverCallback>();
+  vi.stubGlobal(
+    'IntersectionObserver',
+    class {
+      callback: IntersectionObserverCallback;
+      constructor(callback: IntersectionObserverCallback) {
+        this.callback = callback;
+      }
+      observe(element: Element) {
+        callbacks.set(element, this.callback);
+      }
+      disconnect() {}
+    },
+  );
+  memberFetch(() => saved());
+  const view = render(<PortfolioAnalysis assets={assets} pricingStatus="MIXED_DATES" />);
+  const button = await view.findByRole('button', { name: '새 소식 확인' });
+  await waitFor(() => expect(callbacks.has(button)).toBe(true));
+  expect(trackEvent).not.toHaveBeenCalled();
+  const notify = (ratio: number) =>
+    act(() =>
+      callbacks.get(button)!(
+        [{ isIntersecting: ratio > 0, intersectionRatio: ratio } as IntersectionObserverEntry],
+        {} as IntersectionObserver,
+      ),
+    );
+  notify(0.1);
+  expect(trackEvent).not.toHaveBeenCalled();
+  notify(0.6);
+  notify(1);
+  expect(
+    vi.mocked(trackEvent).mock.calls.filter(([name]) => name === 'portfolio_analysis_cta_viewed'),
+  ).toHaveLength(1);
+  expect(trackEvent).toHaveBeenCalledWith(
+    'portfolio_analysis_cta_viewed',
+    expect.objectContaining({ action: 'refresh', enabled: true, pricing_status: 'MIXED_DATES' }),
+  );
+  expect(
+    vi.mocked(trackEvent).mock.calls.filter(([name]) => name === 'portfolio_analysis_completed'),
+  ).toHaveLength(0);
+});
+
+it('PROCESSING과 요약 대기는 완료로 세지 않고 폴링 최종 상태만 한 번 기록한다', async () => {
+  let started = false,
+    polls = 0;
+  memberFetch((_url, init) => {
+    if (init?.method === 'POST') {
+      started = true;
+      return saved({ status: 'PROCESSING', analysis: null, summaryStatus: 'PENDING' });
+    }
+    if (!started) return saved({ status: 'EMPTY', analysis: null });
+    polls += 1;
+    return saved({ summaryStatus: polls === 1 ? 'PENDING' : 'READY' });
+  });
+  const view = render(<PortfolioAnalysis assets={assets} />);
+  fireEvent.click(await view.findByRole('button', { name: 'AI 분석하기' }));
+  await waitFor(() =>
+    expect(trackEvent).toHaveBeenCalledWith(
+      'portfolio_analysis_result',
+      expect.objectContaining({ status: 'PROCESSING' }),
+    ),
+  );
+  expect(
+    vi.mocked(trackEvent).mock.calls.filter(([name]) => name === 'portfolio_analysis_completed'),
+  ).toHaveLength(0);
+  await waitFor(
+    () =>
+      expect(trackEvent).toHaveBeenCalledWith(
+        'portfolio_analysis_completed',
+        expect.objectContaining({
+          status: 'READY',
+          summary_status: 'READY',
+          action: 'analyze',
+          duration_ms: expect.any(Number),
+        }),
+      ),
+    { timeout: 3500 },
+  );
+  fireEvent.click((await view.findByText('삼성전자')).closest('button')!);
+  expect(
+    vi.mocked(trackEvent).mock.calls.filter(([name]) => name === 'portfolio_analysis_completed'),
+  ).toHaveLength(1);
+});
+
+it('갱신 횟수를 소진한 CTA 노출은 실행 가능한 분석의 분모에서 제외한다', async () => {
+  const callbacks = new Map<Element, IntersectionObserverCallback>();
+  vi.stubGlobal(
+    'IntersectionObserver',
+    class {
+      callback: IntersectionObserverCallback;
+      constructor(callback: IntersectionObserverCallback) {
+        this.callback = callback;
+      }
+      observe(element: Element) {
+        callbacks.set(element, this.callback);
+      }
+      disconnect() {}
+    },
+  );
+  memberFetch(() =>
+    saved({
+      remainingRefreshCount: 0,
+      refreshResetAt: new Date(Date.now() + 86_400_000).toISOString(),
+    }),
+  );
+  const view = render(<PortfolioAnalysis assets={assets} />);
+  const button = await view.findByRole('button', { name: '오늘 확인 완료' });
+  await waitFor(() => expect(callbacks.has(button)).toBe(true));
+  act(() =>
+    callbacks.get(button)!(
+      [{ isIntersecting: true, intersectionRatio: 1 } as IntersectionObserverEntry],
+      {} as IntersectionObserver,
+    ),
+  );
+  expect(trackEvent).toHaveBeenCalledWith(
+    'portfolio_analysis_cta_viewed',
+    expect.objectContaining({
+      action: 'refresh',
+      enabled: false,
+      reason: 'refresh_limit_exceeded',
+    }),
+  );
 });
 
 it('분석 출처 클릭은 URL·종목명 없이 위치와 범위만 기록한다', async () => {

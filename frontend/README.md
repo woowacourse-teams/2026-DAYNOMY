@@ -634,6 +634,13 @@ URL에서 쿼리·fragment와 공개 투자자 ID를 제거하되 `/league/profi
 
 기존 `tests/portfolio/PortfolioPage.test.tsx`, `GuestPortfolioTransactions.test.tsx`, `tests/monitoring/portfolioAnalytics.test.tsx`를 확인하고 `PortfolioTransactions.test.tsx`에 회원 거래 등록·수정·삭제 실패 및 재시도 시 이벤트 순서·횟수와 민감정보 제외 검증을 보강했다. 실제 PostHog 수신 대조는 포함하지 않는다.
 
+### 포트폴리오 이벤트 세분화 (#770)
+
+일괄편집·CSV 읽기/열 연결/미리보기/저장, 종목 검색, 입력 검증·명시적 닫기,
+AI CTA 실제 노출과 비동기 분석 최종 완료를 수집한다. 정렬 방향의 공통 속성 누락도 보완했다.
+이벤트 발생 시점·속성·중복 방지·시간과 건수의 의미·GA4 및 PostHog 설정 항목은
+[포트폴리오 이벤트 계약](docs/portfolio-analytics.md)에 정리했다.
+
 ### 리그 집계 개선 — GA4·PostHog 계측 (2026-10-31)
 
 기존 공통 `trackEvent`로 두 공급자에 같은 이벤트와 속성을 전송한다. 새 SDK나 계정 식별자는 추가하지 않는다. `GA_MEASUREMENT_ID`, `VITE_POSTHOG_PROJECT_TOKEN`, `VITE_POSTHOG_HOST`와 배포 환경의 기존 설정을 사용한다.
