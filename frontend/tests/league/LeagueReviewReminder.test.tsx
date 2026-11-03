@@ -154,20 +154,35 @@ it('알림 닫기는 서버에 7일 미루기를 저장하고 고양이로 수�
   });
 });
 
-it('미루기 저장이 실패하면 성공으로 집계하거나 알림을 없애지 않고 재시도한다', async () => {
+it('미루기 저장 실패에도 알림은 즉시 닫고 오류를 별도로 안내해 재시도한다', async () => {
   vi.mocked(api.snoozeReviewReminder)
     .mockRejectedValueOnce(new Error('offline'))
     .mockResolvedValue(nextNotificationAt);
   const view = render(<LeagueReviewReminder />);
   fireEvent.click(await view.findByRole('button', { name: '복기 알림 닫기' }));
-  expect((await view.findByRole('alert')).textContent).toContain('다시 시도');
-  expect(view.getByRole('button', { name: '바로 작성하기' })).toBeTruthy();
+  expect(view.queryByRole('button', { name: '바로 작성하기' })).toBeNull();
+  expect((await view.findByRole('alert')).textContent).toContain('저장하지 못했어요');
   expect(trackEvent).toHaveBeenCalledWith(
     'league_review_reminder_action',
     expect.objectContaining({ status: 'error' }),
   );
-  fireEvent.click(view.getByRole('button', { name: '복기 알림 닫기' }));
-  await waitFor(() => expect(view.queryByRole('button', { name: '바로 작성하기' })).toBeNull());
+  expect(
+    vi
+      .mocked(trackEvent)
+      .mock.calls.some(
+        ([name, params]) =>
+          name === 'league_review_reminder_action' && params?.status === 'success',
+      ),
+  ).toBe(false);
+  fireEvent.click(view.getByRole('button', { name: '알림 미루기 다시 시도' }));
+  await waitFor(() => expect(view.queryByRole('alert')).toBeNull());
+  await waitFor(() =>
+    expect(trackEvent).toHaveBeenCalledWith(
+      'league_review_reminder_action',
+      expect.objectContaining({ target: 'bubble', status: 'success' }),
+    ),
+  );
+  expect(api.snoozeReviewReminder).toHaveBeenCalledTimes(2);
 });
 
 it('보이지 않는 탭에서는 알림 기회를 소비하지 않고 탭이 보일 때 요청한다', async () => {

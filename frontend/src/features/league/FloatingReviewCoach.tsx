@@ -7,6 +7,8 @@ import type { InvestmentDecisionRecord } from './types';
 import './shared-portfolio.css';
 import './floating-review-coach.css';
 
+type DeferTarget = 'bubble' | 'minimize' | 'hide' | 'later';
+
 export function FloatingReviewCoach({
   record,
   reminderCount,
@@ -22,7 +24,7 @@ export function FloatingReviewCoach({
   onDismiss?: () => void;
   entryPoint?: ReviewReminderEntryPoint;
   onOpen?: (target: 'bubble' | 'cat' | 'entry') => void;
-  onDefer?: (target: 'bubble' | 'minimize' | 'hide' | 'later') => Promise<void>;
+  onDefer?: (target: DeferTarget) => Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
   const [visible, setVisible] = useState(true);
@@ -30,8 +32,7 @@ export function FloatingReviewCoach({
   const [done, setDone] = useState(false);
   const saved = useRef(false);
   const deferring = useRef(false);
-  const [deferBusy, setDeferBusy] = useState(false);
-  const [deferError, setDeferError] = useState('');
+  const [deferFailure, setDeferFailure] = useState<DeferTarget | null>(null);
   const floating = useRef<HTMLElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const entry = useRef<HTMLButtonElement>(null);
@@ -73,29 +74,22 @@ export function FloatingReviewCoach({
   }, [open, visible, done]);
   function show(target: 'bubble' | 'cat' | 'entry') {
     onOpen?.(target);
-    setDeferError('');
     setReminderVisible(false);
     setVisible(true);
     setOpen(true);
   }
-  async function defer(target: 'bubble' | 'minimize' | 'hide' | 'later', complete: () => void) {
-    if (!onDefer || done) {
-      complete();
-      return;
-    }
-    if (deferring.current) return;
+  async function defer(target: DeferTarget, close?: () => void) {
+    close?.();
+    setReminderVisible(false);
+    if (!onDefer || done || deferring.current) return;
     deferring.current = true;
-    setDeferBusy(true);
-    setDeferError('');
+    setDeferFailure(null);
     try {
       await onDefer(target);
-      setReminderVisible(false);
-      complete();
     } catch {
-      setDeferError('알림을 미루지 못했어요. 다시 시도해 주세요.');
+      setDeferFailure(target);
     } finally {
       deferring.current = false;
-      setDeferBusy(false);
     }
   }
   function minimize() {
@@ -112,6 +106,14 @@ export function FloatingReviewCoach({
     setVisible(false);
     onDismiss?.();
   }
+  const deferNotice = deferFailure ? (
+    <div className="floating-review-reminder" role="alert">
+      <p>다음 알림 일정을 저장하지 못했어요. 다시 시도해 주세요.</p>
+      <button type="button" className="shared-text-action" onClick={() => void defer(deferFailure)}>
+        알림 미루기 다시 시도
+      </button>
+    </div>
+  ) : null;
   const panel = (
     <section
       id={`${id}-panel`}
@@ -146,7 +148,6 @@ export function FloatingReviewCoach({
               <button
                 type="button"
                 onClick={() => void defer('hide', hide)}
-                disabled={deferBusy}
                 aria-label="복기 도우미 숨기기"
               >
                 화면에서 숨기기
@@ -156,7 +157,6 @@ export function FloatingReviewCoach({
           <button
             type="button"
             onClick={() => void defer('minimize', minimize)}
-            disabled={deferBusy}
             aria-label="복기 도우미 접기"
             title="접어도 작성한 답변은 유지돼요"
           >
@@ -171,11 +171,7 @@ export function FloatingReviewCoach({
             event.target.scrollIntoView?.({ block: 'nearest' });
         }}
       >
-        {deferError ? (
-          <p className="shared-error" role="alert">
-            {deferError}
-          </p>
-        ) : null}
+        {visible && open ? deferNotice : null}
         {done ? (
           <>
             <p className="shared-feedback" role="status">
@@ -199,6 +195,7 @@ export function FloatingReviewCoach({
             onRecordChange={(value) => {
               saved.current = true;
               setDone(true);
+              setDeferFailure(null);
               onSaved(value);
             }}
           />
@@ -209,15 +206,18 @@ export function FloatingReviewCoach({
   return (
     <>
       {!visible ? (
-        <button
-          ref={entry}
-          className="review-coach-entry"
-          type="button"
-          onClick={() => show('entry')}
-          aria-haspopup="dialog"
-        >
-          {done ? '저장한 복기 확인' : '복기 이어서 작성'}
-        </button>
+        <>
+          <button
+            ref={entry}
+            className="review-coach-entry"
+            type="button"
+            onClick={() => show('entry')}
+            aria-haspopup="dialog"
+          >
+            {done ? '저장한 복기 확인' : '복기 이어서 작성'}
+          </button>
+          {deferNotice}
+        </>
       ) : null}
       {createPortal(
         <aside
@@ -225,11 +225,11 @@ export function FloatingReviewCoach({
           hidden={!visible}
           className={`floating-review${open ? ' floating-review--open' : ''}`}
           aria-label="투자 복기 도우미"
-          aria-busy={deferBusy}
         >
           {panel}
           {!open ? (
             <>
+              {visible ? deferNotice : null}
               {reminderVisible && reminderCount && !done ? (
                 <div className="floating-review-reminder">
                   <button
@@ -237,7 +237,6 @@ export function FloatingReviewCoach({
                     type="button"
                     aria-label="복기 알림 닫기"
                     title="닫으면 7일 뒤에 다시 알려드려요"
-                    disabled={deferBusy}
                     onClick={() =>
                       void defer('bubble', () => {
                         setReminderVisible(false);
@@ -247,11 +246,6 @@ export function FloatingReviewCoach({
                   >
                     ×
                   </button>
-                  {deferError ? (
-                    <p className="shared-error" role="alert">
-                      {deferError}
-                    </p>
-                  ) : null}
                   <strong>복기할 기록이 {reminderCount}개 있어요</strong>
                   <p>{record.assetName}의 결과를 남겨볼까요?</p>
                   <p>열면 보유 이유와 관련 기사 일부를 외부 AI에 보내 근거를 준비해요.</p>

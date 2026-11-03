@@ -77,9 +77,9 @@ export function LeagueReviewReminder({
         })
       }
       onDefer={async (target) => {
+        setRemind(false);
         try {
           await snoozeReviewReminder(requestKey);
-          setRemind(false);
           trackLeagueEvent('league_review_reminder_action', {
             surface: 'review_coach',
             entry_point: entryPoint,
@@ -91,7 +91,7 @@ export function LeagueReviewReminder({
           trackLeagueEvent('league_review_reminder_action', {
             surface: 'review_coach',
             entry_point: entryPoint,
-            action: 'snooze_reminder',
+            action: target === 'bubble' ? 'dismiss_reminder' : 'snooze_reminder',
             target,
             status: 'error',
             error_type: leagueErrorType(error),

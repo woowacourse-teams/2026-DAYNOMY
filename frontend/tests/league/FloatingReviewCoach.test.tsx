@@ -1,5 +1,5 @@
 /** @vitest-environment jsdom */
-import { act, cleanup, fireEvent, render } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { StrictMode } from 'react';
 import { trackEvent } from '../../src/analytics';
@@ -268,4 +268,78 @@ it('이미 저장된 복기를 재조회한 409 응답은 새 저장으로 집�
   expect(vi.mocked(trackEvent).mock.calls.some(([name]) => name === 'league_review_saved')).toBe(
     false,
   );
+});
+
+it.each([
+  ['접기', 'minimize'],
+  ['나중에', 'later'],
+  ['숨기기', 'hide'],
+  ['Escape', 'minimize'],
+] as const)(
+  '%s는 미루기 서버 응답을 기다리지 않고 닫히며 초안과 오류 재시도를 유지한다',
+  async (action, target) => {
+    let rejectDefer!: (error: unknown) => void;
+    const onDefer = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise((_, reject) => {
+            rejectDefer = reject;
+          }),
+      )
+      .mockResolvedValue(undefined);
+    const view = render(
+      <FloatingReviewCoach record={record} onSaved={vi.fn()} onDefer={onDefer} />,
+    );
+    fireEvent.click(view.getByRole('button', { name: '복기 도우미 열기' }));
+    fireEvent.change(view.getByRole('textbox', { name: '실제 결과' }), {
+      target: { value: '유지할 초안' },
+    });
+    if (action === 'Escape') fireEvent.keyDown(view.getByRole('dialog'), { key: 'Escape' });
+    else if (action === '숨기기') {
+      fireEvent.click(view.getByLabelText('복기 도우미 메뉴'));
+      fireEvent.click(view.getByRole('button', { name: '복기 도우미 숨기기' }));
+    } else
+      fireEvent.click(
+        view.getByRole('button', { name: action === '접기' ? '복기 도우미 접기' : '나중에' }),
+      );
+    expect(view.queryByRole('dialog')).toBeNull();
+    expect(onDefer).toHaveBeenCalledExactlyOnceWith(target);
+    fireEvent.click(
+      view.getByRole('button', {
+        name: action === '숨기기' ? '복기 이어서 작성' : '복기 도우미 열기',
+      }),
+    );
+    expect(view.getByRole('textbox', { name: '실제 결과' })).toHaveProperty('value', '유지할 초안');
+    fireEvent.click(view.getByRole('button', { name: '복기 도우미 접기' }));
+    expect(view.queryByRole('dialog')).toBeNull();
+    expect(onDefer).toHaveBeenCalledOnce();
+    await act(async () => rejectDefer(new Error('offline')));
+    expect((await view.findByRole('alert')).textContent).toContain('저장하지 못했어요');
+    fireEvent.click(view.getByRole('button', { name: '알림 미루기 다시 시도' }));
+    await waitFor(() => expect(view.queryByRole('alert')).toBeNull());
+    expect(onDefer).toHaveBeenCalledTimes(2);
+    expect(onDefer).toHaveBeenLastCalledWith(target);
+    fireEvent.click(view.getByRole('button', { name: '복기 도우미 열기' }));
+    expect(view.getByRole('textbox', { name: '실제 결과' })).toHaveProperty('value', '유지할 초안');
+    expect(api.getReviewGuide).toHaveBeenCalledOnce();
+  },
+);
+
+it('숨긴 창의 미루기 저장 실패도 이어 쓰기 버튼 옆에서 재시도할 수 있다', async () => {
+  const onDefer = vi.fn().mockRejectedValueOnce(new Error('offline')).mockResolvedValue(undefined);
+  const view = render(<FloatingReviewCoach record={record} onSaved={vi.fn()} onDefer={onDefer} />);
+  fireEvent.click(view.getByRole('button', { name: '복기 도우미 열기' }));
+  fireEvent.change(view.getByRole('textbox', { name: '실제 결과' }), {
+    target: { value: '숨겨둔 초안' },
+  });
+  fireEvent.click(view.getByLabelText('복기 도우미 메뉴'));
+  fireEvent.click(view.getByRole('button', { name: '복기 도우미 숨기기' }));
+  expect(view.queryByRole('dialog')).toBeNull();
+  await view.findByRole('alert');
+  expect(view.queryByRole('complementary', { name: '투자 복기 도우미' })).toBeNull();
+  fireEvent.click(view.getByRole('button', { name: '알림 미루기 다시 시도' }));
+  await waitFor(() => expect(view.queryByRole('alert')).toBeNull());
+  fireEvent.click(view.getByRole('button', { name: '복기 이어서 작성' }));
+  expect(view.getByRole('textbox', { name: '실제 결과' })).toHaveProperty('value', '숨겨둔 초안');
 });
