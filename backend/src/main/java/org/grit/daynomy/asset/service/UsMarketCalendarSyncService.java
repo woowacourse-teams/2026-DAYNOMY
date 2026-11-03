@@ -50,6 +50,9 @@ public class UsMarketCalendarSyncService {
         LocalDate first = LocalDate.of(target, 1, 1);
         LocalDate last = LocalDate.of(target, 12, 31);
         Set<LocalDate> holidays = client.getUsMarketHolidays(first, last);
+        if (holidays.isEmpty()) {
+          throw new IllegalStateException("US market holiday calendar is empty");
+        }
         Integer count =
             new TransactionTemplate(transactionManager)
                 .execute(status -> saveYear(first, last, holidays));

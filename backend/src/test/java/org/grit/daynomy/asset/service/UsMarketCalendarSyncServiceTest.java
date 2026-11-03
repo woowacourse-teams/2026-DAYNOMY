@@ -38,6 +38,7 @@ class UsMarketCalendarSyncServiceTest {
 
   @Test
   void repairsMissingUsFlagsEvenWhenTodayIsAlreadyInitialized() {
+    givenValidYearlyHolidays();
     var calendar = new ArrayList<>(calendar(first, last));
     calendar.set(0, new MarketTradingDay(first, false));
     when(days.findAllByBaseDateBetweenOrderByBaseDate(first, last)).thenReturn(calendar);
@@ -50,6 +51,7 @@ class UsMarketCalendarSyncServiceTest {
 
   @Test
   void repairsMissingDatesEvenWhenAllExistingUsFlagsArePresent() {
+    givenValidYearlyHolidays();
     var calendar = new ArrayList<>(calendar(first, last));
     calendar.remove(0);
     when(days.findAllByBaseDateBetweenOrderByBaseDate(first, last)).thenReturn(calendar);
@@ -90,7 +92,7 @@ class UsMarketCalendarSyncServiceTest {
 
   @Test
   void notifiesRecalculationAfterCommitsOnlyForChangesAndPreservesKoreanCollection() {
-    when(client.getUsMarketHolidays(any(), any())).thenReturn(Set.of());
+    givenValidYearlyHolidays();
     int year = today.getYear();
     for (int target = year - 1; target <= year + 1; target++) {
       LocalDate from = LocalDate.of(target, 1, 1);
@@ -113,7 +115,7 @@ class UsMarketCalendarSyncServiceTest {
     unchanged.collected(collected);
     unchanged.usCollected(collected);
     when(days.findCalendarForUpdate(from, to)).thenReturn(current);
-    when(client.getUsMarketHolidays(from, to)).thenReturn(Set.of(holiday.getBaseDate()));
+    when(client.getUsMarketHolidays(from, to)).thenReturn(Set.of(from, holiday.getBaseDate()));
 
     service.synchronize();
 
@@ -140,7 +142,7 @@ class UsMarketCalendarSyncServiceTest {
     service.synchronize();
 
     verifyNoInteractions(days, transactionManager, events);
-    doReturn(Set.of()).when(client).getUsMarketHolidays(any(), any());
+    givenValidYearlyHolidays();
 
     service.synchronize();
 
@@ -150,6 +152,7 @@ class UsMarketCalendarSyncServiceTest {
 
   @Test
   void continuesOtherYearsWhenOneYearFails() {
+    givenValidYearlyHolidays();
     when(client.getUsMarketHolidays(first, first.plusYears(1).minusDays(1)))
         .thenThrow(new IllegalStateException("unavailable"));
 
@@ -163,6 +166,7 @@ class UsMarketCalendarSyncServiceTest {
 
   @Test
   void doesNotPublishRecalculationWhenTransactionsFail() {
+    givenValidYearlyHolidays();
     doThrow(new IllegalStateException("commit failed")).when(transactionManager).commit(any());
 
     service.synchronize();
@@ -171,11 +175,47 @@ class UsMarketCalendarSyncServiceTest {
     verifyNoInteractions(events);
   }
 
+  @Test
+  void rejectsEmptyYearlyHolidaysWithoutSideEffectsAndRecoversOnRetry() {
+    when(client.getUsMarketHolidays(any(), any())).thenReturn(Set.of());
+
+    service.synchronize();
+
+    verify(client, times(3)).getUsMarketHolidays(any(), any());
+    verifyNoInteractions(days, transactionManager, events);
+
+    givenValidYearlyHolidays();
+    service.synchronize();
+
+    verify(client, times(6)).getUsMarketHolidays(any(), any());
+    verify(transactionManager, times(3)).commit(any());
+    verify(events).publishEvent(new MarketCalendarSyncResult(calendar(first, last).size()));
+  }
+
+  @Test
+  void continuesOtherYearsWhenOneYearReturnsEmptyHolidays() {
+    givenValidYearlyHolidays();
+    doReturn(Set.of()).when(client).getUsMarketHolidays(first, first.plusYears(1).minusDays(1));
+
+    service.synchronize();
+
+    verify(days, never()).findCalendarForUpdate(eq(first), any());
+    verify(transactionManager, times(2)).commit(any());
+    verify(events)
+        .publishEvent(new MarketCalendarSyncResult(calendar(first.plusYears(1), last).size()));
+  }
+
+  private void givenValidYearlyHolidays() {
+    doAnswer(invocation -> Set.of(((LocalDate) invocation.getArgument(0)).withDayOfYear(1)))
+        .when(client)
+        .getUsMarketHolidays(any(), any());
+  }
+
   private List<MarketTradingDay> calendar(LocalDate from, LocalDate to) {
     return from.datesUntil(to.plusDays(1))
         .map(
             date -> {
-              boolean trading = date.getDayOfWeek().getValue() <= 5;
+              boolean trading = date.getDayOfWeek().getValue() <= 5 && date.getDayOfYear() != 1;
               var day = new MarketTradingDay(date, trading);
               day.reviseUsTrading(trading);
               return day;

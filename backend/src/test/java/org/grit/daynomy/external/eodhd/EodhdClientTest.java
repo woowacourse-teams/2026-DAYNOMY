@@ -107,6 +107,14 @@ class EodhdClientTest {
   }
 
   @Test
+  void allowsEmptyUsHolidayCalendarForShortDateRanges() {
+    json("{\"Code\":\"US\",\"ExchangeHolidays\":{}}");
+
+    assertThat(client.getUsMarketHolidays(LocalDate.of(2026, 1, 2), LocalDate.of(2026, 1, 9)))
+        .isEmpty();
+  }
+
+  @Test
   void rejectsMissingUsHolidayCalendar() {
     json("{\"Code\":\"US\"}");
 
