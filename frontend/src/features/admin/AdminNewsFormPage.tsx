@@ -254,8 +254,14 @@ export function AdminNewsFormPage() {
     const controller = new AbortController();
     assetSearchController.current = controller;
     try {
-      const results = await searchStocks(keyword, controller.signal);
+      const responses = await Promise.all([
+        searchStocks(keyword, controller.signal),
+        searchStocks(keyword, controller.signal, 'US'),
+      ]);
       if (requestId !== assetSearchRequestId.current) return;
+      const results = [
+        ...new Map(responses.flat().map((asset) => [asset.assetId, asset])).values(),
+      ];
       setAssetSearchResults(results);
       setAssetSearched(true);
     } catch (error) {
