@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  createAdminFeedback,
   createFeedback,
   deleteAdminFeedback,
   getAdminFeedbacks,
@@ -18,6 +19,9 @@ const feedback = {
   id: 1,
   content: '검색 결과를 저장하고 싶어요.',
   pagePath: '/search?q=금리',
+  category: null,
+  authorMemberId: null,
+  authorNickname: null,
   status: 'PENDING',
   createdAt: '2026-10-12T09:00:00Z',
   updatedAt: '2026-10-12T09:00:00Z',
@@ -44,6 +48,26 @@ test('공개 피드백 등록 API는 CSRF 토큰과 작성 화면을 함께 보�
   assert.deepEqual(JSON.parse(String(calls[1]?.init?.body)), {
     content: '검색 결과를 저장하고 싶어요.',
     pagePath: '/search?q=금리',
+  });
+});
+
+test('관리자 피드백 등록 API는 유형과 작성 화면을 함께 보낸다', async () => {
+  const calls: Array<{ url: string; init?: RequestInit }> = [];
+  globalThis.fetch = async (input, init) => {
+    calls.push({ url: String(input), init });
+    if (String(input) === '/api/auth/csrf') {
+      return jsonResponse({ token: 'csrf-token', headerName: 'X-CSRF-TOKEN' });
+    }
+    return new Response(null, { status: 204 });
+  };
+
+  await createAdminFeedback('BUG', '저장 버튼이 동작하지 않아요.', '/admin/news/new');
+
+  assert.equal(calls[1]?.url, '/api/admin/feedbacks');
+  assert.deepEqual(JSON.parse(String(calls[1]?.init?.body)), {
+    category: 'BUG',
+    content: '저장 버튼이 동작하지 않아요.',
+    pagePath: '/admin/news/new',
   });
 });
 

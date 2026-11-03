@@ -32,6 +32,8 @@ dependencies {
     implementation("org.flywaydb:flyway-database-postgresql")
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.3")
     implementation("org.jsoup:jsoup:1.21.2")
+    implementation("org.apache.pdfbox:pdfbox:3.0.8")
+    implementation("org.apache.httpcomponents.client5:httpclient5")
     compileOnly("org.projectlombok:lombok")
     annotationProcessor("org.projectlombok:lombok")
     runtimeOnly("org.postgresql:postgresql")
@@ -55,6 +57,8 @@ dependencies {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+    systemProperty("spring.test.context.cache.maxSize", "8")
+    maxHeapSize = "2g"
     if (System.getenv("LEAGUE_BENCHMARK") == "true") maxHeapSize = "3g"
 }
 
@@ -63,6 +67,13 @@ tasks.register<JavaExec>("portfolioLoadtest") {
     dependsOn(tasks.testClasses)
     classpath = sourceSets.test.get().runtimeClasspath
     mainClass.set("org.grit.daynomy.loadtest.PortfolioLoadtestTool")
+}
+
+tasks.register<JavaExec>("portfolio1000Loadtest") {
+    dependsOn(tasks.testClasses)
+    classpath = sourceSets.test.get().runtimeClasspath
+    mainClass.set("org.grit.daynomy.loadtest.Portfolio1000LoadtestTool")
+    maxHeapSize = "512m"
 }
 
 spotless {

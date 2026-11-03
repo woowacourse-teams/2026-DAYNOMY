@@ -18,6 +18,8 @@ it('뉴스 수정에서도 현재 메뉴를 표시하고 모든 관리자 영역
   for (const [label, path] of [
     ['주요 인물', '/admin/people'],
     ['종목 연결', '/admin/stock-contents'],
+    ['소식 출처', '/admin/content-sources'],
+    ['소식 검수', '/admin/content-reviews'],
     ['피드백', '/admin/feedbacks'],
     ['자산 데이터', '/admin/stocks'],
   ]) {
@@ -26,6 +28,7 @@ it('뉴스 수정에서도 현재 메뉴를 표시하고 모든 관리자 영역
     fireEvent.click(link);
     expect(link.getAttribute('aria-current')).toBe('page');
   }
+  expect(view.queryByRole('link', { name: '이메일 알림 관리' })).toBeNull();
   expect(view.getByRole('link', { name: /서비스 홈/ }).getAttribute('href')).toBe('/');
   expect(view.getByRole('link', { name: '본문으로 이동' }).getAttribute('href')).toBe(
     '#admin-workspace',

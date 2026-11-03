@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, useLayoutEffect, useState, type ReactNode } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import LoginPage from './features/pages/components/LoginPage';
 import NotFoundPage from './features/pages/components/NotFoundPage';
@@ -30,6 +30,10 @@ import { AdminStockContentsPage } from './features/admin/AdminStockContentsPage'
 import { AdminStockSyncPage } from './features/admin/AdminStockSyncPage';
 import { AdminPeoplePage } from './features/admin/AdminPeoplePage';
 import { AdminFeedbackPage } from './features/admin/AdminFeedbackPage';
+import {
+  AdminContentReviewsPage,
+  AdminContentSourcesPage,
+} from './features/admin/AdminContentCollectionPage';
 import { AdminShell } from './features/admin/components/AdminShell';
 import { PeoplePage } from './features/people/PeoplePage';
 import { StockContentPage } from './features/stock-content/StockContentPage';
@@ -37,14 +41,17 @@ import { CardDesignPreviewPage } from './features/stock-content/CardDesignPrevie
 import { FeedbackWidget } from './features/feedback/FeedbackWidget';
 import { hasStartedService, rememberServiceStart } from './features/landing/startedService';
 import { loadGuestPortfolioHoldings } from './features/portfolio/portfolioHoldingsStorage';
-import { isStaffHostname, isUserHostname } from './serviceDomain';
+import { isAdminOnlyHostname, isUserHostname } from './serviceDomain';
+import { EmailSubscriptionPrompt } from './features/email-subscription/EmailSubscriptionPrompt';
 import './App.css';
 import './features/admin/admin.css';
 
 const LandingPage = lazy(() => import('./features/landing/LandingPage'));
+
 function AnalyticsTracker() {
   const location = useLocation();
-  useEffect(() => {
+  // Stop replay on protected routes before DOM mutation observers record the new screen.
+  useLayoutEffect(() => {
     trackPageView(location.pathname);
   }, [location.pathname]);
   return null;
@@ -117,7 +124,12 @@ function AdminRoute({ children }: { children: ReactNode }) {
     );
   }
 
-  return <AdminShell>{children}</AdminShell>;
+  return (
+    <AdminShell>
+      {children}
+      <FeedbackWidget variant="admin" />
+    </AdminShell>
+  );
 }
 
 function AuthenticatedRoute({ children }: { children: ReactNode }) {
@@ -152,6 +164,15 @@ function PortfolioRoute() {
   return (
     <PortfolioPage key={isLoggedIn ? `member:${memberId}` : 'guest'} isLoggedIn={isLoggedIn} />
   );
+}
+
+const NewsHomePage = lazy(() => import('./features/news/issue/NewsHomePreview'));
+
+function NewsHomeRoute() {
+  const location = useLocation();
+  const preview =
+    import.meta.env.DEV && new URLSearchParams(location.search).get('preview') === 'briefing';
+  return <NewsHomePage preview={preview} />;
 }
 
 function HomeRoute({ hasStarted, onStart }: { hasStarted: boolean; onStart: () => void }) {
@@ -206,15 +227,15 @@ function StaffAccessDeniedPage() {
 export function ServiceDomainBoundary({ children }: { children: ReactNode }) {
   const location = useLocation();
   const { isLoggedIn, loading, role } = useAuth();
-  const isStaff = isStaffHostname(window.location.hostname);
+  const isAdminOnlyDomain = isAdminOnlyHostname(window.location.hostname);
   const isAdminPath = location.pathname === '/admin' || location.pathname.startsWith('/admin/');
-  const isStaffPublicPath = ['/login', '/terms', '/privacy'].includes(location.pathname);
+  const isPublicPath = ['/login', '/terms', '/privacy'].includes(location.pathname);
 
   if (isUserHostname(window.location.hostname) && isAdminPath) {
     return <Navigate to="/" replace />;
   }
 
-  if (!isStaff || isStaffPublicPath) {
+  if (!isAdminOnlyDomain || isPublicPath) {
     return children;
   }
 
@@ -266,6 +287,7 @@ function AppContent() {
       <AnalyticsTracker />
       <ScrollToTop />
       <PostLoginRedirect />
+      <EmailSubscriptionPrompt />
       <div className="app-shell">
         {!awaitingWelcome && <AppHeader />}
         <LeagueNavigation />
@@ -341,7 +363,14 @@ function AppContent() {
                 </AuthenticatedRoute>
               }
             />
-            <Route path="/news" element={<IssueHomePage key="home" />} />
+            <Route
+              path="/news"
+              element={
+                <Suspense fallback={<main aria-busy="true" aria-label="소식 불러오는 중" />}>
+                  <NewsHomeRoute />
+                </Suspense>
+              }
+            />
             <Route path="/news/today" element={<NewsListPage />} />
             <Route path="/news/contents" element={<IssueHomePage key="contents" fullFeed />} />
             <Route path="/news/real-estate-loan-rule" element={<RealEstateLoanRulePage />} />
@@ -410,6 +439,30 @@ function AppContent() {
               element={
                 <AdminRoute>
                   <AdminStockContentsPage />
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/admin/content-collection"
+              element={
+                <AdminRoute>
+                  <Navigate to="/admin/content-sources" replace />
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/admin/content-sources"
+              element={
+                <AdminRoute>
+                  <AdminContentSourcesPage />
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/admin/content-reviews"
+              element={
+                <AdminRoute>
+                  <AdminContentReviewsPage />
                 </AdminRoute>
               }
             />

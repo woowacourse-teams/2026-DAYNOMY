@@ -15,6 +15,16 @@ const sections = [
     icon: 'M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-2 2 M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l2-2',
   },
   {
+    path: '/admin/content-sources',
+    label: '소식 출처',
+    icon: 'M4 17l5-5 4 4 7-8 M15 8h5v5',
+  },
+  {
+    path: '/admin/content-reviews',
+    label: '소식 검수',
+    icon: 'M9 11l3 3L22 4 M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11',
+  },
+  {
     path: '/admin/feedbacks',
     label: '피드백',
     icon: 'M21 15a3 3 0 0 1-3 3H8l-5 3V6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3z M7 8h10 M7 12h6',

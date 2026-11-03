@@ -1,4 +1,6 @@
-import { useId } from 'react';
+import { useEffect, useId, useRef } from 'react';
+import { trackLeagueEvent } from './analytics';
+import { useContentImpression } from '../news/issue/analytics';
 import type { AggregationEstimate } from './types';
 
 const dateFormatter = new Intl.DateTimeFormat('ko-KR', {
@@ -16,69 +18,82 @@ const scheduleFormatter = new Intl.DateTimeFormat('ko-KR', {
   timeZone: 'Asia/Seoul',
 });
 
-const messages: Record<string, { title: string; description: string }> = {
-  SNAPSHOT_PENDING: {
-    title: '이번 주 성과를 준비하고 있어요',
-    description: '일부 보유 데이터가 아직 준비되지 않았어요. 확인이 끝나면 주간 수익률에 반영돼요.',
-  },
-  MARKET_CLOSE_PENDING: {
-    title: '장 마감 후 성과를 계산해요',
-    description: '종가가 수집되면 보유 성과와 순위에 반영돼요.',
-  },
-  PRICE_COLLECTION_PENDING: {
-    title: '종가 데이터를 기다리고 있어요',
-    description: '종가 수집이 끝나면 수익률과 순위가 갱신돼요.',
-  },
-  PRICE_COLLECTION_DELAYED: {
-    title: '종가 데이터 제공이 늦어지고 있어요',
-    description: '다음 수집 일정에 다시 확인해요. 이미 집계된 성과는 그대로 볼 수 있어요.',
-  },
-  CALCULATION_PENDING: {
-    title: '수익률과 순위를 계산하고 있어요',
-    description: '수집된 종가를 바탕으로 다음 집계 때 성과를 반영해요.',
-  },
-  COLLECTION_PAUSED: {
-    title: '자동 집계가 잠시 멈춰 있어요',
-    description:
-      '현재는 예상 일정을 안내하기 어려워요. 데이터 준비와 집계가 재개되면 성과가 반영돼요.',
-  },
-  CALENDAR_PENDING: {
-    title: '거래일 정보를 확인하고 있어요',
-    description: '거래일이 확인되면 수집·집계 일정을 안내해요.',
-  },
-  MISSING_PRICE: {
-    title: '일부 종가 데이터를 확인하고 있어요',
-    description: '필요한 종가가 모두 준비되어야 주간 수익률을 계산할 수 있어요.',
-  },
-  NO_HOLDINGS: {
-    title: '집계할 보유 기록이 없어요',
-    description: '리그에 가져온 종목과 실제 보유 기간을 확인해 주세요.',
-  },
-  UNSUPPORTED_ASSET: {
-    title: '집계 대상 종목을 확인해 주세요',
-    description: '리그에서 지원하는 국내 주식·ETF의 성과를 집계해요.',
-  },
+const messages: Record<string, string> = {
+  SNAPSHOT_PENDING: '기록 확인 중',
+  MARKET_CLOSE_PENDING: '장 마감 대기',
+  PRICE_COLLECTION_PENDING: '종가 수집 중',
+  PRICE_COLLECTION_DELAYED: '종가 제공 지연',
+  CALCULATION_PENDING: '수익률 집계 중',
+  COLLECTION_PAUSED: '자동 집계 중지',
+  CALENDAR_PENDING: '거래일 확인 중',
+  EXCHANGE_RATE_PENDING: '환율 수집 중',
+  MISSING_PRICE: '종가 확인 중',
+  NO_HOLDINGS: '보유 종목 없음',
+  UNSUPPORTED_ASSET: '지원 종목 확인 필요',
 };
 
 export function AggregationNotice({
   aggregation,
   onRefresh,
+  surface = 'ranking',
 }: {
   aggregation: AggregationEstimate;
   onRefresh: () => void;
+  surface?: 'ranking' | 'daily_history';
 }) {
   const titleId = useId();
+  const notice = useRef<HTMLElement>(null);
+  const reason = Object.hasOwn(messages, aggregation.reason) ? aggregation.reason : 'UNKNOWN';
+  const properties = {
+    surface,
+    aggregation_reason: reason,
+    delayed: aggregation.delayed,
+    has_expected_at: Boolean(aggregation.expectedAt),
+    has_first_return_expected_at: Boolean(aggregation.firstReturnExpectedAt),
+  };
+  useContentImpression(
+    notice,
+    JSON.stringify([
+      surface,
+      aggregation.baseDate,
+      aggregation.expectedAt,
+      reason,
+      aggregation.delayed,
+    ]),
+    'league_aggregation_viewed',
+    properties,
+  );
+  const recordRefresh = useRef(properties);
+  useEffect(() => {
+    recordRefresh.current = properties;
+  });
+  const refresh = useRef(onRefresh);
+  useEffect(() => {
+    refresh.current = onRefresh;
+  }, [onRefresh]);
+  useEffect(() => {
+    if (!aggregation.expectedAt) return;
+    const delay = Date.parse(aggregation.expectedAt) + 30_000 - Date.now();
+    if (delay <= 0 || delay > 2_147_483_647) return;
+    const timer = window.setTimeout(() => {
+      if (document.visibilityState === 'visible') {
+        trackLeagueEvent('league_aggregation_refresh', {
+          ...recordRefresh.current,
+          trigger: 'scheduled',
+        });
+        refresh.current();
+      }
+    }, delay);
+    return () => window.clearTimeout(timer);
+  }, [aggregation.expectedAt]);
   const message = Object.hasOwn(messages, aggregation.reason)
     ? messages[aggregation.reason]
-    : {
-        title: '다음 집계를 기다리고 있어요',
-        description: '데이터 준비와 집계가 끝나면 성과가 반영돼요.',
-      };
+    : '집계 대기';
 
   return (
-    <aside className="league-aggregation" aria-labelledby={titleId}>
+    <aside ref={notice} className="league-aggregation" aria-labelledby={titleId}>
       <div className="league-aggregation-copy">
-        <div className="league-aggregation-eyebrow">
+        <h3 id={titleId}>
           <svg
             width="16"
             height="16"
@@ -91,21 +106,21 @@ export function AggregationNotice({
             <circle cx="12" cy="12" r="9" />
             <path d="M12 7v5l3 2" />
           </svg>
-          <span>집계 현황</span>
-          {aggregation.delayed ? <span className="league-status-badge">제공 지연</span> : null}
-        </div>
-        <h3 id={titleId}>{message.title}</h3>
-        <p>{message.description}</p>
+          {message}
+          {aggregation.delayed && aggregation.reason !== 'PRICE_COLLECTION_DELAYED' ? (
+            <span className="league-status-badge">지연</span>
+          ) : null}
+        </h3>
         {aggregation.reason === 'SNAPSHOT_PENDING' && aggregation.baseDate ? (
           <span className="league-aggregation-date">
-            {dateFormatter.format(new Date(aggregation.baseDate))} 보유 데이터 확인 중
+            {dateFormatter.format(new Date(aggregation.baseDate))} 기록
           </span>
         ) : null}
       </div>
       <div className="league-aggregation-schedule">
         <dl>
           <div>
-            <dt>다음 집계 예정</dt>
+            <dt>집계 예정</dt>
             <dd>
               {aggregation.expectedAt ? (
                 <time dateTime={aggregation.expectedAt}>
@@ -118,7 +133,7 @@ export function AggregationNotice({
           </div>
           {aggregation.firstReturnExpectedAt ? (
             <div>
-              <dt>첫 수익률 변화 예상</dt>
+              <dt>첫 변동 예상</dt>
               <dd>
                 <time dateTime={aggregation.firstReturnExpectedAt}>
                   {scheduleFormatter.format(new Date(aggregation.firstReturnExpectedAt))}
@@ -128,12 +143,14 @@ export function AggregationNotice({
           ) : null}
         </dl>
         <div className="league-aggregation-actions">
-          <small>
-            {aggregation.expectedAt
-              ? '데이터 제공 상황에 따라 달라질 수 있어요.'
-              : '예정 시각이 확인되면 안내해요.'}
-          </small>
-          <button type="button" onClick={onRefresh} aria-label="집계 현황 새로고침">
+          <button
+            type="button"
+            onClick={() => {
+              trackLeagueEvent('league_aggregation_refresh', { ...properties, trigger: 'manual' });
+              onRefresh();
+            }}
+            aria-label="집계 현황 새로고침"
+          >
             새로고침 <span aria-hidden="true">↻</span>
           </button>
         </div>

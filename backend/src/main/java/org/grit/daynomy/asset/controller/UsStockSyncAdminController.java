@@ -5,8 +5,9 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import java.time.LocalDate;
 import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.asset.dto.StockPriceSyncResponse;
-import org.grit.daynomy.asset.dto.StockSyncResponse;
+import org.grit.daynomy.asset.dto.UsStockSyncResponse;
 import org.grit.daynomy.asset.service.UsStockSyncService;
+import org.grit.daynomy.asset.service.UsStockSyncWorkflowService;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -19,13 +20,15 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/admin/stocks/us")
 public class UsStockSyncAdminController {
   private final UsStockSyncService service;
+  private final UsStockSyncWorkflowService workflow;
 
   @Operation(
       summary = "미국 주식·ETF 종목 동기화",
-      description = "주요 미국 거래소의 USD 보통주와 ETF를 동기화합니다. OTC·우선주·펀드·워런트는 제외합니다.")
+      description =
+          "USD 보통주·ETF 목록 갱신 후 한투 한글명을 별도 트랜잭션으로 보충합니다. 종목 실패는 HTTP 오류, 한글명만 실패하면 종목 결과와 koreanNameErrorCode를 200으로 반환합니다. koreanNames와 koreanNameErrorCode 중 하나만 값이 있습니다.")
   @PostMapping("/sync")
-  public StockSyncResponse synchronize() {
-    return StockSyncResponse.from(service.synchronizeMaster());
+  public UsStockSyncResponse synchronize() {
+    return UsStockSyncResponse.from(workflow.synchronize());
   }
 
   @Operation(

@@ -26,6 +26,39 @@ afterEach(() => {
   vi.resetAllMocks();
 });
 
+it('보유 종목 검색 입력 중 콘텐츠를 유지하고 검색한 종목으로 전환한다', async () => {
+  vi.mocked(getStockRelatedContents).mockImplementation(async (id) => ({
+    assetId: id,
+    assetCode: String(id),
+    assetName: `종목${id}`,
+    contents: [
+      {
+        id,
+        assetId: id,
+        sourceType: 'INTERNAL_NEWS',
+        title: `종목${id} 기사`,
+        url: `/news/${id}`,
+        imageUrl: null,
+        createdAt: '2026-10-19T00:00:00Z',
+      },
+    ],
+  }));
+  const view = render(
+    <MemoryRouter>
+      <PortfolioContentsPage />
+    </MemoryRouter>,
+  );
+  await view.findByRole('link', { name: /종목1 기사/ });
+  fireEvent.change(view.getByRole('searchbox', { name: '보유 종목 검색' }), {
+    target: { value: '종목2' },
+  });
+  expect(view.container.querySelectorAll('.portfolio-content-companies button')).toHaveLength(2);
+  expect(view.getByRole('link', { name: /종목1 기사/ })).toBeTruthy();
+  fireEvent.click(view.getByRole('button', { name: '종목2' }));
+  expect(await view.findByRole('heading', { name: '종목2' })).toBeTruthy();
+  expect(view.getByRole('link', { name: /종목2 기사/ })).toBeTruthy();
+});
+
 it('조회·목록·필터·콘텐츠 행동을 공통 이벤트 스키마로 기록한다', async () => {
   vi.mocked(getStockRelatedContents).mockImplementation(async (id) => ({
     assetId: id,

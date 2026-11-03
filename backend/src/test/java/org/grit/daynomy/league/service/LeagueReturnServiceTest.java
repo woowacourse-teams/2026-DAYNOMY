@@ -19,8 +19,12 @@ import org.grit.daynomy.asset.repository.StockDailyPriceRepository;
 import org.grit.daynomy.league.domain.*;
 import org.grit.daynomy.league.repository.*;
 import org.grit.daynomy.member.domain.Member;
+import org.grit.daynomy.portfolio.repository.PortfolioDailySnapshotRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -33,13 +37,81 @@ class LeagueReturnServiceTest {
   @Mock private InvestorProfileRepository profileRepository;
   @Mock private SharedPortfolioRepository portfolioRepository;
   @Mock private SharedHoldingHistoryRepository historyRepository;
+  @Mock private org.grit.daynomy.league.repository.SharedHoldingRepository holdingRepository;
+  @Mock private org.grit.daynomy.exchangerate.repository.UsdKrwRateRepository exchangeRates;
   @Mock private StockDailyPriceRepository priceRepository;
   @Mock private PortfolioDailyReturnRepository returnRepository;
   @Mock private MarketTradingDayRepository tradingDayRepository;
+  @Mock private PortfolioDailySnapshotRepository snapshotRepository;
   @Mock private PlatformTransactionManager transactionManager;
   @Mock private LeagueCalculationMetrics metrics;
   @Mock private LeagueService leagueService;
+  @Mock private LeagueRankingCache rankingCache;
   @InjectMocks private LeagueReturnService service;
+
+  @Test
+  void copiedOpeningHoldingsAllowMondayReturnForWednesdayEnrollment() {
+    LocalDate monday = LocalDate.of(2026, 9, 21);
+    SharedPortfolio portfolio = profile(1L, monday.plusDays(2));
+    InvestorProfile investor = profileRepository.findByIdForUpdate(1L).orElseThrow();
+    investor.getParticipations().getFirst().includeCurrentWeekFrom(day(monday, true).closesAt());
+    given(snapshotRepository.existsByPortfolioMemberIdAndBaseDate(eq(1L), any())).willReturn(true);
+    Asset asset = stock();
+    var copy =
+        new SharedHoldingHistory(
+            new SharedHolding(portfolio, asset, 2, new BigDecimal("100")),
+            SharedHoldingHistory.ChangeType.ADDED);
+    given(historyRepository.findEffectiveBefore(eq(2L), any(Instant.class)))
+        .willReturn(List.of(copy));
+    given(tradingDayRepository.findAllByTradingTrueAndBaseDateLessThanEqualOrderByBaseDate(any()))
+        .willReturn(List.of(day(monday, true), day(monday.plusDays(1), true)));
+    given(tradingDayRepository.findFirstByTradingTrueAndBaseDateLessThanOrderByBaseDateDesc(monday))
+        .willReturn(Optional.of(day(monday.minusDays(3), true)));
+    given(
+            tradingDayRepository.findFirstByTradingTrueAndBaseDateLessThanOrderByBaseDateDesc(
+                monday.plusDays(1)))
+        .willReturn(Optional.of(day(monday, true)));
+    price(asset, monday.minusDays(3), "100");
+    price(asset, monday, "110");
+    price(asset, monday.plusDays(1), "121");
+
+    service.recalculate();
+
+    var results = ArgumentCaptor.forClass(PortfolioDailyReturn.class);
+    then(returnRepository).should(org.mockito.Mockito.times(2)).save(results.capture());
+    assertThat(results.getAllValues())
+        .allSatisfy(
+            value -> {
+              assertThat(value.isTrackingBaseline()).isFalse();
+              assertThat(value.getDailyReturnRate()).isEqualByComparingTo("10");
+              assertThat(value.getBaseDate()).isBetween(monday, monday.plusDays(1));
+            });
+    assertThat(investor.getTrackingStartedOn()).isEqualTo(monday);
+    then(holdingRepository).should().hasActiveUsHolding(1L);
+  }
+
+  @Test
+  void historicalHoldingsWithoutSnapshotsRemainPendingInsteadOfStartingAtZero() {
+    LocalDate monday = LocalDate.of(2026, 9, 21);
+    profile(1L, monday.plusDays(2));
+    InvestorProfile investor = profileRepository.findByIdForUpdate(1L).orElseThrow();
+    investor.getParticipations().getFirst().includeCurrentWeekFrom(day(monday, true).closesAt());
+    given(tradingDayRepository.findAllByTradingTrueAndBaseDateLessThanEqualOrderByBaseDate(any()))
+        .willReturn(List.of(day(monday, true), day(monday.plusDays(1), true)));
+
+    assertThat(service.recalculate()).isEqualTo(2);
+
+    var results = ArgumentCaptor.forClass(PortfolioDailyReturn.class);
+    then(returnRepository).should(org.mockito.Mockito.times(2)).save(results.capture());
+    assertThat(results.getAllValues())
+        .allSatisfy(
+            value -> {
+              assertThat(value.getIneligibleReason()).isEqualTo("SNAPSHOT_PENDING");
+              assertThat(value.getDailyReturnRate()).isNull();
+            });
+    assertThat(investor.getTrackingStartedOn()).isNull();
+    then(historyRepository).shouldHaveNoInteractions();
+  }
 
   @Test
   void finalizationFailureMarksTheWholeRunAsFailed() {
@@ -61,9 +133,7 @@ class LeagueReturnServiceTest {
     var holding = new SharedHolding(portfolio, asset, 2, new BigDecimal("100"));
     holding.describe(true, "숨긴 판단");
     var history = new SharedHoldingHistory(holding, SharedHoldingHistory.ChangeType.ADDED);
-    given(
-            historyRepository.findAllByPortfolioIdAndCreatedAtLessThanOrderByCreatedAtAscIdAsc(
-                eq(2L), any(Instant.class)))
+    given(historyRepository.findEffectiveBefore(eq(2L), any(Instant.class)))
         .willReturn(List.of(history));
     var previous = day(friday, true);
     var current = day(monday, true);
@@ -89,9 +159,8 @@ class LeagueReturnServiceTest {
     assertThat(result.getDailyReturnRate()).isEqualByComparingTo("10.0000");
     assertThat(result.getStartingEvaluationAmount()).isEqualByComparingTo("200");
     then(historyRepository)
-        .should()
-        .findAllByPortfolioIdAndCreatedAtLessThanOrderByCreatedAtAscIdAsc(
-            2L, Instant.parse("2026-09-20T15:00:00Z"));
+        .should(org.mockito.Mockito.times(2))
+        .findEffectiveBefore(2L, previous.closesAt().plusNanos(1_000));
   }
 
   @Test
@@ -103,9 +172,7 @@ class LeagueReturnServiceTest {
         new SharedHoldingHistory(
             new SharedHolding(portfolio, asset, 1, new BigDecimal("100")),
             SharedHoldingHistory.ChangeType.ADDED);
-    given(
-            historyRepository.findAllByPortfolioIdAndCreatedAtLessThanOrderByCreatedAtAscIdAsc(
-                eq(2L), any(Instant.class)))
+    given(historyRepository.findEffectiveBefore(eq(2L), any(Instant.class)))
         .willReturn(List.of(history));
     var first = day(monday, true);
     var next = day(monday.plusDays(1), true);
@@ -129,9 +196,8 @@ class LeagueReturnServiceTest {
     assertThat(profile.getTrackingStartedOn()).isEqualTo(monday);
     assertThat(profile.eligibleFrom()).isEqualTo(monday);
     then(historyRepository)
-        .should()
-        .findAllByPortfolioIdAndCreatedAtLessThanOrderByCreatedAtAscIdAsc(
-            2L, first.closesAt().plusNanos(1));
+        .should(org.mockito.Mockito.times(2))
+        .findEffectiveBefore(2L, first.closesAt().plusNanos(1_000));
   }
 
   @Test
@@ -147,9 +213,7 @@ class LeagueReturnServiceTest {
         new SharedHoldingHistory(
             new SharedHolding(portfolio, asset, 1, new BigDecimal("100")),
             SharedHoldingHistory.ChangeType.ADDED);
-    given(
-            historyRepository.findAllByPortfolioIdAndCreatedAtLessThanOrderByCreatedAtAscIdAsc(
-                eq(2L), any(Instant.class)))
+    given(historyRepository.findEffectiveBefore(eq(2L), any(Instant.class)))
         .willReturn(List.of(history));
     var tuesday = day(monday.plusDays(1), true);
     given(
@@ -183,9 +247,7 @@ class LeagueReturnServiceTest {
             tradingDayRepository.findAllByTradingTrueAndBaseDateLessThanEqualOrderByBaseDate(
                 any(LocalDate.class)))
         .willReturn(List.of(first, missing, next));
-    given(
-            historyRepository.findAllByPortfolioIdAndCreatedAtLessThanOrderByCreatedAtAscIdAsc(
-                eq(2L), any(Instant.class)))
+    given(historyRepository.findEffectiveBefore(eq(2L), any(Instant.class)))
         .willReturn(List.of(history));
     given(
             tradingDayRepository.findFirstByTradingTrueAndBaseDateLessThanOrderByBaseDateDesc(
@@ -249,9 +311,7 @@ class LeagueReturnServiceTest {
             returnRepository.existsLatestEligibleByPortfolioIdAndBaseDateBetween(
                 2L, monday, wednesday.minusDays(1)))
         .willReturn(true);
-    given(
-            historyRepository.findAllByPortfolioIdAndCreatedAtLessThanOrderByCreatedAtAscIdAsc(
-                eq(2L), any(Instant.class)))
+    given(historyRepository.findEffectiveBefore(eq(2L), any(Instant.class)))
         .willReturn(List.of(history));
     given(
             tradingDayRepository.findFirstByTradingTrueAndBaseDateLessThanOrderByBaseDateDesc(
@@ -266,6 +326,87 @@ class LeagueReturnServiceTest {
     then(returnRepository).should().save(result.capture());
     assertThat(result.getValue().isTrackingBaseline()).isFalse();
     assertThat(result.getValue().getDailyReturnRate()).isEqualByComparingTo("10");
+  }
+
+  @Test
+  void delayedFridayCloseRebuildsFridayBaselineBeforeMondayReturn() {
+    LocalDate friday = LocalDate.of(2026, 10, 23);
+    LocalDate monday = friday.plusDays(3);
+    SharedPortfolio portfolio = profile(1L, friday);
+    Asset asset = stock();
+    var history =
+        new SharedHoldingHistory(
+            new SharedHolding(portfolio, asset, 1, new BigDecimal("100")),
+            SharedHoldingHistory.ChangeType.ADDED);
+    given(historyRepository.findEffectiveBefore(eq(2L), any(Instant.class)))
+        .willReturn(List.of(history));
+    given(
+            tradingDayRepository.findAllByTradingTrueAndBaseDateLessThanEqualOrderByBaseDate(
+                any(LocalDate.class)))
+        .willReturn(List.of(day(friday, true), day(monday, true)));
+    given(tradingDayRepository.findFirstByTradingTrueAndBaseDateLessThanOrderByBaseDateDesc(monday))
+        .willReturn(Optional.of(day(friday, true)));
+    given(returnRepository.findFirstByPortfolioIdOrderByBaseDateDescCalculationVersionDesc(2L))
+        .willReturn(Optional.of(new PortfolioDailyReturn(portfolio, monday)));
+    given(returnRepository.findEarliestPendingPriceDateByMemberIdIn(List.of(1L)))
+        .willReturn(Optional.of(friday));
+    price(asset, friday, "100");
+    price(asset, monday, "110");
+
+    assertThat(service.recalculatePending()).isEqualTo(2);
+    var results = ArgumentCaptor.forClass(PortfolioDailyReturn.class);
+    then(returnRepository).should(org.mockito.Mockito.times(2)).save(results.capture());
+    assertThat(results.getAllValues().getFirst().isTrackingBaseline()).isTrue();
+    assertThat(results.getAllValues().getLast().getDailyReturnRate()).isEqualByComparingTo("10");
+  }
+
+  @Test
+  void pendingRunRebuildsReturnsFromAnUnresolvedDateInAnEarlierWeek() {
+    LocalDate first = LocalDate.of(2026, 9, 18);
+    LocalDate pending = first.plusDays(3);
+    LocalDate latest = pending.plusWeeks(2);
+    SharedPortfolio portfolio = profile(1L, first);
+    Asset asset = stock();
+    var history =
+        new SharedHoldingHistory(
+            new SharedHolding(portfolio, asset, 1, new BigDecimal("100")),
+            SharedHoldingHistory.ChangeType.ADDED);
+    given(historyRepository.findEffectiveBefore(eq(2L), any(Instant.class)))
+        .willReturn(List.of(history));
+    given(tradingDayRepository.findAllByTradingTrueAndBaseDateLessThanEqualOrderByBaseDate(any()))
+        .willReturn(List.of(day(first, true), day(pending, true), day(latest, true)));
+    given(returnRepository.findFirstByPortfolioIdOrderByBaseDateDescCalculationVersionDesc(2L))
+        .willReturn(Optional.of(new PortfolioDailyReturn(portfolio, latest)));
+    given(returnRepository.findEarliestPendingPriceDateByMemberIdIn(List.of(1L)))
+        .willReturn(Optional.of(pending));
+    given(
+            returnRepository.existsLatestEligibleByPortfolioIdAndBaseDateBetween(
+                2L, first, pending.minusDays(1)))
+        .willReturn(true);
+    given(
+            tradingDayRepository.findFirstByTradingTrueAndBaseDateLessThanOrderByBaseDateDesc(
+                pending))
+        .willReturn(Optional.of(day(first, true)));
+    given(tradingDayRepository.findFirstByTradingTrueAndBaseDateLessThanOrderByBaseDateDesc(latest))
+        .willReturn(Optional.of(day(pending, true)));
+    price(asset, first, "100");
+    price(asset, pending, "110");
+    price(asset, latest, "121");
+
+    assertThat(service.recalculatePending()).isEqualTo(2);
+
+    var results = ArgumentCaptor.forClass(PortfolioDailyReturn.class);
+    then(returnRepository).should(org.mockito.Mockito.times(2)).save(results.capture());
+    assertThat(results.getAllValues())
+        .extracting(PortfolioDailyReturn::getBaseDate)
+        .containsExactly(pending, latest);
+    assertThat(results.getAllValues())
+        .allSatisfy(
+            value -> {
+              assertThat(value.isTrackingBaseline()).isFalse();
+              assertThat(value.getDailyReturnRate()).isEqualByComparingTo("10");
+            });
+    then(leagueService).should().finalizeWeeks(pending);
   }
 
   @Test
@@ -303,9 +444,7 @@ class LeagueReturnServiceTest {
                 any(LocalDate.class)))
         .willReturn(List.of(day(tuesday, true)));
     Asset asset = stock();
-    given(
-            historyRepository.findAllByPortfolioIdAndCreatedAtLessThanOrderByCreatedAtAscIdAsc(
-                eq(2L), any(Instant.class)))
+    given(historyRepository.findEffectiveBefore(eq(2L), any(Instant.class)))
         .willReturn(
             List.of(
                 new SharedHoldingHistory(
@@ -338,9 +477,183 @@ class LeagueReturnServiceTest {
     return portfolio;
   }
 
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void usFridayBaselineAndMondayCloseUseKrwFxWithoutBackdating(boolean fxDelayed) {
+    LocalDate friday = LocalDate.of(2026, 10, 23);
+    LocalDate monday = friday.plusDays(3);
+    SharedPortfolio portfolio = profile(1L, friday);
+    InvestorProfile investor = profileRepository.findByIdForUpdate(1L).orElseThrow();
+    Instant joined = friday.atTime(22, 0).atZone(ZoneId.of("Asia/Seoul")).toInstant();
+    ReflectionTestUtils.setField(investor, "leagueEnabledAt", joined);
+    ReflectionTestUtils.setField(investor.getParticipations().getFirst(), "startedAt", joined);
+    given(holdingRepository.hasActiveUsHolding(1L)).willReturn(true);
+    Asset asset = Asset.listedStock("미국 종목", "AAPL.US", StockMarket.NASDAQ, "US0378331005", friday);
+    var history =
+        new SharedHoldingHistory(
+            new SharedHolding(portfolio, asset, 1, new BigDecimal("130000")),
+            SharedHoldingHistory.ChangeType.ADDED);
+    given(historyRepository.findEffectiveBefore(eq(2L), any(Instant.class)))
+        .willReturn(List.of(history));
+    MarketTradingDay first = new MarketTradingDay(friday, false);
+    first.usCollected(first.usClosesAt().plusSeconds(1));
+    MarketTradingDay second = new MarketTradingDay(monday, false);
+    second.usCollected(second.usClosesAt().plusSeconds(1));
+    given(holdingRepository.existsActiveUsLeagueHolding()).willReturn(true);
+    given(
+            tradingDayRepository.findAllByBaseDateBetweenOrderByBaseDate(
+                eq(LocalDate.of(2000, 1, 1)), any(LocalDate.class)))
+        .willReturn(List.of(first, second));
+    given(tradingDayRepository.findFirstUsTradingDayBefore(monday)).willReturn(Optional.of(first));
+    price(asset, friday, "100");
+    price(asset, monday, "110");
+    given(exchangeRates.findById(friday))
+        .willReturn(
+            Optional.of(
+                new org.grit.daynomy.exchangerate.domain.UsdKrwRate(
+                    friday, friday, new BigDecimal("1300"))));
+    given(exchangeRates.findById(monday))
+        .willReturn(
+            Optional.of(
+                new org.grit.daynomy.exchangerate.domain.UsdKrwRate(
+                    monday, fxDelayed ? friday : monday, new BigDecimal("1300"))));
+
+    assertThat(service.recalculate()).isEqualTo(2);
+    var results = ArgumentCaptor.forClass(PortfolioDailyReturn.class);
+    then(returnRepository).should(org.mockito.Mockito.times(2)).save(results.capture());
+    assertThat(results.getAllValues().getFirst().isTrackingBaseline()).isTrue();
+    var result = results.getAllValues().getLast();
+    if (fxDelayed) {
+      assertThat(result.isEligible()).isFalse();
+      assertThat(result.getIneligibleReason()).isEqualTo("EXCHANGE_RATE_PENDING");
+      assertThat(result.getDailyReturnRate()).isNull();
+    } else {
+      assertThat(result.getDailyReturnRate()).isEqualByComparingTo("10");
+      assertThat(result.getEndingEvaluationAmount()).isEqualByComparingTo("143000");
+    }
+  }
+
   private Asset stock() {
     return Asset.listedStock(
         "종목", "005930", StockMarket.KOSPI, "KR7005930003", LocalDate.of(2026, 9, 1));
+  }
+
+  @Test
+  void combinesPrivateDomesticAndPublicUsHoldingsIntoOneKrwReturn() {
+    LocalDate friday = LocalDate.of(2026, 10, 23);
+    LocalDate monday = friday.plusDays(3);
+    SharedPortfolio portfolio = profile(1L, friday);
+    Asset domestic = stock();
+    Asset us = Asset.listedStock("미국 종목", "AAPL.US", StockMarket.NASDAQ, "US0378331005", friday);
+    ReflectionTestUtils.setField(domestic, "id", 10L);
+    ReflectionTestUtils.setField(us, "id", 20L);
+    var privateHolding = new SharedHolding(portfolio, domestic, 1, new BigDecimal("130000"));
+    privateHolding.awaitReason();
+    var publicHolding = new SharedHolding(portfolio, us, 1, new BigDecimal("130000"));
+    given(historyRepository.findEffectiveBefore(eq(2L), any(Instant.class)))
+        .willReturn(
+            List.of(
+                new SharedHoldingHistory(privateHolding, SharedHoldingHistory.ChangeType.ADDED),
+                new SharedHoldingHistory(publicHolding, SharedHoldingHistory.ChangeType.ADDED)));
+    MarketTradingDay first = day(friday, true);
+    first.usCollected(first.usClosesAt().plusSeconds(1));
+    MarketTradingDay second = day(monday, true);
+    second.usCollected(second.usClosesAt().plusSeconds(1));
+    given(holdingRepository.hasActiveUsHolding(1L)).willReturn(true);
+    given(holdingRepository.existsActiveUsLeagueHolding()).willReturn(true);
+    given(
+            tradingDayRepository.findAllByBaseDateBetweenOrderByBaseDate(
+                eq(LocalDate.of(2000, 1, 1)), any(LocalDate.class)))
+        .willReturn(List.of(first, second));
+    given(tradingDayRepository.findFirstUsTradingDayBefore(monday)).willReturn(Optional.of(first));
+    given(tradingDayRepository.findFirstByTradingTrueAndBaseDateLessThanOrderByBaseDateDesc(monday))
+        .willReturn(Optional.of(first));
+    price(domestic, friday, "130000");
+    price(domestic, monday, "143000");
+    price(us, friday, "100");
+    price(us, monday, "90");
+    for (LocalDate date : List.of(friday, monday)) {
+      given(exchangeRates.findById(date))
+          .willReturn(
+              Optional.of(
+                  new org.grit.daynomy.exchangerate.domain.UsdKrwRate(
+                      date, date, new BigDecimal("1300"))));
+    }
+
+    assertThat(service.recalculate()).isEqualTo(2);
+    var results = ArgumentCaptor.forClass(PortfolioDailyReturn.class);
+    then(returnRepository).should(org.mockito.Mockito.times(2)).save(results.capture());
+    assertThat(results.getAllValues().getLast().getDailyReturnRate()).isEqualByComparingTo("0");
+    assertThat(results.getAllValues().getLast().getEndingEvaluationAmount())
+        .isEqualByComparingTo("260000");
+  }
+
+  @ParameterizedTest
+  @CsvSource({"true,true", "false,true", "true,false", "false,false"})
+  void mixedMarketsCarryTheClosedMarketButWaitForMissingOpenMarket(boolean krOpen, boolean ready) {
+    LocalDate friday = LocalDate.of(2026, 10, 23);
+    LocalDate monday = friday.plusDays(3);
+    SharedPortfolio portfolio = profile(1L, friday);
+    Asset kr = stock();
+    Asset us = Asset.listedStock("미국 종목", "AAPL.US", StockMarket.NASDAQ, "US0378331005", friday);
+    ReflectionTestUtils.setField(kr, "id", 10L);
+    ReflectionTestUtils.setField(us, "id", 20L);
+    given(historyRepository.findEffectiveBefore(eq(2L), any(Instant.class)))
+        .willReturn(
+            List.of(
+                new SharedHoldingHistory(
+                    new SharedHolding(portfolio, kr, 1, new BigDecimal("130000")),
+                    SharedHoldingHistory.ChangeType.ADDED),
+                new SharedHoldingHistory(
+                    new SharedHolding(portfolio, us, 1, new BigDecimal("130000")),
+                    SharedHoldingHistory.ChangeType.ADDED)));
+    var first = day(friday, true);
+    first.usCollected(first.usClosesAt().plusSeconds(1));
+    var second = new MarketTradingDay(monday, krOpen);
+    second.reviseUsTrading(!krOpen);
+    if (ready) {
+      if (krOpen) second.collected(second.closesAt().plusSeconds(1));
+      else second.usCollected(second.usClosesAt().plusSeconds(1));
+      given(tradingDayRepository.findFirstUsTradingDayBefore(krOpen ? monday.plusDays(1) : monday))
+          .willReturn(Optional.of(first));
+      given(
+              tradingDayRepository.findFirstByTradingTrueAndBaseDateLessThanOrderByBaseDateDesc(
+                  krOpen ? monday : monday.plusDays(1)))
+          .willReturn(Optional.of(first));
+      price(krOpen ? kr : us, monday, krOpen ? "143000" : "110");
+      if (!krOpen)
+        given(exchangeRates.findById(monday))
+            .willReturn(
+                Optional.of(
+                    new org.grit.daynomy.exchangerate.domain.UsdKrwRate(
+                        monday, monday, new BigDecimal("1300"))));
+    }
+    given(holdingRepository.hasActiveUsHolding(1L)).willReturn(true);
+    given(holdingRepository.existsActiveUsLeagueHolding()).willReturn(true);
+    given(
+            tradingDayRepository.findAllByBaseDateBetweenOrderByBaseDate(
+                eq(LocalDate.of(2000, 1, 1)), any()))
+        .willReturn(List.of(first, second));
+    price(kr, friday, "130000");
+    price(us, friday, "100");
+    given(exchangeRates.findById(friday))
+        .willReturn(
+            Optional.of(
+                new org.grit.daynomy.exchangerate.domain.UsdKrwRate(
+                    friday, friday, new BigDecimal("1300"))));
+    assertThat(service.recalculate()).isEqualTo(2);
+    var results = ArgumentCaptor.forClass(PortfolioDailyReturn.class);
+    then(returnRepository).should(org.mockito.Mockito.times(2)).save(results.capture());
+    var value = results.getAllValues().getLast();
+    if (ready) {
+      assertThat(value.isEligible()).isTrue();
+      assertThat(value.getDailyReturnRate()).isEqualByComparingTo("5");
+      assertThat(value.getEndingEvaluationAmount()).isEqualByComparingTo("273000");
+    } else {
+      assertThat(value.isEligible()).isFalse();
+      assertThat(value.getDailyReturnRate()).isNull();
+      assertThat(value.getIneligibleReason()).isEqualTo("PRICE_COLLECTION_PENDING");
+    }
   }
 
   private MarketTradingDay day(LocalDate date, boolean collected) {

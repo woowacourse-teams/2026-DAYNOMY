@@ -2,8 +2,6 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   recordDecision,
-  claimReviewReminder,
-  snoozeReviewReminder,
   getInvestorDetail,
   getRankings,
   getPublicInvestor,
@@ -12,6 +10,8 @@ import {
   updateReview,
   updateDecisionReason,
   getReviewGuide,
+  claimReviewReminder,
+  snoozeReviewReminder,
 } from '../../src/features/league/api.ts';
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -21,68 +21,42 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
-test('AI 복기 질문은 CSRF로 요청하고 거래·성과·질문 형식을 검증한다', async () => {
-  const calls: Array<{ url: string; init?: RequestInit }> = [];
-  const guide = {
-    transactionId: 7,
-    retrievalStatus: 'FOUND',
-    evidence: [
-      {
-        id: 'NEWS:12',
-        title: '실적 발표',
-        publishedAt: '2026-10-20T00:00:00Z',
-        excerpt: '매출 증가',
-        href: '/news/12',
-      },
-    ],
-    basis: { weekStart: '2026-10-19', asOfDate: '2026-10-23', portfolioWeeklyReturnRate: 1.25 },
-    questions: {
-      actualResult: { text: '지금 확인할 수 있는 결과는 무엇인가요?', evidenceIds: ['NEWS:12'] },
-      differenceFromExpectation: { text: '기대와 어떤 차이가 있나요?', evidenceIds: [] },
-      nextAction: { text: '다음에는 무엇을 확인할 건가요?', evidenceIds: [] },
-    },
+test('순위·일별 집계 일정은 누락과 null을 허용하고 잘못된 날짜·시각·상태를 거부한다', async () => {
+  const base = {
+    weekStart: '2026-10-19',
+    weekEnd: '2026-10-25',
+    confirmed: false,
+    asOfDate: null,
+    eligibleFrom: '2026-10-19',
+    weeklyReturnRate: null,
+    days: [],
+    leagueType: 'WEEKLY_RETURN',
+    rankings: [],
+    totalCount: 0,
   };
-  globalThis.fetch = async (input, init) => {
-    calls.push({ url: String(input), init });
-    return String(input) === '/api/auth/csrf'
-      ? jsonResponse({ headerName: 'X-XSRF-TOKEN', token: 'csrf-token' })
-      : jsonResponse(guide);
+  const aggregation = {
+    baseDate: '2026-10-19',
+    expectedAt: '2026-10-22T08:20:00Z',
+    firstReturnExpectedAt: null,
+    reason: 'SNAPSHOT_PENDING',
+    delayed: false,
   };
-  assert.deepEqual(await getReviewGuide(7), guide);
-  assert.equal(calls[1]?.url, '/api/users/me/portfolio/decisions/7/review-guide');
-  assert.equal(calls[1]?.init?.method, 'POST');
-  assert.equal(new Headers(calls[1]?.init?.headers).get('X-XSRF-TOKEN'), 'csrf-token');
-  assert.equal(calls[1]?.init?.body, undefined);
-
-  globalThis.fetch = async (input) =>
-    String(input) === '/api/auth/csrf'
-      ? jsonResponse({ headerName: 'X-XSRF-TOKEN', token: 'csrf-token' })
-      : jsonResponse({ ...guide, transactionId: 8 });
-  await assert.rejects(getReviewGuide(7), /응답 형식/);
-  globalThis.fetch = async (input) =>
-    String(input) === '/api/auth/csrf'
-      ? jsonResponse({ headerName: 'X-XSRF-TOKEN', token: 'csrf-token' })
-      : jsonResponse({ ...guide, evidence: [{ ...guide.evidence[0], publishedAt: 'tomorrow' }] });
-  await assert.rejects(getReviewGuide(7), /응답 형식/);
-  globalThis.fetch = async (input) =>
-    String(input) === '/api/auth/csrf'
-      ? jsonResponse({ headerName: 'X-XSRF-TOKEN', token: 'csrf-token' })
-      : jsonResponse({
-          ...guide,
-          questions: { ...guide.questions, nextAction: { text: '', evidenceIds: [] } },
-        });
-  await assert.rejects(getReviewGuide(7), /응답 형식/);
-  globalThis.fetch = async (input) =>
-    String(input) === '/api/auth/csrf'
-      ? jsonResponse({ headerName: 'X-XSRF-TOKEN', token: 'csrf-token' })
-      : jsonResponse({
-          ...guide,
-          questions: {
-            ...guide.questions,
-            nextAction: { text: '무엇을 확인하나요?', evidenceIds: ['NEWS:99'] },
-          },
-        });
-  await assert.rejects(getReviewGuide(7), /응답 형식/);
+  for (const load of [() => getRankings('WEEKLY_RETURN'), () => getDailyHistory('investor-1')]) {
+    for (const value of [undefined, null, aggregation, { ...aggregation, expectedAt: null }]) {
+      globalThis.fetch = async () => jsonResponse({ ...base, aggregation: value });
+      assert.deepEqual((await load()).aggregation, value);
+    }
+    for (const invalid of [
+      { ...aggregation, baseDate: '2026-02-30' },
+      { ...aggregation, expectedAt: '2026-10-22' },
+      { ...aggregation, expectedAt: '2026-02-30T08:20:00Z' },
+      { ...aggregation, firstReturnExpectedAt: 'not-a-date' },
+      { ...aggregation, delayed: 'false' },
+    ]) {
+      globalThis.fetch = async () => jsonResponse({ ...base, aggregation: invalid });
+      await assert.rejects(load(), /응답 형식/);
+    }
+  }
 });
 
 test('팔로우 비교는 지난 확정 순위의 차이를 검증하고 이전 응답도 읽는다', async () => {
@@ -207,10 +181,10 @@ test('일별 응답은 결측값을 보존하고 주간 경계·정렬·누락 �
   const valid = {
     weekStart: '2026-09-28',
     weekEnd: '2026-10-04',
-    asOfDate: '2026-09-30',
+    asOfDate: '2026-09-28',
     eligibleFrom: '2026-08-03',
     confirmed: false,
-    weeklyReturnRate: null,
+    weeklyReturnRate: 10,
     days: [
       {
         baseDate: '2026-09-28',
@@ -256,10 +230,59 @@ test('일별 응답은 결측값을 보존하고 주간 경계·정렬·누락 �
       days: [valid.days[0], valid.days[1], { ...valid.days[2], cumulativeReturnRate: -1 }],
     },
     { ...valid, weeklyReturnRate: 0 },
+    { ...valid, asOfDate: '2026-09-30' },
   ]) {
     globalThis.fetch = async () => jsonResponse(invalid);
     await assert.rejects(() => getDailyHistory('investor-1'), /일별 수익률 응답 형식/);
   }
+});
+
+test('집계 예상 시각은 시간대가 있는 날짜와 정상 상태만 허용한다', async () => {
+  const aggregation = {
+    baseDate: '2026-10-12',
+    expectedAt: '2026-10-13T05:30:00Z',
+    firstReturnExpectedAt: '2026-10-14T05:30:00Z',
+    reason: 'PRICE_COLLECTION_PENDING',
+    delayed: false,
+  };
+  const response = {
+    weekStart: '2026-10-12',
+    weekEnd: '2026-10-18',
+    leagueType: 'WEEKLY_RETURN',
+    confirmed: false,
+    totalCount: 0,
+    rankings: [],
+    asOfDate: null,
+    aggregation,
+  };
+  globalThis.fetch = async () => jsonResponse(response);
+  assert.deepEqual((await getRankings('WEEKLY_RETURN')).aggregation, aggregation);
+  for (const invalid of [
+    { ...aggregation, expectedAt: 'tomorrow' },
+    { ...aggregation, expectedAt: '2026-02-30T05:30:00Z' },
+    { ...aggregation, expectedAt: '2026-10-13T14:30:00' },
+    { ...aggregation, firstReturnExpectedAt: 'invalid' },
+    { ...aggregation, baseDate: '2026-02-30' },
+    { ...aggregation, delayed: 'false' },
+  ]) {
+    globalThis.fetch = async () => jsonResponse({ ...response, aggregation: invalid });
+    await assert.rejects(getRankings('WEEKLY_RETURN'), /리그 응답 형식/);
+  }
+  const history = {
+    weekStart: response.weekStart,
+    weekEnd: response.weekEnd,
+    asOfDate: null,
+    eligibleFrom: '2026-10-12',
+    confirmed: false,
+    weeklyReturnRate: null,
+    days: [],
+    aggregation,
+  };
+  globalThis.fetch = async () => jsonResponse(history);
+  assert.deepEqual((await getDailyHistory('investor-1')).aggregation, aggregation);
+  globalThis.fetch = async () =>
+    jsonResponse({ ...history, aggregation: { ...aggregation, expectedAt: 'invalid' } });
+  await assert.rejects(getDailyHistory('investor-1'), /일별 수익률 응답 형식/);
 });
 
 test('최신 집계일 이후 종가 수집 대기가 있어도 집계된 주간 누적을 표시한다', async () => {
@@ -475,6 +498,122 @@ test('주중 참여는 기준 종가부터 0%로 이번 주 누적 순위에 반
   const response = await getDailyHistory('investor-1', '2026-09-23');
   assert.equal(response.weekStart, '2026-09-21');
   assert.equal(response.weeklyReturnRate, 10);
+});
+
+test('휴장일 0%는 누적과 실제 종가 기준일을 유지하고 잘못된 이월이나 누락일 대체를 거부한다', async () => {
+  const history = {
+    weekStart: '2026-10-12',
+    weekEnd: '2026-10-18',
+    asOfDate: '2026-10-16',
+    eligibleFrom: '2026-10-12',
+    confirmed: false,
+    weeklyReturnRate: 10,
+    days: Array.from({ length: 7 }, (_, index) => ({
+      baseDate: `2026-10-${12 + index}`,
+      dailyReturnRate: index === 0 ? 10 : 0,
+      cumulativeReturnRate: 10,
+      status: 'CALCULATED',
+      reason: index >= 5 ? 'MARKET_CLOSED' : null,
+    })),
+  };
+  globalThis.fetch = async () => jsonResponse(history);
+  assert.equal((await getDailyHistory('investor-1')).days[6].cumulativeReturnRate, 10);
+  for (const invalid of [
+    { ...history, asOfDate: '2026-10-18' },
+    {
+      ...history,
+      days: history.days.map((day, i) => (i === 5 ? { ...day, dailyReturnRate: 10 } : day)),
+    },
+    {
+      ...history,
+      days: history.days.map((day, i) => (i === 5 ? { ...day, cumulativeReturnRate: 20 } : day)),
+    },
+    {
+      ...history,
+      days: history.days.map((day, i) =>
+        i === 4
+          ? {
+              ...day,
+              dailyReturnRate: null,
+              cumulativeReturnRate: null,
+              status: 'PENDING',
+              reason: 'PRICE_COLLECTION_PENDING',
+            }
+          : day,
+      ),
+    },
+    {
+      ...history,
+      days: history.days.map((day) => ({ ...day, dailyReturnRate: 0, reason: 'MARKET_CLOSED' })),
+    },
+  ]) {
+    globalThis.fetch = async () => jsonResponse(invalid);
+    await assert.rejects(getDailyHistory('investor-1'), /일별 수익률 응답 형식/);
+  }
+});
+
+test('AI 복기 질문은 CSRF로 요청하고 거래·성과·질문 형식을 검증한다', async () => {
+  const calls: Array<{ url: string; init?: RequestInit }> = [];
+  const guide = {
+    transactionId: 7,
+    retrievalStatus: 'FOUND',
+    evidence: [
+      {
+        id: 'NEWS:12',
+        title: '실적 발표',
+        publishedAt: '2026-10-20T00:00:00Z',
+        excerpt: '매출 증가',
+        href: '/news/12',
+      },
+    ],
+    basis: { weekStart: '2026-10-19', asOfDate: '2026-10-23', portfolioWeeklyReturnRate: 1.25 },
+    questions: {
+      actualResult: { text: '지금 확인할 수 있는 결과는 무엇인가요?', evidenceIds: ['NEWS:12'] },
+      differenceFromExpectation: { text: '기대와 어떤 차이가 있나요?', evidenceIds: [] },
+      nextAction: { text: '다음에는 무엇을 확인할 건가요?', evidenceIds: [] },
+    },
+  };
+  globalThis.fetch = async (input, init) => {
+    calls.push({ url: String(input), init });
+    return String(input) === '/api/auth/csrf'
+      ? jsonResponse({ headerName: 'X-XSRF-TOKEN', token: 'csrf-token' })
+      : jsonResponse(guide);
+  };
+  assert.deepEqual(await getReviewGuide(7), guide);
+  assert.equal(calls[1]?.url, '/api/users/me/portfolio/decisions/7/review-guide');
+  assert.equal(calls[1]?.init?.method, 'POST');
+  assert.equal(new Headers(calls[1]?.init?.headers).get('X-XSRF-TOKEN'), 'csrf-token');
+  assert.equal(calls[1]?.init?.body, undefined);
+
+  globalThis.fetch = async (input) =>
+    String(input) === '/api/auth/csrf'
+      ? jsonResponse({ headerName: 'X-XSRF-TOKEN', token: 'csrf-token' })
+      : jsonResponse({ ...guide, transactionId: 8 });
+  await assert.rejects(getReviewGuide(7), /응답 형식/);
+  globalThis.fetch = async (input) =>
+    String(input) === '/api/auth/csrf'
+      ? jsonResponse({ headerName: 'X-XSRF-TOKEN', token: 'csrf-token' })
+      : jsonResponse({ ...guide, evidence: [{ ...guide.evidence[0], publishedAt: 'tomorrow' }] });
+  await assert.rejects(getReviewGuide(7), /응답 형식/);
+  globalThis.fetch = async (input) =>
+    String(input) === '/api/auth/csrf'
+      ? jsonResponse({ headerName: 'X-XSRF-TOKEN', token: 'csrf-token' })
+      : jsonResponse({
+          ...guide,
+          questions: { ...guide.questions, nextAction: { text: '', evidenceIds: [] } },
+        });
+  await assert.rejects(getReviewGuide(7), /응답 형식/);
+  globalThis.fetch = async (input) =>
+    String(input) === '/api/auth/csrf'
+      ? jsonResponse({ headerName: 'X-XSRF-TOKEN', token: 'csrf-token' })
+      : jsonResponse({
+          ...guide,
+          questions: {
+            ...guide.questions,
+            nextAction: { text: '무엇을 확인하나요?', evidenceIds: ['NEWS:99'] },
+          },
+        });
+  await assert.rejects(getReviewGuide(7), /응답 형식/);
 });
 
 test('복기 알림과 미루기는 CSRF를 사용하고 서버 일정과 요청 키를 검증한다', async () => {

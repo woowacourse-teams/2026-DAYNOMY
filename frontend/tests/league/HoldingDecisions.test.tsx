@@ -28,6 +28,8 @@ const holding = {
   quantity: 2,
   averagePurchasePrice: 70000,
   hidden: false,
+  pendingReason: false,
+  sourceManaged: false,
   reason: '',
   baseDate: null,
   closePrice: null,
@@ -82,6 +84,47 @@ function fillDecision(view: ReturnType<typeof render>) {
 }
 
 describe('종목별 기록과 바로 작성하는 복기', () => {
+  it('원본에 연결된 종목은 원본에서 관리하고 리그에서만 삭제하지 않는다', async () => {
+    const view = renderRecords([{ ...holding, sourceManaged: true }]);
+    expect(await view.findByRole('link', { name: '삼성전자 원본에서 관리' })).toHaveProperty(
+      'pathname',
+      '/portfolio',
+    );
+    expect(view.queryByRole('button', { name: '삼성전자 리그에서 삭제' })).toBeNull();
+  });
+  it('보유 이유 없는 비공개 종목도 통합 수익률에 포함하고 공개 전환만 막는다', async () => {
+    const view = renderRecords([{ ...holding, hidden: true, pendingReason: true, reason: '' }]);
+    expect(await view.findByText(/주식 · .* · 비공개/)).toBeTruthy();
+    expect(view.queryByText('보유 이유 미작성')).toBeNull();
+    expect(view.queryByText(/집계 제외/)).toBeNull();
+    expect(view.getByRole('button', { name: '삼성전자 공개하기' })).toHaveProperty(
+      'disabled',
+      true,
+    );
+  });
+  it('미국 종가와 원화 평가액을 각각의 통화로 표시한다', async () => {
+    const us = {
+      ...holding,
+      assetCode: 'AAPL.US',
+      market: 'NASDAQ' as const,
+      currency: 'USD' as const,
+      baseDate: '2026-10-27',
+      closePrice: 100,
+      evaluationAmount: 260000,
+    };
+    const view = render(
+      <HoldingDecisions
+        holdings={[us]}
+        portfolioBusy={false}
+        publicationStatus="공개 후보"
+        onVisibilityChange={vi.fn()}
+        onRemove={vi.fn().mockResolvedValue(true)}
+        onRecordsChange={vi.fn()}
+        refreshKey={0}
+      />,
+    );
+    expect(await view.findByText(/2026-10-27 종가 \$100 · 평가액 260,000원/)).toBeTruthy();
+  });
   it.each(['decisions', 'reviews'] as const)(
     '%s 화면에서 요청 후에만 AI 질문을 보이고 초안을 자동 변경하지 않는다',
     async (surface) => {

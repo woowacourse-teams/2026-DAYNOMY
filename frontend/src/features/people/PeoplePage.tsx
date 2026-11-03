@@ -2,7 +2,7 @@ import { trackEvent } from '../../analytics';
 import xMark from '../../assets/platform-x.svg';
 import threadsMark from '../../assets/platform-threads.svg';
 import { useContentView } from '../news/issue/analytics';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useFeaturedPeople } from './useFeaturedPeople';
 import { peopleFeed } from '../news/issue/feed';
@@ -11,11 +11,101 @@ import { IssuePagination } from '../news/issue/IssuePagination';
 import './people.css';
 import '../news/issue/issue.css';
 
+function PeopleFinderSearch({
+  people,
+  selectedId,
+  searchRef,
+  onSelect,
+  onClose,
+}: {
+  people: ReturnType<typeof useFeaturedPeople>['people'];
+  selectedId: string | null;
+  searchRef: React.RefObject<HTMLInputElement | null>;
+  onSelect: (id: string) => void;
+  onClose: () => void;
+}) {
+  const [search, setSearch] = useState('');
+  const foundPeople = people.filter((person) =>
+    person.name.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()),
+  );
+  return (
+    <>
+      <label className="sr-only" htmlFor="people-search">
+        인물 이름 검색
+      </label>
+      <div className="people-finder-search">
+        <input
+          ref={searchRef}
+          id="people-search"
+          type="search"
+          placeholder="이름으로 검색"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+        />
+        <button
+          type="button"
+          className="people-finder-close"
+          aria-label="인물 찾기 닫기"
+          onClick={onClose}
+        >
+          ×
+        </button>
+      </div>
+      <p className="people-finder-label">전체 인물</p>
+      <div className="people-search-results">
+        {foundPeople.map((person) => (
+          <button
+            key={person.id}
+            aria-pressed={selectedId === String(person.id)}
+            onClick={() => {
+              onSelect(String(person.id));
+              onClose();
+            }}
+          >
+            <span className="people-selector-avatar" aria-hidden="true">
+              <span>{person.name.slice(0, 1)}</span>
+              {person.profileImageUrl && (
+                <img
+                  src={person.profileImageUrl}
+                  alt=""
+                  onError={(event) => {
+                    event.currentTarget.hidden = true;
+                  }}
+                />
+              )}
+            </span>
+            <span>{person.name}</span>
+            <span className="people-result-arrow" aria-hidden="true">
+              ›
+            </span>
+          </button>
+        ))}
+        {!foundPeople.length && <p role="status">검색한 인물이 없습니다.</p>}
+      </div>
+    </>
+  );
+}
+
 export function PeoplePage() {
-  const { people, loading, error, retry } = useFeaturedPeople();
   const [params, setParams] = useSearchParams();
   const selectedId = params.get('person');
-  const [search, setSearch] = useState('');
+  const selectedNumber = selectedId === null ? undefined : Number(selectedId);
+  const personId =
+    selectedNumber !== undefined && Number.isSafeInteger(selectedNumber) && selectedNumber > 0
+      ? selectedNumber
+      : undefined;
+  const [pagination, setPagination] = useState({ person: selectedId, page: 1 });
+  // Reset before committing a view so a URL change cannot request the previous person's page.
+  if (pagination.person !== selectedId) setPagination({ person: selectedId, page: 1 });
+  const page = pagination.person === selectedId ? pagination.page : 1;
+  const {
+    people,
+    loading,
+    error,
+    retry,
+    totalElements,
+    totalPages: responseTotalPages,
+  } = useFeaturedPeople('people', page, 6, personId);
   const [finderOpen, setFinderOpen] = useState(false);
   const [finderLeft, setFinderLeft] = useState(0);
   const selectorRef = useRef<HTMLDivElement>(null);
@@ -113,20 +203,16 @@ export function PeoplePage() {
     };
   }, [finderOpen]);
 
-  const [pagination, setPagination] = useState({ person: selectedId, page: 1 });
-  // Reset before committing a view so a URL change cannot report the previous person's page.
-  if (pagination.person !== selectedId) setPagination({ person: selectedId, page: 1 });
-  const page = pagination.person === selectedId ? pagination.page : 1;
   const setPage = (next: number) => setPagination({ person: selectedId, page: next });
   const selected = people.find((person) => String(person.id) === selectedId);
-  const matchingPeople = people.filter((person) => !selectedId || String(person.id) === selectedId);
-  const items = peopleFeed(matchingPeople).sort(
-    (a, b) =>
-      (Date.parse(b.date ?? '') || 0) - (Date.parse(a.date ?? '') || 0) ||
-      a.key.localeCompare(b.key),
-  );
-  const foundPeople = people.filter((person) =>
-    person.name.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()),
+  const items = useMemo(
+    () =>
+      peopleFeed(people.filter((person) => !selectedId || String(person.id) === selectedId)).sort(
+        (a, b) =>
+          (Date.parse(b.date ?? '') || 0) - (Date.parse(a.date ?? '') || 0) ||
+          a.key.localeCompare(b.key),
+      ),
+    [people, selectedId],
   );
   function selectPerson(id: string) {
     if ((selectedId ?? '') === id) return;
@@ -141,14 +227,14 @@ export function PeoplePage() {
     setParams(next);
     setPagination({ person: id || null, page: 1 });
   }
-  const totalPages = Math.max(1, Math.ceil(items.length / 6));
+  const totalPages = Math.max(1, responseTotalPages);
   const currentPage = Math.min(page, totalPages);
 
   useContentView(!loading && !error, 'view_content_list', {
     surface: 'people',
     person_id: selected?.id ?? 'all',
     selection_valid: !selectedId || !!selected,
-    result_count: items.length,
+    result_count: totalElements,
     page_number: currentPage,
   });
   useContentView(
@@ -240,7 +326,13 @@ export function PeoplePage() {
             className="people-selector-item people-find-link"
             aria-expanded={finderOpen}
             aria-controls="people-finder"
-            onClick={() => setFinderOpen(!finderOpen)}
+            onClick={() => {
+              trackEvent('toggle_people_finder', {
+                surface: 'people',
+                expanded: !finderOpen,
+              });
+              setFinderOpen(!finderOpen);
+            }}
           >
             <span className="people-selector-avatar" aria-hidden="true">
               <svg viewBox="0 0 24 24">
@@ -259,58 +351,13 @@ export function PeoplePage() {
           hidden={!finderOpen}
           aria-label="전체 인물 검색"
         >
-          <label className="sr-only" htmlFor="people-search">
-            인물 이름 검색
-          </label>
-          <div className="people-finder-search">
-            <input
-              ref={searchRef}
-              id="people-search"
-              type="search"
-              placeholder="이름으로 검색"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-            />
-            <button
-              type="button"
-              className="people-finder-close"
-              aria-label="인물 찾기 닫기"
-              onClick={closeFinder}
-            >
-              ×
-            </button>
-          </div>
-          <p className="people-finder-label">전체 인물</p>
-          <div className="people-search-results">
-            {foundPeople.map((person) => (
-              <button
-                key={person.id}
-                aria-pressed={selectedId === String(person.id)}
-                onClick={() => {
-                  selectPerson(String(person.id));
-                  closeFinder();
-                }}
-              >
-                <span className="people-selector-avatar" aria-hidden="true">
-                  <span>{person.name.slice(0, 1)}</span>
-                  {person.profileImageUrl && (
-                    <img
-                      src={person.profileImageUrl}
-                      alt=""
-                      onError={(event) => {
-                        event.currentTarget.hidden = true;
-                      }}
-                    />
-                  )}
-                </span>
-                <span>{person.name}</span>
-                <span className="people-result-arrow" aria-hidden="true">
-                  ›
-                </span>
-              </button>
-            ))}
-            {!foundPeople.length && <p role="status">검색한 인물이 없습니다.</p>}
-          </div>
+          <PeopleFinderSearch
+            people={people}
+            selectedId={selectedId}
+            searchRef={searchRef}
+            onSelect={selectPerson}
+            onClose={closeFinder}
+          />
         </section>
       </div>
       {loading ? (
@@ -340,6 +387,13 @@ export function PeoplePage() {
                     {selected.xProfileUrl && (
                       <a
                         href={selected.xProfileUrl}
+                        onClick={() =>
+                          trackEvent('click_person_profile', {
+                            surface: 'people',
+                            person_id: selected.id,
+                            source_type: 'X',
+                          })
+                        }
                         target="_blank"
                         rel="noreferrer"
                         aria-label="X 프로필 보기 (새 탭)"
@@ -363,6 +417,13 @@ export function PeoplePage() {
                     {selected.threadsProfileUrl && (
                       <a
                         href={selected.threadsProfileUrl}
+                        onClick={() =>
+                          trackEvent('click_person_profile', {
+                            surface: 'people',
+                            person_id: selected.id,
+                            source_type: 'THREADS',
+                          })
+                        }
                         target="_blank"
                         rel="noreferrer"
                         aria-label="Threads 프로필 보기 (새 탭)"
@@ -386,6 +447,13 @@ export function PeoplePage() {
                     {selected.youtubeProfileUrl && (
                       <a
                         href={selected.youtubeProfileUrl}
+                        onClick={() =>
+                          trackEvent('click_person_profile', {
+                            surface: 'people',
+                            person_id: selected.id,
+                            source_type: 'YOUTUBE',
+                          })
+                        }
                         target="_blank"
                         rel="noreferrer"
                         aria-label="YouTube 채널 보기 (새 탭)"
@@ -425,13 +493,13 @@ export function PeoplePage() {
                 surface="people"
                 key={`${selectedId ?? 'all'}-${currentPage}`}
                 offset={(currentPage - 1) * 6}
-                items={items.slice((currentPage - 1) * 6, currentPage * 6)}
+                items={items}
               />
             </>
           ) : (
             <p className="issue-state">아직 등록된 게시물이 없습니다.</p>
           )}
-          {items.length > 0 && (
+          {totalElements > 0 && (
             <IssuePagination
               analytics={{ surface: 'people', person_id: selected?.id ?? 'all' }}
               page={currentPage}

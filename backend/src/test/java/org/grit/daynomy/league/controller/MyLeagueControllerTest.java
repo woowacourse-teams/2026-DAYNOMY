@@ -1,6 +1,7 @@
 package org.grit.daynomy.league.controller;
 
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -14,6 +15,9 @@ import org.grit.daynomy.league.service.LeagueService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.springdoc.core.configuration.SpringDocConfiguration;
+import org.springdoc.core.properties.SpringDocConfigProperties;
+import org.springdoc.webmvc.core.configuration.SpringDocWebMvcConfiguration;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -31,12 +35,46 @@ import org.springframework.test.web.servlet.MockMvc;
     excludeFilters =
         @Filter(type = FilterType.ASSIGNABLE_TYPE, classes = JwtAuthenticationFilter.class))
 @AutoConfigureMockMvc(addFilters = false)
-@Import(GlobalExceptionHandler.class)
+@Import({
+  GlobalExceptionHandler.class,
+  SpringDocConfiguration.class,
+  SpringDocConfigProperties.class,
+  SpringDocWebMvcConfiguration.class
+})
 class MyLeagueControllerTest {
   @Autowired private MockMvc mvc;
   @MockitoBean private InvestorProfileService profiles;
   @MockitoBean private InvestmentDecisionService transactions;
   @MockitoBean private LeagueService league;
+
+  @Test
+  void documentsActualSuccessResponses() throws Exception {
+    mvc.perform(get("/v3/api-docs"))
+        .andExpect(status().isOk())
+        .andExpect(
+            jsonPath(
+                    "$.paths['/api/users/me/investor-profile'].get.responses['200'].content['*/*'].schema['$ref']")
+                .value("#/components/schemas/ProfileResponse"))
+        .andExpect(
+            jsonPath("$.paths['/api/users/me/investor-profile'].get.responses['204']").exists())
+        .andExpect(
+            jsonPath("$.paths['/api/users/me/investor-profile'].get.responses['204'].content")
+                .doesNotExist())
+        .andExpect(
+            jsonPath(
+                    "$.paths['/api/users/me/portfolio/decisions'].post.responses['201'].content['*/*'].schema['$ref']")
+                .value("#/components/schemas/DecisionResponse"))
+        .andExpect(
+            jsonPath(
+                    "$.paths['/api/users/me/portfolio/decisions/{transactionId}/reviews'].post.responses['201'].content['*/*'].schema['$ref']")
+                .value("#/components/schemas/ReviewResponse"))
+        .andExpect(
+            jsonPath("$.paths['/api/users/me/league/follows/{publicId}'].post.responses['204']")
+                .exists())
+        .andExpect(
+            jsonPath("$.paths['/api/users/me/league/follows/{publicId}'].delete.responses['204']")
+                .exists());
+  }
 
   @ParameterizedTest
   @ValueSource(strings = {"-1", "101", "1.234"})

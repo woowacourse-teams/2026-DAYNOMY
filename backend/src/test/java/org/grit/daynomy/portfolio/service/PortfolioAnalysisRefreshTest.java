@@ -6,6 +6,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Set;
 import org.grit.daynomy.market.domain.asset.ImpactDirection;
 import org.grit.daynomy.market.domain.asset.ImpactLevel;
 import org.grit.daynomy.portfolio.domain.PortfolioAnalysisCheck.Outcome;
@@ -13,9 +14,62 @@ import org.grit.daynomy.portfolio.domain.PortfolioImpactSummary;
 import org.grit.daynomy.portfolio.dto.PortfolioAnalysisResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioAnalysisSourceResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioAssetImpactResponse;
+import org.grit.daynomy.portfolio.dto.PortfolioAssetRequest;
 import org.junit.jupiter.api.Test;
 
 class PortfolioAnalysisRefreshTest {
+  @Test
+  void selectiveRefreshPreservesOtherEvidenceAndRecalculatesCurrentWeights() {
+    var old =
+        response(
+            impact("삼성전자", false, ImpactDirection.NEGATIVE),
+            impact("SK하이닉스", false, ImpactDirection.NEGATIVE));
+    var candidate = response(impact("삼성전자", true, ImpactDirection.POSITIVE));
+    var assets =
+        List.of(
+            new PortfolioAssetRequest("삼성전자", new BigDecimal("60"), 1L),
+            new PortfolioAssetRequest("SK하이닉스", new BigDecimal("40"), 1L));
+    var revision = PortfolioAnalysisRefresh.compareSelected(old, candidate, assets, Set.of("삼성전자"));
+    assertThat(revision.outcome()).isEqualTo(Outcome.UPDATED);
+    assertThat(revision.analysis().impacts()).hasSize(2);
+    assertThat(revision.analysis().impacts())
+        .filteredOn(i -> i.assetName().equals("SK하이닉스"))
+        .singleElement()
+        .satisfies(
+            i -> {
+              assertThat(i.direction()).isEqualTo(ImpactDirection.NEGATIVE);
+              assertThat(i.issueSummary()).isEqualTo(old.impacts().get(1).issueSummary());
+              assertThat(i.sources()).isEqualTo(old.impacts().get(1).sources());
+              assertThat(i.weight()).isEqualByComparingTo("40");
+            });
+    assertThat(revision.analysis().overallScore()).isEqualByComparingTo("20");
+    assertThat(revision.analysis().excludedAssets()).isEmpty();
+    assertThat(revision.reason()).contains("삼성전자").doesNotContain("SK하이닉스");
+  }
+
+  @Test
+  void selectiveRefreshDoesNotRepairUntouchedResultsOrSummaryWithoutNewEvidence() {
+    var old = response(impact("삼성전자", false, ImpactDirection.NEGATIVE), insufficient("SK하이닉스"));
+    var candidate = response(impact("삼성전자", false, ImpactDirection.POSITIVE));
+    var revision =
+        PortfolioAnalysisRefresh.compareSelected(old, candidate, List.of(), Set.of("삼성전자"));
+    assertThat(revision.outcome()).isEqualTo(Outcome.UNCHANGED);
+    assertThat(revision.analysis()).isSameAs(old);
+  }
+
+  @Test
+  void selectiveValidationFailureRetainsExistingAnalysis() {
+    var old =
+        response(
+            impact("삼성전자", false, ImpactDirection.NEGATIVE),
+            impact("SK하이닉스", false, ImpactDirection.NEGATIVE));
+    var revision =
+        PortfolioAnalysisRefresh.compareSelected(
+            old, response(insufficient("삼성전자")), List.of(), Set.of("삼성전자"));
+    assertThat(revision.outcome()).isEqualTo(Outcome.UNCONFIRMED);
+    assertThat(revision.analysis()).isSameAs(old);
+  }
+
   @Test
   void preservesPortfolioSynthesisAndRepairsPerAssetSummaryWithSameEvidence() {
     var base =

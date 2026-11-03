@@ -17,6 +17,7 @@ import org.grit.daynomy.content.dto.AssetContentRequest;
 import org.grit.daynomy.content.dto.AssetContentResponse;
 import org.grit.daynomy.content.dto.AssetContentsResponse;
 import org.grit.daynomy.content.dto.ContentPageResponse;
+import org.grit.daynomy.content.dto.DiscoverableAssetsResponse;
 import org.grit.daynomy.content.dto.SocialPostResponse;
 import org.grit.daynomy.content.dto.SocialPostSearchResponse;
 import org.grit.daynomy.content.dto.YouTubeSearchResponse;
@@ -26,6 +27,7 @@ import org.grit.daynomy.content.repository.AssetContentRepository;
 import org.grit.daynomy.external.openai.OpenAiSocialPostSearchClient;
 import org.grit.daynomy.external.youtube.YouTubeClient;
 import org.grit.daynomy.news.domain.News;
+import org.grit.daynomy.news.domain.NewsStatus;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
@@ -54,6 +56,12 @@ public class AssetContentService {
                 List.of(ContentSourceType.YOUTUBE, ContentSourceType.THREADS, ContentSourceType.X),
                 PageRequest.of(page - 1, size))
             .map(AssetContentResponse::from));
+  }
+
+  public DiscoverableAssetsResponse getDiscoverableAssets(int page, int size) {
+    return DiscoverableAssetsResponse.from(
+        contentRepository.findDiscoverableAssetIds(
+            NewsStatus.PUBLISHED, PageRequest.of(page - 1, size)));
   }
 
   public AssetContentsResponse getContents(Long assetId) {

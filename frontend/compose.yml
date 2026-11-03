@@ -3,5 +3,9 @@ services:
     image: ${FRONTEND_IMAGE:?FRONTEND_IMAGE is required}
     container_name: ${FRONTEND_CONTAINER_NAME:?FRONTEND_CONTAINER_NAME is required}
     restart: unless-stopped
+    environment:
+      DEPLOY_ENV: ${DEPLOY_ENV:?DEPLOY_ENV is required}
+      SITE_ORIGIN: ${DEPLOY_URL:?DEPLOY_URL is required}
+      API_ORIGIN: ${DEPLOY_URL:?DEPLOY_URL is required}
     ports:
       - '127.0.0.1:${FRONTEND_PORT:?FRONTEND_PORT is required}:80'

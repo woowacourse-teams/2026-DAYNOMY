@@ -1,3 +1,10 @@
+const dateFormatter = new Intl.DateTimeFormat('ko-KR', {
+  month: 'long',
+  day: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+});
+
 export function formatDate(value?: string | null) {
   if (!value) {
     return '방금 전';
@@ -9,10 +16,5 @@ export function formatDate(value?: string | null) {
     return value;
   }
 
-  return new Intl.DateTimeFormat('ko-KR', {
-    month: 'long',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(date);
+  return dateFormatter.format(date);
 }

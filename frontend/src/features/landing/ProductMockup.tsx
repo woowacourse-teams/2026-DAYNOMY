@@ -47,7 +47,7 @@ export function ProductMockup({
                     <h3>내 포트폴리오</h3>
                     <div className="mockup-actions">
                       <span>소식 ‹</span>
-                      <b>＋ 자산 추가</b>
+                      <b>＋ 거래 기록</b>
                     </div>
                     <div className="mockup-balance mockup-reveal">
                       <span>전체 자산 평가금액</span>
@@ -274,7 +274,7 @@ export function ProductMockup({
       )}
       <figcaption>
         {screen === 'league'
-          ? '개발 중인 리그 디자인을 반영한 소개용 화면입니다.'
+          ? '투자 리그 디자인을 반영한 소개용 화면입니다.'
           : 'DAYNOMY 디자인을 반영한 소개용 화면입니다.'}{' '}
         데이터는 예시입니다.
       </figcaption>

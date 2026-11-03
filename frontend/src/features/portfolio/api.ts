@@ -20,6 +20,7 @@ import type {
   PortfolioPerformanceResponse,
   SavedPortfolioResponse,
   SavedPortfolioAnalysisResponse,
+  GuestPortfolioAnalysisTaskResponse,
 } from './types';
 
 const IMPACT_DIRECTIONS = new Set<PortfolioImpactDirection>(['POSITIVE', 'NEGATIVE', 'NEUTRAL']);
@@ -70,6 +71,7 @@ function isSavedPortfolioHolding(value: unknown): value is PortfolioHoldingInput
   if (!isRecord(value)) return false;
   const quantity = value.quantity;
   const averagePurchasePrice = value.averagePurchasePrice;
+  const nativeAveragePurchasePrice = value.nativeAveragePurchasePrice;
   return (
     isStock(value) &&
     typeof quantity === 'number' &&
@@ -77,7 +79,11 @@ function isSavedPortfolioHolding(value: unknown): value is PortfolioHoldingInput
     quantity > 0 &&
     typeof averagePurchasePrice === 'number' &&
     Number.isFinite(averagePurchasePrice) &&
-    averagePurchasePrice > 0
+    averagePurchasePrice > 0 &&
+    (nativeAveragePurchasePrice == null ||
+      (typeof nativeAveragePurchasePrice === 'number' &&
+        Number.isFinite(nativeAveragePurchasePrice) &&
+        nativeAveragePurchasePrice > 0))
   );
 }
 
@@ -170,6 +176,12 @@ export function isPortfolioAnalysisResponse(value: unknown): value is PortfolioA
       (typeof value.overallDirection === 'string' &&
         IMPACT_DIRECTIONS.has(value.overallDirection as PortfolioImpactDirection))) &&
     hasNullableNumber(value, 'overallScore') &&
+    (value.excludedAssets === undefined ||
+      (Array.isArray(value.excludedAssets) &&
+        value.excludedAssets.every(
+          (asset: unknown) =>
+            isRecord(asset) && typeof asset.assetName === 'string' && hasNumber(asset, 'weight'),
+        ))) &&
     (value.coverage === undefined ||
       ['COMPLETE', 'PARTIAL', 'INSUFFICIENT'].includes(String(value.coverage))) &&
     (value.analyzedWeight === undefined || hasNumber(value, 'analyzedWeight')) &&
@@ -258,6 +270,103 @@ export function removeSavedPortfolioHolding(assetId: number) {
   return requestWithCsrf<void>(`/api/users/me/portfolio/holdings/${assetId}`, { method: 'DELETE' });
 }
 
+export async function updateSavedPortfolioHoldings(holdings: PortfolioHoldingInput[]) {
+  const response = await requestWithCsrf<unknown>('/api/portfolio/holdings', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      holdings: holdings.map(
+        ({ assetId, quantity, averagePurchasePrice, nativeAveragePurchasePrice }) => ({
+          assetId,
+          quantity,
+          averagePurchasePrice,
+          ...(nativeAveragePurchasePrice != null ? { nativeAveragePurchasePrice } : {}),
+        }),
+      ),
+    }),
+  });
+  if (
+    !Array.isArray(response) ||
+    !response.every(isSavedPortfolioHolding) ||
+    response.length !== holdings.length ||
+    new Set(response.map((item) => item.assetId)).size !== holdings.length ||
+    response.some((item) => !holdings.some((holding) => holding.assetId === item.assetId))
+  )
+    throw new Error('보유정보 일괄 수정 응답 형식이 올바르지 않습니다. 다시 조회해 주세요.');
+  return response as PortfolioHoldingInput[];
+}
+
+export async function createPortfolioHoldings(holdings: PortfolioHoldingInput[]) {
+  const response = await requestWithCsrf<unknown>('/api/portfolio/holdings/bulk', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      holdings: holdings.map(
+        ({ assetId, quantity, averagePurchasePrice, nativeAveragePurchasePrice }) => ({
+          assetId,
+          quantity,
+          averagePurchasePrice,
+          ...(nativeAveragePurchasePrice != null ? { nativeAveragePurchasePrice } : {}),
+        }),
+      ),
+    }),
+  });
+  if (
+    !isRecord(response) ||
+    !Array.isArray(response.holdings) ||
+    !response.holdings.every(isSavedPortfolioHolding) ||
+    !hasNumber(response, 'totalRealizedProfitLoss') ||
+    new Set(response.holdings.map((item) => item.assetId)).size !== response.holdings.length
+  )
+    throw new Error('보유잔고 등록 응답 형식이 올바르지 않습니다. 다시 조회해 주세요.');
+  const saved = response.holdings;
+  if (holdings.some((holding) => !saved.some((item) => item.assetId === holding.assetId)))
+    throw new Error('등록한 보유잔고가 응답에 없습니다. 다시 조회해 주세요.');
+  return response as SavedPortfolioResponse;
+}
+
+export async function createPortfolioTransactions(
+  transactions: PortfolioTransactionRequest[],
+  csv: boolean,
+) {
+  const response = await requestWithCsrf<unknown>(
+    `/api/portfolio/transactions/${csv ? 'import' : 'bulk'}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ transactions }),
+    },
+  );
+  if (
+    typeof response !== 'object' ||
+    response === null ||
+    !('portfolio' in response) ||
+    !('importedCount' in response) ||
+    !Number.isSafeInteger(response.importedCount) ||
+    Number(response.importedCount) < 0 ||
+    !('alreadyImported' in response) ||
+    typeof response.alreadyImported !== 'boolean'
+  )
+    throw new Error('거래 일괄 등록 응답 형식이 올바르지 않습니다. 다시 조회해 주세요.');
+  const portfolio = response.portfolio;
+  if (
+    typeof portfolio !== 'object' ||
+    portfolio === null ||
+    !('holdings' in portfolio) ||
+    !Array.isArray(portfolio.holdings) ||
+    !portfolio.holdings.every(isSavedPortfolioHolding) ||
+    !('totalRealizedProfitLoss' in portfolio) ||
+    typeof portfolio.totalRealizedProfitLoss !== 'number' ||
+    !Number.isFinite(portfolio.totalRealizedProfitLoss)
+  )
+    throw new Error('거래 일괄 등록 응답 형식이 올바르지 않습니다. 다시 조회해 주세요.');
+  return response as {
+    importedCount: number;
+    alreadyImported: boolean;
+    portfolio: SavedPortfolioResponse;
+  };
+}
+
 export async function getPortfolioPerformance(from: string, to: string, signal?: AbortSignal) {
   const query = new URLSearchParams({ from, to });
   const response = await request<unknown>(
@@ -319,6 +428,45 @@ export async function analyzePortfolio(assets: PortfolioAsset[], signal?: AbortS
     throw new Error('포트폴리오 분석 API 응답 형식이 올바르지 않습니다.');
   }
 
+  return response;
+}
+
+function isGuestAnalysisTask(value: unknown): value is GuestPortfolioAnalysisTaskResponse {
+  return (
+    isRecord(value) &&
+    (value.taskId === null || typeof value.taskId === 'string') &&
+    ['EMPTY', 'PROCESSING', 'READY', 'FAILED'].includes(String(value.status)) &&
+    (value.analysis === null || isPortfolioAnalysisResponse(value.analysis)) &&
+    (value.summaryStatus === null ||
+      ['PENDING', 'READY', 'FAILED'].includes(String(value.summaryStatus))) &&
+    (value.failureCode === null || typeof value.failureCode === 'string') &&
+    typeof value.retryAllowed === 'boolean'
+  );
+}
+
+export async function getGuestPortfolioAnalysis(signal?: AbortSignal) {
+  const response = await request<unknown>('/api/portfolio/analysis/tasks', { signal });
+  if (!isGuestAnalysisTask(response))
+    throw new Error('분석 진행 상태 응답 형식이 올바르지 않아요.');
+  return response;
+}
+
+export async function startGuestPortfolioAnalysis(
+  assets: PortfolioAsset[],
+  signal?: AbortSignal,
+  retryTaskId?: string,
+) {
+  const response = await request<unknown>(
+    `/api/portfolio/analysis/tasks${retryTaskId ? `/${encodeURIComponent(retryTaskId)}/retry` : ''}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      ...(retryTaskId ? {} : { body: JSON.stringify({ assets }) }),
+      signal,
+    },
+  );
+  if (!isGuestAnalysisTask(response))
+    throw new Error('분석 진행 상태 응답 형식이 올바르지 않아요.');
   return response;
 }
 
@@ -409,6 +557,16 @@ export function deletePortfolioTransaction(id: number) {
 function isSavedPortfolioAnalysis(value: unknown): value is SavedPortfolioAnalysisResponse {
   return (
     isRecord(value) &&
+    ((value.remainingRefreshCount === undefined && value.refreshResetAt === undefined) ||
+      (typeof value.remainingRefreshCount === 'number' &&
+        Number.isInteger(value.remainingRefreshCount) &&
+        value.remainingRefreshCount >= 0 &&
+        value.remainingRefreshCount <= 3 &&
+        typeof value.refreshResetAt === 'string' &&
+        Number.isFinite(Date.parse(value.refreshResetAt)))) &&
+    (value.summaryStatus === undefined ||
+      value.summaryStatus === null ||
+      ['PENDING', 'READY', 'FAILED'].includes(String(value.summaryStatus))) &&
     ['EMPTY', 'READY', 'PORTFOLIO_CHANGED', 'PROCESSING', 'RECHECK_REQUIRED', 'FAILED'].includes(
       String(value.status),
     ) &&
@@ -432,7 +590,7 @@ export async function getSavedPortfolioAnalysis(signal?: AbortSignal) {
 
 export async function updateSavedPortfolioAnalysis(refresh: boolean, signal?: AbortSignal) {
   const response = await requestWithCsrf<unknown>(
-    `/api/users/me/portfolio/analysis${refresh ? '/refresh' : ''}`,
+    `/api/users/me/portfolio/analysis/tasks${refresh ? '/refresh' : ''}`,
     { method: 'POST', signal },
   );
   if (!isSavedPortfolioAnalysis(response))

@@ -28,7 +28,7 @@ import org.grit.daynomy.common.BaseEntity;
         @UniqueConstraint(
             name = "uk_portfolio_daily_returns_date_version",
             columnNames = {"portfolio_id", "base_date", "calculation_version"}))
-public class PortfolioDailyReturn extends BaseEntity {
+public class PortfolioDailyReturn extends BaseEntity implements DailyReturnValue {
 
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)

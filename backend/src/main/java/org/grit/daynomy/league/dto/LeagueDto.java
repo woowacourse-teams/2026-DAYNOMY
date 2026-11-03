@@ -131,7 +131,7 @@ public final class LeagueDto {
           transaction.getId(),
           transaction.getAsset().getId(),
           transaction.getAsset().getAssetCode(),
-          transaction.getAsset().getName(),
+          transaction.getAsset().getDisplayName(),
           transaction.getAsset().getCategory().name(),
           transaction.getTransactionType(),
           transaction.getQuantity(),
@@ -188,7 +188,15 @@ public final class LeagueDto {
       Integer calculationVersion,
       Instant finalizedAt,
       String changeReason,
-      CollectionStatus collectionStatus) {}
+      CollectionStatus collectionStatus,
+      AggregationResponse aggregation) {}
+
+  public record AggregationResponse(
+      LocalDate baseDate,
+      Instant expectedAt,
+      Instant firstReturnExpectedAt,
+      String reason,
+      boolean delayed) {}
 
   public record AllocationResponse(BigDecimal stockWeight, BigDecimal etfWeight) {}
 
@@ -202,7 +210,9 @@ public final class LeagueDto {
       LocalDate eligibleFrom,
       BigDecimal currentHoldingWeight,
       int consecutiveRecordedWeeks,
-      Integer weeklyRank) {}
+      Integer weeklyRank,
+      LocalDate asOfDate,
+      LocalDate rankingAsOfDate) {}
 
   public record HistoryPointResponse(
       LocalDate weekStart,
@@ -229,7 +239,8 @@ public final class LeagueDto {
       BigDecimal weeklyReturnRate,
       List<DailyReturnPointResponse> days,
       LocalDate trackingStartedOn,
-      CollectionStatus collectionStatus) {}
+      CollectionStatus collectionStatus,
+      AggregationResponse aggregation) {}
 
   public record PublicInvestorResponse(
       String publicId,

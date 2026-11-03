@@ -17,6 +17,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import org.grit.daynomy.auth.token.JwtAuthenticationFilter;
 import org.grit.daynomy.common.exception.GlobalExceptionHandler;
+import org.grit.daynomy.config.SwaggerConfig;
 import org.grit.daynomy.content.service.AssetContentService;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.ImageSourceInfo;
@@ -35,6 +36,9 @@ import org.grit.daynomy.news.service.NewsGenerationService;
 import org.grit.daynomy.search.domain.NewsSearchSort;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springdoc.core.configuration.SpringDocConfiguration;
+import org.springdoc.core.properties.SpringDocConfigProperties;
+import org.springdoc.webmvc.core.configuration.SpringDocWebMvcConfiguration;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -53,7 +57,13 @@ import org.springframework.test.web.servlet.MockMvc;
     excludeFilters =
         @Filter(type = FilterType.ASSIGNABLE_TYPE, classes = JwtAuthenticationFilter.class))
 @AutoConfigureMockMvc(addFilters = false)
-@Import(GlobalExceptionHandler.class)
+@Import({
+  GlobalExceptionHandler.class,
+  SwaggerConfig.class,
+  SpringDocConfiguration.class,
+  SpringDocConfigProperties.class,
+  SpringDocWebMvcConfiguration.class
+})
 class AdminNewsControllerTest {
 
   @Autowired private MockMvc mockMvc;
@@ -63,6 +73,30 @@ class AdminNewsControllerTest {
   @MockitoBean private NewsGenerationService newsGenerationService;
 
   @MockitoBean private AssetContentService assetContentService;
+
+  @Test
+  @DisplayName("뉴스 등록 API 문서는 실제 응답 상태와 스키마를 명시한다")
+  void createNewsOpenApiMatchesResponses() throws Exception {
+    mockMvc
+        .perform(get("/v3/api-docs"))
+        .andExpect(status().isOk())
+        .andExpect(
+            jsonPath(
+                    "$.paths['/api/admin/news'].post.responses['201'].content['*/*'].schema['$ref']")
+                .value("#/components/schemas/AdminNewsResponse"))
+        .andExpect(
+            jsonPath(
+                    "$.paths['/api/admin/news'].post.responses['400'].content['*/*'].schema['$ref']")
+                .value("#/components/schemas/ErrorResponse"))
+        .andExpect(
+            jsonPath(
+                    "$.paths['/api/admin/news'].post.responses['404'].content['*/*'].schema['$ref']")
+                .value("#/components/schemas/ErrorResponse"))
+        .andExpect(jsonPath("$.components.schemas.AdminNewsResponse.properties.id").exists())
+        .andExpect(jsonPath("$.components.schemas.AdminNewsResponse.properties.title").exists())
+        .andExpect(jsonPath("$.components.schemas.ErrorResponse.properties.code").exists())
+        .andExpect(jsonPath("$.components.schemas.ErrorResponse.properties.errors").exists());
+  }
 
   @Test
   @DisplayName("관리자 Wikimedia Commons 이미지 검색 API는 후보 목록을 반환한다")
