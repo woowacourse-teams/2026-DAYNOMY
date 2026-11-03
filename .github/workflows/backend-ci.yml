@@ -63,3 +63,12 @@ jobs:
 
       - name: Run Tests and Build Project
         run: ./gradlew clean build
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: backend-test-results
+          path: backend/build/test-results/test/
+          retention-days: 7
+          if-no-files-found: warn
