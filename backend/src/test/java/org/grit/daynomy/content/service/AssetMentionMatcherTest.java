@@ -2,9 +2,11 @@ package org.grit.daynomy.content.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.time.LocalDate;
 import java.util.List;
 import org.grit.daynomy.asset.domain.Asset;
 import org.grit.daynomy.asset.domain.AssetCategory;
+import org.grit.daynomy.asset.domain.StockMarket;
 import org.junit.jupiter.api.Test;
 
 class AssetMentionMatcherTest {
@@ -35,5 +37,29 @@ class AssetMentionMatcherTest {
 
     assertThat(matcher.match("$AAPL 실적 전망", "", List.of(apple))).containsExactly(apple);
     assertThat(matcher.match("XAAPLX는 종목 코드가 아니다", "", List.of(apple))).isEmpty();
+  }
+
+  @Test
+  void matchesUsAssetByTickerWithoutCountrySuffix() {
+    Asset apple = usStock("Apple Inc", "AAPL.US");
+
+    assertThat(matcher.match("$AAPL 실적 전망", "", List.of(apple))).containsExactly(apple);
+    assertThat(matcher.match("XAAPLX는 종목 코드가 아니다", "", List.of(apple))).isEmpty();
+  }
+
+  @Test
+  void matchesUsAssetByKoreanNameAndEnglishNameWithoutCompanySuffix() {
+    Asset apple = usStock("Apple Inc.", "AAPL.US");
+    apple.synchronizeKoreanName("애플");
+
+    assertThat(matcher.match("Apple 신제품 공개", "", List.of(apple))).containsExactly(apple);
+    assertThat(matcher.match("애플 실적 발표", "", List.of(apple))).containsExactly(apple);
+    assertThat(matcher.match("애플은 실적을 발표했다", "", List.of(apple))).containsExactly(apple);
+    assertThat(matcher.match("Pineapple 시장 성장", "", List.of(apple))).isEmpty();
+    assertThat(matcher.match("파인애플 시장 성장", "", List.of(apple))).isEmpty();
+  }
+
+  private Asset usStock(String name, String code) {
+    return Asset.listedStock(name, code, StockMarket.NASDAQ, null, LocalDate.of(2026, 11, 4));
   }
 }
