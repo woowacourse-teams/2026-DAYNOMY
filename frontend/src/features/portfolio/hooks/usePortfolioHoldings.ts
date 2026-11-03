@@ -7,6 +7,9 @@ import {
   createPortfolioTransaction,
   updatePortfolioTransaction,
   deletePortfolioTransaction,
+  updateSavedPortfolioHoldings,
+  createPortfolioTransactions,
+  createPortfolioHoldings,
 } from '../api';
 import {
   loadGuestPortfolioHoldings,
@@ -201,6 +204,111 @@ export function usePortfolioHoldings(isLoggedIn: boolean) {
     error,
     retry: () => setRetryCount((count) => count + 1),
     saveHolding,
+    saveHoldings: async (changes: PortfolioHoldingInput[]) => {
+      if (!changes.length) return;
+      setSaving(true);
+      try {
+        if (changes.some((item) => !holdings.some((holding) => holding.assetId === item.assetId)))
+          throw new Error('보유자산이 변경됐어요. 편집창을 닫고 다시 열어 주세요.');
+        if (isLoggedIn) {
+          const saved = await updateSavedPortfolioHoldings(changes);
+          setHoldings((current) =>
+            current.map(
+              (holding) => saved.find((item) => item.assetId === holding.assetId) ?? holding,
+            ),
+          );
+          setRevision((value) => value + 1);
+        } else {
+          let next = guestLedger ?? { openingHoldings: holdings, histories: [] };
+          for (const holding of changes)
+            next = {
+              ...next,
+              histories: [...next.histories, guestHoldingHistory(next, holding, 'ADJUSTED')],
+            };
+          commitGuestLedger(next);
+        }
+      } finally {
+        setSaving(false);
+      }
+    },
+    addHoldings: async (items: PortfolioHoldingInput[]) => {
+      setSaving(true);
+      try {
+        const ids = new Set(holdings.map((holding) => holding.assetId));
+        for (const item of items) {
+          if (ids.has(item.assetId)) throw new Error('이미 보유 중이거나 중복 입력한 종목이에요.');
+          ids.add(item.assetId);
+        }
+        if (isLoggedIn) {
+          const saved = await createPortfolioHoldings(items);
+          setHoldings(saved.holdings);
+          setTotalRealizedProfitLoss(saved.totalRealizedProfitLoss);
+          setRevision((value) => value + 1);
+        } else {
+          let next = guestLedger ?? { openingHoldings: holdings, histories: [] };
+          for (const item of items)
+            next = {
+              ...next,
+              histories: [...next.histories, guestHoldingHistory(next, item, 'OPENING_BALANCE')],
+            };
+          commitGuestLedger(next);
+        }
+      } finally {
+        setSaving(false);
+      }
+    },
+    createTransactions: async (
+      items: { stock: StockSearchItem; transaction: PortfolioTransactionRequest }[],
+      csv: boolean,
+    ) => {
+      setSaving(true);
+      try {
+        if (isLoggedIn) {
+          const response = await createPortfolioTransactions(
+            items.map((item) => item.transaction),
+            csv,
+          );
+          setHoldings(response.portfolio.holdings);
+          setTotalRealizedProfitLoss(response.portfolio.totalRealizedProfitLoss);
+          setRevision((value) => value + 1);
+          return response.alreadyImported;
+        }
+        const ordered = [...items].sort((a, b) =>
+          a.transaction.tradeDate.localeCompare(b.transaction.tradeDate),
+        );
+        const fingerprint = JSON.stringify(
+          ordered.map((item) => {
+            const { assetId, type, tradeDate, quantity, unitPrice, fee, tax, exchangeRate } =
+              item.transaction;
+            return [assetId, type, tradeDate, quantity, unitPrice, fee, tax, exchangeRate ?? 1];
+          }),
+        );
+        let next = guestLedger ?? { openingHoldings: holdings, histories: [] };
+        if (csv && next.importFingerprints?.includes(fingerprint)) return true;
+        for (const { stock, transaction } of ordered) {
+          if (
+            next.histories.some(
+              (history) =>
+                history.assetId === stock.assetId &&
+                history.changeType !== 'BUY' &&
+                history.changeType !== 'SELL' &&
+                history.effectiveDate > transaction.tradeDate,
+            )
+          )
+            throw new Error('거래일은 해당 종목의 마지막 보유정보 정정일 이후여야 합니다.');
+          next = {
+            ...next,
+            histories: [...next.histories, guestTransactionHistory(next, stock, transaction)],
+          };
+        }
+        if (csv)
+          next = { ...next, importFingerprints: [...(next.importFingerprints ?? []), fingerprint] };
+        commitGuestLedger(next);
+        return false;
+      } finally {
+        setSaving(false);
+      }
+    },
     removeHolding,
     guestHistories: guestLedger?.histories ?? [],
     createTransaction: async (body: PortfolioTransactionRequest, stock?: StockSearchItem) => {

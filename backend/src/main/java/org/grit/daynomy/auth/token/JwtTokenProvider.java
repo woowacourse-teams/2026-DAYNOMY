@@ -27,6 +27,7 @@ public class JwtTokenProvider {
   private static final String TOKEN_TYPE = "token_type";
   private static final String ACCESS_TOKEN = "access";
   private static final String REFRESH_TOKEN = "refresh";
+  private static final String SESSION_ID = "sid";
 
   private final String issuer;
   private final Duration accessTokenExpiration;
@@ -61,12 +62,16 @@ public class JwtTokenProvider {
   }
 
   public TokenPair createTokenPair(Long memberId, MemberRole role) {
+    return createTokenPair(memberId, role, UUID.randomUUID());
+  }
+
+  public TokenPair createTokenPair(Long memberId, MemberRole role, UUID sessionId) {
     Instant now = Instant.now();
     Instant accessExpiresAt = now.plus(accessTokenExpiration);
     Instant refreshExpiresAt = now.plus(refreshTokenExpiration);
 
-    String accessToken = encode(memberId, role, ACCESS_TOKEN, now, accessExpiresAt);
-    String refreshToken = encode(memberId, null, REFRESH_TOKEN, now, refreshExpiresAt);
+    String accessToken = encode(memberId, role, ACCESS_TOKEN, now, accessExpiresAt, sessionId);
+    String refreshToken = encode(memberId, null, REFRESH_TOKEN, now, refreshExpiresAt, sessionId);
 
     return new TokenPair(accessToken, refreshToken, accessExpiresAt, refreshExpiresAt);
   }
@@ -95,8 +100,27 @@ public class JwtTokenProvider {
     }
   }
 
+  public UUID getSessionId(Jwt jwt) {
+    String sessionId = jwt.getClaimAsString(SESSION_ID);
+    // 구형 리프레시 토큰은 jti를 새 세션 식별자로 사용해 자동 재발급을 허용한다.
+    // 구형 액세스 토큰은 세션 단위로 폐기할 수 없으므로 인증에는 사용하지 않는다.
+    if (sessionId == null && REFRESH_TOKEN.equals(jwt.getClaimAsString(TOKEN_TYPE))) {
+      sessionId = jwt.getId();
+    }
+    try {
+      return UUID.fromString(sessionId);
+    } catch (RuntimeException exception) {
+      throw new InvalidTokenException();
+    }
+  }
+
   private String encode(
-      Long memberId, MemberRole role, String tokenType, Instant issuedAt, Instant expiresAt) {
+      Long memberId,
+      MemberRole role,
+      String tokenType,
+      Instant issuedAt,
+      Instant expiresAt,
+      UUID sessionId) {
 
     JwtClaimsSet.Builder claims =
         JwtClaimsSet.builder()
@@ -105,7 +129,8 @@ public class JwtTokenProvider {
             .issuedAt(issuedAt)
             .expiresAt(expiresAt)
             .id(UUID.randomUUID().toString())
-            .claim(TOKEN_TYPE, tokenType);
+            .claim(TOKEN_TYPE, tokenType)
+            .claim(SESSION_ID, sessionId.toString());
 
     if (role != null) {
       claims.claim("role", role.name());

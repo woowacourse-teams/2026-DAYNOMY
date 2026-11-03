@@ -153,12 +153,26 @@ class UsStockAcceptanceTest {
         .then()
         .statusCode(200)
         .body("stocks.size()", equalTo(1))
+        .body("stocks[0].name", equalTo("애플"))
         .body("stocks[0].currency", equalTo("USD"));
+    for (String keyword : new String[] {"애플", "AAPL"}) {
+      given()
+          .port(port)
+          .queryParam("q", keyword)
+          .queryParam("country", "US")
+          .get("/api/stocks")
+          .then()
+          .statusCode(200)
+          .body("stocks.size()", equalTo(1))
+          .body("stocks[0].assetCode", equalTo("AAPL.US"))
+          .body("stocks[0].name", equalTo("애플"));
+    }
     given()
         .port(port)
         .get("/api/stocks/" + apple.getId() + "/price")
         .then()
         .statusCode(200)
+        .body("name", equalTo("애플"))
         .body("currency", equalTo("USD"))
         .body("baseDate", equalTo(date.toString()));
   }
@@ -175,6 +189,9 @@ class UsStockAcceptanceTest {
   }
 
   private RequestSpecification client(Member member, MemberRole role) {
+    var stored = members.findById(member.getId()).orElseThrow();
+    org.springframework.test.util.ReflectionTestUtils.setField(stored, "role", role);
+    members.saveAndFlush(stored);
     var csrf = given().port(port).get("/api/auth/csrf");
     return given()
         .port(port)

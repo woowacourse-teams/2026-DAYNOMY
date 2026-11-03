@@ -1,0 +1,1 @@
+ALTER TABLE shared_holdings ADD COLUMN pending_reason BOOLEAN NOT NULL DEFAULT FALSE;

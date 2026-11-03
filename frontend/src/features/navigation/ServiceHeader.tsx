@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { trackLeagueEvent } from '../league/analytics';
 import { trackEvent } from '../../analytics';
 import { useAuth } from '../../hooks/useLoginStatus';
 import { SearchOverlay } from '../search/components/SearchOverlay';
@@ -63,9 +64,26 @@ export function ServiceHeader() {
     },
   ];
 
+  function recordDashboardNavigation() {
+    if (
+      /^\/league(?:\/|$)/.test(location.pathname) ||
+      location.pathname === '/portfolio/publication'
+    )
+      trackLeagueEvent('league_action', {
+        surface: 'service_header',
+        action: 'open_dashboard',
+        status: 'clicked',
+      });
+  }
+
   return (
     <header className="service-header">
-      <Link className="service-brand" to="/" aria-label="DAYNOMY 홈">
+      <Link
+        className="service-brand"
+        to="/"
+        aria-label="DAYNOMY 홈"
+        onClick={recordDashboardNavigation}
+      >
         DAYNOMY
       </Link>
       <nav className="service-header-tabs" aria-label="주요 메뉴">
@@ -75,6 +93,7 @@ export function ServiceHeader() {
             className={tab.active ? 'service-header-tab active' : 'service-header-tab'}
             to={tab.to}
             onClick={() => {
+              if (tab.to === '/') recordDashboardNavigation();
               if (tab.to === '/news')
                 trackEvent('click_news_navigation', { surface: 'service_header' });
             }}

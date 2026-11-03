@@ -29,7 +29,11 @@ function isPortfolioHolding(value: unknown): value is PortfolioHoldingInput {
     value.quantity > 0 &&
     typeof value.averagePurchasePrice === 'number' &&
     Number.isFinite(value.averagePurchasePrice) &&
-    value.averagePurchasePrice > 0
+    value.averagePurchasePrice > 0 &&
+    (value.nativeAveragePurchasePrice == null ||
+      (typeof value.nativeAveragePurchasePrice === 'number' &&
+        Number.isFinite(value.nativeAveragePurchasePrice) &&
+        value.nativeAveragePurchasePrice > 0))
   );
 }
 
@@ -53,6 +57,9 @@ function isGuestLedger(value: unknown): value is GuestPortfolioLedger {
   if (!isRecord(value) || !validHoldings(value.openingHoldings) || !Array.isArray(value.histories))
     return false;
   return (
+    (value.importFingerprints === undefined ||
+      (Array.isArray(value.importFingerprints) &&
+        value.importFingerprints.every((item) => typeof item === 'string'))) &&
     new Set(value.histories.map((item) => item?.historyId)).size === value.histories.length &&
     value.histories.every((item: unknown) => {
       if (
@@ -86,7 +93,9 @@ function isGuestLedger(value: unknown): value is GuestPortfolioLedger {
         );
       }
       return (
-        (item.changeType === 'ADJUSTED' || item.changeType === 'REMOVED') &&
+        (item.changeType === 'ADJUSTED' ||
+          item.changeType === 'REMOVED' ||
+          item.changeType === 'OPENING_BALANCE') &&
         item.transactionQuantity === null &&
         item.unitPrice === null &&
         item.fee === 0 &&

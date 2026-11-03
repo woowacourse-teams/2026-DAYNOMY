@@ -1,7 +1,7 @@
 import { tourAnalysis } from './portfolioTourExample';
 import { trackEvent } from '../../../analytics';
 import { useContentImpression } from '../../news/issue/analytics';
-import { memo, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { memo, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type Ref } from 'react';
 import { usePortfolioAnalysis } from '../hooks/usePortfolioAnalysis';
 import type {
   PortfolioAsset,
@@ -339,11 +339,27 @@ function PortfolioAnalysisLoading() {
   );
 }
 
-function PortfolioAnalysisError({ onRetry, message }: { onRetry: () => void; message: string }) {
+function PortfolioAnalysisError({
+  onRetry,
+  message,
+  retryDisabled = false,
+  buttonRef,
+}: {
+  onRetry: () => void;
+  message: string;
+  retryDisabled?: boolean;
+  buttonRef?: Ref<HTMLButtonElement>;
+}) {
   return (
     <div className="portfolio-analysis-state portfolio-analysis-empty" role="alert">
       <strong>{message}</strong>
-      <button className="portfolio-analysis-retry-button" type="button" onClick={onRetry}>
+      <button
+        ref={buttonRef}
+        className="portfolio-analysis-retry-button"
+        type="button"
+        onClick={onRetry}
+        disabled={retryDisabled}
+      >
         다시 시도
       </button>
     </div>
@@ -623,9 +639,21 @@ function AnalysisSources({
       </summary>
       {uniqueSources.length ? (
         <ul className="portfolio-evidence-sources">
-          {uniqueSources.map((source) => (
+          {uniqueSources.map((source, index) => (
             <li key={source.url}>
-              <a href={source.url} target="_blank" rel="noopener noreferrer">
+              <a
+                href={source.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => {
+                  if (!demo)
+                    trackEvent('click_portfolio_analysis_source', {
+                      surface: 'portfolio_analysis',
+                      scope,
+                      position: index + 1,
+                    });
+                }}
+              >
                 {source.title}
                 <ExternalLinkIcon />
               </a>
@@ -754,6 +782,7 @@ type PortfolioAnalysisProps = {
   isLoggedIn?: boolean;
   memberId?: number;
   holdingsKey?: string;
+  pricingStatus?: 'COMPLETE' | 'PARTIAL' | 'MIXED_DATES';
   onAddAsset?: () => void;
 };
 
@@ -793,6 +822,7 @@ function PortfolioAnalysisView({
   isLoggedIn = true,
   demoStep,
   onAddAsset,
+  pricingStatus,
   state,
 }: PortfolioAnalysisProps & { state: ReturnType<typeof usePortfolioAnalysis> }) {
   const {
@@ -863,7 +893,58 @@ function PortfolioAnalysisView({
       }))
     : assets;
   const hasAnalysisTarget = displayAssets.length > 0;
-  const canAnalyze = !loading && (assets.length > 0 || (isLoggedIn && !loaded));
+  const refreshExhausted = Boolean(
+    isLoggedIn && currentAnalysis && !portfolioChanged && saved?.remainingRefreshCount === 0,
+  );
+  const canAnalyze =
+    !loading &&
+    !processing &&
+    summaryStatus !== 'PENDING' &&
+    !refreshExhausted &&
+    (assets.length > 0 || (isLoggedIn && !loaded));
+
+  const ctaRef = useRef<HTMLButtonElement | HTMLAnchorElement>(null);
+  const ctaAction =
+    !isLoggedIn && trialExhausted
+      ? 'login'
+      : error && !refreshExhausted
+        ? 'retry'
+        : processing || summaryStatus === 'PENDING'
+          ? 'check_status'
+          : analysis && !portfolioChanged
+            ? 'refresh'
+            : 'analyze';
+  const ctaReason =
+    ctaAction === 'login'
+      ? 'trial_exhausted'
+      : refreshExhausted
+        ? 'refresh_limit_exceeded'
+        : summaryStatus === 'PENDING'
+          ? 'summary_pending'
+          : loading
+            ? 'loading'
+            : processing
+              ? 'processing'
+              : !loaded
+                ? 'restoring'
+                : error
+                  ? 'retry'
+                  : 'none';
+  const ctaEnabled = ctaAction === 'login' || ctaAction === 'retry' || canAnalyze;
+  useContentImpression(
+    ctaRef,
+    `${ctaAction}:${ctaReason}:${ctaEnabled}`,
+    'portfolio_analysis_cta_viewed',
+    {
+      action: ctaAction,
+      enabled: ctaEnabled,
+      reason: ctaReason,
+      user_type: isLoggedIn ? 'member' : 'guest',
+      has_holdings: assets.length > 0,
+      pricing_status: pricingStatus,
+    },
+    demoStep === undefined && (hasAnalysisTarget || Boolean(error)),
+  );
 
   const showIntroduction =
     hasAnalysisTarget && !analysis && !loading && !error && !trialExhausted && !processing;
@@ -875,17 +956,27 @@ function PortfolioAnalysisView({
         : '자산을 추가하고 AI 분석을 시작해 보세요.'
       : undefined;
   const updateNotice =
-    analysis && !loading && saved?.status === 'READY' && saved.lastCheckOutcome === 'UPDATED'
+    analysis &&
+    !loading &&
+    summaryStatus !== 'PENDING' &&
+    summaryStatus !== 'FAILED' &&
+    saved?.status === 'READY' &&
+    saved.lastCheckOutcome === 'UPDATED'
       ? saved.changeReason
       : null;
   const analysisAction = !hasAnalysisTarget ? null : !isLoggedIn && trialExhausted ? (
-    <a className="portfolio-analysis-button" href="/login?returnTo=%2F">
+    <a
+      ref={ctaRef as Ref<HTMLAnchorElement>}
+      className="portfolio-analysis-button"
+      href="/login?returnTo=%2F"
+    >
       로그인하고 다시 분석하기
     </a>
-  ) : !error ? (
+  ) : !error || refreshExhausted ? (
     <button
       className={`portfolio-analysis-button${saved?.status !== 'PROCESSING' && (showIntroduction || portfolioChanged || analysis || (!isLoggedIn && !loading)) ? ' is-primary' : ''}`}
       type="button"
+      ref={ctaRef as Ref<HTMLButtonElement>}
       disabled={!canAnalyze}
       onClick={analyze}
     >
@@ -893,12 +984,16 @@ function PortfolioAnalysisView({
         ? currentAnalysis
           ? '확인 중'
           : '분석 중'
-        : processing
-          ? '진행 상태 확인'
+        : processing || summaryStatus === 'PENDING'
+          ? summaryStatus === 'PENDING'
+            ? '설명 작성 중'
+            : '분석 중'
           : portfolioChanged
             ? '다시 분석하기'
             : analysis
-              ? '새 소식 확인'
+              ? refreshExhausted
+                ? '오늘 확인 완료'
+                : '새 소식 확인'
               : isLoggedIn
                 ? 'AI 분석하기'
                 : '1회 분석 체험하기'}
@@ -924,6 +1019,16 @@ function PortfolioAnalysisView({
       </div>
 
       <div className="portfolio-analysis-meta">
+        {isLoggedIn &&
+        currentAnalysis &&
+        !portfolioChanged &&
+        saved?.remainingRefreshCount !== undefined ? (
+          <p role="status">
+            {refreshExhausted
+              ? '오늘 새 소식 확인 3회를 모두 사용했어요. 내일 다시 확인할 수 있어요.'
+              : `오늘 새 소식 확인 ${saved.remainingRefreshCount}회 남음 · 하루 최대 3회`}
+          </p>
+        ) : null}
         {analysis?.excludedAssets?.length ? (
           <p>
             보유 비중 상위 5종목을 분석했어요. 나머지 {analysis.excludedAssets.length}종목은 분석
@@ -977,7 +1082,12 @@ function PortfolioAnalysisView({
       ) : null}
 
       {hasAnalysisTarget && !loading && error ? (
-        <PortfolioAnalysisError onRetry={handleRetry} message={error} />
+        <PortfolioAnalysisError
+          buttonRef={refreshExhausted ? undefined : (ctaRef as Ref<HTMLButtonElement>)}
+          onRetry={handleRetry}
+          message={error}
+          retryDisabled={refreshExhausted}
+        />
       ) : null}
 
       {hasAnalysisTarget && !loading && !error && trialExhausted && !analysis ? (

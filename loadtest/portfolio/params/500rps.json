@@ -1,0 +1,5 @@
+{
+  "RPS": 500,
+  "DURATION": "5m",
+  "WARMUP_DURATION": "1m"
+}

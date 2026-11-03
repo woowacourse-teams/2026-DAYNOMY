@@ -1,6 +1,6 @@
 # DAYNOMY FRONTEND
 
-현재 릴리스 준비 버전은 **v2.0.4**입니다. 포함된 변경은 [변경 이력](CHANGELOG.md#v204), 백엔드 의존성과 배포 검증은 [릴리스 절차](RELEASING.md#v204-반영-순서)를 확인합니다.
+현재 릴리스 준비 버전은 **v2.0.5**입니다. 포함된 변경은 [변경 이력](CHANGELOG.md#v205), 백엔드 의존성과 배포 검증은 [릴리스 절차](RELEASING.md#v205-반영-순서)를 확인합니다.
 
 ## 첫 방문 서비스 소개
 
@@ -220,9 +220,13 @@ bash scripts/test-release-version.sh
 ```
 
 `dev` 또는 `main` 대상 Pull Request에서 프론트엔드 파일이 변경되면 Frontend CI가
-포맷, 린트, 타입 검사, 기존 테스트, Docker 배포 검증, 빌드와 브라우저 E2E를
-순서대로 실행합니다. `Frontend checks`는 `dev`·`main`의 필수 검사이며,
-E2E 실패 시 스크린샷과 trace를 Actions 아티팩트에서 확인할 수 있습니다.
+포맷·린트·타입 검사·기존 테스트·빌드·브라우저 E2E와 Docker 배포 검증을
+별도 job에서 병렬로 실행합니다. `Frontend checks`는 두 job의 성공을 확인하는
+`dev`·`main`의 필수 검사입니다. 변경 파일 조회 실패나 검사 실패·취소·예상치 못한
+건너뛰기는 통과시키지 않으며, 프론트 변경이 없을 때만 검사를 생략하고 통과합니다.
+E2E는 CI에서 worker 2개로 실행합니다. 실행 시간이 긴 거래 원장 파일의 독립 테스트는
+파일 안에서도 병렬로 실행하며, 실패 시 스크린샷과 trace를 Actions 아티팩트에서 확인할 수 있습니다.
+측정 기준과 개선 전 실행 시간은 [CI/CD 성능 기록](docs/ci-cd-performance.md)을 확인합니다.
 
 ---
 
@@ -249,7 +253,12 @@ E2E 실패 시 스크린샷과 trace를 Actions 아티팩트에서 확인할 수
 
 `.github/workflows/deploy-frontend.yml`은 브랜치에 맞는 Vite mode로 빌드하고,
 `dev`는 개발 EC2의 `frontend-dev` 라벨 Runner로, `main`은 운영 EC2의
-`frontend-prod` 라벨 Runner로 배포합니다. 각 EC2에서 프론트 컨테이너 두 개를
+`frontend-prod` 라벨 Runner로 배포합니다. 일반 검사·환경별 빌드와 Docker 배포 검증을
+병렬로 실행합니다. 두 job이 성공하면 같은 실행에서 생성한 빌드 아티팩트의 ID로
+결과물을 받아 커밋·환경을 확인한 뒤 이미지를 발행하고 배포합니다.
+의존성 설치와 앱 빌드는 한 job에서 수행하며, 같은 커밋의 기존 릴리스 이미지를
+재사용하는 경우에는 빌드 아티팩트를 만들거나 받지 않습니다.
+각 EC2에서 프론트 컨테이너 두 개를
 `127.0.0.1:3000`·`3001`에 번갈아 실행하고, 검증 후 호스트 Nginx 연결을 전환합니다.
 개발·운영 모두 저장소의 `frontend/compose.yml`을 사용하며 앱 EC2와 DB는 각각 분리합니다.
 최초 Nginx 설정과 이전 해시 파일 보관·실패 복구는 [RELEASING.md](RELEASING.md)를 확인합니다.
@@ -380,11 +389,49 @@ Sentry Alerts에서 다음 조건을 설정합니다.
 | `view_content`, `view_content_list`, `view_content_empty`                         | 대표 콘텐츠·콘텐츠 목록 또는 빈 상태 확인                | `surface`, `source_type`, `content_id`, `result_count`, `page_number`, `status`, `reason` |
 | `click_content`, `click_content_original`, `expand_content`, `open_content_video` | 콘텐츠 선택·원문 이동·글 펼치기·종목 영상 열기           | `surface`, `source_type`, `content_id`, `position`                                        |
 | `filter_content_source`, `change_content_page`                                    | 출처 필터·페이지 변경                                    | `surface`, `source_type`, `previous_source`, `previous_page`, `page_number`               |
+| `sort_content`                                                                    | 전체 콘텐츠 최신순·인기순 변경                           | `surface`, `sort`                                                                         |
 | `click_content_more`, `retry_content_load`                                        | 더 보기 이동·조회 재시도                                 | `surface`, `destination`, `area`, `attempt`                                               |
 | `click_person_preview`, `select_featured_person`                                  | 인물 미리보기·인물 선택                                  | `surface`, `person_id`, `position`                                                        |
+| `toggle_people_finder`, `click_person_profile`                                    | 인물 찾기 열기·닫기, 외부 프로필 이동                    | `surface`, `expanded`, `person_id`, `source_type`                                         |
 | `view_portfolio_news`                                                             | 보유 자산 소식 제목이 50% 이상 노출                      | `surface=portfolio_news`, `status`, `result_count`                                        |
 | `open_keyword_analysis`                                                           | 키워드 설명이 닫힘에서 열림으로 전환                     | `news_id`, `keyword_category`, `trigger`                                                  |
 | `view_market_analysis`                                                            | 정상 시장 분석의 제목이 50% 이상 노출                    | `surface=news_detail`, `news_id`                                                          |
+| `investment_calendar_load_result`                                                 | 투자 캘린더 조회 성공·실패                               | `surface`, `scope`, `status`, `result_count`, `attempt`, `duration_ms`, `is_logged_in`    |
+| `investment_calendar_action`                                                      | 월·범위·보기 변경, 일정 선택, 과거 반응 펼치기, 재시도   | `surface`, `action`, `direction`, `scope`, `view`, `position`, `attempt`                  |
+
+### 이메일 알림·분석 완료 계측 (#775)
+
+기존 `trackEvent`를 통해 GA4와 PostHog에 함께 전송합니다.
+
+| 이벤트                             | 발생 시점                                         | 속성                                                                                                  |
+| ---------------------------------- | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `email_subscription_prompt_viewed` | 구독 안내 표시, 계정별 컴포넌트 마운트에서 한 번  | `surface`                                                                                             |
+| `email_subscription_submitted`     | 구독·재구독·해지·안내 닫기 요청                   | `surface`, `action`, `trigger`                                                                        |
+| `email_subscription_result`        | 위 요청 성공·실패, 취소 응답 제외                 | 위 속성 + `status`, `duration_ms`                                                                     |
+| `portfolio_analysis_completed`     | 사용자가 이 화면에서 시작한 분석의 최종 상태 확인 | `action`, `user_type`, `asset_count`, `status`, `summary_status`, `last_check_outcome`, `duration_ms` |
+| `click_portfolio_analysis_source`  | 전체·자산별 분석 출처 링크 클릭                   | `surface`, `scope`, `position`                                                                        |
+
+`portfolio_analysis_result`는 기존처럼 요청 응답을 기록합니다. `PROCESSING`은 완료가
+아니며 새 `portfolio_analysis_completed`는 폴링과 요약 생성이 끝난 뒤 한 번만
+기록합니다. `summary_status=FAILED`는 `status=FAILED`로 집계합니다. 전체 소요시간은
+브라우저에서 요청을 시작한 시점부터 최종 상태를 확인한 시점까지이며 폴링 대기를 포함합니다.
+화면 이탈·재접속·자동 분석·거절된 요청에는 완료 이벤트를 만들지 않습니다.
+따라서 완료율은 화면을 유지한 사용자 작업의 관측 지표이며 서버 전체 성공률이 아닙니다.
+
+구독 `action`은 `subscribe`, `resubscribe`, `unsubscribe`, `dismiss`이며 `surface`로
+안내 팝업과 마이페이지를 구분합니다. 안내 닫기는 `trigger=close`, 버튼 선택은
+`trigger=button`입니다. 이벤트에 이메일·회원 ID·종목명·금액·출처 URL을 넣지 않습니다.
+분석 가이드의 출처 클릭은 집계하지 않습니다.
+
+HTML·텍스트 이메일의 포트폴리오·알림 설정·내부 소식 링크에는
+`utm_source=daynomy`, `utm_medium=email`, `utm_campaign=portfolio_updates`를 붙입니다.
+외부 자료와 수신 해지 링크는 유지합니다. 기존 PostHog 방문 유입 속성으로 확인하며
+과거 발송 메일과 기존 세션에 새 유입이 소급 적용되지는 않습니다.
+
+소식 홈 개편 화면도 기존 콘텐츠 이벤트를 유지합니다. 트렌딩은 카드가 50% 이상 실제로
+노출됐을 때 `view_content`를 한 번만 보내며, 전체 소식은 조회 결과·빈 상태·출처 변경과
+더 보기 이동을 기록합니다. 투자 캘린더 이벤트에는 일정 제목·종목명·금액·수량을 포함하지
+않습니다.
 
 포트폴리오 대시보드는 `/`에서 다음 이벤트를 수집합니다. 로그인 여부·시세 상태·입력
 방식·정렬·조회 기간·실패 유형만 허용하며 종목 이름·금액·수량은 전송하지 않습니다.
@@ -586,3 +633,54 @@ URL에서 쿼리·fragment와 공개 투자자 ID를 제거하되 `/league/profi
 | 거래 삭제           | `portfolio_delete_succeeded`·`portfolio_delete_failed`. 실패 중에는 성공이 없고 재시도 성공은 한 번만 기록한다.                                                                                                                                               |
 
 기존 `tests/portfolio/PortfolioPage.test.tsx`, `GuestPortfolioTransactions.test.tsx`, `tests/monitoring/portfolioAnalytics.test.tsx`를 확인하고 `PortfolioTransactions.test.tsx`에 회원 거래 등록·수정·삭제 실패 및 재시도 시 이벤트 순서·횟수와 민감정보 제외 검증을 보강했다. 실제 PostHog 수신 대조는 포함하지 않는다.
+
+### 포트폴리오 이벤트 세분화 (#770)
+
+일괄편집·CSV 읽기/열 연결/미리보기/저장, 종목 검색, 입력 검증·명시적 닫기,
+AI CTA 실제 노출과 비동기 분석 최종 완료를 수집한다. 정렬 방향의 공통 속성 누락도 보완했다.
+이벤트 발생 시점·속성·중복 방지·시간과 건수의 의미·GA4 및 PostHog 설정 항목은
+[포트폴리오 이벤트 계약](docs/portfolio-analytics.md)에 정리했다.
+
+### 리그 집계 개선 — GA4·PostHog 계측 (2026-10-31)
+
+기존 공통 `trackEvent`로 두 공급자에 같은 이벤트와 속성을 전송한다. 새 SDK나 계정 식별자는 추가하지 않는다. `GA_MEASUREMENT_ID`, `VITE_POSTHOG_PROJECT_TOKEN`, `VITE_POSTHOG_HOST`와 배포 환경의 기존 설정을 사용한다.
+
+| 이벤트                       | 발생 기준                                               | 주요 속성                                                                                                                                                   |
+| ---------------------------- | ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `league_enrollment_viewed`   | 공개·참여 설정 데이터 최초 정상 조회                    | `participating`, `ready_to_join`, `has_holdings`, `market_scope`                                                                                            |
+| `league_enrollment`          | 설정 저장 제출·API 성공·실패                            | `action=join/update/leave`, `status`, `participating`(성공 응답), `market_scope`, `error_type`                                                              |
+| `league_ranking_viewed`      | 순위 제목 영역이 50% 이상 실제 노출                     | `page`, `confirmed`, `collection_status`, `result_count`                                                                                                    |
+| `league_performance_viewed`  | 개인 성과 영역이 50% 이상 실제 노출                     | `has_result`, `has_rank`, `basis_relation`, `source`                                                                                                        |
+| `league_aggregation_viewed`  | 집계 안내가 50% 이상 실제 노출                          | `surface`, `aggregation_reason`, `delayed`, `has_expected_at`, `has_first_return_expected_at`                                                               |
+| `league_aggregation_refresh` | 안내의 수동 새로고침 또는 예정 시각 후 자동 재조회 실행 | 위 상태 속성, `trigger=manual/scheduled`                                                                                                                    |
+| `league_action`              | 리그 화면의 헤더·브랜드에서 대시보드 이동 클릭          | `surface=service_header`, `action=open_dashboard`, `status=clicked`                                                                                         |
+| `league_load_result`         | 기존 조회 성공·실패                                     | 기존 속성 유지. 보유 조회는 `market_scope`, `source_managed_count`; 일별 조회는 `has_result`, `pending_day_count`, `closed_day_count`, `baseline_only` 추가 |
+
+노출은 기존 IntersectionObserver 훅을 재사용해 같은 키의 재렌더링·StrictMode 실행으로 중복 집계하지 않는다. 브라우저가 IntersectionObserver를 지원하지 않으면 실제 노출 이벤트를 임의 생성하지 않는다. 데이터 조회 성공과 실제 노출 이벤트는 별개이며 합산하지 않는다. 새로고침 클릭은 성공이 아니고, 참여 성공은 최종 공개 설정 API 응답 이후 기록한다.
+
+`market_scope`는 `none/domestic/us/mixed`, `basis_relation`은 `same/personal_ahead/personal_behind/unknown`이다. 실제 기준일·수익률·종목명·금액·수량·닉네임·투자자 ID는 새 이벤트 속성으로 보내지 않는다. 알 수 없는 집계 사유는 `UNKNOWN`으로 정규화한다. `source_managed_count`는 응답에서 원본 관리 대상으로 표시된 보유 개수이며, 백엔드 동기화 작업의 성공 횟수가 아니다.
+
+#### 리그 이후 저장·분석 전환
+
+리그 또는 공개·참여 설정 화면에서 행동한 뒤 30분 이내의 이벤트에는 공통 전송 함수가 `journey_source=league`를 부여한다. 기존 대시보드·저장·분석 이벤트도 같은 방식으로 구분되며 호출자가 유입 값을 임의 지정할 수 없다.
+
+- 리그 이후 대시보드: `portfolio_dashboard_viewed` 또는 `portfolio_dashboard_loaded` + `journey_source=league`.
+- 최초 저장 전환: `portfolio_save_succeeded` + `has_holdings=false` + `journey_source=league`. `has_holdings`는 저장 전 보유 여부다. `storage=server/temporary`로 회원 서버 저장과 비회원 임시 저장을 구분한다.
+- 기존 포트폴리오 갱신: 같은 성공 이벤트의 `has_holdings=true`.
+- 미국 보유자의 참여: 대시보드·참여 설정의 `market_scope=us/mixed`에서 `league_enrollment(action=join,status=success,participating=true)`로 이어지는 흐름을 본다.
+- 포트폴리오 분석: 기존 `start_portfolio_analysis` → `portfolio_analysis_result` 및 실제 결과 노출 `view_portfolio_analysis`에 `journey_source=league`를 사용한다.
+- 시장 분석 이용: 기존 실제 노출 이벤트 `view_market_analysis` + `journey_source=league`. 이는 시장 분석 결과 확인이며 새로운 분석 작업 실행 횟수가 아니다.
+- 첫 성과 확인 시간: 참여 성공 이후 최초 `league_performance_viewed(has_result=true)`의 시간 차이를 확인한다.
+- 대기 안내 노출·반복 조회: `league_aggregation_viewed`와 `league_aggregation_refresh(trigger=manual)`을 구분한다. 자동 재조회는 사용자 반복 클릭으로 세지 않는다.
+
+대시보드의 `market_scope`는 전체 보유 기준이며, 거래 저장 이벤트의 값은 저장 대상 종목 기준이다. 리그 이후 행동이라는 사실은 인과 효과를 보장하지 않으므로 개선 전후 참여 전환·재방문·저장·분석 이용을 함께 비교한다.
+
+유입 구분은 SPA 메모리에만 보관하고 30분 후 만료한다. 새로고침·전체 문서 이동에서는 초기화되므로 브라우저·계정 전체를 연결한 영구 유입 정보가 아니다. 기존 `/login`·`/admin` 진입 후 같은 앱 세션 수집 중지와 팀 도메인 제외 정책을 유지한다. 이 제한으로 측정되지 않는 전환을 실패나 미참여로 간주하지 않는다. 7일 재방문은 공급자의 익명 식별·보관·프로젝트 설정 범위에서 확인하며 계정 기준 유지율과 구분한다.
+
+GA4에서 위 속성을 보고서·탐색의 분류 기준으로 사용하려면 해당 이벤트 범위 맞춤 측정기준을 등록해야 한다. 우선 분류할 속성은 `journey_source`, `market_scope`, `basis_relation`, `aggregation_reason`, `trigger`, `action`, `status`, `surface`다. PostHog에서는 같은 이벤트 속성으로 퍼널·코호트를 구성한다. 기존 설정과 중복 등록하지 않는다.
+
+#### 검증 범위
+
+공통 전송·PostHog 전송 직전 필터·유입 만료·민감정보 제외·수집 중지·집계 안내 실제 노출·수동/자동 재조회·참여 성공·저장 전 상태를 로컬 테스트로 확인한다. 자동 동기화 성공률은 프론트 조회 이벤트만으로 계산하지 않으며 서버 관측과 구분한다.
+
+개발 전용 `npm run dev:league-preview`는 GA4·PostHog 설정을 비워 목업 결과를 실제 전환 지표에 보내지 않는다. 실제 사용자 화면은 배포 환경의 기존 설정을 사용한다. 운영 수신·맞춤 측정기준·대시보드 구성은 로컬 모의 전송 검증과 별도로 확인한다.

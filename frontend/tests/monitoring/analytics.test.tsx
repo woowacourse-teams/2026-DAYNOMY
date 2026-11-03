@@ -4,6 +4,42 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const tagSelector = 'script[src*="googletagmanager.com/gtag/js"]';
 
+it('이메일·분석 완료 이벤트의 안전한 속성을 GA4와 PostHog 최종 필터까지 유지한다', async () => {
+  enablePostHog();
+  const { trackEvent } = await import('../../src/analytics');
+  const events = [
+    ['email_subscription_prompt_viewed', { surface: 'email_subscription_prompt' }],
+    [
+      'email_subscription_submitted',
+      { surface: 'email_subscription_settings', action: 'resubscribe' },
+    ],
+    ['email_subscription_result', { action: 'unsubscribe', status: 'error', duration_ms: 100 }],
+    [
+      'portfolio_analysis_completed',
+      { status: 'FAILED', summary_status: 'FAILED', duration_ms: 2000 },
+    ],
+    [
+      'click_portfolio_analysis_source',
+      { surface: 'portfolio_analysis', scope: 'asset', position: 1 },
+    ],
+  ] as const;
+  for (const [name, params] of events)
+    trackEvent(name, {
+      ...params,
+      email: 'private-email',
+      task_id: 'private-task',
+      url: 'private-url',
+    });
+  await vi.waitFor(() => expect(posthog.capture).toHaveBeenCalledTimes(events.length));
+  const config = posthog.init.mock.calls[0][1];
+  for (const [name, properties] of posthog.capture.mock.calls) {
+    const expected = events.find(([event]) => event === name)![1];
+    expect(config.before_send({ event: name, properties }).properties).toMatchObject(expected);
+    expect(commands()).toContainEqual(['event', name, expect.objectContaining(expected)]);
+  }
+  expect(JSON.stringify([commands(), posthog.capture.mock.calls])).not.toContain('private-');
+});
+
 function commands() {
   return window.dataLayer.map((args) => Array.from(args as IArguments));
 }

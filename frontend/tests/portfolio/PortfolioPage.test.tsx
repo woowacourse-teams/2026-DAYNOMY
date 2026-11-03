@@ -396,7 +396,10 @@ describe('포트폴리오 화면', () => {
     expect(trackPortfolioEvent).toHaveBeenCalledWith('portfolio_dashboard_loaded', {
       is_logged_in: true,
       has_holdings: true,
+      market_scope: 'domestic',
       pricing_status: 'COMPLETE',
+      holding_count_bucket: '1',
+      duration_ms: expect.any(Number),
     });
     fireEvent.click(view.getByRole('button', { name: '금액 숨기기' }));
     expect(
@@ -516,6 +519,7 @@ describe('포트폴리오 화면', () => {
     mockPortfolioApi();
     const view = render(<PortfolioPage isLoggedIn={false} />);
     fireEvent.click(await view.findByRole('button', { name: '종목 추가' }));
+    fireEvent.click(view.getByRole('button', { name: '한 종목 추가' }));
 
     const dialog = view.getByRole('dialog');
     fireEvent.change(within(dialog).getByRole('searchbox'), { target: { value: '삼성' } });
@@ -545,6 +549,7 @@ describe('포트폴리오 화면', () => {
       is_logged_in: false,
     });
     expect(trackPortfolioEvent).toHaveBeenCalledWith('portfolio_stock_selected', {
+      surface: 'transaction_editor',
       category: 'STOCK',
       market: 'KOSPI',
       mode: 'transaction_create',
@@ -553,6 +558,8 @@ describe('포트폴리오 화면', () => {
       operation: 'transaction_create',
       transaction_type: 'BUY',
       storage: 'temporary',
+      has_holdings: false,
+      market_scope: 'domestic',
     });
     const sent = JSON.stringify(vi.mocked(trackPortfolioEvent).mock.calls);
     expect(sent).not.toMatch(/삼성|005930|quantity|averagePurchasePrice|70000/);
@@ -648,6 +655,8 @@ describe('포트폴리오 화면', () => {
     expect(trackPortfolioEvent).toHaveBeenCalledWith('portfolio_save_failed', {
       operation: 'holding_update',
       storage: 'temporary',
+      has_holdings: true,
+      market_scope: 'domestic',
       error_type: 'network_or_unknown',
     });
     expect(
@@ -1550,6 +1559,7 @@ describe('포트폴리오 화면', () => {
       expect(view.getByRole('button', { name: '종목 추가' })).toHaveProperty('disabled', false),
     );
     fireEvent.click(view.getByRole('button', { name: '종목 추가' }));
+    fireEvent.click(view.getByRole('button', { name: '한 종목 추가' }));
     expect(view.getAllByRole('dialog', { hidden: true })).toHaveLength(1);
     expect(view.queryByRole('button', { name: '거래일을 모르면 현재 보유분으로 등록' })).toBeNull();
 
@@ -1588,6 +1598,7 @@ describe('포트폴리오 화면', () => {
       expect(view.getByRole('button', { name: '종목 추가' })).toHaveProperty('disabled', false),
     );
     fireEvent.click(view.getByRole('button', { name: '종목 추가' }));
+    fireEvent.click(view.getByRole('button', { name: '한 종목 추가' }));
     expect(view.getAllByRole('dialog', { hidden: true })).toHaveLength(1);
     expect(view.queryByRole('button', { name: '거래일을 모르면 현재 보유분으로 등록' })).toBeNull();
 
@@ -1631,6 +1642,7 @@ describe('포트폴리오 화면', () => {
       expect(view.getByRole('button', { name: '종목 추가' })).toHaveProperty('disabled', false),
     );
     fireEvent.click(view.getByRole('button', { name: '종목 추가' }));
+    fireEvent.click(view.getByRole('button', { name: '한 종목 추가' }));
     expect(view.getAllByRole('dialog', { hidden: true })).toHaveLength(1);
     expect(view.queryByRole('button', { name: '거래일을 모르면 현재 보유분으로 등록' })).toBeNull();
     const dialog = view.getByRole('dialog');
@@ -1662,6 +1674,7 @@ describe('포트폴리오 화면', () => {
       expect(view.getByRole('button', { name: '종목 추가' })).toHaveProperty('disabled', false),
     );
     fireEvent.click(view.getByRole('button', { name: '종목 추가' }));
+    fireEvent.click(view.getByRole('button', { name: '한 종목 추가' }));
     expect(view.getAllByRole('dialog', { hidden: true })).toHaveLength(1);
     expect(view.queryByRole('button', { name: '거래일을 모르면 현재 보유분으로 등록' })).toBeNull();
 
@@ -1705,6 +1718,7 @@ describe('포트폴리오 화면', () => {
       expect(view.getByRole('button', { name: '종목 추가' })).toHaveProperty('disabled', false),
     );
     fireEvent.click(view.getByRole('button', { name: '종목 추가' }));
+    fireEvent.click(view.getByRole('button', { name: '한 종목 추가' }));
     expect(view.getAllByRole('dialog', { hidden: true })).toHaveLength(1);
     expect(view.queryByRole('button', { name: '거래일을 모르면 현재 보유분으로 등록' })).toBeNull();
 

@@ -2,6 +2,7 @@
 import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { trackEvent } from '../../src/analytics';
 import { getStockRelatedContents } from '../../src/features/stock-content/api';
 import { useFeaturedPeople } from '../../src/features/people/useFeaturedPeople';
 import NewsHomePreview from '../../src/features/news/issue/NewsHomePreview';
@@ -17,6 +18,7 @@ const holdingsState = vi.hoisted(() => ({
 }));
 const calendarRender = vi.hoisted(() => vi.fn());
 
+vi.mock('../../src/analytics', () => ({ trackEvent: vi.fn() }));
 vi.mock('../../src/hooks/useLoginStatus', () => ({
   useAuth: () => ({ isLoggedIn: false, loading: false }),
 }));
@@ -28,7 +30,17 @@ vi.mock('../../src/features/investment-calendar/api', () => ({
 }));
 vi.mock('../../src/features/news/newslist/api', () => ({ getNews: vi.fn() }));
 vi.mock('../../src/features/people/useFeaturedPeople', () => ({
-  useFeaturedPeople: vi.fn(() => ({ people: [], loading: false, error: '', retry: vi.fn() })),
+  useFeaturedPeople: vi.fn(() => ({
+    people: [],
+    page: 1,
+    size: 100,
+    totalElements: 0,
+    totalPages: 0,
+    hasNext: false,
+    loading: false,
+    error: '',
+    retry: vi.fn(),
+  })),
 }));
 vi.mock('../../src/features/investment-calendar/InvestmentCalendarPage', () => ({
   InvestmentCalendarPage: (props: unknown) => {
@@ -44,7 +56,10 @@ vi.mock('../../src/features/news/issue/popularity', async (original) => ({
   getContentPopularity: vi.fn(),
 }));
 vi.mock('../../src/features/stock-content/api', () => ({ getStockRelatedContents: vi.fn() }));
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.mocked(trackEvent).mockClear();
+});
 beforeEach(() => {
   calendarRender.mockReset();
   holdingsState.holdings = [{ assetId: 11, name: '보유 회사' }];
@@ -111,6 +126,54 @@ it('실패 시 재시도하고 빈 결과를 가상 소식으로 대체하지 �
   fireEvent.click(view.getByRole('button', { name: '다시 시도' }));
   await waitFor(() => expect(view.getByText('아직 등록된 소식이 없어요')).toBeTruthy());
   expect(getNews).toHaveBeenCalledTimes(2);
+  expect(trackEvent).toHaveBeenCalledWith('retry_content_load', {
+    surface: 'news_home',
+    area: 'all',
+    attempt: 1,
+  });
+});
+
+it('소식 홈 조회 결과와 목록 상태를 영역별로 기록한다', async () => {
+  vi.mocked(getNews).mockResolvedValue(page);
+  show();
+  await waitFor(() =>
+    expect(trackEvent).toHaveBeenCalledWith(
+      'content_load_result',
+      expect.objectContaining({
+        surface: 'news_home',
+        area: 'news',
+        status: 'success',
+        result_count: 1,
+        attempt: 0,
+      }),
+    ),
+  );
+  expect(trackEvent).toHaveBeenCalledWith(
+    'content_load_result',
+    expect.objectContaining({
+      surface: 'news_home',
+      area: 'external',
+      status: 'success',
+      result_count: 0,
+      attempt: 0,
+    }),
+  );
+  expect(trackEvent).toHaveBeenCalledWith(
+    'content_load_result',
+    expect.objectContaining({
+      surface: 'news_home',
+      area: 'popularity',
+      status: 'success',
+      result_count: 1,
+      attempt: 0,
+    }),
+  );
+  expect(trackEvent).toHaveBeenCalledWith('view_content_list', {
+    surface: 'news_home',
+    source_type: 'ALL',
+    result_count: 1,
+    status: 'ready',
+  });
 });
 
 it('트렌딩은 외부 콘텐츠를 제외하고 데이노미 이슈 인기순으로 네 개를 표시한다', async () => {
@@ -253,6 +316,11 @@ it('등록된 인물과 최신 글을 보여주고 기존 인물 필터로 연�
         ],
       },
     ],
+    page: 1,
+    size: 100,
+    totalElements: 1,
+    totalPages: 1,
+    hasNext: false,
     loading: false,
     error: '',
     retry: vi.fn(),
@@ -272,6 +340,11 @@ it('등록된 인물과 최신 글을 보여주고 기존 인물 필터로 연�
   } finally {
     vi.mocked(useFeaturedPeople).mockReturnValue({
       people: [],
+      page: 1,
+      size: 100,
+      totalElements: 0,
+      totalPages: 0,
+      hasNext: false,
       loading: false,
       error: '',
       retry: vi.fn(),
@@ -305,6 +378,8 @@ it('전체 소식은 전체보기와 같은 카테고리 필터를 보여준다'
   ]);
   expect(latest.getByText(/대형 기술주 강세/)).toBeTruthy();
   expect(latest.getByText(/환율 상승이 수출 기업/)).toBeTruthy();
+  fireEvent.click(filters.getByRole('button', { name: 'YouTube' }));
+  expect(trackEvent).not.toHaveBeenCalled();
 });
 
 it('전체 소식 카테고리로 출처를 필터링한다', async () => {
@@ -334,6 +409,63 @@ it('전체 소식 카테고리로 출처를 필터링한다', async () => {
   );
   expect(latest.getByText('유튜브 소식')).toBeTruthy();
   expect(latest.queryByText('기준금리 동결 가능성 확대')).toBeNull();
+  expect(trackEvent).toHaveBeenCalledWith('filter_content_source', {
+    surface: 'news_home',
+    previous_source: 'ALL',
+    source_type: 'YOUTUBE',
+    result_count: 1,
+  });
+  expect(JSON.stringify(vi.mocked(trackEvent).mock.calls)).not.toContain('유튜브 소식');
+});
+
+it('더보기와 인물 미리보기 이동은 목적지와 위치만 기록한다', async () => {
+  vi.mocked(getNews).mockResolvedValue(page);
+  vi.mocked(useFeaturedPeople).mockReturnValue({
+    people: [
+      {
+        id: 12,
+        name: '민감한 인물 이름',
+        profileImageUrl: null,
+        xProfileUrl: null,
+        threadsProfileUrl: null,
+        youtubeProfileUrl: null,
+        createdAt: null,
+        posts: [
+          {
+            id: 91,
+            sourceType: 'X',
+            title: '민감한 글 제목',
+            url: 'https://x.com/private',
+            publishedAt: '2026-10-24',
+            createdAt: null,
+          },
+        ],
+      },
+    ],
+    page: 1,
+    size: 100,
+    totalElements: 1,
+    totalPages: 1,
+    hasNext: false,
+    loading: false,
+    error: '',
+    retry: vi.fn(),
+  });
+  const view = show();
+  const peopleSection = within(view.getByRole('region', { name: '인물의 글' }));
+  await peopleSection.findByRole('link', { name: /민감한 인물 이름/ });
+  fireEvent.click(view.getByRole('link', { name: '전체 소식 전체 보기' }));
+  fireEvent.click(peopleSection.getByRole('link', { name: /민감한 인물 이름/ }));
+  expect(trackEvent).toHaveBeenCalledWith('click_content_more', {
+    surface: 'news_home',
+    destination: 'news_contents',
+  });
+  expect(trackEvent).toHaveBeenCalledWith('click_person_preview', {
+    surface: 'news_home_people',
+    person_id: 12,
+    position: 1,
+  });
+  expect(JSON.stringify(vi.mocked(trackEvent).mock.calls)).not.toContain('민감한');
 });
 
 it('실제 홈에서는 예시 쿼리를 무시하고 실제 API와 분석 경로만 사용한다', async () => {

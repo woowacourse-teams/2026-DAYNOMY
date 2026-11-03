@@ -53,7 +53,37 @@ class SavedPortfolioServiceTest {
   @Mock private PortfolioSnapshotTransactionService snapshotTransactionService;
   @Mock private org.springframework.transaction.PlatformTransactionManager transactionManager;
   @Mock private org.grit.daynomy.portfolio.service.PortfolioExchangeRateService exchangeRates;
+  @Mock private org.springframework.context.ApplicationEventPublisher events;
   @InjectMocks private SavedPortfolioService service;
+
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  void holdingsAndHistoriesPreferKoreanNamesWhenAvailable(boolean hasKoreanName) {
+    Portfolio portfolio = mock(Portfolio.class);
+    given(portfolio.getId()).willReturn(10L);
+    given(portfolioRepository.findByMemberId(1L)).willReturn(Optional.of(portfolio));
+    LocalDate date = LocalDate.of(2026, 10, 30);
+    Asset apple = Asset.listedStock("Apple", "AAPL.US", StockMarket.NASDAQ, null, date);
+    org.springframework.test.util.ReflectionTestUtils.setField(apple, "id", 2L);
+    if (hasKoreanName) apple.synchronizeKoreanName("애플");
+    PortfolioHolding holding = new PortfolioHolding(portfolio, apple, 1L, new BigDecimal("100"));
+    PortfolioHoldingHistory history =
+        new PortfolioHoldingHistory(holding, PortfolioHoldingChangeType.OPENING_BALANCE);
+    given(holdingRepository.findAllByPortfolioIdOrderById(10L)).willReturn(List.of(holding));
+    given(historyRepository.findAllByPortfolioIdOrderByEffectiveDateAscCreatedAtAscIdAsc(10L))
+        .willReturn(List.of(history));
+    given(ledgerCalculator.replay(List.of(history)))
+        .willReturn(new PortfolioLedgerCalculator.LedgerResult(Map.of(), BigDecimal.ZERO));
+    given(
+            historyRepository
+                .findAllByPortfolioIdAndEffectiveDateBetweenOrderByEffectiveDateDescCreatedAtDescIdDesc(
+                    10L, date, date))
+        .willReturn(List.of(history));
+
+    String expected = hasKoreanName ? "애플" : "Apple";
+    assertThat(service.get(1L).holdings().getFirst().name()).isEqualTo(expected);
+    assertThat(service.histories(1L, date, date).getFirst().name()).isEqualTo(expected);
+  }
 
   @ParameterizedTest
   @CsvSource({"5,10000", "3,11000", "5,11000"})
@@ -95,6 +125,41 @@ class SavedPortfolioServiceTest {
         .isEqualTo(3L);
 
     then(historyRepository).shouldHaveNoInteractions();
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  void bulkUpdatesPublishOneSyncEventOnlyWhenHoldingsChange(boolean changed) {
+    Portfolio portfolio = mock(Portfolio.class);
+    given(portfolio.getId()).willReturn(10L);
+    Asset firstAsset = asset();
+    Asset secondAsset = asset();
+    org.springframework.test.util.ReflectionTestUtils.setField(secondAsset, "id", 3L);
+    var first = new PortfolioHolding(portfolio, firstAsset, 3L, new BigDecimal("10000"));
+    var second = new PortfolioHolding(portfolio, secondAsset, 3L, new BigDecimal("10000"));
+    given(portfolioRepository.findByMemberId(1L)).willReturn(Optional.of(portfolio));
+    given(portfolioRepository.findByIdForUpdate(10L)).willReturn(Optional.of(portfolio));
+    given(holdingRepository.findByPortfolioIdAndAssetId(10L, 2L)).willReturn(Optional.of(first));
+    given(holdingRepository.findByPortfolioIdAndAssetId(10L, 3L)).willReturn(Optional.of(second));
+
+    service.updateHoldings(
+        1L,
+        new org.grit.daynomy.portfolio.dto.PortfolioHoldingsUpdateRequest(
+            List.of(
+                new org.grit.daynomy.portfolio.dto.PortfolioHoldingsUpdateRequest.Holding(
+                    2L, changed ? 4L : 3L, new BigDecimal("10000"), null),
+                new org.grit.daynomy.portfolio.dto.PortfolioHoldingsUpdateRequest.Holding(
+                    3L, changed ? 5L : 3L, new BigDecimal("10000"), null))));
+
+    if (changed) {
+      then(events).should().publishEvent(new OriginalPortfolioChanged(1L));
+      then(historyRepository)
+          .should(org.mockito.Mockito.times(2))
+          .save(any(PortfolioHoldingHistory.class));
+    } else {
+      then(events).shouldHaveNoInteractions();
+      then(historyRepository).shouldHaveNoInteractions();
+    }
   }
 
   @Test
@@ -159,7 +224,7 @@ class SavedPortfolioServiceTest {
 
     var response = service.transact(1L, request);
 
-    then(holding).should().change(8L, new BigDecimal("70000.00"));
+    then(holding).should().change(8L, new BigDecimal("70000.00"), null);
     assertThat(response.totalRealizedProfitLoss()).isEqualByComparingTo("19700.00");
     ArgumentCaptor<PortfolioHoldingHistory> historyCaptor =
         ArgumentCaptor.forClass(PortfolioHoldingHistory.class);
@@ -222,7 +287,7 @@ class SavedPortfolioServiceTest {
     assertThat(history.getEffectiveDate()).isEqualTo(LocalDate.of(2026, 10, 1));
     assertThat(history.getTransactionQuantity()).isEqualTo(3L);
     assertThat(history.getUnitPrice()).isEqualByComparingTo("81000");
-    then(holding).should().change(3L, new BigDecimal("81000.00"));
+    then(holding).should().change(3L, new BigDecimal("81000.00"), null);
     then(snapshotTransactionService)
         .should()
         .refreshSnapshotsFrom(10L, LocalDate.of(2026, 9, 30), java.util.Map.of());
@@ -325,7 +390,7 @@ class SavedPortfolioServiceTest {
 
     then(historyRepository).should().delete(history);
     then(historyRepository).should().flush();
-    then(holding).should().change(5L, new BigDecimal("70000.00"));
+    then(holding).should().change(5L, new BigDecimal("70000.00"), null);
     assertThat(response.transactionId()).isEqualTo(7L);
     assertThat(response.totalRealizedProfitLoss()).isEqualByComparingTo("0");
     then(snapshotTransactionService)
@@ -372,7 +437,7 @@ class SavedPortfolioServiceTest {
     Asset asset = mock(Asset.class);
     given(asset.getId()).willReturn(2L);
     given(asset.getAssetCode()).willReturn("005930");
-    given(asset.getName()).willReturn("삼성전자");
+    given(asset.getDisplayName()).willReturn("삼성전자");
     given(asset.getCategory()).willReturn(AssetCategory.STOCK);
     given(asset.getMarket()).willReturn(StockMarket.KOSPI);
     return asset;

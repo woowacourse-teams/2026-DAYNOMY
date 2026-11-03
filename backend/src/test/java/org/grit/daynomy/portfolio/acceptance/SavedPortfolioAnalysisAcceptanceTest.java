@@ -48,6 +48,7 @@ import org.grit.daynomy.portfolio.ai.PortfolioAnalysisTarget;
 import org.grit.daynomy.portfolio.domain.Portfolio;
 import org.grit.daynomy.portfolio.domain.PortfolioHolding;
 import org.grit.daynomy.portfolio.dto.PortfolioAnalysisResponse;
+import org.grit.daynomy.portfolio.dto.SavedPortfolioAnalysisResponse;
 import org.grit.daynomy.portfolio.exception.PortfolioErrorCode;
 import org.grit.daynomy.portfolio.repository.PortfolioAnalysisCheckRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioAnalysisEvidenceRepository;
@@ -139,10 +140,233 @@ class SavedPortfolioAnalysisAcceptanceTest {
   @Autowired private PortfolioAnalysisEvidenceRepository evidence;
   @Autowired private PortfolioAnalysisCheckRepository checks;
   @Autowired private SavedPortfolioAnalysisTransactionService transactions;
+  @Autowired private org.grit.daynomy.portfolio.service.SavedPortfolioAnalysisService savedAnalysis;
   @Autowired private JwtTokenProvider tokens;
   @Autowired private JdbcTemplate jdbc;
   @Autowired private UsdKrwRateRepository exchangeRates;
   @MockitoBean private EodhdClient exchangeRateProvider;
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void manualRefreshLimitSurvivesReloadAndBlocksFourthRequestBeforeAI(boolean background) {
+    var member = member();
+    var portfolio = portfolio(member);
+    hold(portfolio, "삼성전자");
+    successfulAi();
+    client(member).post(API).then().statusCode(200).body("remainingRefreshCount", equalTo(3));
+    doAnswer(invocation -> result(invocation.getArgument(0)))
+        .when(ai)
+        .refresh(anyList(), anyString());
+    clearInvocations(ai, narrative);
+    for (int attempt = 0; attempt < 3; attempt++) {
+      client(member)
+          .post(API + (background ? "/tasks/refresh" : "/refresh"))
+          .then()
+          .statusCode(background ? 202 : 200);
+      if (background) awaitTask(member, "READY");
+      client(member)
+          .get(API)
+          .then()
+          .statusCode(200)
+          .body("remainingRefreshCount", equalTo(2 - attempt));
+    }
+    for (var path : List.of("/refresh", "/tasks/refresh"))
+      client(member)
+          .post(API + path)
+          .then()
+          .statusCode(429)
+          .body("code", equalTo("PORTFOLIO_ANALYSIS_REFRESH_LIMIT_EXCEEDED"));
+    verify(ai, times(3)).refresh(anyList(), anyString());
+    verifyNoInteractions(narrative);
+    assertThat(checks.findById(portfolio.getId()).orElseThrow().getRequestToken()).isNull();
+    client(member()).get(API).then().body("remainingRefreshCount", equalTo(3));
+    jdbc.update(
+        "update portfolio_analysis_checks set manual_refresh_date = ? where portfolio_id = ?",
+        java.sql.Date.valueOf(LocalDate.now(java.time.ZoneId.of("Asia/Seoul")).minusDays(1)),
+        portfolio.getId());
+    client(member).get(API).then().body("remainingRefreshCount", equalTo(3));
+    client(member)
+        .post(API + "/refresh")
+        .then()
+        .statusCode(200)
+        .body("remainingRefreshCount", equalTo(2));
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void queuedRefreshJoinsAndUnsubmittedFailuresRestoreOnlyTheirReservation(boolean rejected) {
+    var member = member();
+    var portfolio = portfolio(member);
+    hold(portfolio, "삼성전자");
+    successfulAi();
+    client(member).post(API).then().statusCode(200);
+    var first = transactions.prepareTask(member.getId(), true);
+    assertThat(savedAnalysis.get(member.getId()).remainingRefreshCount()).isEqualTo(2);
+    var joined = transactions.prepareTask(member.getId(), true);
+    assertThat(joined.saved().remainingRefreshCount()).isEqualTo(2);
+    if (rejected) {
+      transactions.rejectTask(member.getId(), UUID.randomUUID(), true);
+    } else {
+      transactions.fail(member.getId(), UUID.randomUUID(), "PORTFOLIO_ANALYSIS_FAILED", true);
+    }
+    assertThat(savedAnalysis.get(member.getId()).remainingRefreshCount()).isEqualTo(2);
+    if (rejected) {
+      transactions.rejectTask(member.getId(), first.token(), true);
+    } else {
+      transactions.fail(member.getId(), first.token(), "PORTFOLIO_ANALYSIS_FAILED", true);
+    }
+    assertThat(savedAnalysis.get(member.getId()).remainingRefreshCount()).isEqualTo(3);
+    assertThat(transactions.prepareTask(member.getId(), true).token()).isNotNull();
+  }
+
+  @Test
+  void initialAnalysisThroughRefreshDoesNotConsumeOrRefundManualQuota() {
+    var member = member();
+    var portfolio = portfolio(member);
+    hold(portfolio, "삼성전자");
+    var prepared = transactions.prepareTask(member.getId(), true);
+    assertThat(savedAnalysis.get(member.getId()).remainingRefreshCount()).isEqualTo(3);
+    transactions.rejectTask(member.getId(), prepared.token(), true);
+    assertThat(savedAnalysis.get(member.getId()).remainingRefreshCount()).isEqualTo(3);
+
+    successfulAi();
+    client(member)
+        .post(API + "/refresh")
+        .then()
+        .statusCode(200)
+        .body("remainingRefreshCount", equalTo(3));
+  }
+
+  @Test
+  void failedAIStillConsumesManualRefreshQuota() {
+    var member = member();
+    hold(portfolio(member), "삼성전자");
+    successfulAi();
+    client(member).post(API).then().statusCode(200);
+    when(ai.refresh(anyList(), anyString()))
+        .thenThrow(new BusinessException(ExternalErrorCode.AI_PORTFOLIO_ANALYSIS_FAILED));
+    client(member).post(API + "/refresh").then().statusCode(502);
+    client(member).get(API).then().body("remainingRefreshCount", equalTo(2));
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void automaticRefreshPreservesOtherStocksAndOnlySummarizesConfirmedChanges(boolean changed) {
+    var member = member();
+    var portfolio = portfolio(member);
+    hold(portfolio, "삼성전자");
+    hold(portfolio, "NAVER");
+    successfulAi();
+    client(member).post(API).then().statusCode(200);
+    var before = savedAnalysis.get(member.getId());
+    var untouched =
+        before.analysis().impacts().stream()
+            .filter(item -> item.assetName().equals("NAVER"))
+            .findFirst()
+            .orElseThrow();
+    var stock =
+        holdings.findAllByPortfolioIdOrderById(portfolio.getId()).stream()
+            .filter(item -> item.getAsset().getName().equals("삼성전자"))
+            .findFirst()
+            .orElseThrow()
+            .getAsset();
+    prices.save(new StockDailyPrice(stock, LocalDate.of(2026, 10, 13), new BigDecimal("200")));
+    clearInvocations(ai, narrative);
+    doAnswer(
+            invocation -> {
+              assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+              List<PortfolioAnalysisTarget> targets = invocation.getArgument(0);
+              assertThat(targets)
+                  .extracting(PortfolioAnalysisTarget::assetName)
+                  .containsExactly("삼성전자");
+              return changed
+                  ? refreshed(
+                      targets,
+                      LocalDate.of(2026, 10, 1),
+                      "https://example.invalid/new-contract",
+                      "새 계약을 체결했어요.")
+                  : result(targets);
+            })
+        .when(ai)
+        .refresh(anyList(), anyString());
+
+    var after = savedAnalysis.refreshAutomatically(member.getId(), java.util.Set.of("삼성전자"));
+    assertThat(after.remainingRefreshCount()).isEqualTo(3);
+
+    verify(ai, times(1)).refresh(anyList(), anyString());
+    verify(ai, never()).analyze(anyList());
+    var preserved =
+        after.analysis().impacts().stream()
+            .filter(item -> item.assetName().equals("NAVER"))
+            .findFirst()
+            .orElseThrow();
+    assertThat(preserved.direction()).isEqualTo(untouched.direction());
+    assertThat(preserved.issueSummary()).isEqualTo(untouched.issueSummary());
+    assertThat(preserved.sources()).isEqualTo(untouched.sources());
+    if (changed) {
+      assertThat(after.analysisId()).isNotEqualTo(before.analysisId());
+      assertThat(after.matchesCurrentPortfolio()).isTrue();
+      assertThat(preserved.weight()).isEqualByComparingTo("33.33");
+      assertThat(after.analysis().overallScore()).isEqualByComparingTo("33.34");
+      assertThat(after.summaryStatus()).isEqualTo("READY");
+      assertThat(after.changeReason()).contains("삼성전자").doesNotContain("NAVER");
+      verify(narrative, times(1)).summarize(org.mockito.ArgumentMatchers.any());
+    } else {
+      assertThat(after.analysisId()).isEqualTo(before.analysisId());
+      assertThat(after.analysis().analyzedAt()).isEqualTo(before.analysis().analyzedAt());
+      assertThat(after.lastCheckOutcome()).isEqualTo("UNCHANGED");
+      verifyNoInteractions(narrative);
+    }
+  }
+
+  @Test
+  void automaticRefreshWithoutSavedAnalysisDoesNotCreateAnInitialAnalysis() {
+    var member = member();
+    var portfolio = portfolio(member);
+    hold(portfolio, "삼성전자");
+    var result = savedAnalysis.refreshAutomatically(member.getId(), java.util.Set.of("삼성전자"));
+    assertThat(result.analysisId()).isNull();
+    verifyNoInteractions(ai, narrative);
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void automaticRefreshNeverMixesResultsAfterQuantityChanges(boolean duringAnalysis) {
+    var member = member();
+    var portfolio = portfolio(member);
+    hold(portfolio, "삼성전자");
+    successfulAi();
+    client(member).post(API).then().statusCode(200);
+    var before = savedAnalysis.get(member.getId());
+    clearInvocations(ai, narrative);
+    if (duringAnalysis) {
+      doAnswer(
+              invocation -> {
+                jdbc.update(
+                    "update portfolio_holdings set quantity = 2 where portfolio_id = ?",
+                    portfolio.getId());
+                return refreshed(
+                    invocation.getArgument(0),
+                    LocalDate.of(2026, 10, 1),
+                    "https://example.invalid/new-contract",
+                    "새 계약을 체결했어요.");
+              })
+          .when(ai)
+          .refresh(anyList(), anyString());
+      assertThatThrownBy(
+              () -> savedAnalysis.refreshAutomatically(member.getId(), java.util.Set.of("삼성전자")))
+          .isInstanceOf(BusinessException.class)
+          .extracting(error -> ((BusinessException) error).errorCode())
+          .isEqualTo(PortfolioErrorCode.PORTFOLIO_ANALYSIS_ASSETS_CHANGED);
+    } else {
+      jdbc.update(
+          "update portfolio_holdings set quantity = 2 where portfolio_id = ?", portfolio.getId());
+      savedAnalysis.refreshAutomatically(member.getId(), java.util.Set.of("삼성전자"));
+      verifyNoInteractions(ai);
+    }
+    assertThat(savedAnalysis.get(member.getId()).analysisId()).isEqualTo(before.analysisId());
+    verifyNoInteractions(narrative);
+  }
 
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
@@ -1520,37 +1744,54 @@ class SavedPortfolioAnalysisAcceptanceTest {
     given().port(port).get(API + "/history").then().statusCode(401);
   }
 
-  @Test
-  void refreshWithoutConfirmedEvidenceKeepsResultAndRequiresRecheck() {
+  @ParameterizedTest
+  @CsvSource({"false,false", "true,false", "true,true"})
+  void refreshWithoutConfirmedEvidenceKeepsResultAndRequiresRecheck(
+      boolean automatic, boolean missingImpact) {
     Member member = member();
     hold(portfolio(member), "삼성전자");
     successfulAi();
     long id = client(member).post(API).jsonPath().getLong("analysisId");
+    clearInvocations(narrative);
     when(ai.refresh(anyList(), anyString()))
         .thenReturn(
             new PortfolioAnalysisResult(
                 "근거를 확인하지 못했어요.",
-                List.of(
-                    new PortfolioAnalysisResult.AssetImpactResult(
-                        "삼성전자",
-                        null,
-                        null,
-                        "근거를 확인하지 못했어요.",
-                        "",
-                        "",
-                        "근거가 부족해요.",
-                        "근거가 부족해요.",
-                        List.of(),
-                        1)),
+                missingImpact
+                    ? List.of()
+                    : List.of(
+                        new PortfolioAnalysisResult.AssetImpactResult(
+                            "삼성전자",
+                            null,
+                            null,
+                            "근거를 확인하지 못했어요.",
+                            "",
+                            "",
+                            "근거가 부족해요.",
+                            "근거가 부족해요.",
+                            List.of(),
+                            1)),
                 List.of()));
+    if (automatic) {
+      var result = savedAnalysis.refreshAutomatically(member.getId(), java.util.Set.of("삼성전자"));
+      assertThat(result.status()).isEqualTo(SavedPortfolioAnalysisResponse.Status.RECHECK_REQUIRED);
+      assertThat(result.analysisId()).isEqualTo(id);
+    } else {
+      client(member)
+          .post(API + "/refresh")
+          .then()
+          .statusCode(200)
+          .body("status", equalTo("RECHECK_REQUIRED"))
+          .body("analysisId", equalTo((int) id));
+    }
     client(member)
-        .post(API + "/refresh")
+        .get(API)
         .then()
         .statusCode(200)
         .body("status", equalTo("RECHECK_REQUIRED"))
-        .body("analysisId", equalTo((int) id));
-    client(member).get(API).then().statusCode(200).body("status", equalTo("RECHECK_REQUIRED"));
+        .body("lastCheckOutcome", equalTo("UNCONFIRMED"));
     client(member).get(API + "/history").then().body("size()", equalTo(1));
+    verifyNoInteractions(narrative);
   }
 
   @Test
