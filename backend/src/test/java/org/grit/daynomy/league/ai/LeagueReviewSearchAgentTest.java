@@ -6,6 +6,10 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Instant;
 import java.util.List;
@@ -16,6 +20,7 @@ import org.grit.daynomy.league.dto.LeagueDto.ReviewGuideEvidence;
 import org.grit.daynomy.league.service.LeagueReviewEvidenceService;
 import org.grit.daynomy.league.service.LeagueReviewEvidenceService.Candidate;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 
 class LeagueReviewSearchAgentTest {
   @Test
@@ -80,6 +85,59 @@ class LeagueReviewSearchAgentTest {
     verify(service).search(2L, "삼성전자", saved, "매출");
     verify(service).search(2L, "삼성전자", saved, "비용");
     verifyNoMoreInteractions(service);
+  }
+
+  @Test
+  void failedPlannerLogsOnlyItsTypeAndFallsBackWithoutExposingInputOrResponse() throws Exception {
+    var service = mock(LeagueReviewEvidenceService.class);
+    Instant saved = Instant.parse("2026-10-20T00:00:00Z");
+    given(service.search(2L, "삼성전자", saved, "")).willReturn(candidates(1, 1));
+    var logger = (Logger) LoggerFactory.getLogger(LeagueReviewSearchAgent.class);
+    var originalLevel = logger.getLevel();
+    var appender = new ListAppender<ILoggingEvent>();
+    appender.start();
+    logger.addAppender(appender);
+    logger.setLevel(Level.WARN);
+    try (var server = new MockWebServer()) {
+      server.start();
+      server.enqueue(
+          new MockResponse()
+              .setResponseCode(401)
+              .addHeader("Content-Type", "application/json")
+              .setBody("{\"error\":{\"message\":\"sensitive-provider-response\"}}"));
+      var agent =
+          new LeagueReviewSearchAgent(
+              service, server.url("/").toString(), "test-key", "test-model");
+      var input =
+          new OpenAiLeagueReviewGuideClient.Input(
+              "삼성전자", "HOLD", "sensitive-decision-reason", "", "", null, null, false);
+
+      assertThat(agent.find(input, 2L, saved)).hasSize(1);
+      verify(service).search(2L, "삼성전자", saved, "");
+      assertThat(appender.list)
+          .singleElement()
+          .satisfies(
+              event -> {
+                assertThat(event.getLevel()).isEqualTo(Level.WARN);
+                assertThat(event.getKeyValuePairs())
+                    .extracting(pair -> pair.key)
+                    .containsExactly("event", "errorType");
+                assertThat(event.getKeyValuePairs().get(0).value)
+                    .isEqualTo("league.review-guide.planner-failed");
+                assertThat(event.getKeyValuePairs().get(1).value)
+                    .isInstanceOf(String.class)
+                    .asString()
+                    .isNotBlank();
+                assertThat(event.getThrowableProxy()).isNull();
+                assertThat(event.getFormattedMessage() + event.getKeyValuePairs())
+                    .doesNotContain(
+                        "sensitive-decision-reason", "sensitive-provider-response", "test-key");
+              });
+    } finally {
+      logger.detachAppender(appender);
+      logger.setLevel(originalLevel);
+      appender.stop();
+    }
   }
 
   private List<Candidate> candidates(long first, long last) {

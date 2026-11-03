@@ -9,6 +9,8 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.grit.daynomy.common.BaseEntity;
+import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.league.exception.LeagueErrorCode;
 
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -69,6 +71,9 @@ public class LeagueReviewReminder extends BaseEntity {
 
   public void snooze(Instant now) {
     if (snoozed) return;
+    if (nextNotificationAt == null || !now.isBefore(nextNotificationAt)) {
+      throw new BusinessException(LeagueErrorCode.REVIEW_REMINDER_EXPIRED);
+    }
     nextNotificationAt = now.plus(INTERVAL);
     snoozed = true;
   }

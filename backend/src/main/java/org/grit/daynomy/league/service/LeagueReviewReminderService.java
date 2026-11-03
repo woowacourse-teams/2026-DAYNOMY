@@ -19,6 +19,7 @@ import org.grit.daynomy.league.repository.InvestorProfileRepository;
 import org.grit.daynomy.league.repository.LeagueReviewReminderRepository;
 import org.grit.daynomy.league.repository.PortfolioDailyReturnRepository;
 import org.grit.daynomy.league.repository.SharedPortfolioRepository;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class LeagueReviewReminderService {
   private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
+  private static final int MAX_REMINDER_DECISIONS = 20;
   private final InvestorProfileRepository profiles;
   private final SharedPortfolioRepository portfolios;
   private final InvestmentDecisionRepository decisions;
@@ -58,7 +60,10 @@ public class LeagueReviewReminderService {
       return new ReviewReminderResponse(null, List.of(), reminder.getNextNotificationAt());
     }
     var pending =
-        decisions.findUnreviewedCreatedBefore(memberId, now.minus(LeagueReviewReminder.INTERVAL));
+        decisions.findUnreviewedCreatedBefore(
+            memberId,
+            now.minus(LeagueReviewReminder.INTERVAL),
+            PageRequest.of(0, MAX_REMINDER_DECISIONS));
     if (pending.isEmpty()) {
       return new ReviewReminderResponse(null, List.of(), reminder.getNextNotificationAt());
     }

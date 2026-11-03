@@ -12,6 +12,7 @@ import dev.langchain4j.service.SystemMessage;
 import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.List;
+import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.league.ai.OpenAiLeagueReviewGuideClient.Input;
 import org.grit.daynomy.league.service.LeagueReviewEvidenceService;
 import org.grit.daynomy.league.service.LeagueReviewEvidenceService.Candidate;
@@ -19,6 +20,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 @Component
+@Slf4j
 public class LeagueReviewSearchAgent {
   private final LeagueReviewEvidenceService evidenceService;
   private final OpenAiResponsesChatModel model;
@@ -66,8 +68,12 @@ public class LeagueReviewSearchAgent {
                 + input.reason()
                 + "\n기대 변화: "
                 + input.expectedChange());
-      } catch (RuntimeException ignored) {
+      } catch (RuntimeException exception) {
         // A failed planning call still allows the server to search its fixed asset name.
+        log.atWarn()
+            .addKeyValue("event", "league.review-guide.planner-failed")
+            .addKeyValue("errorType", exception.getClass().getSimpleName())
+            .log("AI 검색어 계획 실패, 종목명 검색으로 대체");
       }
     }
     if (tool.candidates().isEmpty())

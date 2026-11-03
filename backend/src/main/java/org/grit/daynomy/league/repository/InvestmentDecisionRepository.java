@@ -5,6 +5,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import org.grit.daynomy.league.domain.InvestmentDecision;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -27,7 +28,8 @@ public interface InvestmentDecisionRepository extends JpaRepository<InvestmentDe
         and not exists (select r.id from InvestmentReview r where r.transaction = d)
       order by d.createdAt, d.id
       """)
-  List<InvestmentDecision> findUnreviewedCreatedBefore(Long memberId, Instant createdBefore);
+  List<InvestmentDecision> findUnreviewedCreatedBefore(
+      Long memberId, Instant createdBefore, Pageable pageable);
 
   @Query(
       """

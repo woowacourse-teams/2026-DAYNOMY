@@ -12,12 +12,17 @@ import org.grit.daynomy.asset.domain.AssetCategory;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.league.domain.*;
 import org.grit.daynomy.league.domain.LeagueTypes.*;
+import org.grit.daynomy.league.exception.LeagueErrorCode;
 import org.grit.daynomy.league.repository.*;
 import org.grit.daynomy.member.domain.Member;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
@@ -100,7 +105,8 @@ class LeagueReviewReminderServiceTest {
   void exactlySevenDaysCombinesOldUnreviewedRecordsAndReplaysWithoutExtendingCooldown() {
     enrolled(NOW.minus(Duration.ofDays(7)));
     performance(true);
-    when(decisions.findUnreviewedCreatedBefore(1L, NOW.minus(Duration.ofDays(7))))
+    when(decisions.findUnreviewedCreatedBefore(
+            1L, NOW.minus(Duration.ofDays(7)), PageRequest.of(0, 20)))
         .thenReturn(List.of(decision(7), decision(8)));
     var state = new LeagueReviewReminder(10L, 30L);
     when(reminders.findById(10L)).thenReturn(Optional.of(state));
@@ -122,7 +128,8 @@ class LeagueReviewReminderServiceTest {
     verify(reminders, never()).save(any());
     when(returns.existsLatestEligibleByPortfolioIdAndBaseDateBetween(eq(20L), any(), any()))
         .thenReturn(true);
-    when(decisions.findUnreviewedCreatedBefore(anyLong(), any())).thenReturn(List.of());
+    when(decisions.findUnreviewedCreatedBefore(anyLong(), any(), any(Pageable.class)))
+        .thenReturn(List.of());
     assertThat(service.claim(1L, key).transactions()).isEmpty();
     verify(reminders, never()).save(any());
   }
@@ -154,10 +161,55 @@ class LeagueReviewReminderServiceTest {
   }
 
   @Test
+  void snoozeJustBeforeExpiryStartsSevenDaysFromTheCurrentTime() {
+    enrolled(NOW.minus(Duration.ofDays(10)));
+    var state = new LeagueReviewReminder(10L, 30L);
+    state.claim(key, NOW.minus(Duration.ofDays(7)).plusNanos(1));
+    when(reminders.findById(10L)).thenReturn(Optional.of(state));
+
+    assertThat(service.snooze(1L, key).nextNotificationAt())
+        .isEqualTo(NOW.plus(Duration.ofDays(7)));
+  }
+
+  @ParameterizedTest
+  @ValueSource(longs = {0, 1, 86_400})
+  void rejectsFirstSnoozeAtOrAfterExpiryWithoutChangingTheSchedule(long secondsAfterExpiry) {
+    enrolled(NOW.minus(Duration.ofDays(20)));
+    var state = new LeagueReviewReminder(10L, 30L);
+    state.claim(key, NOW.minus(Duration.ofDays(7)).minusSeconds(secondsAfterExpiry));
+    var originalNext = state.getNextNotificationAt();
+    when(reminders.findById(10L)).thenReturn(Optional.of(state));
+
+    assertThatThrownBy(() -> service.snooze(1L, key))
+        .isInstanceOfSatisfying(
+            BusinessException.class,
+            exception ->
+                assertThat(exception.errorCode())
+                    .isEqualTo(LeagueErrorCode.REVIEW_REMINDER_EXPIRED));
+    assertThat(state.getNextNotificationAt()).isEqualTo(originalNext);
+    assertThat(state.isSnoozed()).isFalse();
+  }
+
+  @Test
+  void alreadySnoozedRequestReplaysEvenAfterItsDeadlineWithoutExtendingTheSchedule() {
+    enrolled(NOW.minus(Duration.ofDays(20)));
+    var state = new LeagueReviewReminder(10L, 30L);
+    state.claim(key, NOW.minus(Duration.ofDays(9)));
+    state.snooze(NOW.minus(Duration.ofDays(8)));
+    var originalNext = state.getNextNotificationAt();
+    when(reminders.findById(10L)).thenReturn(Optional.of(state));
+
+    assertThat(originalNext).isBefore(NOW);
+    assertThat(service.snooze(1L, key).nextNotificationAt()).isEqualTo(originalNext);
+    assertThat(state.getNextNotificationAt()).isEqualTo(originalNext);
+  }
+
+  @Test
   void cooldownExpiresAtSevenDaysAndParticipationChangesDiscardOldCooldown() {
     enrolled(NOW.minus(Duration.ofDays(20)));
     performance(true);
-    when(decisions.findUnreviewedCreatedBefore(anyLong(), any())).thenReturn(List.of(decision(7)));
+    when(decisions.findUnreviewedCreatedBefore(anyLong(), any(), any(Pageable.class)))
+        .thenReturn(List.of(decision(7)));
     var state = new LeagueReviewReminder(10L, 30L);
     state.claim(UUID.randomUUID(), NOW.minus(Duration.ofDays(7)));
     when(reminders.findById(10L)).thenReturn(Optional.of(state));
