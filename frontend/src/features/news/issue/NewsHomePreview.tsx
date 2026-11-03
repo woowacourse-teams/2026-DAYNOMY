@@ -113,12 +113,20 @@ function ExampleTrending() {
   );
 }
 
-function TrendingItem({ item, position }: { item: FeedItem; position: number }) {
+function TrendingItem({
+  item,
+  position,
+  className,
+}: {
+  item: FeedItem;
+  position: number;
+  className: string;
+}) {
   const ref = useRef<HTMLDivElement>(null);
   const analytics = feedProperties(item, 'news_home_trending', position);
   useContentImpression(ref, item.key, 'view_content', analytics);
   return (
-    <div ref={ref} className="briefing-live-story">
+    <div ref={ref} className={`${className} briefing-live-story`}>
       {position > 1 ? <span className="briefing-story-kicker">트렌딩 0{position}</span> : null}
       <IssueFeed items={[item]} surface="news_home_trending" offset={position - 1} />
     </div>
@@ -129,15 +137,16 @@ function LiveTrending({ items }: { items: FeedItem[] }) {
   if (!items.length) return null;
   return (
     <div className={`briefing-trending-grid briefing-trending-count-${items.length}`}>
-      <div className="briefing-feature-story">
-        <TrendingItem item={items[0]} position={1} />
-      </div>
+      <TrendingItem className="briefing-feature-story" item={items[0]} position={1} />
       {items.length > 1 ? (
         <div className="briefing-secondary-stories">
           {items.slice(1).map((item, index) => (
-            <div className="briefing-secondary-story" key={item.key}>
-              <TrendingItem item={item} position={index + 2} />
-            </div>
+            <TrendingItem
+              className="briefing-secondary-story"
+              item={item}
+              key={item.key}
+              position={index + 2}
+            />
           ))}
         </div>
       ) : null}
