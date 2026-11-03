@@ -10,6 +10,11 @@ import { MyPage } from '../../src/features/account/MyPage';
 import { getMyProfile, updateMyProfile } from '../../src/features/pages/api';
 import App from '../../src/App';
 
+// 구독 설정의 실제 화면·API 연동은 EmailSubscriptionSettings.test.tsx에서 검증한다.
+vi.mock('../../src/features/email-subscription/EmailSubscriptionSettings', () => ({
+  EmailSubscriptionSettings: () => null,
+}));
+
 const account = {
   id: 42,
   email: 'account@example.invalid',

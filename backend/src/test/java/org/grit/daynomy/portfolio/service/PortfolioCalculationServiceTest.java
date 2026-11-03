@@ -259,7 +259,7 @@ class PortfolioCalculationServiceTest {
     Asset asset = mock(Asset.class);
     given(asset.getId()).willReturn(id);
     given(asset.getAssetCode()).willReturn(code);
-    given(asset.getName()).willReturn(name);
+    given(asset.getDisplayName()).willReturn(name);
     given(asset.getCategory()).willReturn(category);
     given(asset.getMarket()).willReturn(market);
     return asset;
@@ -275,6 +275,7 @@ class PortfolioCalculationServiceTest {
   void usdPricesAreConvertedBeforeKrwPortfolioCalculation() {
     Asset apple =
         Asset.listedStock("Apple", "AAPL.US", StockMarket.NASDAQ, null, LocalDate.of(2026, 10, 16));
+    apple.synchronizeKoreanName("애플");
     org.springframework.test.util.ReflectionTestUtils.setField(apple, "id", 1L);
     given(stockDailyPriceRepository.findLatestTwoByAssetIds(List.of(1L)))
         .willReturn(
@@ -288,6 +289,7 @@ class PortfolioCalculationServiceTest {
         .willReturn(Map.of(LocalDate.of(2026, 10, 16), new BigDecimal("1300")));
     var result = calculationService.calculate(request);
     assertThat(result.totalEvaluationAmount()).isEqualByComparingTo("318660.42");
+    assertThat(result.holdings().getFirst().name()).isEqualTo("애플");
     assertThat(result.holdings().getFirst().closePrice()).isEqualByComparingTo("245.1234");
   }
 
@@ -303,6 +305,7 @@ class PortfolioCalculationServiceTest {
             List.of(new PortfolioHoldingRequest(1L, 1L, new BigDecimal("200"))));
     var result = calculationService.calculate(request);
     assertThat(result.unpricedHoldingCount()).isEqualTo(1);
+    assertThat(result.holdings().getFirst().name()).isEqualTo("Apple");
     assertThat(result.totalProfitLoss()).isNull();
   }
 }

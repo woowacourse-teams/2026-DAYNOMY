@@ -41,8 +41,4 @@ public interface InvestmentDecisionRepository extends JpaRepository<InvestmentDe
       """)
   List<InvestmentDecisionCounts> findCountsByMemberIdInAndTradedOnLessThanEqual(
       List<Long> memberIds, LocalDate tradedOn);
-
-  List<InvestmentDecision>
-      findAllByPortfolioIdAndTradedOnLessThanEqualAndCreatedAtLessThanOrderByTradedOnDescIdDesc(
-          Long portfolioId, LocalDate tradedOn, Instant createdBefore);
 }

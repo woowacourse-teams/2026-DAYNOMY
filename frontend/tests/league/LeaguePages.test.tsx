@@ -126,11 +126,275 @@ afterEach(() => {
 });
 
 describe('투자 리그 화면', () => {
+  it('긴 순위 목록도 제목 영역이 보이면 실제 노출을 한 번 기록한다', async () => {
+    let visible!: IntersectionObserverCallback;
+    const observe = vi.fn();
+    vi.stubGlobal(
+      'IntersectionObserver',
+      class {
+        constructor(callback: IntersectionObserverCallback) {
+          visible = callback;
+        }
+        observe = observe;
+        disconnect = vi.fn();
+        unobserve = vi.fn();
+      },
+    );
+    const hidden = vi.spyOn(document, 'hidden', 'get').mockReturnValue(false);
+    try {
+      vi.mocked(leagueApi.getRankings).mockResolvedValue({
+        ...ranking,
+        totalCount: 20,
+        rankings: Array.from({ length: 20 }, (_, i) => ({
+          ...ranking.rankings[0],
+          rank: i + 1,
+          publicId: `investor-${i}`,
+          displayName: `참가자${i}`,
+        })),
+      });
+      const view = render(
+        <AuthContext.Provider value={{ isLoggedIn: false, loading: false, role: null }}>
+          <MemoryRouter>
+            <LeaguePage />
+          </MemoryRouter>
+        </AuthContext.Provider>,
+      );
+      const heading = await view.findByRole('heading', { name: '주간 순위' });
+      expect(observe).toHaveBeenCalledWith(heading.closest('header'));
+      act(() =>
+        visible(
+          [{ isIntersecting: true, intersectionRatio: 0.5 } as IntersectionObserverEntry],
+          {} as IntersectionObserver,
+        ),
+      );
+      act(() =>
+        visible(
+          [{ isIntersecting: true, intersectionRatio: 1 } as IntersectionObserverEntry],
+          {} as IntersectionObserver,
+        ),
+      );
+      const impressions = vi
+        .mocked(trackEvent)
+        .mock.calls.filter(([name]) => name === 'league_ranking_viewed');
+      expect(impressions).toHaveLength(1);
+      expect(impressions[0][1]).toMatchObject({ result_count: 20, confirmed: true });
+    } finally {
+      hidden.mockRestore();
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('월요일 데이터 누락은 주간 성과를 숨기고 새로고침 후 지표와 그래프를 함께 갱신한다', async () => {
+    const waiting = {
+      ...daily,
+      confirmed: false,
+      asOfDate: '2026-12-08',
+      weeklyReturnRate: null,
+      aggregation: {
+        baseDate: '2026-12-07',
+        expectedAt: '2026-12-10T08:20:00Z',
+        firstReturnExpectedAt: null,
+        reason: 'SNAPSHOT_PENDING',
+        delayed: false,
+      },
+      days: [
+        {
+          baseDate: '2026-12-07',
+          dailyReturnRate: null,
+          cumulativeReturnRate: null,
+          status: 'PENDING' as const,
+          reason: 'SNAPSHOT_PENDING',
+        },
+        {
+          baseDate: '2026-12-08',
+          dailyReturnRate: 1,
+          cumulativeReturnRate: null,
+          status: 'CALCULATED' as const,
+          reason: null,
+        },
+      ],
+    };
+    vi.mocked(leagueApi.getDailyHistory)
+      .mockResolvedValueOnce(waiting)
+      .mockResolvedValue({
+        ...waiting,
+        aggregation: null,
+        weeklyReturnRate: 2.01,
+        days: waiting.days.map((day, index) => ({
+          ...day,
+          status: 'CALCULATED',
+          reason: null,
+          dailyReturnRate: 1,
+          cumulativeReturnRate: index ? 2.01 : 1,
+        })),
+      });
+    vi.mocked(leagueApi.getPublicInvestor)
+      .mockResolvedValueOnce({
+        ...investor,
+        detailAvailable: false,
+        performance: { ...investor.performance, weeklyReturnRate: null, weeklyRank: null },
+      })
+      .mockResolvedValue({
+        ...investor,
+        detailAvailable: false,
+        performance: { ...investor.performance, weeklyReturnRate: 2.01, weeklyRank: 3 },
+      });
+    const view = render(
+      <AuthContext.Provider value={{ isLoggedIn: false, loading: false, role: null }}>
+        <MemoryRouter initialEntries={['/league/investor-1']}>
+          <Routes>
+            <Route path="/league/:publicId" element={<InvestorProfilePage />} />
+          </Routes>
+        </MemoryRouter>
+      </AuthContext.Provider>,
+    );
+
+    await view.findByText('보유 데이터 대기');
+    expect(view.getByRole('heading', { name: '기록 확인 중' })).toBeTruthy();
+    expect(view.getByRole('group', { name: /하루 수익률 \+1.00%/ })).toBeTruthy();
+    expect(view.queryByText('0.00%')).toBeNull();
+    expect(view.queryByText('아직 집계된 수익률이 없어요.')).toBeNull();
+    fireEvent.click(view.getByRole('button', { name: '집계 현황 새로고침' }));
+    await view.findByText('+2.01%');
+    expect(view.getByText('3위')).toBeTruthy();
+    expect(
+      (await view.findByRole('group', { name: '일별 수익률 그래프' })).querySelectorAll('circle'),
+    ).toHaveLength(2);
+    expect(
+      within(view.getByRole('group', { name: '일별 수익률 그래프' })).getAllByRole('group', {
+        name: /하루 수익률 \+1.00%/,
+      }),
+    ).toHaveLength(2);
+    expect(view.queryByText('보유 데이터 대기')).toBeNull();
+    expect(leagueApi.getPublicInvestor).toHaveBeenCalledTimes(2);
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+    fireEvent(document, new Event('visibilitychange'));
+    await waitFor(() => expect(leagueApi.getPublicInvestor).toHaveBeenCalledTimes(3));
+    await view.findByText('+2.01%');
+  });
+
+  it('중도 참여자도 즉시 순위에 표시하고 집계 시작일을 함께 보여준다', async () => {
+    vi.mocked(leagueApi.getRankings).mockResolvedValue({
+      ...ranking,
+      confirmed: false,
+      rankings: [{ ...ranking.rankings[0], trackingStartedOn: '2026-12-09' }],
+    });
+    const view = render(
+      <AuthContext.Provider value={{ isLoggedIn: false, loading: false, role: null }}>
+        <MemoryRouter>
+          <LeaguePage />
+        </MemoryRouter>
+      </AuthContext.Provider>,
+    );
+    await view.findByText('차분한초보');
+    expect(view.getByRole('link', { name: /차분한초보.*12\/09부터/ })).toBeTruthy();
+    expect(view.getByText('잠정 순위')).toBeTruthy();
+  });
+
+  it('운영 순위표에 서버의 집계 일정을 연결하고 순위를 유지한 채 재조회한다', async () => {
+    vi.mocked(leagueApi.getRankings).mockResolvedValue({
+      ...ranking,
+      confirmed: false,
+      aggregation: {
+        baseDate: '2026-12-07',
+        expectedAt: '2026-12-10T08:20:00Z',
+        firstReturnExpectedAt: null,
+        reason: 'CALCULATION_PENDING',
+        delayed: false,
+      },
+    });
+    const view = render(
+      <AuthContext.Provider value={{ isLoggedIn: false, loading: false, role: null }}>
+        <MemoryRouter>
+          <LeaguePage />
+        </MemoryRouter>
+      </AuthContext.Provider>,
+    );
+    await view.findByRole('heading', { name: '수익률 집계 중' });
+    expect(view.getByText(/12월 10일.*17:20/)).toBeTruthy();
+    expect(view.getByText('차분한초보')).toBeTruthy();
+    fireEvent.click(view.getByRole('button', { name: '집계 현황 새로고침' }));
+    await waitFor(() => expect(leagueApi.getRankings).toHaveBeenCalledTimes(2));
+    await view.findByText('차분한초보');
+  });
+
+  it('같은 순위를 재조회하는 동안 마지막 결과와 기준일을 유지한다', async () => {
+    const initial = {
+      ...ranking,
+      confirmed: false,
+      aggregation: {
+        baseDate: '2026-12-10',
+        expectedAt: '2026-12-10T08:20:00Z',
+        firstReturnExpectedAt: null,
+        reason: 'CALCULATION_PENDING',
+        delayed: false,
+      },
+    };
+    let finish!: (value: typeof initial) => void;
+    vi.mocked(leagueApi.getRankings)
+      .mockResolvedValueOnce(initial)
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finish = resolve;
+          }),
+      );
+    const view = render(
+      <AuthContext.Provider value={{ isLoggedIn: false, loading: false, role: null }}>
+        <MemoryRouter>
+          <LeaguePage />
+        </MemoryRouter>
+      </AuthContext.Provider>,
+    );
+    await view.findByText('차분한초보');
+    fireEvent.click(view.getByRole('button', { name: '집계 현황 새로고침' }));
+    await waitFor(() => expect(leagueApi.getRankings).toHaveBeenCalledTimes(2));
+    expect(view.getByText('차분한초보')).toBeTruthy();
+    expect(view.getByText('2026-12-11 종가 기준')).toBeTruthy();
+    expect(view.queryByText('순위를 불러오는 중입니다.')).toBeNull();
+    await act(async () => finish({ ...initial, asOfDate: '2026-12-12' }));
+    await view.findByText('2026-12-12 종가 기준');
+  });
+
+  it('개인 성과와 통합 순위의 기준일이 다르면 각각 표시한다', async () => {
+    vi.mocked(leagueApi.getPublicInvestor).mockResolvedValue({
+      ...investor,
+      performance: {
+        ...investor.performance,
+        weeklyReturnRate: 5.06,
+        weeklyRank: 2,
+        asOfDate: '2026-12-08',
+        rankingAsOfDate: '2026-12-07',
+      },
+    });
+    const view = render(
+      <AuthContext.Provider value={{ isLoggedIn: false, loading: false, role: null }}>
+        <MemoryRouter initialEntries={['/league/investor-1']}>
+          <Routes>
+            <Route path="/league/:publicId" element={<InvestorProfilePage />} />
+          </Routes>
+        </MemoryRouter>
+      </AuthContext.Provider>,
+    );
+    await view.findByText('+5.06%');
+    const metrics = view.getByRole('region', { name: '성과와 위험 지표' });
+    expect(within(metrics).getByText('2026-12-08 기준')).toBeTruthy();
+    expect(within(metrics).getByText('2026-12-07 기준')).toBeTruthy();
+    expect(within(metrics).getByText('2위')).toBeTruthy();
+  });
+
   it('StrictMode에서도 진입·조회 완료를 한 번 기록하고 잠정 순위와 상세 지표 동작을 구분한다', async () => {
     vi.mocked(leagueApi.getRankings).mockResolvedValue({
       ...ranking,
       confirmed: false,
       collectionStatus: 'COLLECTION_PENDING',
+      aggregation: {
+        baseDate: '2026-12-11',
+        expectedAt: '2026-12-14T05:30:00Z',
+        firstReturnExpectedAt: null,
+        reason: 'PRICE_COLLECTION_DELAYED',
+        delayed: true,
+      },
     });
     const view = render(
       <StrictMode>
@@ -142,8 +406,10 @@ describe('투자 리그 화면', () => {
       </StrictMode>,
     );
     await view.findByText('잠정 순위');
-    expect(view.getByText('종가 수집 대기')).toBeTruthy();
-    expect(view.getByText(/집계된 종가 기준의 잠정 순위/)).toBeTruthy();
+    expect(view.queryByText(/집계된 종가 기준의 잠정 순위/)).toBeNull();
+    expect(view.getByText('집계 예정')).toBeTruthy();
+    expect(view.getByRole('heading', { name: '종가 제공 지연' })).toBeTruthy();
+    expect(view.container.querySelector('time')?.textContent).toContain('14:30');
     expect(
       vi.mocked(trackEvent).mock.calls.filter(([name]) => name === 'view_league'),
     ).toHaveLength(1);
@@ -494,7 +760,49 @@ describe('투자 리그 화면', () => {
     expect(view.queryByText('참여 후 누적 0.00%')).toBeNull();
   });
 
-  it('일별 꺾은선은 하루 수익률만 연결하고 중복 상세 카드를 표시하지 않는다', async () => {
+  it('첫 집계와 첫 수익률 변화의 예상 시각을 구분해 안내한다', async () => {
+    vi.mocked(leagueApi.getDailyHistory).mockResolvedValue({
+      ...daily,
+      confirmed: false,
+      asOfDate: null,
+      weeklyReturnRate: null,
+      days: [],
+      aggregation: {
+        baseDate: '2026-12-09',
+        expectedAt: '2026-12-10T05:30:00Z',
+        firstReturnExpectedAt: '2026-12-11T05:30:00Z',
+        reason: 'PRICE_COLLECTION_PENDING',
+        delayed: false,
+      },
+    });
+    const view = render(<DailyReturns publicId="investor-1" weekStart="" onWeekChange={vi.fn()} />);
+    expect(await view.findByText('집계 예정')).toBeTruthy();
+    expect(view.getByText('첫 변동 예상')).toBeTruthy();
+    expect(
+      Array.from(view.container.querySelectorAll('time')).map((time) => time.dateTime),
+    ).toEqual(['2026-12-10T05:30:00Z', '2026-12-11T05:30:00Z']);
+    expect(view.queryByText('0.00%')).toBeNull();
+  });
+
+  it('예상 시각이 없는 종가 누락 상태에 임의의 시간을 표시하지 않는다', async () => {
+    vi.mocked(leagueApi.getDailyHistory).mockResolvedValue({
+      ...daily,
+      confirmed: false,
+      aggregation: {
+        baseDate: '2026-12-09',
+        expectedAt: null,
+        firstReturnExpectedAt: null,
+        reason: 'MISSING_PRICE',
+        delayed: false,
+      },
+    });
+    const view = render(<DailyReturns publicId="investor-1" weekStart="" onWeekChange={vi.fn()} />);
+    expect(await view.findByRole('heading', { name: '종가 확인 중' })).toBeTruthy();
+    expect(view.getByText('일정 확인 중')).toBeTruthy();
+    expect(view.container.querySelector('.league-aggregation time')).toBeNull();
+  });
+
+  it('일별 꺾은선은 주간 누적을 연결하고 하루 변동도 함께 표시한다', async () => {
     const rates = [0, 2, -1, null];
     const cumulativeRates = [0, 2, 0.98, null];
     vi.mocked(leagueApi.getDailyHistory).mockResolvedValue({
@@ -514,15 +822,37 @@ describe('투자 리그 화면', () => {
     const view = render(<DailyReturns publicId="investor-1" weekStart="" onWeekChange={vi.fn()} />);
     const chart = within(await view.findByRole('group', { name: '일별 수익률 그래프' }));
     const latest = chart.getByRole('group', { name: /12\. 9\. .*하루 수익률 -1.00%/ });
-    expect(within(latest).getByText('-1.00%').className).toBe('negative');
-    expect(chart.queryByText('+0.98%')).toBeNull();
+    expect(latest.getAttribute('title')).toBe('하루 -1.00%');
+    expect(chart.getByText('+0.98%').className).toBe('positive');
     expect(view.queryByRole('group', { name: '선택한 날짜의 성과' })).toBeNull();
     expect(chart.getByText('종가 수집 대기')).toBeTruthy();
     const graph = view.container.querySelector('.league-return-line')!;
     expect(graph.querySelectorAll('circle')).toHaveLength(3);
     expect(graph.querySelectorAll('g line')).toHaveLength(2);
-    expect(view.getByText('2026-12-09 종가 기준 · 잠정 수익률')).toBeTruthy();
+    expect(view.getByText('2026-12-09 종가 기준')).toBeTruthy();
+    expect(view.getByText('잠정')).toBeTruthy();
     expect(view.queryByRole('table')).toBeNull();
+  });
+
+  it('월~일 7일을 표시하고 휴장일은 하루 0%와 누적 10%를 함께 표시한다', async () => {
+    vi.mocked(leagueApi.getDailyHistory).mockResolvedValue({
+      ...daily,
+      days: Array.from({ length: 7 }, (_, index) => ({
+        baseDate: `2026-12-${String(7 + index).padStart(2, '0')}`,
+        dailyReturnRate: index === 0 ? 10 : 0,
+        cumulativeReturnRate: 10,
+        status: 'CALCULATED' as const,
+        reason: index >= 5 ? 'MARKET_CLOSED' : null,
+      })),
+    });
+    const view = render(<DailyReturns publicId="investor-1" weekStart="" onWeekChange={vi.fn()} />);
+    const chart = await view.findByRole('group', { name: '일별 수익률 그래프' });
+    expect(chart.querySelectorAll('time')).toHaveLength(7);
+    const sunday = within(chart).getByRole('group', { name: /12\. 13\..*누적 수익률 \+10.00%/ });
+    expect(within(sunday).getByText('+10.00%')).toBeTruthy();
+    expect(sunday.getAttribute('title')).toBe('하루 0.00%');
+    expect(within(sunday).getByText('휴장')).toBeTruthy();
+    expect(chart.querySelectorAll('circle')).toHaveLength(7);
   });
 
   it('일별 주차를 바꾼 뒤 늦게 도착한 이전 응답을 표시하지 않는다', async () => {
@@ -557,7 +887,8 @@ describe('투자 리그 화면', () => {
     view.rerender(
       <DailyReturns publicId="investor-1" weekStart="2026-11-30" onWeekChange={onWeekChange} />,
     );
-    await view.findByText('2026-11-30 종가 기준 · 순위 확정');
+    await view.findByText('2026-11-30 종가 기준');
+    expect(view.getByText('확정')).toBeTruthy();
     await act(async () => resolvePrevious(daily));
     expect(
       within(view.getByRole('group', { name: '일별 수익률 그래프' })).getByText('-3.00%'),
@@ -769,11 +1100,7 @@ describe('투자 리그 화면', () => {
     );
     expect(view.queryByText('안정형')).toBeNull();
     expect(view.queryByText('초보리그')).toBeNull();
-    expect(
-      await view.findByText(
-        /사용자 등록 자산의 종가 기준 성과로, 실제 계좌 수익률과 다를 수 있습니다/,
-      ),
-    ).toBeTruthy();
+    expect(view.queryByRole('complementary', { name: '순위 갱신 안내' })).toBeNull();
   });
 
   it('순위 번호를 6개씩 표시하고 번호와 화살표를 서버 페이지에 연결한다', async () => {
@@ -1004,7 +1331,7 @@ describe('투자 리그 화면', () => {
           </MemoryRouter>
         </AuthContext.Provider>,
       );
-      await view.findByRole('heading', { name: '일별 수익률' });
+      await view.findByRole('heading', { name: '누적 수익률' });
       expect(
         [...view.container.querySelectorAll('.league-chart-switch button')].map(
           (button) => button.textContent,
@@ -1097,9 +1424,18 @@ describe('투자 리그 화면', () => {
       '2026-11-30',
       expect.any(AbortSignal),
     );
-    expect(chart.getByText('+5.00%')).toBeTruthy();
+    expect(chart.getByRole('group', { name: /하루 수익률 \+5.00%/ })).toBeTruthy();
     expect(view.queryByRole('group', { name: '선택한 날짜의 성과' })).toBeNull();
     expect(view.queryByRole('table')).toBeNull();
+    const requestsBeforeToggle = vi.mocked(leagueApi.getDailyHistory).mock.calls.length;
+    fireEvent.click(view.getByRole('button', { name: '주간' }));
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+    fireEvent(document, new Event('visibilitychange'));
+    expect(leagueApi.getDailyHistory).toHaveBeenCalledTimes(requestsBeforeToggle);
+    fireEvent.click(view.getByRole('button', { name: '일별' }));
+    await view.findByRole('group', { name: '일별 수익률 그래프' });
+    expect(leagueApi.getDailyHistory).toHaveBeenCalledTimes(requestsBeforeToggle);
+    expect(view.getByRole('combobox', { name: '조회 주차' })).toHaveProperty('value', '2026-11-30');
     fireEvent.click(view.getByRole('button', { name: '주간' }));
     fireEvent.click(view.getByRole('button', { name: /2026-12-07 주간.*일별 기록 보기/ }));
     await waitFor(() =>

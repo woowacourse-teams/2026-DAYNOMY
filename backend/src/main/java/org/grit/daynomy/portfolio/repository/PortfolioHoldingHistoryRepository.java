@@ -13,6 +13,10 @@ import org.springframework.data.repository.query.Param;
 public interface PortfolioHoldingHistoryRepository
     extends JpaRepository<PortfolioHoldingHistory, Long> {
 
+  @Query(
+      "select min(h.effectiveDate) from PortfolioHoldingHistory h where h.portfolio.id = :portfolioId")
+  Optional<LocalDate> findFirstEffectiveDateByPortfolioId(Long portfolioId);
+
   Optional<PortfolioHoldingHistory> findByIdAndPortfolioId(Long id, Long portfolioId);
 
   List<PortfolioHoldingHistory>

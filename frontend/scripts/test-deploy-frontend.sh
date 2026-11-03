@@ -16,6 +16,9 @@ cleanup() {
   local status=$?
   trap - EXIT
   touch "$test_dir/stop-observer"
+  for name in "$prefix" "$prefix-$FRONTEND_BLUE_PORT" "$prefix-$FRONTEND_GREEN_PORT"; do
+    docker exec "$name" touch /tmp/release-slow >/dev/null 2>&1 || true
+  done
   if [ -n "$observer_pid" ]; then wait "$observer_pid" || true; fi
   if [ -n "$slow_pid" ]; then wait "$slow_pid" || true; fi
   if [ -n "$rollback_slow_pid" ]; then wait "$rollback_slow_pid" || true; fi
@@ -41,24 +44,21 @@ cleanup() {
 export FRONTEND_BLUE_PORT='' FRONTEND_GREEN_PORT=''
 trap cleanup EXIT
 
-read -r FRONTEND_BLUE_PORT FRONTEND_GREEN_PORT proxy_port < <(python3 - <<'PY'
-import socket
-listeners = [socket.socket() for _ in range(3)]
-for listener in listeners:
-    listener.bind(('127.0.0.1', 0))
-print(*(listener.getsockname()[1] for listener in listeners))
-for listener in listeners:
-    listener.close()
-PY
-)
-export FRONTEND_BLUE_PORT FRONTEND_GREEN_PORT
 export TEST_PROXY="$proxy" TEST_ROOT="$test_dir" TMPDIR="$test_dir"
 export COMPOSE_FILE="$frontend_dir/compose.yml" FRONTEND_CONTAINER_PREFIX="$prefix"
 export FRONTEND_UPSTREAM_FILE="$test_dir/nginx/frontend.conf" FRONTEND_ASSETS_DIR="$test_dir/assets"
-export DEPLOY_ENV=development DEPLOY_URL="http://127.0.0.1:$proxy_port"
+export DEPLOY_ENV=development
 export DEPLOY_WAIT_TIMEOUT=10 DEPLOY_DRAIN_TIMEOUT=45 GITHUB_STEP_SUMMARY="$test_dir/summary.md"
 mkdir -p "$test_dir"/{assets,bin,nginx,dist/assets}
-cp "$frontend_dir/Dockerfile" "$test_dir/Dockerfile"
+cat > "$test_dir/Dockerfile" <<'EOF'
+FROM nginx:stable-alpine
+RUN apk add --no-cache python3
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY dist/ /usr/share/nginx/html/
+COPY slow-server.py /slow-server.py
+HEALTHCHECK --interval=30s --timeout=3s CMD wget --quiet --spider http://127.0.0.1/ || exit 1
+CMD ["sh", "-c", "python3 /slow-server.py & exec nginx -g 'daemon off;'"]
+EOF
 cp "$frontend_dir/nginx.conf" "$test_dir/nginx.conf"
 python3 - "$test_dir" <<'PY'
 from pathlib import Path
@@ -66,8 +66,28 @@ import sys
 root = Path(sys.argv[1])
 config = root / 'nginx.conf'
 config.write_text(config.read_text().replace('    location / {',
-    '    location = /slow { limit_rate 32k; }\n\n    location / {'))
-(root / 'dist/slow').write_bytes(b'S' * 1048576)
+    '    location = /slow { proxy_pass http://127.0.0.1:8000; proxy_buffering off; }\n\n    location / {'))
+PY
+cat > "$test_dir/slow-server.py" <<'PY'
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from pathlib import Path
+import time
+
+class Handler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header('Content-Length', '2048')
+        self.end_headers()
+        self.wfile.write(b'S' * 1024)
+        self.wfile.flush()
+        deadline = time.monotonic() + 60
+        while not Path('/tmp/release-slow').exists():
+            if time.monotonic() >= deadline:
+                return
+            time.sleep(0.05)
+        self.wfile.write(b'S' * 1024)
+
+HTTPServer(('127.0.0.1', 8000), Handler).serve_forever()
 PY
 cat >> "$test_dir/Dockerfile" <<'EOF'
 HEALTHCHECK --interval=1s --timeout=1s --start-period=1s --retries=2 CMD wget --quiet --spider http://127.0.0.1/ || exit 1
@@ -102,6 +122,19 @@ FROM nginx:stable-alpine
 RUN apk add --no-cache curl procps python3
 EOF
 docker build --quiet --file "$test_dir/ProxyDockerfile" --tag "$image_name:proxy" "$test_dir" >/dev/null
+# Allocate ports in the same network namespace as the Docker-hosted proxy.
+read -r FRONTEND_BLUE_PORT FRONTEND_GREEN_PORT proxy_port < <(docker run --rm --interactive --network host --entrypoint python3 "$image_name:proxy" - <<'PY'
+import socket
+listeners = [socket.socket() for _ in range(3)]
+for listener in listeners:
+    listener.bind(('127.0.0.1', 0))
+print(*(listener.getsockname()[1] for listener in listeners))
+for listener in listeners:
+    listener.close()
+PY
+)
+export FRONTEND_BLUE_PORT FRONTEND_GREEN_PORT
+export DEPLOY_URL="http://127.0.0.1:$proxy_port"
 sed "s/:3000;/:$FRONTEND_BLUE_PORT;/" "$frontend_dir/host-nginx.upstream.conf" > "$FRONTEND_UPSTREAM_FILE"
 cat > "$test_dir/nginx/site.conf" <<EOF
 server {
@@ -241,7 +274,8 @@ if len(sys.argv) > 4:
 with urllib.request.urlopen(url + '/slow', timeout=50) as response:
     first = response.read(1024)
     (root / sys.argv[3]).touch()
-    assert first + response.read() == b'S' * 1048576
+    assert first + response.read() == b'S' * 2048
+(root / (sys.argv[3] + '.completed')).touch()
 print(f'In-flight response completed: {sys.argv[3]}')
 PY
 docker exec "$proxy" python3 "$test_dir/slow.py" "$test_dir" "$DEPLOY_URL" slow-started > "$test_dir/slow.log" 2>&1 &
@@ -256,6 +290,17 @@ assert_public "$sha_two"
 docker inspect "$prefix" >/dev/null
 previous_image="$(docker inspect --format '{{.Image}}' "$prefix-$FRONTEND_GREEN_PORT")"
 
+# Slot reuse must fail while the old response is still in flight.
+test ! -f "$test_dir/slow-started.completed"
+DEPLOY_DRAIN_TIMEOUT=0 assert_failed drain two v1.0.1 "$sha_two"
+grep -Fq 'Previous Nginx requests are still draining' "$test_dir/drain.log"
+assert_public "$sha_two"
+docker exec "$prefix" touch /tmp/release-slow
+wait "$slow_pid"
+slow_pid=''
+test -f "$test_dir/slow-started.completed"
+cat "$test_dir/slow.log"
+
 # A mutable old tag must not affect rollback: keep the running old container itself.
 docker tag "$image_name:public-bad" "$image_name:two"
 docker exec "$proxy" python3 "$test_dir/slow.py" "$test_dir" "$DEPLOY_URL" \
@@ -267,13 +312,20 @@ test -f "$test_dir/rollback-slow-started"
 docker inspect "$prefix-$FRONTEND_BLUE_PORT" >/dev/null
 test "$(docker inspect --format '{{.Image}}' "$prefix-$FRONTEND_GREEN_PORT")" = "$previous_image"
 grep -Fq 'Rolled back: previous container retained; deployment remains failed' "$test_dir/public.log"
-wait "$slow_pid"
-slow_pid=''
-cat "$test_dir/slow.log"
 if docker inspect "$prefix" >/dev/null 2>&1; then
   echo 'The drained legacy container should be retired before slot reuse' >&2
   exit 1
 fi
+
+test ! -f "$test_dir/rollback-slow-started.completed"
+DEPLOY_DRAIN_TIMEOUT=0 assert_failed rollback-drain bad-marker v1.0.2 "$sha_three"
+grep -Fq 'Previous Nginx requests are still draining' "$test_dir/rollback-drain.log"
+assert_public "$sha_two"
+docker exec "$prefix-$FRONTEND_BLUE_PORT" touch /tmp/release-slow
+wait "$rollback_slow_pid"
+rollback_slow_pid=''
+test -f "$test_dir/rollback-slow-started.completed"
+cat "$test_dir/rollback-slow.log"
 
 assert_failed labels one v1.0.0 "$sha_four"
 grep -Fq 'Frontend deployment stage: Validate image and host configuration' "$test_dir/labels.log"
@@ -281,9 +333,6 @@ test "$(sed -n 's/^- Stage: //p' "$GITHUB_STEP_SUMMARY" | tail -1)" = 'Validate 
 assert_public "$sha_two"
 assert_failed marker bad-marker v1.0.2 "$sha_three"
 assert_public "$sha_two"
-wait "$rollback_slow_pid"
-rollback_slow_pid=''
-cat "$test_dir/rollback-slow.log"
 assert_failed health unhealthy v1.0.2 "$sha_three"
 test "$(sed -n 's/^- Stage: //p' "$GITHUB_STEP_SUMMARY" | tail -1)" = 'Start candidate container'
 assert_public "$sha_two"

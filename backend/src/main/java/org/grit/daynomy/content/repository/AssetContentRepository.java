@@ -8,6 +8,7 @@ import org.grit.daynomy.content.domain.ContentSourceType;
 import org.grit.daynomy.news.domain.NewsStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -18,6 +19,11 @@ public interface AssetContentRepository extends JpaRepository<AssetContent, Long
       List<ContentSourceType> sources, Pageable pageable);
 
   List<AssetContent> findAllByAssetIdOrderByCreatedAtDescIdDesc(Long assetId);
+
+  @Query(
+      "select distinct content.asset.id from AssetContent content left join content.news news "
+          + "where news is null or news.status = :published order by content.asset.id")
+  Slice<Long> findDiscoverableAssetIds(@Param("published") NewsStatus published, Pageable pageable);
 
   @Query(
       """

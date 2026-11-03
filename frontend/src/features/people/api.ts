@@ -1,6 +1,7 @@
 import { request, requestWithCsrf } from '../../api/client';
 import type {
   FeaturedPeopleResponse,
+  FeaturedPeoplePageResponse,
   FeaturedPerson,
   FeaturedPersonPostCandidate,
   FeaturedPersonPostCandidateInboxItem,
@@ -145,6 +146,21 @@ function assertPeopleResponse(value: unknown): FeaturedPeopleResponse {
   return { people: value.people };
 }
 
+function assertPeoplePageResponse(value: unknown): FeaturedPeoplePageResponse {
+  const { people } = assertPeopleResponse(value);
+  if (
+    !isRecord(value) ||
+    !Number.isSafeInteger(value.page) ||
+    !Number.isSafeInteger(value.size) ||
+    !Number.isSafeInteger(value.totalElements) ||
+    !Number.isSafeInteger(value.totalPages) ||
+    typeof value.hasNext !== 'boolean'
+  ) {
+    throw new Error('주요 인물 페이지 API 응답 형식이 올바르지 않습니다.');
+  }
+  return { ...value, people } as FeaturedPeoplePageResponse;
+}
+
 function assertPerson(value: unknown) {
   if (!isPerson(value)) throw new Error('주요 인물 API 응답 형식이 올바르지 않습니다.');
   return value;
@@ -155,8 +171,17 @@ function assertPost(value: unknown) {
   return value;
 }
 
-export async function getFeaturedPeople(signal?: AbortSignal) {
-  return assertPeopleResponse(await request<unknown>('/api/people', { signal }));
+export async function getFeaturedPeople(
+  page = 1,
+  size = 6,
+  personId?: number,
+  signal?: AbortSignal,
+) {
+  const params = new URLSearchParams({ page: String(page), size: String(size) });
+  if (personId !== undefined) params.set('personId', String(personId));
+  return assertPeoplePageResponse(
+    await request<unknown>(`/api/people?${params.toString()}`, { signal }),
+  );
 }
 
 export async function getAdminFeaturedPeople(signal?: AbortSignal) {

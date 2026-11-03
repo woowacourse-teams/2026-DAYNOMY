@@ -105,22 +105,52 @@ describe('회원 저장 분석 API', () => {
     analysis: null,
   };
 
-  it('갱신 요청은 CSRF를 포함하고 클라이언트 자산을 보내지 않는다', async () => {
-    const fetchMock = vi.fn(async (url: RequestInfo | URL) =>
-      String(url).endsWith('/csrf')
-        ? jsonResponse({ headerName: 'X-CSRF-TOKEN', token: 'test-token' })
-        : jsonResponse(empty),
+  it('오늘 남은 횟수와 한국 시간 자정 초기화 시각을 보존한다', async () => {
+    const response = { ...empty, remainingRefreshCount: 0, refreshResetAt: '2026-10-29T15:00:00Z' };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => jsonResponse(response)),
     );
-    vi.stubGlobal('fetch', fetchMock);
-    await updateSavedPortfolioAnalysis(true);
-    expect(fetchMock).toHaveBeenLastCalledWith(
-      expect.stringContaining('/api/users/me/portfolio/analysis/refresh'),
-      expect.objectContaining({ method: 'POST', headers: expect.any(Headers) }),
-    );
-    const init = vi.mocked(fetch).mock.calls.at(-1)?.[1];
-    expect(new Headers(init?.headers).get('X-CSRF-TOKEN')).toBe('test-token');
-    expect(init?.body).toBeUndefined();
+    await expect(getSavedPortfolioAnalysis()).resolves.toEqual(response);
   });
+
+  it.each([
+    { remainingRefreshCount: -1, refreshResetAt: '2026-10-29T15:00:00Z' },
+    { remainingRefreshCount: 4, refreshResetAt: '2026-10-29T15:00:00Z' },
+    { remainingRefreshCount: 1.5, refreshResetAt: '2026-10-29T15:00:00Z' },
+    { remainingRefreshCount: 0, refreshResetAt: 'invalid' },
+    { remainingRefreshCount: 0 },
+  ])('잘못된 확인 한도 응답을 거부한다: %j', async (limit) => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => jsonResponse({ ...empty, ...limit })),
+    );
+    await expect(getSavedPortfolioAnalysis()).rejects.toThrow('저장된 분석 응답 형식');
+  });
+
+  it.each([false, true])(
+    '회원 분석은 비동기 API에 CSRF를 포함하고 자산을 보내지 않는다 (갱신: %s)',
+    async (refresh) => {
+      const fetchMock = vi.fn(async (url: RequestInfo | URL) =>
+        String(url).endsWith('/csrf')
+          ? jsonResponse({ headerName: 'X-CSRF-TOKEN', token: 'test-token' })
+          : jsonResponse({ ...empty, status: 'PROCESSING' }, 202),
+      );
+      vi.stubGlobal('fetch', fetchMock);
+      await expect(updateSavedPortfolioAnalysis(refresh)).resolves.toMatchObject({
+        status: 'PROCESSING',
+      });
+      expect(fetchMock).toHaveBeenLastCalledWith(
+        expect.stringMatching(
+          new RegExp(`/api/users/me/portfolio/analysis/tasks${refresh ? '/refresh' : ''}$`),
+        ),
+        expect.objectContaining({ method: 'POST', headers: expect.any(Headers) }),
+      );
+      const init = vi.mocked(fetch).mock.calls.at(-1)?.[1];
+      expect(new Headers(init?.headers).get('X-CSRF-TOKEN')).toBe('test-token');
+      expect(init?.body).toBeUndefined();
+    },
+  );
 
   it.each(['UNKNOWN', null, undefined])(
     '알 수 없는 상태 %s를 정상 결과로 표시하지 않는다',

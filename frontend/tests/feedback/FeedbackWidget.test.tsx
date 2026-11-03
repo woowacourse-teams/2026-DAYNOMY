@@ -6,12 +6,16 @@ import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { FeedbackWidget } from '../../src/features/feedback/FeedbackWidget';
-import { createFeedback } from '../../src/features/feedback/api';
+import { createAdminFeedback, createFeedback } from '../../src/features/feedback/api';
 
-vi.mock('../../src/features/feedback/api', () => ({ createFeedback: vi.fn() }));
+vi.mock('../../src/features/feedback/api', () => ({
+  createAdminFeedback: vi.fn(),
+  createFeedback: vi.fn(),
+}));
 
 beforeEach(() => {
   vi.mocked(createFeedback).mockReset();
+  vi.mocked(createAdminFeedback).mockReset();
   Object.defineProperty(HTMLDialogElement.prototype, 'showModal', {
     configurable: true,
     value() {
@@ -65,6 +69,30 @@ describe('피드백 위젯', () => {
     fireEvent.submit(view.getByLabelText('피드백 내용').closest('form')!);
 
     await waitFor(() => expect(view.getByRole('alert').textContent).toContain('입력해 주세요'));
+    expect(createFeedback).not.toHaveBeenCalled();
+  });
+
+  it('관리자 화면에서는 유형과 쿼리를 포함한 현재 경로를 저장한다', async () => {
+    vi.mocked(createAdminFeedback).mockResolvedValue(undefined);
+    const view = render(
+      <MemoryRouter initialEntries={['/admin/news?tab=draft']}>
+        <FeedbackWidget variant="admin" />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(view.getByRole('button', { name: '피드백 보내기' }));
+    fireEvent.change(view.getByLabelText('피드백 유형'), { target: { value: 'BUG' } });
+    fireEvent.change(view.getByLabelText('피드백 내용'), {
+      target: { value: '저장 버튼이 동작하지 않아요.' },
+    });
+    fireEvent.submit(view.getByLabelText('피드백 내용').closest('form')!);
+
+    await view.findByRole('heading', { name: '의견을 보내주셔서 감사합니다' });
+    expect(createAdminFeedback).toHaveBeenCalledWith(
+      'BUG',
+      '저장 버튼이 동작하지 않아요.',
+      '/admin/news?tab=draft',
+    );
     expect(createFeedback).not.toHaveBeenCalled();
   });
 });

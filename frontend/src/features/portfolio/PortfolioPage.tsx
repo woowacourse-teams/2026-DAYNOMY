@@ -1,11 +1,16 @@
+import { ArrowDownIcon } from '@phosphor-icons/react/dist/csr/ArrowDown';
+import { ArrowUpIcon } from '@phosphor-icons/react/dist/csr/ArrowUp';
+import { ArrowsDownUpIcon } from '@phosphor-icons/react/dist/csr/ArrowsDownUp';
+import { PortfolioHoldingCategoryFilter } from './components/PortfolioHoldingCategoryFilter';
 import { tourCalculation } from './components/portfolioTourExample';
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { PortfolioTour } from './components/PortfolioTour';
 import { PortfolioNews } from './components/PortfolioNews';
 import { calculatePortfolio } from './api';
-import { portfolioErrorType, trackPortfolioEvent } from './analytics';
+import { portfolioErrorType, portfolioMarketScope, trackPortfolioEvent } from './analytics';
 import { PortfolioAnalysis } from './components/PortfolioAnalysis';
 import { PortfolioEditor } from './components/PortfolioEditor';
+import { PortfolioBulkEditor, type BulkEditorMode } from './components/PortfolioBulkEditor';
 import { usePortfolioHoldings } from './hooks/usePortfolioHoldings';
 import { usePortfolioPerformance } from './hooks/usePortfolioPerformance';
 import { toPortfolioAnalysisAssets } from './portfolioAnalysisAssets';
@@ -19,7 +24,10 @@ import type {
 import type { AssetCategory } from '../stocks/types';
 import './portfolio.css';
 import './portfolioLedger.css';
-import { PortfolioTransactionEditor } from './components/PortfolioTransactionEditor';
+import {
+  PortfolioTransactionEditor,
+  type PortfolioTransactionEditorHandle,
+} from './components/PortfolioTransactionEditor';
 import { PortfolioHistory } from './components/PortfolioHistory';
 import { PortfolioDialog } from './components/PortfolioDialog';
 import { PortfolioHoldingDetail } from './components/PortfolioHoldingDetail';
@@ -55,7 +63,9 @@ const EMPTY_PORTFOLIO_CALCULATION: PortfolioCalculation = {
   marketAllocations: [],
 };
 
-type PortfolioSort = 'DEFAULT' | 'EVALUATION' | 'PROFIT' | 'RETURN' | 'WEIGHT';
+type PortfolioSort =
+  'DEFAULT' | 'QUANTITY' | 'PURCHASE' | 'CLOSE' | 'EVALUATION' | 'PROFIT' | 'RETURN';
+type SortDirection = 'ascending' | 'descending';
 
 function formatWon(value: number | null) {
   if (value === null) return '—';
@@ -103,7 +113,11 @@ function getCategoryWeight(calculation: PortfolioCalculation, category: AssetCat
   return (evaluationAmount / calculation.totalEvaluationAmount) * 100;
 }
 
-function CompositionChart({ calculation }: { calculation: PortfolioCalculation }) {
+const CompositionChart = memo(function CompositionChart({
+  calculation,
+}: {
+  calculation: PortfolioCalculation;
+}) {
   const stockWeight = getCategoryWeight(calculation, 'STOCK');
   const etfWeight = getCategoryWeight(calculation, 'ETF');
 
@@ -175,7 +189,7 @@ function CompositionChart({ calculation }: { calculation: PortfolioCalculation }
       </div>
     </div>
   );
-}
+});
 
 type PortfolioAssetTrendChartProps = {
   points: PortfolioPerformancePoint[];
@@ -211,7 +225,7 @@ function formatTrendAxisDate(value: string, period: TrendPeriod) {
     : value.slice(5).replace('-', '.');
 }
 
-function PortfolioAssetTrendChart({
+const PortfolioAssetTrendChart = memo(function PortfolioAssetTrendChart({
   points,
   loading,
   error,
@@ -243,74 +257,123 @@ function PortfolioAssetTrendChart({
   }, [period]);
   const expanded = mode === 'expanded';
   const titleId = expanded ? 'expanded-asset-trend-title' : 'asset-trend-title';
+  const cutoffDate = getTrendPeriodStart(todayInSeoul(), period);
   const latestAvailablePoint = points.at(-1);
   const visiblePoints = useMemo(() => {
     if (!latestAvailablePoint) return [];
-    const cutoffDate = getTrendPeriodStart(todayInSeoul(), period);
     return fillTrendDates(points).filter((point) => point.baseDate >= cutoffDate);
-  }, [latestAvailablePoint, period, points]);
-  const cutoffDate = getTrendPeriodStart(todayInSeoul(), period);
-  const firstDate = visiblePoints.at(0)?.baseDate;
-  const lastDate = visiblePoints.at(-1)?.baseDate;
-  const dateSpan = firstDate && lastDate ? Date.parse(lastDate) - Date.parse(firstDate) : 0;
-  const dateX = (date: string) =>
-    padding.left +
-    (dateSpan && firstDate
-      ? ((Date.parse(date) - Date.parse(firstDate)) / dateSpan) *
-        (width - padding.left - padding.right)
-      : 0);
-  const pointValue = (point: PortfolioPerformancePoint) =>
-    metric === 'evaluation'
-      ? point.totalEvaluationAmount
-      : metric === 'profit'
-        ? point.totalProfitLoss
-        : point.totalReturnRate;
-  const baselineValue = (point: PortfolioPerformancePoint) =>
-    metric === 'evaluation' ? point.totalPurchaseAmount : 0;
-  const width = chartWidth;
-  const hasSinglePoint = visiblePoints.length === 1;
-  const height = expanded ? 300 : 190;
-  const padding = { top: 14, right: 12, bottom: 28, left: 58 };
-  const values = visiblePoints.flatMap((point) => [baselineValue(point), pointValue(point)]);
-  const rawMinimum = values.length ? Math.min(...values) : 0;
-  const rawMaximum = values.length ? Math.max(...values) : 0;
-  const amountPadding = Math.max(
-    (rawMaximum - rawMinimum) * 0.16,
-    Math.abs(rawMaximum) * 0.015,
-    metric === 'return' ? 0.1 : 1,
-  );
-  const minimum =
-    metric === 'evaluation' ? Math.max(0, rawMinimum - amountPadding) : rawMinimum - amountPadding;
-  const maximum = rawMaximum + amountPadding;
-  const range = maximum - minimum || 1;
-  const x = (index: number) => dateX(visiblePoints[index].baseDate);
-  const y = (value: number) =>
-    padding.top + ((maximum - value) / range) * (height - padding.top - padding.bottom);
-  const chartPoints = visiblePoints.map((point, index) => ({
-    x: x(index),
-    evaluationY: y(pointValue(point)),
-    purchaseY: y(baselineValue(point)),
-    difference: pointValue(point) - baselineValue(point),
-  }));
-  const purchaseLinePoints = chartPoints.map((point) => `${point.x},${point.purchaseY}`);
-  const segments = chartPoints.slice(1).flatMap((to, index) => {
-    const from = chartPoints[index];
-    if (from.difference * to.difference < 0) {
-      const ratio = from.difference / (from.difference - to.difference);
-      const crossingY = from.evaluationY + (to.evaluationY - from.evaluationY) * ratio;
-      const crossing = {
-        x: from.x + (to.x - from.x) * ratio,
-        evaluationY: crossingY,
-        purchaseY: crossingY,
-        difference: 0,
-      };
-      return [
-        { from, to: crossing, tone: trendTone(from.difference) },
-        { from: crossing, to, tone: trendTone(to.difference) },
-      ];
-    }
-    return [{ from, to, tone: trendTone(from.difference || to.difference) }];
-  });
+  }, [cutoffDate, latestAvailablePoint, points]);
+  const geometry = useMemo(() => {
+    const firstDate = visiblePoints.at(0)?.baseDate;
+    const lastDate = visiblePoints.at(-1)?.baseDate;
+    const dateSpan = firstDate && lastDate ? Date.parse(lastDate) - Date.parse(firstDate) : 0;
+    const dateX = (date: string) =>
+      padding.left +
+      (dateSpan && firstDate
+        ? ((Date.parse(date) - Date.parse(firstDate)) / dateSpan) *
+          (width - padding.left - padding.right)
+        : 0);
+    const pointValue = (point: PortfolioPerformancePoint) =>
+      metric === 'evaluation'
+        ? point.totalEvaluationAmount
+        : metric === 'profit'
+          ? point.totalProfitLoss
+          : point.totalReturnRate;
+    const baselineValue = (point: PortfolioPerformancePoint) =>
+      metric === 'evaluation' ? point.totalPurchaseAmount : 0;
+    const width = chartWidth;
+    const hasSinglePoint = visiblePoints.length === 1;
+    const height = expanded ? 300 : 190;
+    const padding = { top: 14, right: 12, bottom: 28, left: 58 };
+    const values = visiblePoints.flatMap((point) => [baselineValue(point), pointValue(point)]);
+    const rawMinimum = values.length ? Math.min(...values) : 0;
+    const rawMaximum = values.length ? Math.max(...values) : 0;
+    const amountPadding = Math.max(
+      (rawMaximum - rawMinimum) * 0.16,
+      Math.abs(rawMaximum) * 0.015,
+      metric === 'return' ? 0.1 : 1,
+    );
+    const minimum =
+      metric === 'evaluation'
+        ? Math.max(0, rawMinimum - amountPadding)
+        : rawMinimum - amountPadding;
+    const maximum = rawMaximum + amountPadding;
+    const range = maximum - minimum || 1;
+    const x = (index: number) => dateX(visiblePoints[index].baseDate);
+    const y = (value: number) =>
+      padding.top + ((maximum - value) / range) * (height - padding.top - padding.bottom);
+    const chartPoints = visiblePoints.map((point, index) => ({
+      x: x(index),
+      evaluationY: y(pointValue(point)),
+      purchaseY: y(baselineValue(point)),
+      difference: pointValue(point) - baselineValue(point),
+    }));
+    const purchaseLinePoints = chartPoints.map((point) => `${point.x},${point.purchaseY}`);
+    const segments = chartPoints.slice(1).flatMap((to, index) => {
+      const from = chartPoints[index];
+      if (from.difference * to.difference < 0) {
+        const ratio = from.difference / (from.difference - to.difference);
+        const crossingY = from.evaluationY + (to.evaluationY - from.evaluationY) * ratio;
+        const crossing = {
+          x: from.x + (to.x - from.x) * ratio,
+          evaluationY: crossingY,
+          purchaseY: crossingY,
+          difference: 0,
+        };
+        return [
+          { from, to: crossing, tone: trendTone(from.difference) },
+          { from: crossing, to, tone: trendTone(to.difference) },
+        ];
+      }
+      return [{ from, to, tone: trendTone(from.difference || to.difference) }];
+    });
+    const guideValues = Array.from(new Set([minimum, (minimum + maximum) / 2, maximum]));
+    const middlePoint = visiblePoints.at(Math.floor((visiblePoints.length - 1) / 2));
+    const dateLabels = Array.from(
+      new Set(
+        [visiblePoints.at(0), middlePoint, visiblePoints.at(-1)]
+          .filter((point): point is PortfolioPerformancePoint => Boolean(point))
+          .map((point) => point.baseDate),
+      ),
+    ).filter(
+      (date, index, labels) =>
+        index === 0 ||
+        index === labels.length - 1 ||
+        (dateX(date) - dateX(labels[0]) >= 56 && dateX(labels.at(-1)!) - dateX(date) >= 56),
+    );
+
+    return {
+      dateX,
+      pointValue,
+      baselineValue,
+      width,
+      height,
+      padding,
+      hasSinglePoint,
+      x,
+      y,
+      chartPoints,
+      purchaseLinePoints,
+      segments,
+      guideValues,
+      dateLabels,
+      visiblePoints,
+      metric,
+    };
+  }, [visiblePoints, chartWidth, expanded, metric]);
+  const {
+    dateX,
+    pointValue,
+    baselineValue,
+    width,
+    height,
+    padding,
+    hasSinglePoint,
+    x,
+    y,
+    chartPoints,
+    dateLabels,
+  } = geometry;
   const latest = visiblePoints.at(-1);
   const activeIndex =
     hoveredIndex === null
@@ -324,20 +387,6 @@ function PortfolioAssetTrendChart({
   const activeX = activePoint && activeIndex !== null ? x(activeIndex) : null;
   const detailDate = selectedDate ?? activePoint?.baseDate ?? latest?.baseDate;
   const detailPoint = visiblePoints.find((point) => point.baseDate === detailDate);
-  const guideValues = Array.from(new Set([minimum, (minimum + maximum) / 2, maximum]));
-  const middlePoint = visiblePoints.at(Math.floor((visiblePoints.length - 1) / 2));
-  const dateLabels = Array.from(
-    new Set(
-      [visiblePoints.at(0), middlePoint, visiblePoints.at(-1)]
-        .filter((point): point is PortfolioPerformancePoint => Boolean(point))
-        .map((point) => point.baseDate),
-    ),
-  ).filter(
-    (date, index, labels) =>
-      index === 0 ||
-      index === labels.length - 1 ||
-      (dateX(date) - dateX(labels[0]) >= 56 && dateX(labels.at(-1)!) - dateX(date) >= 56),
-  );
 
   function selectNearestPoint(clientX: number, chart: SVGSVGElement, clearSelection = false) {
     if (visiblePoints.length === 0) return;
@@ -359,6 +408,83 @@ function PortfolioAssetTrendChart({
     setSelectedDate(null);
     setHoveredIndex(Math.max(0, Math.min(visiblePoints.length - 1, currentIndex + direction)));
   }
+
+  const plot = useMemo(() => {
+    const {
+      guideValues,
+      y,
+      padding,
+      width,
+      segments,
+      chartPoints,
+      visiblePoints,
+      hasSinglePoint,
+      purchaseLinePoints,
+      metric,
+    } = geometry;
+    return (
+      <>
+        {guideValues.map((value) => (
+          <g key={value} className="portfolio-return-guide">
+            <line x1={padding.left} y1={y(value)} x2={width - padding.right} y2={y(value)} />
+            <text x={padding.left - 7} y={y(value) + 4} textAnchor="end">
+              {amountsHidden
+                ? '—'
+                : metric === 'return'
+                  ? formatPercent(value)
+                  : formatCompactWon(value)}
+            </text>
+          </g>
+        ))}
+        {visiblePoints.length >= 1 ? (
+          <>
+            {segments.map(({ from, to, tone }, index) => (
+              <g key={index}>
+                {tone !== 'neutral' ? (
+                  <polygon
+                    className={`portfolio-return-area is-${tone}`}
+                    points={`${from.x},${from.evaluationY} ${to.x},${to.evaluationY} ${to.x},${to.purchaseY} ${from.x},${from.purchaseY}`}
+                    fill={`var(--portfolio-trend-${tone})`}
+                    fillOpacity="0.1"
+                  />
+                ) : null}
+                <polyline
+                  className={`portfolio-return-line evaluation is-${tone}`}
+                  points={`${from.x},${from.evaluationY} ${to.x},${to.evaluationY}`}
+                  style={{ stroke: `var(--portfolio-trend-${tone})` }}
+                />
+              </g>
+            ))}
+            {visiblePoints.length > 1 &&
+              visiblePoints.length <= 62 &&
+              chartPoints.map((point, index) => (
+                <circle
+                  key={visiblePoints[index].baseDate}
+                  className="portfolio-return-daily-point"
+                  cx={point.x}
+                  cy={point.evaluationY}
+                  r="2.5"
+                  fill={`var(--portfolio-trend-${trendTone(point.difference)})`}
+                />
+              ))}
+            {hasSinglePoint ? (
+              <polyline
+                className="portfolio-return-line evaluation"
+                points={`${chartPoints[0].x},${chartPoints[0].evaluationY}`}
+                style={{
+                  stroke: `var(--portfolio-trend-${trendTone(chartPoints[0].difference)})`,
+                }}
+              />
+            ) : null}
+            <polyline
+              className="portfolio-return-line principal"
+              points={purchaseLinePoints.join(' ')}
+            />
+          </>
+        ) : null}
+      </>
+    );
+  }, [geometry, amountsHidden]);
 
   const singlePointClass = visiblePoints.length === 1 ? ' has-single-point' : '';
 
@@ -528,87 +654,25 @@ function PortfolioAssetTrendChart({
                 onPointerMove={(event) => selectNearestPoint(event.clientX, event.currentTarget)}
                 onPointerLeave={() => setHoveredIndex(null)}
               >
-                {guideValues.map((value) => (
-                  <g key={value} className="portfolio-return-guide">
-                    <line
-                      x1={padding.left}
-                      y1={y(value)}
-                      x2={width - padding.right}
-                      y2={y(value)}
+                {plot}
+                {hasSinglePoint && !activePoint ? (
+                  <g className="portfolio-return-single-point">
+                    <circle
+                      className="portfolio-return-point principal"
+                      cx={x(0)}
+                      cy={y(baselineValue(visiblePoints[0]))}
+                      r="3.5"
                     />
-                    <text x={padding.left - 7} y={y(value) + 4} textAnchor="end">
-                      {amountsHidden
-                        ? '—'
-                        : metric === 'return'
-                          ? formatPercent(value)
-                          : formatCompactWon(value)}
-                    </text>
+                    <circle
+                      className="portfolio-return-point evaluation"
+                      style={{
+                        fill: `var(--portfolio-trend-${trendTone(chartPoints[0].difference)})`,
+                      }}
+                      cx={x(0)}
+                      cy={y(pointValue(visiblePoints[0]))}
+                      r="4.5"
+                    />
                   </g>
-                ))}
-                {visiblePoints.length >= 1 ? (
-                  <>
-                    {segments.map(({ from, to, tone }, index) => (
-                      <g key={index}>
-                        {tone !== 'neutral' ? (
-                          <polygon
-                            className={`portfolio-return-area is-${tone}`}
-                            points={`${from.x},${from.evaluationY} ${to.x},${to.evaluationY} ${to.x},${to.purchaseY} ${from.x},${from.purchaseY}`}
-                            fill={`var(--portfolio-trend-${tone})`}
-                            fillOpacity="0.1"
-                          />
-                        ) : null}
-                        <polyline
-                          className={`portfolio-return-line evaluation is-${tone}`}
-                          points={`${from.x},${from.evaluationY} ${to.x},${to.evaluationY}`}
-                          style={{ stroke: `var(--portfolio-trend-${tone})` }}
-                        />
-                      </g>
-                    ))}
-                    {visiblePoints.length > 1 &&
-                      visiblePoints.length <= 62 &&
-                      chartPoints.map((point, index) => (
-                        <circle
-                          key={visiblePoints[index].baseDate}
-                          className="portfolio-return-daily-point"
-                          cx={point.x}
-                          cy={point.evaluationY}
-                          r="2.5"
-                          fill={`var(--portfolio-trend-${trendTone(point.difference)})`}
-                        />
-                      ))}
-                    {hasSinglePoint ? (
-                      <polyline
-                        className="portfolio-return-line evaluation"
-                        points={`${chartPoints[0].x},${chartPoints[0].evaluationY}`}
-                        style={{
-                          stroke: `var(--portfolio-trend-${trendTone(chartPoints[0].difference)})`,
-                        }}
-                      />
-                    ) : null}
-                    <polyline
-                      className="portfolio-return-line principal"
-                      points={purchaseLinePoints.join(' ')}
-                    />
-                    {hasSinglePoint && !activePoint ? (
-                      <g className="portfolio-return-single-point">
-                        <circle
-                          className="portfolio-return-point principal"
-                          cx={x(0)}
-                          cy={y(baselineValue(visiblePoints[0]))}
-                          r="3.5"
-                        />
-                        <circle
-                          className="portfolio-return-point evaluation"
-                          style={{
-                            fill: `var(--portfolio-trend-${trendTone(chartPoints[0].difference)})`,
-                          }}
-                          cx={x(0)}
-                          cy={y(pointValue(visiblePoints[0]))}
-                          r="4.5"
-                        />
-                      </g>
-                    ) : null}
-                  </>
                 ) : null}
                 {activePoint && activeX !== null ? (
                   <g className="portfolio-return-active-point">
@@ -771,7 +835,7 @@ function PortfolioAssetTrendChart({
       ) : null}
     </section>
   );
-}
+});
 
 type PortfolioTrendDialogProps = Omit<PortfolioAssetTrendChartProps, 'mode' | 'onExpand'> & {
   onClose: () => void;
@@ -822,12 +886,15 @@ function compareHoldings(
   first: PortfolioHoldingResult,
   second: PortfolioHoldingResult,
   sort: PortfolioSort,
+  direction: SortDirection,
 ) {
   const sortValue: Record<Exclude<PortfolioSort, 'DEFAULT'>, keyof PortfolioHoldingResult> = {
+    QUANTITY: 'quantity',
+    PURCHASE: 'averagePurchasePrice',
+    CLOSE: 'closePrice',
     EVALUATION: 'evaluationAmount',
     PROFIT: 'profitLoss',
     RETURN: 'returnRate',
-    WEIGHT: 'weight',
   };
   if (sort === 'DEFAULT') return 0;
   const key = sortValue[sort];
@@ -835,7 +902,7 @@ function compareHoldings(
   const secondValue = second[key] as number | null;
   if (firstValue === null) return secondValue === null ? 0 : 1;
   if (secondValue === null) return -1;
-  return secondValue - firstValue;
+  return direction === 'descending' ? secondValue - firstValue : firstValue - secondValue;
 }
 
 type PortfolioPageProps = {
@@ -860,6 +927,9 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
     error: holdingsError,
     retry: retryHoldings,
     saveHolding,
+    saveHoldings,
+    addHoldings,
+    createTransactions,
     removeHolding,
     totalRealizedProfitLoss,
     revision,
@@ -872,6 +942,22 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
   const [error, setError] = useState('');
   const [retryCount, setRetryCount] = useState(0);
   const [editor, setEditor] = useState<{ holding: PortfolioHoldingInput } | null>(null);
+  const [bulkMode, setBulkMode] = useState<BulkEditorMode | null>(null);
+  const [addMenuOpen, setAddMenuOpen] = useState(false);
+  const addMenuRef = useRef<HTMLDivElement>(null);
+  const addButtonRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!addMenuOpen) return;
+    const close = (event: PointerEvent) => {
+      if (
+        !addMenuRef.current?.contains(event.target as Node) &&
+        !addButtonRef.current?.contains(event.target as Node)
+      )
+        setAddMenuOpen(false);
+    };
+    document.addEventListener('pointerdown', close);
+    return () => document.removeEventListener('pointerdown', close);
+  }, [addMenuOpen]);
   const [tourStep, setTourStep] = useState<number | null>(null);
   const touring = tourStep !== null;
   const [activeTab, setActiveTab] = useState<'holdings' | 'history'>('holdings');
@@ -887,6 +973,7 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
   const [notice, setNotice] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<'ALL' | AssetCategory>('ALL');
   const [sort, setSort] = useState<PortfolioSort>('DEFAULT');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('descending');
   const [amountsHidden, setAmountsHidden] = useState(false);
   const [analysisExpanded, setAnalysisExpanded] = useState(true);
   const [trendPeriod, setTrendPeriod] = useState<TrendPeriod>('YTD');
@@ -895,10 +982,13 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
   const [mobileNewsAction, setMobileNewsAction] = useState(
     () => window.matchMedia?.('(max-width: 620px)').matches ?? false,
   );
+  const { retry: retryPerformance } = performance;
   const newsButtonRef = useRef<HTMLButtonElement>(null);
   const [trendDialogOpen, setTrendDialogOpen] = useState(false);
   const trendDialogTriggerRef = useRef<HTMLButtonElement | null>(null);
   const [selectedStock, setSelectedStock] = useState<StockSearchItem | null>(null);
+  const transactionEditorRef = useRef<PortfolioTransactionEditorHandle>(null);
+  const dashboardStartedAt = useRef(window.performance.now());
   const viewedRef = useRef(false);
   const loadedRef = useRef(false);
 
@@ -991,8 +1081,39 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
       dashboardCalculation?.holdings.filter(
         (holding) => touring || categoryFilter === 'ALL' || holding.category === categoryFilter,
       ) ?? [];
-    return [...filtered].sort((first, second) => compareHoldings(first, second, sort));
-  }, [dashboardCalculation, categoryFilter, sort, touring]);
+    return [...filtered].sort((first, second) =>
+      compareHoldings(first, second, sort, sortDirection),
+    );
+  }, [dashboardCalculation, categoryFilter, sort, sortDirection, touring]);
+  function sortButton(key: Exclude<PortfolioSort, 'DEFAULT'>, label: string) {
+    const active = sort === key;
+    const nextDirection = active && sortDirection === 'descending' ? 'ascending' : 'descending';
+    return (
+      <button
+        type="button"
+        className={`portfolio-column-sort${active ? ' is-active' : ''}`}
+        aria-label={`${label} 정렬`}
+        title={`${active ? `현재 ${sortDirection === 'ascending' ? '오름차순' : '내림차순'} · ` : ''}${label} ${nextDirection === 'ascending' ? '오름차순' : '내림차순'} 정렬`}
+        onClick={() => {
+          trackPortfolioEvent('portfolio_sort_changed', {
+            sort: key,
+            sort_direction: nextDirection,
+          });
+          setSort(key);
+          setSortDirection(nextDirection);
+        }}
+      >
+        {label}
+        {!active ? (
+          <ArrowsDownUpIcon size={14} aria-hidden="true" />
+        ) : sortDirection === 'descending' ? (
+          <ArrowDownIcon size={14} aria-hidden="true" />
+        ) : (
+          <ArrowUpIcon size={14} aria-hidden="true" />
+        )}
+      </button>
+    );
+  }
   const analysisAssets = useMemo(
     () => toPortfolioAnalysisAssets((touring ? dashboardCalculation : calculation)?.holdings ?? []),
     [calculation, dashboardCalculation, touring],
@@ -1034,13 +1155,25 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
     trackPortfolioEvent('portfolio_dashboard_loaded', {
       is_logged_in: isLoggedIn,
       has_holdings: holdings.length > 0,
+      market_scope: portfolioMarketScope(holdings),
       pricing_status: dashboardCalculation.pricingStatus,
+      duration_ms: Math.max(0, Math.round(window.performance.now() - dashboardStartedAt.current)),
+      holding_count_bucket:
+        holdings.length === 0
+          ? '0'
+          : holdings.length === 1
+            ? '1'
+            : holdings.length <= 5
+              ? '2_5'
+              : holdings.length <= 20
+                ? '6_20'
+                : '21_plus',
     });
   }, [
     calculation,
     dashboardCalculation,
     error,
-    holdings.length,
+    holdings,
     holdingsError,
     holdingsLoading,
     isLoggedIn,
@@ -1059,21 +1192,28 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
     setEditor({ holding });
   }
 
-  function openTransactionEditor(
-    next: NonNullable<typeof transactionEditor>,
-    entryPoint: 'header' | 'empty_state' | 'history' | 'holding_detail' | 'editor_switch',
-  ) {
-    trackPortfolioEvent('portfolio_editor_opened', {
-      mode: next.transaction ? 'transaction_update' : 'transaction_create',
-      entry_point: entryPoint,
-      is_logged_in: isLoggedIn,
-    });
-    setTransactionEditor(next);
-  }
+  const openTransactionEditor = useCallback(
+    (
+      next: NonNullable<typeof transactionEditor>,
+      entryPoint:
+        'header' | 'empty_state' | 'ledger' | 'history' | 'holding_detail' | 'editor_switch',
+    ) => {
+      trackPortfolioEvent('portfolio_editor_opened', {
+        mode: next.transaction ? 'transaction_update' : 'transaction_create',
+        entry_point: entryPoint,
+        is_logged_in: isLoggedIn,
+      });
+      setTransactionEditor(next);
+    },
+    [isLoggedIn],
+  );
 
-  function openAdd(entryPoint: 'header' | 'empty_state') {
-    openTransactionEditor({}, entryPoint);
-  }
+  const openAdd = useCallback(
+    (entryPoint: 'header' | 'empty_state' | 'ledger') => {
+      openTransactionEditor({}, entryPoint);
+    },
+    [openTransactionEditor],
+  );
 
   function openHoldingDetail(holding: PortfolioHoldingResult) {
     trackPortfolioEvent('portfolio_holding_detail_opened', {
@@ -1089,20 +1229,47 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
     setActiveTab(tab);
   }
 
-  function changePeriod(period: TrendPeriod, view: 'inline' | 'dialog') {
-    if (period === trendPeriod) return;
-    trackPortfolioEvent('portfolio_period_changed', { period, view });
-    setTrendPeriod(period);
-  }
+  const changePeriod = useCallback(
+    (period: TrendPeriod, view: 'inline' | 'dialog') => {
+      if (period === trendPeriod) return;
+      trackPortfolioEvent('portfolio_period_changed', { period, view });
+      setTrendPeriod(period);
+    },
+    [trendPeriod],
+  );
 
-  function retryChart() {
+  const retryChart = useCallback(() => {
     trackPortfolioEvent('portfolio_retry_clicked', { target: 'chart' });
-    performance.retry();
-  }
+    retryPerformance();
+  }, [retryPerformance]);
+
+  const changeInlinePeriod = useCallback(
+    (period: TrendPeriod) => changePeriod(period, 'inline'),
+    [changePeriod],
+  );
+  const changeDialogPeriod = useCallback(
+    (period: TrendPeriod) => changePeriod(period, 'dialog'),
+    [changePeriod],
+  );
+  const expandChart = useCallback((trigger: HTMLButtonElement) => {
+    trackPortfolioEvent('portfolio_chart_expanded');
+    trendDialogTriggerRef.current = trigger;
+    setTrendDialogOpen(true);
+  }, []);
+  const closeNews = useCallback(() => {
+    setNewsOpen(false);
+    newsButtonRef.current?.focus();
+  }, []);
+  const addAnalysisAsset = useCallback(() => openAdd('empty_state'), [openAdd]);
 
   async function save(nextHolding: PortfolioHoldingInput) {
     const operation = 'holding_update';
-    const properties = { operation, storage: isLoggedIn ? 'server' : 'temporary' } as const;
+    const properties = {
+      operation,
+      storage: isLoggedIn ? 'server' : 'temporary',
+      has_holdings: holdings.length > 0,
+      market_scope: portfolioMarketScope(holdings),
+    } as const;
     trackPortfolioEvent('portfolio_save_submitted', properties);
     try {
       await saveHolding(nextHolding);
@@ -1126,6 +1293,12 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
 
   return (
     <main
+      onPointerDownCapture={(event) => {
+        event.currentTarget.dataset.inputModality = 'pointer';
+      }}
+      onKeyDownCapture={(event) => {
+        event.currentTarget.dataset.inputModality = 'keyboard';
+      }}
       onClickCapture={(event) => {
         if (
           touring &&
@@ -1202,17 +1375,73 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
             </svg>
           </button>
           <button
+            ref={addButtonRef}
             type="button"
             className="portfolio-primary-button"
-            disabled={holdingsLoading || !!holdingsError}
+            disabled={holdingsLoading || !!holdingsError || holdingsSaving}
             data-portfolio-tour="trade"
-            onClick={() => openAdd('header')}
+            aria-expanded={addMenuOpen}
+            aria-controls="portfolio-add-options"
+            onClick={() => setAddMenuOpen(!addMenuOpen)}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') setAddMenuOpen(false);
+            }}
           >
             <svg aria-hidden="true" viewBox="0 0 24 24">
               <path d="M12 5v14M5 12h14" />
             </svg>
-            거래 기록
+            종목 추가
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <path d="m7 10 5 5 5-5" />
+            </svg>
           </button>
+          {addMenuOpen && (
+            <div
+              id="portfolio-add-options"
+              className="portfolio-add-menu"
+              ref={addMenuRef}
+              onKeyDown={(event) => {
+                if (event.key === 'Escape') {
+                  setAddMenuOpen(false);
+                  addButtonRef.current?.focus();
+                }
+              }}
+            >
+              <button
+                aria-label="한 종목 추가"
+                type="button"
+                onClick={() => {
+                  addButtonRef.current?.focus();
+                  setAddMenuOpen(false);
+                  openAdd('header');
+                }}
+              >
+                한 종목 추가
+              </button>
+              <button
+                aria-label="여러 종목 일괄 추가"
+                type="button"
+                onClick={() => {
+                  addButtonRef.current?.focus();
+                  setAddMenuOpen(false);
+                  setBulkMode('add');
+                }}
+              >
+                일괄 추가
+              </button>
+              <button
+                aria-label="CSV 파일 업로드"
+                type="button"
+                onClick={() => {
+                  addButtonRef.current?.focus();
+                  setAddMenuOpen(false);
+                  setBulkMode('csv');
+                }}
+              >
+                CSV 업로드
+              </button>
+            </div>
+          )}
         </div>
       </header>
       <div className={`portfolio-dashboard-layout${displayedNewsOpen ? ' has-news' : ''}`}>
@@ -1328,13 +1557,8 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                     <p className="portfolio-field-note" role="status">
                       현재 보유 자산의 비중을 확인하고 있어요.
                     </p>
-                  ) : dashboardCalculation.pricingStatus === 'PARTIAL' ? (
-                    <p>
-                      <span className="portfolio-status-dot is-pending" />
-                      {dashboardCalculation.unpricedHoldingCount}개 종목의 시세를 확인하지 못했어요.
-                      평가금액과 비중은 시세가 있는 자산만 반영하며, 전체 손익은 표시하지 않아요.
-                    </p>
-                  ) : dashboardCalculation.pricingStatus === 'MIXED_DATES' ? (
+                  ) : dashboardCalculation.pricingStatus ===
+                    'PARTIAL' ? null : dashboardCalculation.pricingStatus === 'MIXED_DATES' ? (
                     <p>
                       <span className="portfolio-status-dot is-pending" />
                       종목별 가격 기준일이 달라요. 최근 거래일 손익은 표시하지 않아요.
@@ -1363,7 +1587,8 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                   <PortfolioAnalysis
                     demoStep={tourStep ?? undefined}
                     assets={analysisAssets}
-                    onAddAsset={() => openAdd('empty_state')}
+                    pricingStatus={dashboardCalculation.pricingStatus}
+                    onAddAsset={addAnalysisAsset}
                     isLoggedIn={isLoggedIn}
                     holdingsKey={JSON.stringify(
                       holdings
@@ -1412,12 +1637,8 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                           onRetry={retryChart}
                           amountsHidden={!touring && amountsHidden}
                           period={trendPeriod}
-                          onPeriodChange={(period) => changePeriod(period, 'inline')}
-                          onExpand={(trigger) => {
-                            trackPortfolioEvent('portfolio_chart_expanded');
-                            trendDialogTriggerRef.current = trigger;
-                            setTrendDialogOpen(true);
-                          }}
+                          onPeriodChange={changeInlinePeriod}
+                          onExpand={expandChart}
                         />
                       ) : (
                         <section
@@ -1452,7 +1673,11 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                         </div>
                         {dashboardCalculation.holdings.length === 0 ||
                         dashboardCalculation.pricedHoldingCount === 0 ? (
-                          <p className="portfolio-module-empty">표시할 자산이 없습니다</p>
+                          <p className="portfolio-module-empty">
+                            {dashboardCalculation.holdings.length === 0
+                              ? '보유 중인 자산이 없어요'
+                              : '표시할 자산이 없습니다'}
+                          </p>
                         ) : (
                           <>
                             <CompositionChart calculation={dashboardCalculation} />
@@ -1467,28 +1692,56 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                 </section>
 
                 <div data-portfolio-tour="holdings-overview">
-                  <div
-                    data-portfolio-tour="ledger"
-                    className="portfolio-ledger-tabs"
-                    role="group"
-                    aria-label="포트폴리오 내역 보기"
-                  >
-                    <button
-                      type="button"
-                      data-portfolio-tour="holdings"
-                      aria-pressed={displayedTab === 'holdings'}
-                      onClick={() => changeTab('holdings')}
+                  <div className="portfolio-ledger-toolbar">
+                    <div
+                      data-portfolio-tour="ledger"
+                      className="portfolio-ledger-tabs"
+                      role="group"
+                      aria-label="포트폴리오 내역 보기"
                     >
-                      보유 자산 <span>{displayedHoldings.length}</span>
-                    </button>
-                    <button
-                      type="button"
-                      data-portfolio-tour="history"
-                      aria-pressed={displayedTab === 'history'}
-                      onClick={() => changeTab('history')}
-                    >
-                      거래 내역
-                    </button>
+                      <button
+                        type="button"
+                        data-portfolio-tour="holdings"
+                        aria-pressed={displayedTab === 'holdings'}
+                        onClick={() => changeTab('holdings')}
+                      >
+                        보유 자산 <span>{displayedHoldings.length}</span>
+                      </button>
+                      <button
+                        type="button"
+                        data-portfolio-tour="history"
+                        aria-pressed={displayedTab === 'history'}
+                        onClick={() => changeTab('history')}
+                      >
+                        거래 내역
+                      </button>
+                    </div>
+                    <div className="portfolio-ledger-actions">
+                      {displayedTab === 'holdings' && (
+                        <button
+                          type="button"
+                          className="portfolio-secondary-button"
+                          disabled={
+                            holdingsSaving || holdingsLoading || loading || !holdings.length
+                          }
+                          onClick={() => setBulkMode('holdings')}
+                        >
+                          일괄 편집
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        className="portfolio-secondary-button portfolio-ledger-add"
+                        aria-label="목록에서 종목 추가"
+                        disabled={holdingsLoading || !!holdingsError}
+                        onClick={() => openAdd('ledger')}
+                      >
+                        <svg aria-hidden="true" viewBox="0 0 24 24">
+                          <path d="M12 5v14M5 12h14" />
+                        </svg>
+                        종목 추가
+                      </button>
+                    </div>
                   </div>
                   {displayedTab === 'history' ? (
                     <PortfolioHistory
@@ -1503,65 +1756,10 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                       {displayedHoldings.length === 0 ? (
                         <div className="portfolio-ledger-empty">
                           <h3>보유 중인 자산이 없어요</h3>
-                          <p>
-                            {isLoggedIn
-                              ? '매수·매도를 기록해 보세요. 전량 매도한 종목의 거래 내역과 실현손익도 유지돼요.'
-                              : '매수·매도를 기록하고 보유 자산의 평가금액을 확인해 보세요.'}
-                          </p>
-                          <button
-                            type="button"
-                            className="portfolio-secondary-button is-primary"
-                            onClick={() => openAdd('empty_state')}
-                          >
-                            거래 기록하기
-                          </button>
                         </div>
                       ) : (
                         <div className="portfolio-holdings-layout">
                           <div className="portfolio-holdings-table-column">
-                            <div className="portfolio-holdings-toolbar">
-                              <div
-                                className="portfolio-filters"
-                                role="group"
-                                aria-label="자산 유형"
-                              >
-                                {(['ALL', 'STOCK', 'ETF'] as const).map((category) => (
-                                  <button
-                                    key={category}
-                                    type="button"
-                                    aria-pressed={categoryFilter === category}
-                                    onClick={() => {
-                                      if (category === categoryFilter) return;
-                                      trackPortfolioEvent('portfolio_filter_changed', { category });
-                                      setCategoryFilter(category);
-                                    }}
-                                  >
-                                    {category === 'ALL' ? '전체' : getCategoryLabel(category)}
-                                  </button>
-                                ))}
-                              </div>
-                              <div className="portfolio-holdings-actions">
-                                <label className="portfolio-sort-control">
-                                  <span className="sr-only">정렬 기준</span>
-                                  <select
-                                    aria-label="보유 자산 정렬"
-                                    value={sort}
-                                    onChange={(event) => {
-                                      const next = event.target.value as PortfolioSort;
-                                      if (next === sort) return;
-                                      trackPortfolioEvent('portfolio_sort_changed', { sort: next });
-                                      setSort(next);
-                                    }}
-                                  >
-                                    <option value="DEFAULT">기본 순서</option>
-                                    <option value="EVALUATION">평가금액 높은 순</option>
-                                    <option value="PROFIT">손익 높은 순</option>
-                                    <option value="RETURN">수익률 높은 순</option>
-                                    <option value="WEIGHT">비중 높은 순</option>
-                                  </select>
-                                </label>
-                              </div>
-                            </div>
                             <div
                               className="portfolio-table-wrap"
                               tabIndex={0}
@@ -1571,12 +1769,48 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                               <table>
                                 <thead>
                                   <tr>
-                                    <th scope="col">종목</th>
-                                    <th scope="col">보유수량</th>
-                                    <th scope="col">평균 매수가</th>
-                                    <th scope="col">최근 종가</th>
-                                    <th scope="col">평가금액</th>
-                                    <th scope="col">손익 · 수익률</th>
+                                    <th scope="col">
+                                      <PortfolioHoldingCategoryFilter
+                                        value={categoryFilter}
+                                        onChange={(category) => {
+                                          if (category === categoryFilter) return;
+                                          trackPortfolioEvent('portfolio_filter_changed', {
+                                            category,
+                                          });
+                                          setCategoryFilter(category);
+                                        }}
+                                      />
+                                    </th>
+                                    {(
+                                      [
+                                        ['QUANTITY', '보유수량'],
+                                        ['PURCHASE', '평균 매수가'],
+                                        ['CLOSE', '최근 종가'],
+                                        ['EVALUATION', '평가금액'],
+                                      ] as const
+                                    ).map(([key, label]) => (
+                                      <th
+                                        key={key}
+                                        scope="col"
+                                        aria-sort={sort === key ? sortDirection : undefined}
+                                      >
+                                        {sortButton(key, label)}
+                                      </th>
+                                    ))}
+                                    <th
+                                      scope="col"
+                                      aria-sort={
+                                        sort === 'PROFIT' || sort === 'RETURN'
+                                          ? sortDirection
+                                          : undefined
+                                      }
+                                    >
+                                      <span className="portfolio-profit-sort">
+                                        {sortButton('PROFIT', '손익')}
+                                        <span aria-hidden="true">·</span>
+                                        {sortButton('RETURN', '수익률')}
+                                      </span>
+                                    </th>
                                   </tr>
                                 </thead>
                                 <tbody>
@@ -1697,10 +1931,7 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
             demo={tourStep !== null && tourStep >= 8}
             holdings={holdings}
             hidden={!displayedNewsOpen}
-            onClose={() => {
-              setNewsOpen(false);
-              newsButtonRef.current?.focus();
-            }}
+            onClose={closeNews}
           />
         ) : null}
       </div>
@@ -1713,7 +1944,7 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
           onRetry={retryChart}
           amountsHidden={amountsHidden}
           period={trendPeriod}
-          onPeriodChange={(period) => changePeriod(period, 'dialog')}
+          onPeriodChange={changeDialogPeriod}
           onClose={() => {
             setTrendDialogOpen(false);
             trendDialogTriggerRef.current?.focus();
@@ -1735,6 +1966,39 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
           />
         </PortfolioDialog>
       )}
+      {bulkMode && (
+        <PortfolioBulkEditor
+          mode={bulkMode}
+          holdings={holdings}
+          prices={calculation?.holdings ?? []}
+          isLoggedIn={isLoggedIn}
+          amountsHidden={amountsHidden}
+          onClose={() => setBulkMode(null)}
+          onSaveHoldings={async (changes) => {
+            await saveHoldings(changes);
+            setNotice(
+              isLoggedIn
+                ? '보유정보를 한 번에 저장했어요.'
+                : '보유정보를 현재 탭에 임시 보관했어요.',
+            );
+          }}
+          onAddHoldings={async (items) => {
+            await addHoldings(items);
+            setNotice(
+              `${items.length}개 종목의 보유잔고를 ${isLoggedIn ? '저장했어요.' : '현재 탭에 임시 보관했어요.'}`,
+            );
+          }}
+          onSaveTransactions={async (items, csv) => {
+            const duplicate = await createTransactions(items, csv);
+            setNotice(
+              duplicate
+                ? '이미 가져온 CSV 거래예요. 중복 등록하지 않았어요.'
+                : `${items.length}건의 거래를 ${isLoggedIn ? '저장했어요.' : '현재 탭에 임시 보관했어요.'}`,
+            );
+            return duplicate;
+          }}
+        />
+      )}
       {(selectedStock || transactionEditor || editor || removing) && (
         <PortfolioDialog
           titleId={
@@ -1750,7 +2014,7 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
           onClose={() => {
             if (removing) setRemoving(null);
             else if (editor) setEditor(null);
-            else if (transactionEditor) setTransactionEditor(null);
+            else if (transactionEditor) transactionEditorRef.current?.close();
             else setSelectedStock(null);
           }}
           className={
@@ -1797,6 +2061,7 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
             <div hidden={!!removing}>
               <PortfolioTransactionEditor
                 {...transactionEditor}
+                ref={transactionEditorRef}
                 onClose={() => setTransactionEditor(null)}
                 onDelete={
                   transactionEditor.transaction
@@ -1805,10 +2070,14 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                 }
                 onSave={async (request, stock) => {
                   const transaction = transactionEditor.transaction;
+                  const targetStock =
+                    stock ?? holdings.find((holding) => holding.assetId === request.assetId);
                   const properties = {
                     operation: transaction ? 'transaction_update' : 'transaction_create',
                     storage: isLoggedIn ? 'server' : 'temporary',
                     transaction_type: request.type,
+                    has_holdings: holdings.length > 0,
+                    market_scope: targetStock ? portfolioMarketScope([targetStock]) : undefined,
                   } as const;
                   trackPortfolioEvent('portfolio_save_submitted', properties);
                   try {

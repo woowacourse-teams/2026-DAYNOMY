@@ -7,6 +7,7 @@ import io.restassured.specification.RequestSpecification;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -36,6 +37,7 @@ import org.grit.daynomy.portfolio.service.PortfolioSnapshotTransactionService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
@@ -131,6 +133,50 @@ class PortfolioTransactionV2AcceptanceTest {
         .post(V2)
         .then()
         .statusCode(403);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {V1, V2})
+  void recordsTradeTimeAndPreservesItWhenEditingWithTheExistingForm(String endpoint) {
+    Member member = member();
+    Asset asset = asset();
+    priceRange(asset);
+    var body = new HashMap<>(transaction(asset, PortfolioTransactionType.BUY, FIRST, 1));
+    body.put("tradeTime", "09:35");
+    long id =
+        client(member)
+            .body(body)
+            .post(endpoint)
+            .then()
+            .statusCode(201)
+            .extract()
+            .jsonPath()
+            .getLong("transactionId");
+    String historyUrl = "/api/users/me/portfolio/histories?from=" + FIRST + "&to=" + LAST;
+    assertThat(
+            client(member)
+                .get(historyUrl)
+                .then()
+                .statusCode(200)
+                .extract()
+                .jsonPath()
+                .getString("[0].tradeTime"))
+        .isEqualTo("09:35");
+    var update = new HashMap<>(body);
+    update.remove("tradeTime");
+    update.put("quantity", 2);
+    client(member).body(update).patch(V1 + "/" + id).then().statusCode(200);
+    assertThat(
+            client(member)
+                .get(historyUrl)
+                .then()
+                .statusCode(200)
+                .extract()
+                .jsonPath()
+                .getString("[0].tradeTime"))
+        .isEqualTo("09:35");
+    body.put("tradeTime", "25:70");
+    client(member).body(body).post(endpoint).then().statusCode(400);
   }
 
   @Test

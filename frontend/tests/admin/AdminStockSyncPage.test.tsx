@@ -314,9 +314,19 @@ it('미국 종목 적재와 최신·지정일 종가 수집을 국내 요청과 
       createdCount: 11500,
       updatedCount: 59,
       delistedCount: 0,
+      koreanNames: {
+        downloadedCount: 100,
+        matchedCount: 80,
+        updatedCount: 60,
+        unmatchedCount: 10,
+        skippedCount: 10,
+      },
+      koreanNameErrorCode: null,
     }),
   );
   expect(await view.findByText('11,559개')).toBeTruthy();
+  expect(view.getByText(/한글명 보충 완료/)).toBeTruthy();
+  expect(view.getByText('한글명 변경')).toBeTruthy();
   fireEvent.click(view.getByRole('button', { name: '미국 종가 가져오기' }));
   expect(await view.findByText('2020.10.16 기준 미국 종가 수집 완료 · USD')).toBeTruthy();
   expect(view.getByText('11,439건')).toBeTruthy();
@@ -335,6 +345,63 @@ it('미국 종목 적재와 최신·지정일 종가 수집을 국내 요청과 
     '/api/admin/stocks/us/sync',
     '/api/admin/stocks/us/prices/sync',
     '/api/admin/stocks/us/prices/sync?date=2020-10-16',
+  ]);
+});
+
+it('한글명 실패를 구분하고 종목을 재적재하지 않고 한글명만 다시 시도한다', async () => {
+  const writes: string[] = [];
+  let retries = 0;
+  let finish!: (response: Response) => void;
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith('/csrf'))
+        return jsonResponse({ token: 'token', headerName: 'X-CSRF-TOKEN' });
+      writes.push(url);
+      if (url.endsWith('/us/sync'))
+        return jsonResponse({
+          baseDate: '2026-10-27',
+          syncedCount: 123,
+          createdCount: 2,
+          updatedCount: 1,
+          delistedCount: 0,
+          koreanNames: null,
+          koreanNameErrorCode: 'KIS_STOCK_MASTER_REQUEST_FAILED',
+        });
+      if (++retries === 1)
+        return jsonResponse({ message: '한글명 제공처에 연결할 수 없습니다.' }, 502);
+      return new Promise<Response>((resolve) => {
+        finish = resolve;
+      });
+    }),
+  );
+  const view = render(<AdminStockSyncPage />);
+  fireEvent.click(view.getByRole('button', { name: '미국 종목 적재' }));
+  expect(await view.findByText(/한글명 보충 실패/)).toBeTruthy();
+  expect(view.getByText('123개')).toBeTruthy();
+  fireEvent.click(view.getByRole('button', { name: '한글명 다시 시도' }));
+  expect(await view.findByText('한글명 제공처에 연결할 수 없습니다.')).toBeTruthy();
+  expect(view.getByText('123개')).toBeTruthy();
+  fireEvent.click(view.getByRole('button', { name: '한글명 다시 시도' }));
+  await waitFor(() => expect(finish).toBeTypeOf('function'));
+  for (const button of view.getAllByRole('button')) expect(button).toHaveProperty('disabled', true);
+  finish(
+    jsonResponse({
+      downloadedCount: 90,
+      matchedCount: 70,
+      updatedCount: 60,
+      unmatchedCount: 10,
+      skippedCount: 10,
+    }),
+  );
+  expect(await view.findByText(/한글명 보충 완료/)).toBeTruthy();
+  expect(view.queryByRole('alert')).toBeNull();
+  expect(view.getByText('123개')).toBeTruthy();
+  expect(writes.map((url) => new URL(url, 'http://localhost').pathname)).toEqual([
+    '/api/admin/stocks/us/sync',
+    '/api/admin/stocks/us/korean-names/sync',
+    '/api/admin/stocks/us/korean-names/sync',
   ]);
 });
 

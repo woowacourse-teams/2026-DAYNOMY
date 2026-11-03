@@ -1,6 +1,8 @@
+import { exampleBodies, exampleResponses } from '../issue/portfolioContentsExample';
+import { PortfolioReadingNext } from '../issue/PortfolioReadingNext';
 import { trackLoadResult, useContentImpression } from '../issue/analytics';
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import defaultNewsImage from '../../../assets/default-news-real-estate.webp';
 import { getCategoryLabel } from '../newslist/types.ts';
 import { getNewsDetail } from './api.ts';
@@ -134,19 +136,44 @@ function DetailAnalysisSections({
 }
 
 export function NewsDetailPage() {
+  const [params] = useSearchParams();
   const newsId = getNewsIdFromUrl();
+  const example = import.meta.env.DEV && params.get('data') === 'example';
   const navigate = useNavigate();
   const [payload, setPayload] = useState<NewsDetailPayload>();
   const [error, setError] = useState('');
   const headingRef = useRef<HTMLHeadingElement>(null);
   const goBack = () => {
-    navigate('/news');
+    navigate(example ? '/news?preview=briefing&data=example' : '/news');
   };
 
   useEffect(() => {
     let ignore = false;
     const controller = new AbortController();
 
+    if (example) {
+      const article = exampleResponses
+        .flatMap((response) => response.contents)
+        .find((item) => String(item.id) === newsId);
+      setError(article ? '' : '예시 기사를 찾을 수 없습니다.');
+      setPayload(
+        article
+          ? {
+              news: {
+                id: article.id,
+                title: article.title,
+                category: 'STOCK',
+                publishedAt: article.createdAt ?? '',
+                content: exampleBodies[article.id] ?? [],
+                sources: [],
+              },
+              keywords: [],
+              marketAnalysis: { status: 'empty' },
+            }
+          : undefined,
+      );
+      return;
+    }
     if (/^\d+$/.test(newsId)) trackEvent('view_news_detail', { news_id: newsId });
     setPayload(undefined);
     setError('');
@@ -170,7 +197,7 @@ export function NewsDetailPage() {
       ignore = true;
       controller.abort();
     };
-  }, [newsId]);
+  }, [newsId, example]);
 
   useEffect(() => {
     if (!payload) return;
@@ -208,6 +235,11 @@ export function NewsDetailPage() {
   return (
     <main className="news-page">
       <article className="news-detail">
+        {example && (
+          <p className="portfolio-example-notice">
+            가상 시나리오 · 실제 기업 소식이 아닌 화면 확인용 예시입니다.
+          </p>
+        )}
         <button
           className="detail-close-button"
           type="button"
@@ -248,7 +280,7 @@ export function NewsDetailPage() {
           {formatDetailDate(news.publishedAt)}
         </time>
 
-        <img className="news-image" src={imageUrl} alt="" />
+        {!example && <img className="news-image" src={imageUrl} alt="" />}
         <NewsImageCredit imageSource={news.imageSource} />
 
         <section className="body-section" aria-label="뉴스 본문">
@@ -261,6 +293,7 @@ export function NewsDetailPage() {
           </div>
         </section>
 
+        {params.get('from') === 'portfolio' && <PortfolioReadingNext />}
         <div className="analysis-area">
           <div className="analysis-content">
             <DetailAnalysisSections key={newsId} newsId={newsId} marketAnalysis={marketAnalysis} />

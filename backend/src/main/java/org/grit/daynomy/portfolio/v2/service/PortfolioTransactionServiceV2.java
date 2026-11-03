@@ -24,8 +24,10 @@ import org.grit.daynomy.portfolio.exception.PortfolioErrorCode;
 import org.grit.daynomy.portfolio.repository.PortfolioHoldingHistoryRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioHoldingRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioRepository;
+import org.grit.daynomy.portfolio.service.OriginalPortfolioChanged;
 import org.grit.daynomy.portfolio.service.PortfolioExchangeRateService;
 import org.grit.daynomy.portfolio.service.PortfolioLedgerCalculator;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -48,6 +50,7 @@ public class PortfolioTransactionServiceV2 {
   private final PortfolioSnapshotServiceV2 snapshotService;
   private final PortfolioExchangeRateService exchangeRates;
   private final PlatformTransactionManager transactionManager;
+  private final ApplicationEventPublisher events;
 
   public PortfolioTransactionResponse transact(Long memberId, PortfolioTransactionRequest request) {
     var rates = exchangeRates.forMember(memberId, request.assetId(), request.tradeDate());
@@ -101,6 +104,7 @@ public class PortfolioTransactionServiceV2 {
             request.fee(),
             request.tax());
     transaction.applyExchangeRate(request.exchangeRate());
+    transaction.recordTradeTime(request.tradeTime());
     historyRepository.saveAndFlush(transaction);
 
     List<PortfolioHoldingHistory> histories =
@@ -108,6 +112,7 @@ public class PortfolioTransactionServiceV2 {
     PortfolioLedgerCalculator.LedgerResult ledger = ledgerCalculator.replay(histories);
     SavedPortfolioHoldingResponse holding = applyPosition(portfolio, asset, current, ledger);
     snapshotService.refresh(portfolio, histories, request.tradeDate(), rates);
+    events.publishEvent(new OriginalPortfolioChanged(memberId));
     return new PortfolioTransactionResponse(
         transaction.getId(), holding, ledger.realizedProfitLoss());
   }
@@ -128,9 +133,16 @@ public class PortfolioTransactionServiceV2 {
       return SavedPortfolioHoldingResponse.from(
           holdingRepository.save(
               new PortfolioHolding(
-                  portfolio, asset, position.quantity(), position.averagePurchasePrice())));
+                  portfolio,
+                  asset,
+                  position.quantity(),
+                  position.averagePurchasePrice(),
+                  position.nativeAveragePurchasePrice())));
     }
-    current.change(position.quantity(), position.averagePurchasePrice());
+    current.change(
+        position.quantity(),
+        position.averagePurchasePrice(),
+        position.nativeAveragePurchasePrice());
     return SavedPortfolioHoldingResponse.from(current);
   }
 }

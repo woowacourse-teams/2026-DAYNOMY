@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { ApiError } from '../../api/client';
 import { searchWikimediaImages } from './api';
 import type { AdminWikimediaImageCandidate } from './types';
@@ -82,14 +82,180 @@ function isSupportedPostUrl(platform: SocialPlatform, value: string) {
   }
 }
 
-export function AdminPeoplePage() {
-  const [pageMode, setPageMode] = useState<'people' | 'candidates'>('candidates');
-  const [people, setPeople] = useState<FeaturedPerson[]>([]);
-  const [selectedPersonId, setSelectedPersonId] = useState<number | null>(null);
+function PersonCreateForm({
+  busy,
+  onCreate,
+}: {
+  busy: boolean;
+  onCreate: (input: {
+    name: string;
+    xProfileUrl: string;
+    threadsProfileUrl: string;
+    youtubeProfileUrl: string;
+  }) => Promise<boolean>;
+}) {
   const [newName, setNewName] = useState('');
   const [newXProfileUrl, setNewXProfileUrl] = useState('');
   const [newThreadsProfileUrl, setNewThreadsProfileUrl] = useState('');
   const [newYoutubeProfileUrl, setNewYoutubeProfileUrl] = useState('');
+  return (
+    <form
+      className="admin-person-create-form"
+      onSubmit={async (event) => {
+        event.preventDefault();
+        if (
+          await onCreate({
+            name: newName,
+            xProfileUrl: newXProfileUrl,
+            threadsProfileUrl: newThreadsProfileUrl,
+            youtubeProfileUrl: newYoutubeProfileUrl,
+          })
+        ) {
+          setNewName('');
+          setNewXProfileUrl('');
+          setNewThreadsProfileUrl('');
+          setNewYoutubeProfileUrl('');
+        }
+      }}
+    >
+      <label className="admin-field">
+        <span>인물 이름</span>
+        <input
+          disabled={busy}
+          value={newName}
+          maxLength={100}
+          placeholder="예: 일론 머스크"
+          onChange={(event) => setNewName(event.target.value)}
+        />
+      </label>
+      <label className="admin-field">
+        <span>X 프로필 URL</span>
+        <input
+          disabled={busy}
+          type="url"
+          value={newXProfileUrl}
+          placeholder="https://x.com/elonmusk"
+          onChange={(event) => setNewXProfileUrl(event.target.value)}
+        />
+      </label>
+      <label className="admin-field">
+        <span>Threads 프로필 URL</span>
+        <input
+          disabled={busy}
+          type="url"
+          value={newThreadsProfileUrl}
+          placeholder="https://www.threads.net/@username"
+          onChange={(event) => setNewThreadsProfileUrl(event.target.value)}
+        />
+      </label>
+      <label className="admin-field">
+        <span>YouTube 채널 URL</span>
+        <input
+          disabled={busy}
+          type="url"
+          value={newYoutubeProfileUrl}
+          placeholder="https://www.youtube.com/@channel"
+          onChange={(event) => setNewYoutubeProfileUrl(event.target.value)}
+        />
+      </label>
+      <button className="admin-primary-button" type="submit" disabled={busy || !newName.trim()}>
+        인물 추가
+      </button>
+    </form>
+  );
+}
+
+const CandidateInboxRow = memo(function CandidateInboxRow({
+  candidate,
+  selected,
+  previewed,
+  busy,
+  onSelect,
+  onPreview,
+  onProcess,
+}: {
+  candidate: FeaturedPersonPostCandidateInboxItem;
+  selected: boolean;
+  previewed: boolean;
+  busy: boolean;
+  onSelect: (id: number) => void;
+  onPreview: (url: string | null) => void;
+  onProcess: (
+    action: 'approve' | 'reject',
+    candidateIds: number[],
+    confirmBulk?: boolean,
+  ) => Promise<void>;
+}) {
+  return (
+    <li>
+      <div className="admin-candidate-person">
+        <label className="admin-candidate-select">
+          <input
+            type="checkbox"
+            aria-label={`${candidate.personName} ${candidate.title} 선택`}
+            checked={selected}
+            disabled={busy}
+            onChange={() => onSelect(candidate.id)}
+          />
+        </label>
+        <span className="admin-person-avatar" aria-hidden="true">
+          {candidate.personProfileImageUrl ? (
+            <img src={candidate.personProfileImageUrl} alt="" />
+          ) : (
+            '인'
+          )}
+        </span>
+        <div>
+          <strong>{candidate.personName}</strong>
+          <span>
+            {platformLabel(candidate.sourceType)}
+            {candidate.publishedAt ? ` · ${candidate.publishedAt.slice(0, 10)}` : ''}
+          </span>
+        </div>
+      </div>
+      <strong className="admin-result-title">{candidate.title}</strong>
+      <div className="admin-post-result-actions">
+        <a className="admin-source-link" href={candidate.url} target="_blank" rel="noreferrer">
+          원문 보기
+        </a>
+        <button
+          className="admin-secondary-button"
+          type="button"
+          aria-expanded={previewed}
+          onClick={() => onPreview(previewed ? null : candidate.url)}
+        >
+          미리보기
+        </button>
+        <button
+          className="admin-primary-button"
+          type="button"
+          disabled={busy}
+          onClick={() => void onProcess('approve', [candidate.id], false)}
+        >
+          승인
+        </button>
+        <button
+          className="admin-secondary-button"
+          type="button"
+          disabled={busy}
+          onClick={() => void onProcess('reject', [candidate.id], false)}
+        >
+          거절
+        </button>
+      </div>
+      {previewed ? (
+        <div className="admin-candidate-inbox-preview">
+          <SocialPostEmbed post={candidate} />
+        </div>
+      ) : null}
+    </li>
+  );
+});
+
+export function AdminPeoplePage() {
+  const [pageMode, setPageMode] = useState<'people' | 'candidates'>('candidates');
+  const [people, setPeople] = useState<FeaturedPerson[]>([]);
+  const [selectedPersonId, setSelectedPersonId] = useState<number | null>(null);
   const [editName, setEditName] = useState('');
   const [editXProfileUrl, setEditXProfileUrl] = useState('');
   const [editThreadsProfileUrl, setEditThreadsProfileUrl] = useState('');
@@ -297,29 +463,31 @@ export function AdminPeoplePage() {
     );
   }
 
-  async function submitPerson(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!newName.trim() || busy || !confirmDiscard()) return;
+  async function submitPerson(input: {
+    name: string;
+    xProfileUrl: string;
+    threadsProfileUrl: string;
+    youtubeProfileUrl: string;
+  }) {
+    if (!input.name.trim() || busy || !confirmDiscard()) return false;
     setSaving(true);
     setError('');
     setNotice('');
     try {
       const person = await createFeaturedPerson({
-        name: newName.trim(),
-        xProfileUrl: emptyToNull(newXProfileUrl),
-        threadsProfileUrl: emptyToNull(newThreadsProfileUrl),
-        youtubeProfileUrl: emptyToNull(newYoutubeProfileUrl),
+        name: input.name.trim(),
+        xProfileUrl: emptyToNull(input.xProfileUrl),
+        threadsProfileUrl: emptyToNull(input.threadsProfileUrl),
+        youtubeProfileUrl: emptyToNull(input.youtubeProfileUrl),
       });
       setPeople((current) => [...current, person]);
       setPersonQuery('');
       setSelectedPersonId(person.id);
-      setNewName('');
-      setNewXProfileUrl('');
-      setNewThreadsProfileUrl('');
-      setNewYoutubeProfileUrl('');
       setNotice(`${person.name}을(를) 등록했습니다.`);
+      return true;
     } catch (caughtError) {
       setError(getErrorMessage(caughtError, '주요 인물을 등록하지 못했습니다.'));
+      return false;
     } finally {
       setSaving(false);
     }
@@ -546,13 +714,13 @@ export function AdminPeoplePage() {
     }
   }
 
-  function toggleGlobalCandidateSelection(candidateId: number) {
+  const toggleGlobalCandidateSelection = useCallback((candidateId: number) => {
     setGlobalSelectedIds((current) =>
       current.includes(candidateId)
         ? current.filter((id) => id !== candidateId)
         : [...current, candidateId],
     );
-  }
+  }, []);
 
   function toggleAllGlobalCandidates() {
     const candidateIds = globalCandidates.map((candidate) => candidate.id);
@@ -563,62 +731,64 @@ export function AdminPeoplePage() {
     );
   }
 
-  async function processGlobalCandidates(
-    action: 'approve' | 'reject',
-    candidateIds = globalSelectedIds,
-    confirmBulk = true,
-  ) {
-    if (busy || candidateIds.length === 0) return;
-    const label = action === 'approve' ? '승인' : '거절';
-    if (confirmBulk && !window.confirm(`선택한 ${candidateIds.length}건을 ${label}할까요?`)) return;
+  const processGlobalCandidates = useCallback(
+    async (action: 'approve' | 'reject', candidateIds: number[], confirmBulk = true) => {
+      if (busy || candidateIds.length === 0) return;
+      const label = action === 'approve' ? '승인' : '거절';
+      if (confirmBulk && !window.confirm(`선택한 ${candidateIds.length}건을 ${label}할까요?`))
+        return;
 
-    setGlobalBulkAction(action);
-    setError('');
-    setNotice('');
-    try {
-      const candidateById = new Map(globalCandidates.map((candidate) => [candidate.id, candidate]));
-      const response =
-        action === 'approve'
-          ? await approveAllFeaturedPersonPostCandidates(candidateIds)
-          : await rejectAllFeaturedPersonPostCandidates(candidateIds);
-      const succeededIds = new Set(response.succeeded.map((item) => item.candidateId));
-      const failedIds = response.failed.map((item) => item.candidateId);
-
-      setGlobalCandidates((current) =>
-        current.filter((candidate) => !succeededIds.has(candidate.id)),
-      );
-      setGlobalSelectedIds(failedIds);
-      setSearchResults(
-        (current) => current?.filter((candidate) => !succeededIds.has(candidate.id)) ?? current,
-      );
-      setPeople((current) =>
-        current.map((person) => {
-          const approvedPosts = response.succeeded.flatMap((item) => {
-            const candidate = candidateById.get(item.candidateId);
-            return item.post && candidate?.personId === person.id ? [item.post] : [];
-          });
-          return approvedPosts.length > 0
-            ? { ...person, posts: [...approvedPosts, ...person.posts] }
-            : person;
-        }),
-      );
-      setNotice(`${response.succeeded.length}건을 ${label}했습니다.`);
-      if (response.failed.length > 0) {
-        setError(
-          `${response.failed.length}건을 처리하지 못했습니다. 실패한 항목은 선택 상태로 남겨두었습니다.`,
+      setGlobalBulkAction(action);
+      setError('');
+      setNotice('');
+      try {
+        const candidateById = new Map(
+          globalCandidates.map((candidate) => [candidate.id, candidate]),
         );
+        const response =
+          action === 'approve'
+            ? await approveAllFeaturedPersonPostCandidates(candidateIds)
+            : await rejectAllFeaturedPersonPostCandidates(candidateIds);
+        const succeededIds = new Set(response.succeeded.map((item) => item.candidateId));
+        const failedIds = response.failed.map((item) => item.candidateId);
+
+        setGlobalCandidates((current) =>
+          current.filter((candidate) => !succeededIds.has(candidate.id)),
+        );
+        setGlobalSelectedIds(failedIds);
+        setSearchResults(
+          (current) => current?.filter((candidate) => !succeededIds.has(candidate.id)) ?? current,
+        );
+        setPeople((current) =>
+          current.map((person) => {
+            const approvedPosts = response.succeeded.flatMap((item) => {
+              const candidate = candidateById.get(item.candidateId);
+              return item.post && candidate?.personId === person.id ? [item.post] : [];
+            });
+            return approvedPosts.length > 0
+              ? { ...person, posts: [...approvedPosts, ...person.posts] }
+              : person;
+          }),
+        );
+        setNotice(`${response.succeeded.length}건을 ${label}했습니다.`);
+        if (response.failed.length > 0) {
+          setError(
+            `${response.failed.length}건을 처리하지 못했습니다. 실패한 항목은 선택 상태로 남겨두었습니다.`,
+          );
+        }
+        if (response.succeeded.length > 0) {
+          const remainingOnPage = globalCandidates.length - response.succeeded.length;
+          if (remainingOnPage === 0 && globalPage > 1) setGlobalPage((current) => current - 1);
+          else setGlobalRefreshKey((current) => current + 1);
+        }
+      } catch (caughtError) {
+        setError(getErrorMessage(caughtError, `선택한 게시물을 일괄 ${label}하지 못했습니다.`));
+      } finally {
+        setGlobalBulkAction(null);
       }
-      if (response.succeeded.length > 0) {
-        const remainingOnPage = globalCandidates.length - response.succeeded.length;
-        if (remainingOnPage === 0 && globalPage > 1) setGlobalPage((current) => current - 1);
-        else setGlobalRefreshKey((current) => current + 1);
-      }
-    } catch (caughtError) {
-      setError(getErrorMessage(caughtError, `선택한 게시물을 일괄 ${label}하지 못했습니다.`));
-    } finally {
-      setGlobalBulkAction(null);
-    }
-  }
+    },
+    [busy, globalCandidates, globalPage],
+  );
 
   async function removePost(postId: number) {
     if (!selectedPerson || busy || !window.confirm('이 게시물을 삭제할까요?')) return;
@@ -668,60 +838,10 @@ export function AdminPeoplePage() {
         </button>
       </div>
 
-      {pageMode === 'people' ? (
-        <details className="admin-create-disclosure">
-          <summary>새 인물 등록</summary>
-          <form className="admin-person-create-form" onSubmit={submitPerson}>
-            <label className="admin-field">
-              <span>인물 이름</span>
-              <input
-                disabled={busy}
-                value={newName}
-                maxLength={100}
-                placeholder="예: 일론 머스크"
-                onChange={(event) => setNewName(event.target.value)}
-              />
-            </label>
-            <label className="admin-field">
-              <span>X 프로필 URL</span>
-              <input
-                disabled={busy}
-                type="url"
-                value={newXProfileUrl}
-                placeholder="https://x.com/elonmusk"
-                onChange={(event) => setNewXProfileUrl(event.target.value)}
-              />
-            </label>
-            <label className="admin-field">
-              <span>Threads 프로필 URL</span>
-              <input
-                disabled={busy}
-                type="url"
-                value={newThreadsProfileUrl}
-                placeholder="https://www.threads.net/@username"
-                onChange={(event) => setNewThreadsProfileUrl(event.target.value)}
-              />
-            </label>
-            <label className="admin-field">
-              <span>YouTube 채널 URL</span>
-              <input
-                disabled={busy}
-                type="url"
-                value={newYoutubeProfileUrl}
-                placeholder="https://www.youtube.com/@channel"
-                onChange={(event) => setNewYoutubeProfileUrl(event.target.value)}
-              />
-            </label>
-            <button
-              className="admin-primary-button"
-              type="submit"
-              disabled={busy || !newName.trim()}
-            >
-              인물 추가
-            </button>
-          </form>
-        </details>
-      ) : null}
+      <details className="admin-create-disclosure" hidden={pageMode !== 'people'}>
+        <summary>새 인물 등록</summary>
+        <PersonCreateForm busy={busy} onCreate={submitPerson} />
+      </details>
 
       {pageMode === 'people' && loading ? (
         <p className="admin-people-state" aria-busy="true">
@@ -1514,7 +1634,7 @@ export function AdminPeoplePage() {
                 className="admin-primary-button"
                 type="button"
                 disabled={busy || globalSelectedIds.length === 0}
-                onClick={() => void processGlobalCandidates('approve')}
+                onClick={() => void processGlobalCandidates('approve', globalSelectedIds)}
               >
                 {globalBulkAction === 'approve'
                   ? '일괄 승인 중…'
@@ -1524,7 +1644,7 @@ export function AdminPeoplePage() {
                 className="admin-secondary-button"
                 type="button"
                 disabled={busy || globalSelectedIds.length === 0}
-                onClick={() => void processGlobalCandidates('reject')}
+                onClick={() => void processGlobalCandidates('reject', globalSelectedIds)}
               >
                 {globalBulkAction === 'reject'
                   ? '일괄 거절 중…'
@@ -1540,77 +1660,16 @@ export function AdminPeoplePage() {
           ) : globalCandidates.length > 0 ? (
             <ul className="admin-candidate-inbox-list" aria-live="polite">
               {globalCandidates.map((candidate) => (
-                <li key={candidate.id}>
-                  <div className="admin-candidate-person">
-                    <label className="admin-candidate-select">
-                      <input
-                        type="checkbox"
-                        aria-label={`${candidate.personName} ${candidate.title} 선택`}
-                        checked={globalSelectedIds.includes(candidate.id)}
-                        disabled={busy}
-                        onChange={() => toggleGlobalCandidateSelection(candidate.id)}
-                      />
-                    </label>
-                    <span className="admin-person-avatar" aria-hidden="true">
-                      {candidate.personProfileImageUrl ? (
-                        <img src={candidate.personProfileImageUrl} alt="" />
-                      ) : (
-                        '인'
-                      )}
-                    </span>
-                    <div>
-                      <strong>{candidate.personName}</strong>
-                      <span>
-                        {platformLabel(candidate.sourceType)}
-                        {candidate.publishedAt ? ` · ${candidate.publishedAt.slice(0, 10)}` : ''}
-                      </span>
-                    </div>
-                  </div>
-                  <strong className="admin-result-title">{candidate.title}</strong>
-                  <div className="admin-post-result-actions">
-                    <a
-                      className="admin-source-link"
-                      href={candidate.url}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      원문 보기
-                    </a>
-                    <button
-                      className="admin-secondary-button"
-                      type="button"
-                      aria-expanded={globalPreviewedResult === candidate.url}
-                      onClick={() =>
-                        setGlobalPreviewedResult(
-                          globalPreviewedResult === candidate.url ? null : candidate.url,
-                        )
-                      }
-                    >
-                      미리보기
-                    </button>
-                    <button
-                      className="admin-primary-button"
-                      type="button"
-                      disabled={busy}
-                      onClick={() => void processGlobalCandidates('approve', [candidate.id], false)}
-                    >
-                      승인
-                    </button>
-                    <button
-                      className="admin-secondary-button"
-                      type="button"
-                      disabled={busy}
-                      onClick={() => void processGlobalCandidates('reject', [candidate.id], false)}
-                    >
-                      거절
-                    </button>
-                  </div>
-                  {globalPreviewedResult === candidate.url ? (
-                    <div className="admin-candidate-inbox-preview">
-                      <SocialPostEmbed post={candidate} />
-                    </div>
-                  ) : null}
-                </li>
+                <CandidateInboxRow
+                  key={candidate.id}
+                  candidate={candidate}
+                  selected={globalSelectedIds.includes(candidate.id)}
+                  previewed={globalPreviewedResult === candidate.url}
+                  busy={busy}
+                  onSelect={toggleGlobalCandidateSelection}
+                  onPreview={setGlobalPreviewedResult}
+                  onProcess={processGlobalCandidates}
+                />
               ))}
             </ul>
           ) : (

@@ -3,6 +3,7 @@
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { trackEvent } from '../../src/analytics';
 import { AuthContext } from '../../src/auth/AuthContext';
 import { getInvestmentCalendar } from '../../src/features/investment-calendar/api';
 import { InvestmentCalendarPage } from '../../src/features/investment-calendar/InvestmentCalendarPage';
@@ -12,6 +13,7 @@ import { saveGuestPortfolioHoldings } from '../../src/features/portfolio/portfol
 vi.mock('../../src/features/investment-calendar/api', () => ({
   getInvestmentCalendar: vi.fn(),
 }));
+vi.mock('../../src/analytics', () => ({ trackEvent: vi.fn() }));
 
 const mockedGetInvestmentCalendar = vi.mocked(getInvestmentCalendar);
 
@@ -44,6 +46,27 @@ afterEach(() => {
 });
 
 describe('투자 캘린더 화면', () => {
+  it('소식 홈용 캘린더는 월간 일정과 선택한 날짜의 일정 목록을 표시한다', async () => {
+    const view = renderCalendar(<InvestmentCalendarPage embedded compact />);
+
+    expect(await view.findByRole('heading', { name: '투자 캘린더', level: 2 })).toBeTruthy();
+    expect(view.getByLabelText('2026년 10월 일정')).toBeTruthy();
+    expect(view.getByRole('button', { name: '내 일정' }).getAttribute('aria-pressed')).toBe('true');
+    expect(view.getByRole('button', { name: '10월 6일' }).getAttribute('aria-current')).toBe(
+      'date',
+    );
+    expect(
+      view
+        .getByRole('button', { name: /10월 14일 미국 소비자물가지수 발표/ })
+        .getAttribute('aria-pressed'),
+    ).toBe('true');
+    expect(view.getByText('미국 CPI')).toBeTruthy();
+    fireEvent.click(view.getByRole('button', { name: /10월 21일 두산 3분기 실적 발표/ }));
+    expect(view.getByText('두산 3분기 실적')).toBeTruthy();
+    expect(view.queryByText('두산은 영업이익이 늘어난 뒤 강세였던 경우가 많았습니다.')).toBeNull();
+    expect(view.queryByRole('link', { name: '전체 보기' })).toBeNull();
+  });
+
   it('소식 홈에서는 중첩 main 없이 섹션 제목으로 표시한다', async () => {
     const view = renderCalendar(<InvestmentCalendarPage embedded />);
 
@@ -86,6 +109,11 @@ describe('투자 캘린더 화면', () => {
     const impact = view.container.querySelector('details')!;
     expect(impact.open).toBe(false);
     impact.open = true;
+    fireEvent(impact, new Event('toggle'));
+    expect(trackEvent).toHaveBeenCalledWith('investment_calendar_action', {
+      surface: 'calendar',
+      action: 'expand_past_reaction',
+    });
 
     fireEvent.click(view.getByRole('button', { name: /두산 3분기 실적/ }));
 
@@ -99,6 +127,19 @@ describe('투자 캘린더 화면', () => {
     fireEvent.click(view.getByRole('button', { name: '달력으로 보기' }));
     expect(view.getByRole('button', { name: '목록으로 보기' })).toBeTruthy();
     fireEvent.click(view.getByRole('button', { name: '10월 22일 한국 기준금리 결정' }));
+
+    expect(trackEvent).toHaveBeenCalledWith('investment_calendar_action', {
+      surface: 'calendar',
+      action: 'change_view',
+      view: 'calendar',
+    });
+    expect(trackEvent).toHaveBeenCalledWith('investment_calendar_action', {
+      surface: 'calendar',
+      action: 'select_event',
+      scope: 'PORTFOLIO',
+      view: 'calendar',
+      position: expect.any(Number),
+    });
 
     expect(view.getByText('내 자산은 기준금리가 오른 뒤 약세였던 경우가 많았습니다.')).toBeTruthy();
     expect(view.getByText('금리 결정별 내 자산의 과거 움직임')).toBeTruthy();
@@ -182,6 +223,42 @@ describe('투자 캘린더 화면', () => {
 
     await waitFor(() => expect(mockedGetInvestmentCalendar).toHaveBeenCalledTimes(2));
     expect(await view.findByText('이번 달 예정된 일정이 없어요.')).toBeTruthy();
+    expect(trackEvent).toHaveBeenCalledWith('investment_calendar_action', {
+      surface: 'calendar',
+      action: 'retry',
+      attempt: 1,
+    });
+  });
+
+  it('조회 결과와 주요 탐색 동작을 투자 정보 없이 기록한다', async () => {
+    const view = renderCalendar(<InvestmentCalendarPage embedded compact />);
+    await view.findByRole('heading', { name: '투자 캘린더', level: 2 });
+    expect(trackEvent).toHaveBeenCalledWith(
+      'investment_calendar_load_result',
+      expect.objectContaining({
+        surface: 'news_home_calendar',
+        scope: 'PORTFOLIO',
+        status: 'success',
+        result_count: expect.any(Number),
+        attempt: 0,
+        is_logged_in: true,
+      }),
+    );
+    fireEvent.click(view.getByRole('button', { name: '다음 달' }));
+    fireEvent.click(view.getByRole('button', { name: '전체 일정' }));
+    expect(trackEvent).toHaveBeenCalledWith('investment_calendar_action', {
+      surface: 'news_home_calendar',
+      action: 'change_month',
+      direction: 'next',
+    });
+    expect(trackEvent).toHaveBeenCalledWith('investment_calendar_action', {
+      surface: 'news_home_calendar',
+      action: 'change_scope',
+      scope: 'ALL',
+    });
+    expect(JSON.stringify(vi.mocked(trackEvent).mock.calls)).not.toMatch(
+      /미국 소비자물가지수|두산|평가금액/,
+    );
   });
 
   it('표본이 부족하면 숫자 대신 제공 조건을 알려준다', async () => {
@@ -209,4 +286,32 @@ describe('투자 캘린더 화면', () => {
     expect(await view.findByText('아직 비교할 과거 사례가 부족해요.')).toBeTruthy();
     expect(view.getByText(/표본이 3회 이상 쌓이면/)).toBeTruthy();
   });
+});
+
+it('소식 홈에서는 다가오는 일정만 날짜순으로 표시하고 선택 후 상세를 연다', async () => {
+  const calendar = getMockInvestmentCalendar(2026, 10);
+  const base = calendar.events[0];
+  mockedGetInvestmentCalendar.mockResolvedValue({
+    calendar: {
+      ...calendar,
+      events: [
+        { ...base, id: 91, announcedAt: '2026-10-05T09:00:00+09:00' },
+        { ...base, id: 92, announcedAt: '2026-10-08T09:00:00+09:00' },
+        { ...base, id: 93, announcedAt: '2026-10-07T09:00:00+09:00' },
+      ],
+    },
+    isDemo: true,
+  });
+  const view = renderCalendar(<InvestmentCalendarPage embedded upcomingOnly />);
+  await waitFor(() =>
+    expect(view.container.querySelectorAll('.investment-calendar-event-button')).toHaveLength(2),
+  );
+  expect(view.container.querySelector('.investment-calendar-detail')).toBeNull();
+  const buttons = view.container.querySelectorAll<HTMLButtonElement>(
+    '.investment-calendar-event-button',
+  );
+  expect(buttons[0].querySelector('strong')?.textContent).toBe('7');
+  fireEvent.click(buttons[0]);
+  expect(view.container.querySelector('.investment-calendar-detail')).toBeTruthy();
+  expect(mockedGetInvestmentCalendar).toHaveBeenCalledWith(2026, 10, 'ALL', expect.any(Object));
 });

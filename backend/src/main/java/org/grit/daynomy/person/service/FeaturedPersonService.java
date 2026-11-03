@@ -24,6 +24,7 @@ import org.grit.daynomy.external.wikimedia.WikimediaImageClient;
 import org.grit.daynomy.person.domain.FeaturedPerson;
 import org.grit.daynomy.person.domain.FeaturedPersonPost;
 import org.grit.daynomy.person.domain.FeaturedPersonPostStatus;
+import org.grit.daynomy.person.dto.FeaturedPeoplePageResponse;
 import org.grit.daynomy.person.dto.FeaturedPeopleResponse;
 import org.grit.daynomy.person.dto.FeaturedPersonPostRequest;
 import org.grit.daynomy.person.dto.FeaturedPersonPostResponse;
@@ -32,6 +33,8 @@ import org.grit.daynomy.person.dto.FeaturedPersonResponse;
 import org.grit.daynomy.person.exception.FeaturedPersonErrorCode;
 import org.grit.daynomy.person.repository.FeaturedPersonPostRepository;
 import org.grit.daynomy.person.repository.FeaturedPersonRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -49,6 +52,26 @@ public class FeaturedPersonService {
   private final OpenAiSocialPostSearchClient socialPostSearchClient;
   private final WikimediaImageClient wikimediaImageClient;
   private final S3ImageStorage s3ImageStorage;
+
+  public FeaturedPeoplePageResponse getPeople(int page, int size, Long personId) {
+    PageRequest pageable = PageRequest.of(page - 1, size);
+    Page<FeaturedPersonPost> posts =
+        personId == null
+            ? postRepository.findPublicPageByStatus(FeaturedPersonPostStatus.APPROVED, pageable)
+            : postRepository.findPublicPageByPersonIdAndStatus(
+                personId, FeaturedPersonPostStatus.APPROVED, pageable);
+    Map<Long, List<FeaturedPersonPost>> postsByPersonId =
+        posts.getContent().stream()
+            .collect(Collectors.groupingBy(post -> post.getPerson().getId()));
+    List<FeaturedPersonResponse> people =
+        personRepository.findAllByOrderByCreatedAtAscIdAsc().stream()
+            .map(
+                person ->
+                    FeaturedPersonResponse.from(
+                        person, postsByPersonId.getOrDefault(person.getId(), List.of())))
+            .toList();
+    return FeaturedPeoplePageResponse.from(people, posts);
+  }
 
   public FeaturedPeopleResponse getPeople() {
     Map<Long, List<FeaturedPersonPost>> postsByPersonId =

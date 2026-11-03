@@ -1,5 +1,5 @@
 import { request, requestWithCsrf } from '../../api/client';
-import type { AdminFeedback, AdminFeedbackPage, FeedbackStatus } from './types';
+import type { AdminFeedback, AdminFeedbackPage, FeedbackCategory, FeedbackStatus } from './types';
 
 const DEFAULT_PAGE_SIZE = 15;
 
@@ -8,7 +8,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function isFeedbackStatus(value: unknown): value is FeedbackStatus {
-  return value === 'PENDING' || value === 'RESOLVED';
+  return value === 'PENDING' || value === 'IN_PROGRESS' || value === 'RESOLVED';
+}
+
+function isFeedbackCategory(value: unknown): value is FeedbackCategory {
+  return value === 'BUG' || value === 'INCONVENIENCE' || value === 'FEATURE_REQUEST';
 }
 
 function isAdminFeedback(value: unknown): value is AdminFeedback {
@@ -17,6 +21,9 @@ function isAdminFeedback(value: unknown): value is AdminFeedback {
     typeof value.id === 'number' &&
     typeof value.content === 'string' &&
     typeof value.pagePath === 'string' &&
+    (value.category === null || isFeedbackCategory(value.category)) &&
+    (value.authorMemberId === null || typeof value.authorMemberId === 'number') &&
+    (value.authorNickname === null || typeof value.authorNickname === 'string') &&
     isFeedbackStatus(value.status) &&
     typeof value.createdAt === 'string' &&
     typeof value.updatedAt === 'string'
@@ -51,6 +58,14 @@ export function createFeedback(content: string, pagePath: string) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ content, pagePath }),
+  });
+}
+
+export function createAdminFeedback(category: FeedbackCategory, content: string, pagePath: string) {
+  return requestWithCsrf<void>('/api/admin/feedbacks', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ category, content, pagePath }),
   });
 }
 

@@ -45,10 +45,12 @@ public class LeagueController {
   @GetMapping("/rankings")
   public ResponseEntity<RankingResponse> rankings(
       @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember member,
-      @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+      @Parameter(description = "최근 3주 중 조회할 주의 KST 월요일(yyyy-MM-dd). 생략하면 이번 주")
+          @RequestParam(required = false)
+          @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
           LocalDate weekStart,
       @RequestParam(defaultValue = "WEEKLY_RETURN") LeagueType leagueType,
-      @RequestParam(defaultValue = "0") @Min(0) int page,
+      @Parameter(description = "페이지 번호(0부터 시작)") @RequestParam(defaultValue = "0") @Min(0) int page,
       @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
     return ResponseEntity.ok()
         .cacheControl(CacheControl.noStore())
@@ -77,11 +79,14 @@ public class LeagueController {
 
   @Operation(
       summary = "공개 투자자의 일별·주간 누적 수익률 조회",
-      description = "최근 3주를 월요일~일요일(KST)로 구분합니다. 금액과 수량은 공개하지 않습니다.")
+      description =
+          "최근 3주를 월요일~일요일 7일로 반환합니다. 휴장일은 하루 0%·누적 유지, 수집 지연은 대기로 표시합니다. 날짜는 시장별 거래일이며 미국 금요일 종가는 토요일 수집 후 금요일에 반영됩니다. 금액과 수량은 공개하지 않습니다.")
   @GetMapping("/investors/{publicId}/daily-history")
   public ResponseEntity<DailyHistoryResponse> dailyHistory(
       @PathVariable String publicId,
-      @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+      @Parameter(description = "최근 3주 중 조회할 주의 KST 월요일(yyyy-MM-dd). 생략하면 이번 주")
+          @RequestParam(required = false)
+          @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
           LocalDate weekStart) {
     return ResponseEntity.ok()
         .cacheControl(CacheControl.noStore())

@@ -31,6 +31,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 
 @ExtendWith(MockitoExtension.class)
 class FeaturedPersonServiceTest {
@@ -41,6 +43,46 @@ class FeaturedPersonServiceTest {
   @Mock private WikimediaImageClient wikimediaImageClient;
   @Mock private S3ImageStorage s3ImageStorage;
   @InjectMocks private FeaturedPersonService featuredPersonService;
+
+  @Test
+  @DisplayName("공개 인물 게시물은 페이지 단위로 조회한다")
+  void getPeopleUsesApprovedPostPage() {
+    PageRequest pageable = PageRequest.of(0, 6);
+    given(postRepository.findPublicPageByStatus(FeaturedPersonPostStatus.APPROVED, pageable))
+        .willReturn(new PageImpl<>(List.of(), pageable, 10));
+    given(personRepository.findAllByOrderByCreatedAtAscIdAsc()).willReturn(List.of());
+
+    var response = featuredPersonService.getPeople(1, 6, null);
+
+    assertThat(response.page()).isEqualTo(1);
+    assertThat(response.size()).isEqualTo(6);
+    assertThat(response.totalElements()).isEqualTo(10);
+    assertThat(response.totalPages()).isEqualTo(2);
+    assertThat(response.hasNext()).isTrue();
+    then(postRepository)
+        .should()
+        .findPublicPageByStatus(FeaturedPersonPostStatus.APPROVED, pageable);
+  }
+
+  @Test
+  @DisplayName("특정 인물의 공개 게시물만 페이지 단위로 조회한다")
+  void getPeopleFiltersPostPageByPerson() {
+    PageRequest pageable = PageRequest.of(1, 6);
+    given(
+            postRepository.findPublicPageByPersonIdAndStatus(
+                7L, FeaturedPersonPostStatus.APPROVED, pageable))
+        .willReturn(new PageImpl<>(List.of(), pageable, 8));
+    given(personRepository.findAllByOrderByCreatedAtAscIdAsc()).willReturn(List.of());
+
+    var response = featuredPersonService.getPeople(2, 6, 7L);
+
+    assertThat(response.page()).isEqualTo(2);
+    assertThat(response.totalElements()).isEqualTo(8);
+    assertThat(response.hasNext()).isFalse();
+    then(postRepository)
+        .should()
+        .findPublicPageByPersonIdAndStatus(7L, FeaturedPersonPostStatus.APPROVED, pageable);
+  }
 
   @Test
   @DisplayName("주요 인물 공개 게시물은 승인된 항목만 조회한다")

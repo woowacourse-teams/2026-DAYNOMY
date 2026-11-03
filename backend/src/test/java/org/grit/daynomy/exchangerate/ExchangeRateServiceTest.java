@@ -106,6 +106,28 @@ class ExchangeRateServiceTest {
   }
 
   @Test
+  void fallbackStoredAfterTheRequestedDayMustStillBeRefreshed() {
+    var repository = mock(UsdKrwRateRepository.class);
+    var client = mock(EodhdClient.class);
+    var date = LocalDate.of(2026, 10, 19);
+    var now = java.time.Instant.parse("2026-10-23T03:00:00Z");
+    var clock = java.time.Clock.fixed(now, java.time.ZoneOffset.UTC);
+    var service = new ExchangeRateService(repository, client, clock);
+    when(repository.findById(date))
+        .thenReturn(
+            Optional.of(
+                new UsdKrwRate(
+                    date,
+                    date.minusDays(3),
+                    new BigDecimal("1300"),
+                    java.time.Instant.parse("2026-10-22T03:00:00Z"))));
+    when(client.getUsdKrwRates(date.minusDays(14), date))
+        .thenReturn(List.of(row("2026-10-19", "1400")));
+    assertThat(service.quote(date).baseDate()).isEqualTo(date);
+    assertThat(service.quote(date).rate()).isEqualByComparingTo("1400");
+  }
+
+  @Test
   void emptyResultsAreCachedButTransientFailuresArePropagatedAndRetried() {
     var repository = mock(UsdKrwRateRepository.class);
     var client = mock(EodhdClient.class);

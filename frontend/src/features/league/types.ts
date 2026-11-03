@@ -54,6 +54,15 @@ export type RankingResponse = {
   finalizedAt?: string | null;
   changeReason?: string | null;
   collectionStatus?: CollectionStatus;
+  aggregation?: AggregationEstimate | null;
+};
+
+export type AggregationEstimate = {
+  baseDate: string | null;
+  expectedAt: string | null;
+  firstReturnExpectedAt: string | null;
+  reason: string;
+  delayed: boolean;
 };
 
 export type LeagueWeek = {
@@ -74,6 +83,8 @@ export type Performance = {
   currentHoldingWeight?: number | null;
   consecutiveRecordedWeeks?: number;
   weeklyRank?: number | null;
+  asOfDate?: string | null;
+  rankingAsOfDate?: string | null;
 };
 
 export type DailyReturnPoint = {
@@ -94,6 +105,7 @@ export type DailyHistory = {
   days: DailyReturnPoint[];
   trackingStartedOn?: string | null;
   collectionStatus?: CollectionStatus;
+  aggregation?: AggregationEstimate | null;
 };
 
 export type PublicInvestor = {

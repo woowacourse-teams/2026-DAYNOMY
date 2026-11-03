@@ -15,7 +15,7 @@
 | MyLeagueController, InvestmentRecords                                                 | 기존 본인 전용 API와 두 복기 화면의 진입점                                                         |
 | 기존 LeagueReviewGuideRateLimiter                                                     | 회원별 요청 횟수와 동시 실행 제한                                                                  |
 
-기존 review-guide 경로를 유지하되 응답에 근거 목록과 질문별 참조를 추가한다. BE 브랜치의 단발성 OpenAI 클라이언트와 FE 브랜치의 질문 표시를 이 계약에 맞게 교체한다. 기존 복기 저장 API·테이블과 공개 투자자 API는 변경하지 않는다. 알림 정책용 V57 마이그레이션으로 league_review_reminders를 추가하며 기존 복기 데이터 구조는 유지한다.
+기존 review-guide 경로를 유지하되 응답에 근거 목록과 질문별 참조를 추가한다. BE 브랜치의 단발성 OpenAI 클라이언트와 FE 브랜치의 질문 표시를 이 계약에 맞게 교체한다. 기존 복기 저장 API·테이블과 공개 투자자 API는 변경하지 않는다. 알림 정책용 V85 마이그레이션으로 league_review_reminders를 추가하며 기존 복기 데이터 구조는 유지한다.
 
 ## 처리 흐름
 
@@ -123,7 +123,7 @@ SharedPortfolioPage도 LeagueReviewReminder를 사용한다. HoldingDecisions가
 
 ## 알림 주기와 HTTP 계약
 
-V57의 `league_review_reminders`는 `profile_id`를 PK로 사용하며 현재 `participation_id`, 수신 요청 UUID, 마지막 안내 시각, 다음 안내 시각, 미루기 여부를 보관한다. 회원별 프로필 행에 PESSIMISTIC_WRITE 잠금을 걸어 두 기기·탭·서버 인스턴스의 최초 생성과 수신을 직렬화한다. 시각은 주입된 서버 Clock의 Instant를 사용하며 클라이언트의 회원 ID·날짜는 받지 않는다.
+V85의 `league_review_reminders`는 `profile_id`를 PK로 사용하며 현재 `participation_id`, 수신 요청 UUID, 마지막 안내 시각, 다음 안내 시각, 미루기 여부를 보관한다. 회원별 프로필 행에 PESSIMISTIC_WRITE 잠금을 걸어 두 기기·탭·서버 인스턴스의 최초 생성과 수신을 직렬화한다. 시각은 주입된 서버 Clock의 Instant를 사용하며 클라이언트의 회원 ID·날짜는 받지 않는다.
 
 - **POST `/api/users/me/league/review-reminder/claim`**: 인증·CSRF 필수, 본문 `{ "requestKey": "UUID" }`. 응답은 `{ requestKey, transactions, nextNotificationAt }`, 200과 `Cache-Control: no-store`다. 대상이 없거나 아직 주기가 아니면 requestKey=null, transactions=[]이며 nextNotificationAt은 저장된 다음 시각 또는 null이다.
 - 현재 활성 LeagueParticipation.startedAt에서 연속 168시간 이상, 각 InvestmentDecision.createdAt에서도 168시간 이상 지나야 한다. 과거 tradedOn이나 최초 leagueEnabledAt으로 우회하지 않는다. 복기 0건인 본인 기록만 생성 시각·ID 순으로 합쳐 반환한다.

@@ -88,17 +88,8 @@
   color: var(--league-muted);
   font-size: 14px;
 }
-.shared-section-heading > button,
-.shared-visibility-choice {
+.shared-section-heading > button {
   flex-shrink: 0;
-}
-.shared-visibility-choice {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 44px;
-  cursor: pointer;
-  font-size: 14px;
 }
 .shared-panel {
   padding: 24px 0;
@@ -336,9 +327,6 @@
   .shared-holding > header {
     align-items: flex-start;
   }
-  .shared-visibility-choice {
-    flex-shrink: 1;
-  }
 }
 
 .league-settings-page {
@@ -458,10 +446,6 @@
 }
 .shared-choice-options input[type='radio']:focus-visible {
   outline: none;
-}
-.shared-settings .shared-visibility-choice:has(input:disabled) {
-  color: var(--league-muted);
-  cursor: default;
 }
 .shared-page summary:focus-visible {
   outline: 3px solid #2563eb;

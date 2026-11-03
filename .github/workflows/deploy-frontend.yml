@@ -18,17 +18,27 @@ concurrency:
   queue: max
 
 jobs:
-  build-and-publish:
+  verify-deployment:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Test deployment and cache policy
+        run: bash frontend/scripts/test-deploy-frontend.sh
+
+  verify-and-build:
     if: github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04-arm
     environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'development' }}
     permissions:
       contents: read
-      packages: write
+      packages: read
     outputs:
       image_name: ${{ steps.image.outputs.name }}
       image_tag: ${{ steps.release.outputs.image_tag }}
       release_version: ${{ steps.release.outputs.release_version }}
+      reuse_image: ${{ steps.existing.outputs.reuse }}
+      dist_artifact_id: ${{ steps.dist.outputs.artifact-id }}
 
     env:
       DEPLOY_ENV: ${{ github.ref == 'refs/heads/main' && 'production' || 'development' }}
@@ -106,9 +116,6 @@ jobs:
       - name: Test
         run: npm test
 
-      - name: Test deployment and cache policy
-        run: bash scripts/test-deploy-frontend.sh
-
       - name: Build and upload Sentry source maps
         if: steps.existing.outputs.reuse != 'true'
         env:
@@ -147,11 +154,61 @@ jobs:
             exit 1
           fi
 
-      - name: Build container image
+      - name: Upload verified frontend build
+        id: dist
         if: steps.existing.outputs.reuse != 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: frontend-dist-${{ github.sha }}-${{ github.run_attempt }}
+          path: frontend/dist/
+          if-no-files-found: error
+          retention-days: 7
+
+  build-and-publish:
+    needs: [verify-and-build, verify-deployment]
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image_name: ${{ needs.verify-and-build.outputs.image_name }}
+      image_tag: ${{ needs.verify-and-build.outputs.image_tag }}
+      release_version: ${{ needs.verify-and-build.outputs.release_version }}
+    env:
+      DEPLOY_ENV: ${{ github.ref == 'refs/heads/main' && 'production' || 'development' }}
+      IMAGE_NAME: ${{ needs.verify-and-build.outputs.image_name }}
+      IMAGE_TAG: ${{ needs.verify-and-build.outputs.image_tag }}
+      REUSE_IMAGE: ${{ needs.verify-and-build.outputs.reuse_image }}
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Download verified frontend build
+        if: needs.verify-and-build.outputs.reuse_image != 'true'
+        uses: actions/download-artifact@v8
+        with:
+          artifact-ids: ${{ needs.verify-and-build.outputs.dist_artifact_id }}
+          path: frontend/dist/
+          merge-multiple: true
+
+      - name: Verify deployment marker
+        if: needs.verify-and-build.outputs.reuse_image != 'true'
+        run: grep -Fq "name=\"daynomy-deployment\" content=\"${DEPLOY_ENV}:${GITHUB_SHA}\"" dist/index.html
+
+      - name: Log in to GHCR
         env:
-          IMAGE_NAME: ${{ steps.image.outputs.name }}
-          IMAGE_TAG: ${{ steps.release.outputs.image_tag }}
+          GHCR_TOKEN: ${{ github.token }}
+        run: echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+
+      - name: Load existing release image
+        if: needs.verify-and-build.outputs.reuse_image == 'true'
+        run: docker pull "$IMAGE_NAME:$IMAGE_TAG"
+
+      - name: Build container image
+        if: needs.verify-and-build.outputs.reuse_image != 'true'
         run: |
           docker build \
             --label "org.opencontainers.image.version=$IMAGE_TAG" \
@@ -160,16 +217,15 @@ jobs:
             --tag "$IMAGE_NAME:$IMAGE_TAG" \
             .
 
-      - name: Validate Nginx configuration
-        env:
-          IMAGE_NAME: ${{ steps.image.outputs.name }}
-          IMAGE_TAG: ${{ steps.release.outputs.image_tag }}
-        run: docker run --rm "$IMAGE_NAME:$IMAGE_TAG" nginx -t
+      - name: Verify image identity
+        run: |
+          test "$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$IMAGE_NAME:$IMAGE_TAG")" = "$GITHUB_SHA"
+          test "$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.version" }}' "$IMAGE_NAME:$IMAGE_TAG")" = "$IMAGE_TAG"
+
+      - name: Validate HTML server
+        run: docker run --rm "$IMAGE_NAME:$IMAGE_TAG" node --check /app/server/index.mjs
 
       - name: Smoke test container
-        env:
-          IMAGE_NAME: ${{ steps.image.outputs.name }}
-          IMAGE_TAG: ${{ steps.release.outputs.image_tag }}
         run: |
           docker run --detach --name frontend-smoke \
             --publish 127.0.0.1:3000:80 \
@@ -189,7 +245,7 @@ jobs:
             exit 1
           fi
 
-          for path in / /index.html /news/1; do
+          for path in / /index.html /login; do
             curl --fail --silent --head "http://127.0.0.1:3000$path" \
               | grep -qi '^Cache-Control: no-cache'
           done
@@ -201,17 +257,13 @@ jobs:
               | grep -qi '^Cache-Control: public, max-age=31536000, immutable'
           done <<< "$hashed_assets"
 
-          if ! curl --fail --silent http://127.0.0.1:3000/news/1 \
-            | grep -q '<div id="root"></div>'; then
+          if ! curl --fail --silent http://127.0.0.1:3000/welcome \
+            | grep -q '<h1>DAYNOMY</h1>'; then
             dump_container_logs
             exit 1
           fi
 
       - name: Publish container image
-        env:
-          IMAGE_NAME: ${{ steps.image.outputs.name }}
-          IMAGE_TAG: ${{ steps.release.outputs.image_tag }}
-          REUSE_IMAGE: ${{ steps.existing.outputs.reuse }}
         run: |
           if [ "$REUSE_IMAGE" != true ]; then
             docker push "$IMAGE_NAME:$IMAGE_TAG"
@@ -311,6 +363,17 @@ jobs:
               exit 1
             fi
           done
+
+          public_html="$(curl --fail --silent --show-error --max-time 15 "$DEPLOY_URL/news")"
+          if [[ "$public_html" != *'<h1>소식</h1>'* ]] \
+            || [[ "$public_html" != *"property=\"og:url\" content=\"$DEPLOY_URL/news\""* ]]; then
+            echo 'Public news HTML or sharing metadata is missing'
+            exit 1
+          fi
+          if [ "$(curl --silent --show-error --max-time 15 --output /dev/null --write-out '%{http_code}' "$DEPLOY_URL/news/0")" != 404 ]; then
+            echo 'Invalid news URL must return 404'
+            exit 1
+          fi
 
           login_redirect="$(curl --silent --show-error --max-time 15 \
             --output /dev/null --write-out '%{redirect_url}' \

@@ -1,8 +1,11 @@
 package org.grit.daynomy.portfolio.service;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.grit.daynomy.portfolio.domain.PortfolioAnalysisCheck.Outcome;
@@ -11,6 +14,7 @@ import org.grit.daynomy.portfolio.domain.PortfolioEvidenceComparison.Fact;
 import org.grit.daynomy.portfolio.domain.PortfolioImpactSummary;
 import org.grit.daynomy.portfolio.dto.PortfolioAnalysisResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioAssetImpactResponse;
+import org.grit.daynomy.portfolio.dto.PortfolioAssetRequest;
 
 /** 근거가 같은 종목은 설명·판단을 그대로 보존한 뒤 전체 결과를 다시 집계한다. */
 final class PortfolioAnalysisRefresh {
@@ -19,12 +23,35 @@ final class PortfolioAnalysisRefresh {
   record Revision(Outcome outcome, PortfolioAnalysisResponse analysis, String reason) {}
 
   static Revision compare(PortfolioAnalysisResponse previous, PortfolioAnalysisResponse candidate) {
+    return compare(previous, candidate, null, Map.of());
+  }
+
+  static Revision compareSelected(
+      PortfolioAnalysisResponse previous,
+      PortfolioAnalysisResponse candidate,
+      List<PortfolioAssetRequest> assets,
+      Set<String> names) {
+    return compare(
+        previous,
+        candidate,
+        names,
+        assets.stream()
+            .collect(
+                Collectors.toMap(PortfolioAssetRequest::assetName, PortfolioAssetRequest::weight)));
+  }
+
+  private static Revision compare(
+      PortfolioAnalysisResponse previous,
+      PortfolioAnalysisResponse candidate,
+      Set<String> names,
+      Map<String, BigDecimal> weights) {
     var previousNames =
         previous.impacts().stream()
             .map(PortfolioAssetImpactResponse::assetName)
             .collect(Collectors.toSet());
     boolean selectionChanged =
-        (!previous.excludedAssets().isEmpty() || !candidate.excludedAssets().isEmpty())
+        names == null
+            && (!previous.excludedAssets().isEmpty() || !candidate.excludedAssets().isEmpty())
             && !previousNames.equals(
                 candidate.impacts().stream()
                     .map(PortfolioAssetImpactResponse::assetName)
@@ -37,7 +64,16 @@ final class PortfolioAnalysisRefresh {
     List<String> reasons = new ArrayList<>();
     boolean insufficient = false;
     for (var old : previous.impacts()) {
+      if (names != null && !names.contains(old.assetName())) {
+        merged.add(old);
+        continue;
+      }
       var current = byName.get(old.assetName());
+      if (names != null && (current == null || current.direction() == null)) {
+        insufficient = true;
+        merged.add(old);
+        continue;
+      }
       if (current == null) {
         if (selectionChanged) continue;
         return new Revision(Outcome.UNCONFIRMED, previous, "");
@@ -73,7 +109,8 @@ final class PortfolioAnalysisRefresh {
       reasons.add("중점 분석 대상");
     }
     boolean repairSummary =
-        previous.analyzedAssetCount() > 0
+        names == null
+            && previous.analyzedAssetCount() > 0
             && !validSummary(previous)
             && candidate.analyzedAssetCount() > 0;
     if (reasons.isEmpty() && !repairSummary) {
@@ -89,7 +126,9 @@ final class PortfolioAnalysisRefresh {
                           case MEDIUM -> 1;
                           case LOW -> 2;
                         })
-            .thenComparing(PortfolioAssetImpactResponse::weight, Comparator.reverseOrder())
+            .thenComparing(
+                impact -> weights.getOrDefault(impact.assetName(), impact.weight()),
+                Comparator.reverseOrder())
             .thenComparing(PortfolioAssetImpactResponse::assetName));
     for (int index = 0; index < merged.size(); index++) {
       var impact = merged.get(index);
@@ -97,7 +136,7 @@ final class PortfolioAnalysisRefresh {
           index,
           new PortfolioAssetImpactResponse(
               impact.assetName(),
-              impact.weight(),
+              weights.getOrDefault(impact.assetName(), impact.weight()),
               impact.direction(),
               impact.impactLevel(),
               impact.issueSummary(),
@@ -142,7 +181,15 @@ final class PortfolioAnalysisRefresh {
             "",
             merged,
             sources,
-            candidate.excludedAssets()),
+            names == null
+                ? candidate.excludedAssets()
+                : previous.excludedAssets().stream()
+                    .map(
+                        asset ->
+                            new PortfolioAnalysisResponse.ExcludedAsset(
+                                asset.assetName(),
+                                weights.getOrDefault(asset.assetName(), asset.weight())))
+                    .toList()),
         reasons.isEmpty()
             ? "종목별 판단은 유지하고 전체 설명을 정리했어요."
             : String.join(", ", reasons) + "의 근거와 설명을 갱신했어요.");
