@@ -59,6 +59,33 @@ class OpenAiLeagueReviewGuideClientTest {
   }
 
   @Test
+  void requestsQuestionConstraintsThatExcludeObservedProviderFormatFailures() throws Exception {
+    enqueueQuestions("어떤 결과를 확인했나요?", "기대와 다른 점은 무엇인가요?", "다음에는 무엇을 확인하나요?");
+    client.generate(input(), List.of());
+    var body = mapper.readTree(server.takeRequest().getBody().readUtf8());
+    var properties = body.path("text").path("format").path("schema").path("properties");
+    for (String field : List.of("actualResult", "differenceFromExpectation", "nextAction")) {
+      String pattern =
+          properties.path(field).path("properties").path("text").path("pattern").asText();
+      var question = java.util.regex.Pattern.compile(pattern);
+      assertThat(question.matcher("어떤 사실을 확인했나요?").matches()).isTrue();
+      assertThat(question.matcher("제공된 자료에서는 확인 가능한 사실이 없습니다.").matches()).isFalse();
+      assertThat(question.matcher("예상과 다르게 매출은 감소했고(확인한 근거가 없습니까?)").matches()).isFalse();
+      assertThat(question.matcher("질문을\n나누면 되나요?").matches()).isFalse();
+      assertThat(question.matcher("가".repeat(160) + "?").matches()).isFalse();
+    }
+  }
+
+  @Test
+  void stillRejectsObservedInvalidOutputsIfTheProviderIgnoresTheSchema() throws Exception {
+    for (String invalid :
+        List.of("제공된 자료에서는 확인 가능한 사실이 없습니다.", "예상과 다르게 매출은 감소했고(확인한 근거가 없습니까?)")) {
+      enqueueQuestions(invalid, "기대와 다른 점은 무엇인가요?", "다음에는 무엇을 확인하나요?");
+      assertUnavailable();
+    }
+  }
+
+  @Test
   void rejectsUnsafeOrMalformedQuestions() throws Exception {
     enqueueQuestions("지금 매수하세요?", "기대와 다른 점은?", "다음에는 무엇을 확인하나요?");
 

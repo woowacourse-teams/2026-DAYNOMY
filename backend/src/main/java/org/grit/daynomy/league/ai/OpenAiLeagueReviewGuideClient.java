@@ -36,7 +36,9 @@ public class OpenAiLeagueReviewGuideClient {
       기사 내용이 투자 판단과 무관하면 근거로 사용하지 마세요.
       매수·매도·비중 변경을 권유하지 마세요. 판단이 거래 이후 작성됐다면 거래 전 예측이라고 표현하지 마세요.
       기대 변화나 무효 조건이 비어 있으면 그 정보가 없음을 인정하며 질문하세요.
-      각 질문은 짧고 구체적으로 쓰고 물음표로 끝내세요.
+      각 text는 160자 이하의 짧고 구체적인 질문 하나만 한 줄로 작성하세요.
+      기사가 없어도 자료가 없다는 평서문 대신 사용자가 직접 확인한 사실이나 확인할 자료를 질문하세요.
+      마지막 문자는 반드시 ASCII 물음표(?)이며, 그 뒤에 괄호나 마침표를 붙이지 마세요.
       """;
 
   private final ObjectMapper mapper = new ObjectMapper();
@@ -96,7 +98,7 @@ public class OpenAiLeagueReviewGuideClient {
               List.of("text", "evidenceIds"),
               "properties",
               Map.of(
-                  "text", Map.of("type", "string"),
+                  "text", Map.of("type", "string", "pattern", "^[^\\r\\n]{1,159}\\?$"),
                   "evidenceIds", Map.of("type", "array", "items", Map.of("type", "string"))));
       var schema =
           Map.of(
