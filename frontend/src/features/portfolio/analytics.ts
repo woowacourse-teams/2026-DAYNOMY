@@ -1,6 +1,6 @@
 import { trackEvent } from '../../analytics';
 import { ApiError } from '../../api/client';
-import type { PortfolioTrendPeriod } from './types';
+import type { PortfolioTrendPeriod, SavedPortfolioAnalysisResponse } from './types';
 import type { AssetCategory, StockMarket } from '../stocks/types';
 
 const EVENTS = [
@@ -145,6 +145,7 @@ type PortfolioEventParams = {
   action?: 'analyze' | 'refresh' | 'check_status' | 'login' | 'retry';
   asset_count?: number;
   summary_status?: string;
+  last_check_outcome?: Exclude<SavedPortfolioAnalysisResponse['lastCheckOutcome'], null>;
 };
 
 const PARAM_KEYS = new Set([
@@ -204,6 +205,7 @@ const PARAM_KEYS = new Set([
   'action',
   'asset_count',
   'summary_status',
+  'last_check_outcome',
 ]);
 export function portfolioErrorType(error: unknown): ErrorType {
   if (error instanceof ApiError) {

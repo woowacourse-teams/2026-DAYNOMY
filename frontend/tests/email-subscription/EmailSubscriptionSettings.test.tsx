@@ -1,4 +1,6 @@
 /** @vitest-environment jsdom */
+import { trackEvent } from '../../src/analytics';
+vi.mock('../../src/analytics', () => ({ trackEvent: vi.fn(), trackPageView: vi.fn() }));
 import { act, cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { EmailSubscriptionSettings } from '../../src/features/email-subscription/EmailSubscriptionSettings';
@@ -38,6 +40,7 @@ function installApi(initial: EmailSubscriptionResponse['status'] = 'SUBSCRIBED')
 }
 afterEach(() => {
   cleanup();
+  vi.clearAllMocks();
   vi.unstubAllGlobals();
   window.history.replaceState(null, '', '/');
 });
@@ -76,6 +79,16 @@ describe('마이페이지 이메일 구독 설정', () => {
       ['DELETE', 'PUT'].includes(init?.method ?? ''),
     );
     expect(writes.map(([, init]) => init?.method)).toEqual(['DELETE', 'PUT']);
+    expect(
+      vi
+        .mocked(trackEvent)
+        .mock.calls.filter(([name]) => name === 'email_subscription_result')
+        .map(([, properties]) => [properties?.action, properties?.status]),
+    ).toEqual([
+      ['unsubscribe', 'success'],
+      ['resubscribe', 'success'],
+    ]);
+    expect(JSON.stringify(vi.mocked(trackEvent).mock.calls)).not.toContain(email);
     for (const [, init] of writes) {
       expect(init?.body).toBeUndefined();
       expect(init?.credentials).toBe('include');
@@ -120,6 +133,10 @@ describe('마이페이지 이메일 구독 설정', () => {
     const view = render(<EmailSubscriptionSettings />);
     fireEvent.click(await view.findByRole('button', { name: '구독 해지' }));
     expect(await view.findByRole('alert')).toBeTruthy();
+    expect(trackEvent).toHaveBeenCalledWith(
+      'email_subscription_result',
+      expect.objectContaining({ action: 'unsubscribe', status: 'error' }),
+    );
     expect(view.getByRole('heading', { name: '구독 중' })).toBeTruthy();
     expect(view.queryByRole('button', { name: '재구독' })).toBeNull();
     fail = false;

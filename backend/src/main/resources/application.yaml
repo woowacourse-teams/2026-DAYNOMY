@@ -242,6 +242,19 @@ investment-calendar:
     history-years: ${INVESTMENT_CALENDAR_HISTORY_YEARS:5}
     dart-lookback-days: ${INVESTMENT_CALENDAR_DART_LOOKBACK_DAYS:30}
 
+email:
+  auto-analysis:
+    enabled: ${EMAIL_AUTO_ANALYSIS_ENABLED:false}
+    max-daily-runs: ${EMAIL_AUTO_ANALYSIS_MAX_DAILY_RUNS:0}
+    max-monthly-runs: ${EMAIL_AUTO_ANALYSIS_MAX_MONTHLY_RUNS:0}
+  delivery:
+    enabled: ${EMAIL_DELIVERY_ENABLED:false}
+    scheduling-enabled: ${EMAIL_DELIVERY_SCHEDULING_ENABLED:false}
+    unsubscribe-secret: ${EMAIL_UNSUBSCRIBE_SECRET:}
+    public-base-url: ${EMAIL_PUBLIC_BASE_URL:}
+    api-key: ${RESEND_API_KEY:}
+    from: ${EMAIL_FROM:DAYNOMY <notifications@mail.daynomy.com>}
+
 logging:
   structured:
     format:

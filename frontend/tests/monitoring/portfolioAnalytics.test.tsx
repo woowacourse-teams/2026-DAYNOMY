@@ -199,7 +199,7 @@ it('정렬 방향과 신규 집계 속성을 GA4·PostHog 최종 허용 목록�
     ],
     [
       'portfolio_analysis_completed',
-      { status: 'READY', summary_status: 'READY', duration_ms: 200 },
+      { status: 'READY', summary_status: 'READY', last_check_outcome: 'UPDATED', duration_ms: 200 },
     ],
     ['portfolio_dashboard_loaded', { holding_count_bucket: '2_5', duration_ms: 50 }],
   ] as const;

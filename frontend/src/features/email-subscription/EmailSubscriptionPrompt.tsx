@@ -10,6 +10,7 @@ import {
   type EmailSubscriptionResponse,
 } from './api';
 import './emailSubscription.css';
+import { trackEmailSubscriptionEvent } from './analytics';
 
 export function EmailSubscriptionPrompt() {
   const { isLoggedIn, loading, memberId } = useAuth();
@@ -45,23 +46,45 @@ function EmailSubscriptionDialog() {
     return () => controller.abort();
   }, []);
 
-  async function choose(action: 'subscribe' | 'dismiss') {
+  const promptViewed = useRef(false);
+  useEffect(() => {
+    if (!subscription?.promptRequired || confirmation || promptViewed.current) return;
+    promptViewed.current = true;
+    trackEmailSubscriptionEvent('email_subscription_prompt_viewed', {
+      surface: 'email_subscription_prompt',
+    });
+  }, [subscription?.promptRequired, confirmation]);
+
+  async function choose(action: 'subscribe' | 'dismiss', trigger: 'button' | 'close' = 'button') {
     const controller = controllerRef.current;
     if (submitting.current || !controller || controller.signal.aborted) return;
     submitting.current = true;
     setPending(action);
     setError(null);
+    const startedAt = performance.now();
+    const properties = { surface: 'email_subscription_prompt' as const, action, trigger };
+    trackEmailSubscriptionEvent('email_subscription_submitted', properties);
+    const recordResult = (status: 'success' | 'error') => {
+      trackEmailSubscriptionEvent('email_subscription_result', {
+        ...properties,
+        status,
+        duration_ms: Math.max(0, Math.round(performance.now() - startedAt)),
+      });
+    };
     try {
       const value = await (action === 'subscribe' ? subscribeToEmail : dismissEmailSubscription)(
         controller.signal,
       );
       if (controller.signal.aborted) return;
+      recordResult('success');
       setSubscription(value);
       if (action === 'subscribe') setConfirmation(true);
       else navigate('/', { replace: true });
     } catch {
-      if (!controller.signal.aborted)
+      if (!controller.signal.aborted) {
+        recordResult('error');
         setError('선택을 저장하지 못했어요. 잠시 후 다시 시도해 주세요.');
+      }
     } finally {
       submitting.current = false;
       if (!controller.signal.aborted) setPending(null);
@@ -78,7 +101,7 @@ function EmailSubscriptionDialog() {
       busy={pending !== null}
       onClose={() => {
         if (confirmation) setConfirmation(false);
-        else void choose('dismiss');
+        else void choose('dismiss', 'close');
       }}
     >
       <span className="email-subscription-brand">DAYNOMY</span>
@@ -89,7 +112,7 @@ function EmailSubscriptionDialog() {
         disabled={pending !== null}
         onClick={() => {
           if (confirmation) setConfirmation(false);
-          else void choose('dismiss');
+          else void choose('dismiss', 'close');
         }}
       >
         <svg viewBox="0 0 24 24" aria-hidden="true">

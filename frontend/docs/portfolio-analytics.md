@@ -22,7 +22,7 @@ AI CTA 노출은 기존 `useContentImpression`의 공통 전송 경로를 사용
 | `portfolio_validation_failed`   | 잘못된 필드에서 초점을 옮기거나 검증으로 제출이 거절될 때                                                                        | mode, field, reason: invalid_value, trigger: blur/submit                                                                                              |
 | `portfolio_editor_closed`       | 개별 거래 입력·수정 창의 닫기·취소·바깥 클릭·Esc. 같은 닫기는 한 번                                                              | mode, stage: search/input/validation_error/save_error, has_changes, duration_ms                                                                       |
 | `portfolio_analysis_cta_viewed` | 분석·상태 확인·로그인·재시도 버튼이 화면에서 50% 이상 보이고 문서가 활성일 때. 마운트 내 동일 action/reason/enabled 조합당 한 번 | action: analyze/refresh/check_status/login/retry, enabled, reason, user_type: member/guest, has_holdings, pricing_status                              |
-| `portfolio_analysis_completed`  | 이 화면에서 시작한 분석·갱신의 최종 상태를 응답 또는 폴링으로 확인할 때 한 번                                                    | action: analyze/refresh, user_type, asset_count, status, summary_status (제공 시), duration_ms                                                        |
+| `portfolio_analysis_completed`  | 이 화면에서 시작한 분석·갱신의 최종 상태를 응답 또는 폴링으로 확인할 때 한 번                                                    | action: analyze/refresh, user_type, asset_count, status, summary_status·last_check_outcome (제공 시), duration_ms                                     |
 | `portfolio_dashboard_loaded`    | 기존 마운트당 한 번. 보유 조회와 현재 평가 완료, 빈 포트폴리오도 포함                                                            | 기존 속성 + duration_ms, holding_count_bucket: 0/1/2_5/6_20/21_plus                                                                                   |
 
 ### 결과와 시간의 의미
@@ -35,7 +35,7 @@ AI CTA 노출은 기존 `useContentImpression`의 공통 전송 경로를 사용
 - duration_ms는 저장에서 저장 시작→결과, CSV 읽기에서 파일 선택→구문 분석, 미리보기에서 종목 매칭 시작→준비, 검색에서 요청 실행→결과, 닫기에서 창 열기→닫기, 대시보드에서 마운트→초기 로딩 완료다. 브라우저의 단조 증가 시계를 사용하고 음수는 0으로 제한한다.
 - 개별 검증은 같은 필드·값의 blur→submit을 중복 집계하지 않으며 사용자가 입력을 바꾸면 다시 측정한다. 원본 값은 브라우저 메모리에서 중복 비교에만 사용하고 전송하지 않는다. `has_changes`는 개별 창에서 사용자의 입력·선택 여부, 일괄편집에서는 미저장 변경 여부다.
 - 저장 성공으로 닫힘·삭제·컴포넌트 제거·브라우저 종료는 명시적 닫기로 집계하지 않는다. 분석 중 화면 이탈도 완료로 만들지 않는다.
-- `portfolio_analysis_result`는 기존 요청 응답·복구 결과다. `PROCESSING`은 최종 완료가 아니다. 새 완료 이벤트는 READY의 요약 PENDING도 기다리며 최종 summary_status를 남긴다. FAILED·ERROR·CONFLICT·TRIAL_EXHAUSTED·REFRESH_LIMIT_EXCEEDED·EMPTY·PORTFOLIO_CHANGED·RECHECK_REQUIRED는 성공과 구분한다. 단순 저장 결과 복원은 완료 이벤트를 만들지 않는다. 다른 탭·새로고침 이후 작업 완료는 이 화면의 시작 측정과 이어 붙이지 않는다.
+- `portfolio_analysis_result`는 기존 요청 응답·복구 결과다. `PROCESSING`은 최종 완료가 아니다. 새 완료 이벤트는 요약 PENDING도 기다리며 최종 summary_status와 제공된 last_check_outcome을 남긴다. summary_status=FAILED는 완료 status도 FAILED로 기록한다. FAILED·ERROR·CONFLICT·TRIAL_EXHAUSTED·REFRESH_LIMIT_EXCEEDED·PORTFOLIO_CHANGED·RECHECK_REQUIRED는 성공과 구분하고, EMPTY는 완료로 세지 않는다. 단순 저장 결과 복원은 완료 이벤트를 만들지 않는다. 다른 탭·새로고침 이후 작업 완료는 이 화면의 시작 측정과 이어 붙이지 않는다.
 - CTA `enabled`는 해당 버튼을 누를 수 있는지다. check_status는 분석 시작이 아니며 login은 로그인 이동이다. 요약 대기는 reason=summary_pending, 당일 갱신 횟수 소진은 reason=refresh_limit_exceeded로 구분하며 해당 버튼은 비활성이다. 복원 중 버튼이 눌려도 새 분석을 시작하지 않는 경우는 reason=restoring으로 구분한다. 가격 불완전·보유 불일치로 버튼 자체가 렌더링되지 않으면 CTA 노출로 집계하지 않는다. 비활성·화면 밖·가이드 예시는 실행 가능한 분석 노출의 분모에서 제외한다.
 
 ## 수집하지 않는 값
