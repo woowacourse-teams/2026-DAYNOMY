@@ -182,7 +182,13 @@ it('트렌딩은 외부 콘텐츠를 제외하고 데이노미 이슈 인기순�
     content: [
       page.content[0],
       { ...page.content[0], id: 8, title: '집계 없는 데이노미 이슈', publishedAt: '2026-10-24' },
-      { ...page.content[0], id: 9, title: '인기 데이노미 이슈', publishedAt: '2026-10-25' },
+      {
+        ...page.content[0],
+        id: 9,
+        title: '인기 데이노미 이슈',
+        imageUrl: '/trending.jpg',
+        publishedAt: '2026-10-25',
+      },
       { ...page.content[0], id: 10, title: '네 번째 데이노미 이슈', publishedAt: '2026-10-26' },
     ],
   });
@@ -214,6 +220,9 @@ it('트렌딩은 외부 콘텐츠를 제외하고 데이노미 이슈 인기순�
   expect(trending.getAllByRole('article')).toHaveLength(4);
   expect(trending.getByText('트렌딩 04')).toBeTruthy();
   expect(trending.queryByText('가장 인기 있는 외부 영상')).toBeNull();
+  const featureStory = view.container.querySelector('.briefing-feature-story.briefing-live-story');
+  expect(featureStory).toBeTruthy();
+  expect(featureStory?.querySelector('img')?.getAttribute('src')).toBe('/trending.jpg');
   expect(
     within(view.container.querySelector('.briefing-feature-story')!).getByRole('link', {
       name: /인기 데이노미 이슈/,
