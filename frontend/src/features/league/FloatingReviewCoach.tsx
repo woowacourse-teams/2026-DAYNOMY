@@ -33,6 +33,7 @@ export function FloatingReviewCoach({
   const saved = useRef(false);
   const deferring = useRef(false);
   const [deferFailure, setDeferFailure] = useState<DeferTarget | null>(null);
+  const [currentRecord, setCurrentRecord] = useState(record);
   const floating = useRef<HTMLElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const entry = useRef<HTMLButtonElement>(null);
@@ -183,7 +184,7 @@ export function FloatingReviewCoach({
           </>
         ) : (
           <InvestmentRecords
-            records={[record]}
+            records={[currentRecord]}
             reviewId={record.id}
             editorOnly
             surface="review_coach"
@@ -192,7 +193,8 @@ export function FloatingReviewCoach({
             setReviewId={(value) => {
               if (value === null && !saved.current) void defer('later', minimize);
             }}
-            onRecordChange={(value) => {
+            onRecordChange={setCurrentRecord}
+            onReviewSaved={(value) => {
               saved.current = true;
               setDone(true);
               setDeferFailure(null);

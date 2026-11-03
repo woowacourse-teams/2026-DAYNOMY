@@ -17,6 +17,7 @@ export function LeagueReviewReminder({
   const [records, setRecords] = useState<InvestmentDecisionRecord[]>([]);
   const [remind, setRemind] = useState(true);
   const [completedIds, setCompletedIds] = useState<number[]>([]);
+  const [editingRecordId, setEditingRecordId] = useState<number | null>(null);
   const savedRecord = useRef<InvestmentDecisionRecord | null>(null);
   const impression = useRef(false);
   useEffect(() => {
@@ -42,7 +43,10 @@ export function LeagueReviewReminder({
   }, [requestKey]);
   const pending = records.filter((record) => {
     const current = providedRecords?.find((value) => value.id === record.id) ?? record;
-    return current.reviews.length === 0 && !completedIds.includes(record.id);
+    return (
+      (current.reviews.length === 0 || record.id === editingRecordId) &&
+      !completedIds.includes(record.id)
+    );
   });
   useEffect(() => {
     if (!remind || !pending.length) return;
@@ -67,15 +71,16 @@ export function LeagueReviewReminder({
       record={record}
       entryPoint={entryPoint}
       reminderCount={remind ? pending.length : undefined}
-      onOpen={(target) =>
+      onOpen={(target) => {
+        setEditingRecordId(record.id);
         trackLeagueEvent('league_review_reminder_action', {
           surface: 'review_coach',
           entry_point: entryPoint,
           action: 'open_review',
           target,
           status: 'clicked',
-        })
-      }
+        });
+      }}
       onDefer={async (target) => {
         setRemind(false);
         try {
@@ -106,6 +111,7 @@ export function LeagueReviewReminder({
         const saved = savedRecord.current;
         if (saved?.id !== record.id) return;
         setCompletedIds((values) => [...values, saved.id]);
+        setEditingRecordId(null);
         savedRecord.current = null;
         setRemind(false);
         onReviewed?.(saved);

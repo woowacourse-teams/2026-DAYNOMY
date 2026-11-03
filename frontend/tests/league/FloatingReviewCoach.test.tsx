@@ -256,18 +256,55 @@ it('기사 확인과 실제 저장만 익명 퍼널에 기록하고 복기·종�
   );
 });
 
-it('이미 저장된 복기를 재조회한 409 응답은 새 저장으로 집계하지 않는다', async () => {
-  vi.mocked(api.getReviewGuide).mockRejectedValue(
-    new ApiError(409, 'REVIEW_GUIDE_ALREADY_REVIEWED', 'conflict'),
+it('다른 기기에서 복기한 409 응답을 받아도 초안을 보존하고 실제 저장 때만 완료한다', async () => {
+  let rejectGuide!: (error: unknown) => void;
+  vi.mocked(api.getReviewGuide).mockImplementation(
+    () =>
+      new Promise((_, reject) => {
+        rejectGuide = reject;
+      }),
   );
   vi.mocked(api.getInvestmentDecisions).mockResolvedValue([{ ...record, reviews: [review] }]);
-  const view = render(<FloatingReviewCoach record={record} onSaved={vi.fn()} />);
+  const onSaved = vi.fn();
+  const view = render(<FloatingReviewCoach record={record} onSaved={onSaved} />);
   fireEvent.click(view.getByRole('button', { name: '복기 도우미 열기' }));
-  await view.findByText('복기를 남겼어요.');
+  for (const [label, value] of [
+    ['실제 결과', '내 결과 초안'],
+    ['예상과 달랐던 점', '내 차이 초안'],
+    ['다음 행동', '내 행동 초안'],
+  ])
+    fireEvent.change(view.getByRole('textbox', { name: label }), { target: { value } });
+  await act(async () =>
+    rejectGuide(new ApiError(409, 'REVIEW_GUIDE_ALREADY_REVIEWED', 'conflict')),
+  );
+  expect((await view.findByRole('alert')).textContent).toContain('이미 복기가 저장');
+  expect(view.queryByText('복기를 남겼어요.')).toBeNull();
+  expect(view.getByRole('textbox', { name: '실제 결과' })).toHaveProperty('value', '내 결과 초안');
+  expect(view.getByRole('textbox', { name: '예상과 달랐던 점' })).toHaveProperty(
+    'value',
+    '내 차이 초안',
+  );
+  expect(view.getByRole('textbox', { name: '다음 행동' })).toHaveProperty('value', '내 행동 초안');
   expect(api.createReview).not.toHaveBeenCalled();
+  expect(onSaved).not.toHaveBeenCalled();
   expect(vi.mocked(trackEvent).mock.calls.some(([name]) => name === 'league_review_saved')).toBe(
     false,
   );
+  fireEvent.click(view.getByRole('button', { name: '복기 도우미 접기' }));
+  fireEvent.click(view.getByRole('button', { name: '복기 도우미 열기' }));
+  expect(view.getByRole('textbox', { name: '실제 결과' })).toHaveProperty('value', '내 결과 초안');
+  expect(api.getReviewGuide).toHaveBeenCalledOnce();
+  const newReview = {
+    ...review,
+    id: 3,
+    actualResult: '내 결과 초안',
+    differenceFromExpectation: '내 차이 초안',
+    nextAction: '내 행동 초안',
+  };
+  vi.mocked(api.createReview).mockResolvedValue(newReview);
+  fireEvent.click(view.getByRole('button', { name: '복기 저장' }));
+  await view.findByText('복기를 남겼어요.');
+  expect(onSaved).toHaveBeenCalledExactlyOnceWith({ ...record, reviews: [review, newReview] });
 });
 
 it.each([

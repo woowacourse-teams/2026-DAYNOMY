@@ -256,6 +256,7 @@ const InvestmentRecordCard = memo(function InvestmentRecordCard({
 export function InvestmentRecords({
   records,
   onRecordChange,
+  onReviewSaved,
   reviewId,
   setReviewId,
   disabled = false,
@@ -266,6 +267,7 @@ export function InvestmentRecords({
 }: {
   records: InvestmentDecisionRecord[];
   onRecordChange: (record: InvestmentDecisionRecord) => void;
+  onReviewSaved?: (record: InvestmentDecisionRecord) => void;
   reviewId: number | null;
   setReviewId: (id: number | null) => void;
   disabled?: boolean;
@@ -479,13 +481,15 @@ export function InvestmentRecords({
         action: editingReviewId === null ? 'save_review' : 'edit_review',
       });
       const record = records.find((record) => record.id === reviewId)!;
-      onRecordChange({
+      const updated = {
         ...record,
         reviews:
           editingReviewId === null
             ? [...record.reviews, saved]
             : record.reviews.map((item) => (item.id === editingReviewId ? saved : item)),
-      });
+      };
+      onRecordChange(updated);
+      onReviewSaved?.(updated);
       setReviewId(null);
       setEditingReviewId(null);
       setReview(blankReview());

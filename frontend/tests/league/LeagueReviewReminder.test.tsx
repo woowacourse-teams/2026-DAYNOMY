@@ -217,3 +217,25 @@ it('나중에 미루기를 저장한 뒤 접어도 입력 초안을 유지한다
   );
   expect(api.getReviewGuide).toHaveBeenCalledOnce();
 });
+
+it('작성 중 목록이 다른 기기의 복기 완료 상태로 갱신돼도 현재 초안을 유지한다', async () => {
+  vi.mocked(api.getReviewGuide).mockImplementation(() => new Promise(() => {}));
+  const view = render(<LeagueReviewReminder records={[record]} />);
+  fireEvent.click(await view.findByRole('button', { name: '바로 작성하기' }));
+  fireEvent.change(view.getByRole('textbox', { name: '실제 결과' }), {
+    target: { value: '목록 갱신 중에도 유지할 초안' },
+  });
+  view.rerender(<LeagueReviewReminder records={[{ ...record, reviews: [review] }]} />);
+  expect(view.getByRole('textbox', { name: '실제 결과' })).toHaveProperty(
+    'value',
+    '목록 갱신 중에도 유지할 초안',
+  );
+  fireEvent.click(view.getByRole('button', { name: '복기 도우미 접기' }));
+  expect(view.queryByRole('dialog')).toBeNull();
+  fireEvent.click(view.getByRole('button', { name: '복기 도우미 열기' }));
+  expect(view.getByRole('textbox', { name: '실제 결과' })).toHaveProperty(
+    'value',
+    '목록 갱신 중에도 유지할 초안',
+  );
+  expect(api.getReviewGuide).toHaveBeenCalledOnce();
+});
