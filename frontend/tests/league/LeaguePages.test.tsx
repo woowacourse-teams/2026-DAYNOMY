@@ -1302,6 +1302,90 @@ describe('투자 리그 화면', () => {
     expect(await view.findByRole('link', { name: '투자리그 참여하기' })).toBeTruthy();
   });
 
+  it.each([
+    { weeklyReturnRate: 2.5, label: '+2.50%', collectionStatus: 'CALENDAR_PENDING' as const },
+    { weeklyReturnRate: 0, label: '0.00%', collectionStatus: 'CALENDAR_PENDING' as const },
+    { weeklyReturnRate: -1, label: '-1.00%', collectionStatus: 'CALENDAR_PENDING' as const },
+    { weeklyReturnRate: 2.5, label: '+2.50%', collectionStatus: 'NO_TRADING_DAYS' as const },
+  ])('계산된 주간 $label 성과는 $collectionStatus 문구로 덮지 않는다', async (point) => {
+    vi.mocked(leagueApi.getPublicInvestor).mockResolvedValue({
+      ...investor,
+      detailAvailable: false,
+      history: [
+        {
+          ...investor.history[0],
+          weeklyReturnRate: point.weeklyReturnRate,
+          collectionStatus: point.collectionStatus,
+          confirmed: true,
+          weeklyRank: 12,
+        },
+      ],
+    });
+    const view = render(
+      <AuthContext.Provider value={{ isLoggedIn: false, loading: false, role: null }}>
+        <MemoryRouter initialEntries={['/league/investor-1']}>
+          <Routes>
+            <Route path="/league/:publicId" element={<InvestorProfilePage />} />
+          </Routes>
+        </MemoryRouter>
+      </AuthContext.Provider>,
+    );
+    await view.findByRole('heading', { name: '누적 수익률' });
+    fireEvent.click(view.getByRole('button', { name: '주간' }));
+    const week = await view.findByRole('button', {
+      name: `2026-12-07 주간 ${point.label} 일별 기록 보기`,
+    });
+    expect(within(week).getByText(point.label)).toBeTruthy();
+    expect(within(week).getByText('12위')).toBeTruthy();
+    expect(within(week).getByText('확정')).toBeTruthy();
+    expect(within(week).queryByText('거래일 확인 대기')).toBeNull();
+    expect(within(week).queryByText('휴장 주')).toBeNull();
+    fireEvent.click(week);
+    await waitFor(() =>
+      expect(leagueApi.getDailyHistory).toHaveBeenLastCalledWith(
+        'investor-1',
+        '2026-12-07',
+        expect.any(AbortSignal),
+      ),
+    );
+  });
+
+  it.each([
+    { collectionStatus: 'CALENDAR_PENDING' as const, label: '거래일 확인 대기' },
+    { collectionStatus: 'NO_TRADING_DAYS' as const, label: '휴장 주' },
+    { collectionStatus: 'COLLECTION_PENDING' as const, label: '집계 대기' },
+  ])('계산된 주간 성과가 없으면 $label 상태를 유지한다', async (point) => {
+    vi.mocked(leagueApi.getPublicInvestor).mockResolvedValue({
+      ...investor,
+      detailAvailable: false,
+      history: [
+        {
+          ...investor.history[0],
+          weeklyReturnRate: null,
+          collectionStatus: point.collectionStatus,
+          confirmed: false,
+          status: 'PENDING',
+        },
+      ],
+    });
+    const view = render(
+      <AuthContext.Provider value={{ isLoggedIn: false, loading: false, role: null }}>
+        <MemoryRouter initialEntries={['/league/investor-1']}>
+          <Routes>
+            <Route path="/league/:publicId" element={<InvestorProfilePage />} />
+          </Routes>
+        </MemoryRouter>
+      </AuthContext.Provider>,
+    );
+    await view.findByRole('heading', { name: '누적 수익률' });
+    fireEvent.click(view.getByRole('button', { name: '주간' }));
+    const week = await view.findByRole('button', {
+      name: `2026-12-07 주간 ${point.label} 일별 기록 보기`,
+    });
+    expect(within(week).getByText(point.label)).toBeTruthy();
+    expect(within(week).queryByText('0.00%')).toBeNull();
+  });
+
   it.each([0, 1, 2, 8])(
     '%i주 기록에 맞춰 빈 상태·요약·그래프를 표시하고 실제 기록만 선택한다',
     async (count) => {

@@ -266,16 +266,13 @@ export function InvestorProfilePage({ ownProfile }: { ownProfile?: InvestorProfi
     .sort((a, b) => a.weekStart.localeCompare(b.weekStart))
     .slice(-3);
   function historyLabel(point: PublicInvestor['history'][number]) {
+    if (point.weeklyReturnRate !== null) return formatRate(point.weeklyReturnRate);
     if (
       point.collectionStatus === 'CALENDAR_PENDING' ||
       point.collectionStatus === 'NO_TRADING_DAYS'
     )
       return collectionLabels[point.collectionStatus];
-    return point.weeklyReturnRate === null
-      ? point.status === 'NOT_PARTICIPATING'
-        ? '미참여'
-        : '집계 대기'
-      : formatRate(point.weeklyReturnRate);
+    return point.status === 'NOT_PARTICIPATING' ? '미참여' : '집계 대기';
   }
   function showDaily(week: string) {
     trackLeagueEvent('league_action', {
