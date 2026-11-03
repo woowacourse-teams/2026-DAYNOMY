@@ -105,6 +105,17 @@ describe('관리자 종목 연결 화면', () => {
       });
       fireEvent.click(view.getByRole('button', { name: '검색' }));
       fireEvent.click(await view.findByRole('button', { name: /삼성전자/ }));
+      const stockSearchUrls = fetchMock.mock.calls
+        .filter(([path]) => String(path).includes('/api/stocks?'))
+        .map(([path]) => String(path));
+      expect(
+        stockSearchUrls.map((url) => new URL(url, 'http://localhost').searchParams.get('country')),
+      ).toEqual([null, 'US']);
+      expect(
+        stockSearchUrls.every(
+          (url) => new URL(url, 'http://localhost').searchParams.get('q') === '삼성전자',
+        ),
+      ).toBe(true);
       await view.findByText('등록된 링크가 없습니다.');
       fireEvent.click(view.getByRole('button', { name: '자료 추가' }));
       fireEvent.click(view.getByRole('button', { name: 'DAYNOMY에서 찾기' }));
