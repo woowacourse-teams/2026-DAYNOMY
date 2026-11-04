@@ -1,7 +1,5 @@
 <div align="center">
 
-  <img src="./frontend/public/daynomy-og.png" alt="DAYNOMY" width="720" />
-
   <h1>DAYNOMY</h1>
 
   <p>
