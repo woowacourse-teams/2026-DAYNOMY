@@ -22,6 +22,8 @@
 }
 .shared-page button.shared-primary-button,
 .floating-review button.shared-primary-button {
+  padding: 9px 14px;
+  border-radius: 999px;
   border-color: var(--button-action);
   background: var(--button-action);
   color: #fff;
