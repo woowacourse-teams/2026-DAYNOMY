@@ -24,6 +24,9 @@ jobs:
     name: Backend CI
     runs-on: ubuntu-latest
 
+    env:
+      CI_DIAGNOSTICS: 'true'
+
     defaults:
       run:
         working-directory: backend
@@ -31,6 +34,11 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+
+      - name: Start CI resource collection
+        run: |
+          echo "CI_DIAGNOSTICS_DIR=$RUNNER_TEMP/backend-ci-diagnostics" >> "$GITHUB_ENV"
+          python3 scripts/ci_metrics.py start "$RUNNER_TEMP/backend-ci-diagnostics"
 
       - name: Set up Java 21
         uses: actions/setup-java@v5
@@ -45,7 +53,19 @@ jobs:
         run: chmod +x gradlew
 
       - name: Run Spotless Check
-        run: ./gradlew spotlessCheck
+        env:
+          JAVA_TOOL_OPTIONS: '-Xlog:gc*:file=${{ runner.temp }}/backend-ci-diagnostics/gc/gc-%p-%t.log:time,uptime,level,tags:filecount=2,filesize=5M'
+        run: |
+          set -o pipefail
+          status=0
+          date -u '+%Y-%m-%dT%H:%M:%SZ' > "$CI_DIAGNOSTICS_DIR/spotless-start.txt"
+          ./gradlew spotlessCheck --profile --console=plain 2>&1 | tee "$CI_DIAGNOSTICS_DIR/spotless.log" || status=$?
+          date -u '+%Y-%m-%dT%H:%M:%SZ' > "$CI_DIAGNOSTICS_DIR/spotless-end.txt"
+          if [ -d build/reports/profile ]; then
+            mkdir -p "$CI_DIAGNOSTICS_DIR/profiles/spotless"
+            cp -R build/reports/profile/. "$CI_DIAGNOSTICS_DIR/profiles/spotless/"
+          fi
+          exit "$status"
 
       - name: Validate Market Calendar Tool
         run: python3 -m unittest discover -s scripts -p 'test_*.py'
@@ -62,7 +82,23 @@ jobs:
           docker run --rm --entrypoint /bin/promtool -v "$PWD:/rules:ro" -w /rules prom/prometheus:v3.5.0 test rules tests/league.test.yml
 
       - name: Run Tests and Build Project
-        run: ./gradlew clean build
+        env:
+          JAVA_TOOL_OPTIONS: '-Xlog:gc*:file=${{ runner.temp }}/backend-ci-diagnostics/gc/gc-%p-%t.log:time,uptime,level,tags:filecount=2,filesize=5M'
+        run: |
+          set -o pipefail
+          status=0
+          date -u '+%Y-%m-%dT%H:%M:%SZ' > "$CI_DIAGNOSTICS_DIR/build-start.txt"
+          ./gradlew clean build --profile --console=plain 2>&1 | tee "$CI_DIAGNOSTICS_DIR/build.log" || status=$?
+          date -u '+%Y-%m-%dT%H:%M:%SZ' > "$CI_DIAGNOSTICS_DIR/build-end.txt"
+          if [ -d build/reports/profile ]; then
+            mkdir -p "$CI_DIAGNOSTICS_DIR/profiles/build"
+            cp -R build/reports/profile/. "$CI_DIAGNOSTICS_DIR/profiles/build/"
+          fi
+          exit "$status"
+
+      - name: Stop CI resource collection
+        if: always()
+        run: python3 scripts/ci_metrics.py stop "$RUNNER_TEMP/backend-ci-diagnostics"
 
       - name: Upload test results
         if: always()
@@ -70,5 +106,14 @@ jobs:
         with:
           name: backend-test-results
           path: backend/build/test-results/test/
+          retention-days: 7
+          if-no-files-found: warn
+
+      - name: Upload CI diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: backend-ci-diagnostics
+          path: ${{ runner.temp }}/backend-ci-diagnostics/
           retention-days: 7
           if-no-files-found: warn
