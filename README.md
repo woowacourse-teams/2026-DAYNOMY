@@ -100,11 +100,64 @@ DAYNOMY는 4명의 개발자가 기획부터 프론트엔드, 백엔드, 테스�
 
 각자 핵심 도메인을 중심으로 개발하되, 하나의 기능이 사용자 화면부터 서버와 데이터베이스까지 완결되도록 Full-stack으로 협업했습니다.
 
-|                                                        이해선                                                        |                                                         최서영                                                         |                                                                 김희영                                                                 |                                                       박효미                                                       |
-| :------------------------------------------------------------------------------------------------------------------: | :--------------------------------------------------------------------------------------------------------------------: | :------------------------------------------------------------------------------------------------------------------------------------: | :----------------------------------------------------------------------------------------------------------------: |
-| <a href="https://github.com/haeseonlee"><img src="https://github.com/haeseonlee.png" width="150" alt="이해선" /></a> | <a href="https://github.com/choiyoung69"><img src="https://github.com/choiyoung69.png" width="150" alt="최서영" /></a> |         <a href="https://github.com/Huiyeongkim"><img src="https://github.com/Huiyeongkim.png" width="150" alt="김희영" /></a>         | <a href="https://github.com/parkhyomi"><img src="https://github.com/parkhyomi.png" width="150" alt="박효미" /></a> |
-|                                                      Full Stack                                                      |                                                       Full Stack                                                       |                                                               Full Stack                                                               |                                                     Full Stack                                                     |
-|     <b>포트폴리오 AI 분석</b><br />분석 생성·저장·갱신<br />시장 분석·키워드 분석<br />근거 검증·중복 실행 방지      |         <b>포트폴리오 · 자산 데이터</b><br />거래 원장·수익률<br />국내·미국 주식 및 ETF<br />인프라 모니터링          | DAYNOMY 이슈 제작·발행<br />YouTube·Threads·X 게시물 수집 자동화<br />수집 콘텐츠 검수·사용자 피드백 관리<br />로그 기반 운영 모니터링 |         <b>투자 리그 · 검색</b><br />리그 집계·순위 최적화<br />통합 검색·웹 접근성<br />프론트엔드 CI/CD          |
+<!-- Separate row groups keep the background consistent on GitHub. -->
+<table width="100%">
+  <tbody>
+    <tr>
+      <td width="25%" align="center"><b>이해선</b></td>
+      <td width="25%" align="center"><b>최서영</b></td>
+      <td width="25%" align="center"><b>김희영</b></td>
+      <td width="25%" align="center"><b>박효미</b></td>
+    </tr>
+  </tbody>
+  <tbody>
+    <tr>
+      <td width="25%" align="center"><a href="https://github.com/haeseonlee"><img src="https://github.com/haeseonlee.png" width="150" alt="이해선" /></a></td>
+      <td width="25%" align="center"><a href="https://github.com/choiyoung69"><img src="https://github.com/choiyoung69.png" width="150" alt="최서영" /></a></td>
+      <td width="25%" align="center"><a href="https://github.com/Huiyeongkim"><img src="https://github.com/Huiyeongkim.png" width="150" alt="김희영" /></a></td>
+      <td width="25%" align="center"><a href="https://github.com/parkhyomi"><img src="https://github.com/parkhyomi.png" width="150" alt="박효미" /></a></td>
+    </tr>
+  </tbody>
+  <tbody>
+    <tr>
+      <td width="25%" align="center">Full Stack</td>
+      <td width="25%" align="center">Full Stack</td>
+      <td width="25%" align="center">Full Stack</td>
+      <td width="25%" align="center">Full Stack</td>
+    </tr>
+  </tbody>
+  <tbody>
+    <tr>
+      <td width="25%" valign="top" align="left">
+        <b>포트폴리오 AI 분석 저장·갱신</b><br />
+        시장 분석·키워드 분석<br />
+        Google Oauth 로그인<br />
+        Resend API 메일 발송<br />
+        백엔드 CI/CD
+      </td>
+      <td width="25%" valign="top" align="left">
+        <b>포트폴리오 대시보드 개발</b><br />
+        자산·거래 관리 API 설계·구현<br />
+        국내·미국 종가·환율 수집 자동화<br />
+        거래 기반 손익·수익률·자산 추이 계산<br />
+        메트릭 모니터링 구축
+      </td>
+      <td width="25%" valign="top" align="left">
+        <b>DAYNOMY 이슈 제작·발행</b><br />
+        YouTube·<wbr />Threads·<wbr />X 게시물 수집 자동화<br />
+        사용자 피드백 관리<br />
+        로그 기반 운영 모니터링
+      </td>
+      <td width="25%" valign="top" align="left">
+        <b>투자 리그 · 검색 · 투자 복기 봇</b><br />
+        투자 리그 전반 설계 구현 및 집계·순위 최적화<br />
+        통합 검색·웹 접근성 개선<br />
+        봇 기반 투자 기록·복기 지원<br />
+        프론트엔드 CI/CD
+      </td>
+    </tr>
+  </tbody>
+</table>
 
 ### 공통 업무
 
