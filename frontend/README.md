@@ -50,14 +50,24 @@
 ```text
 frontend/
 ├── src/
-│   ├── api/          # API 클라이언트와 공통 계약
-│   ├── features/     # 포트폴리오·리그·소식·검색·관리자 기능
-│   ├── analytics.ts  # 사용자 행동 분석
-│   └── App.tsx       # 라우팅과 앱 진입점
-├── server/           # 공개 HTML 생성 서버
-├── tests/            # 단위·계약·컴포넌트 테스트
-├── e2e/              # Playwright E2E
-└── public/           # 정적 파일
+│   ├── api/                    # API 클라이언트와 공통 계약
+│   ├── features/
+│   │   ├── portfolio/          # 자산·거래·포트폴리오 분석
+│   │   ├── league/             # 투자 리그와 공개 프로필
+│   │   ├── news/               # 소식 목록과 상세
+│   │   ├── search/             # 통합 검색
+│   │   ├── people/             # 주요 인물
+│   │   ├── stock-content/      # 종목별 콘텐츠
+│   │   ├── account/            # 계정과 인증 상태
+│   │   ├── admin/              # 관리자 화면
+│   │   └── landing/            # 서비스 소개
+│   ├── analytics.ts            # 사용자 행동 분석
+│   └── App.tsx                 # 라우팅과 앱 진입점
+├── server/                     # 공개 HTML 생성 서버
+├── tests/                      # 단위·계약·컴포넌트 테스트
+├── e2e/                        # Playwright E2E
+├── public/                     # 정적 파일
+└── scripts/                    # 빌드·릴리스 검증 스크립트
 ```
 
 ## 포트폴리오 분석 화면
