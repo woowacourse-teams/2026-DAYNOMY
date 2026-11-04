@@ -44,6 +44,9 @@ public interface StockDailyPriceRepository extends JpaRepository<StockDailyPrice
 
   Optional<StockDailyPrice> findByAssetIdAndBaseDate(Long assetId, LocalDate baseDate);
 
+  Optional<StockDailyPrice> findFirstByAssetIdAndBaseDateLessThanEqualOrderByBaseDateDesc(
+      Long assetId, LocalDate baseDate);
+
   @Query("select distinct price.baseDate from StockDailyPrice price order by price.baseDate")
   List<LocalDate> findDistinctBaseDatesOrderByBaseDate();
 

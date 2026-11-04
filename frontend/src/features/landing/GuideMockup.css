@@ -44,6 +44,26 @@
   justify-content: space-between;
   gap: 2cqw;
 }
+.landing-page .guide-league-rank {
+  display: flex;
+  align-items: center;
+  gap: 3cqw;
+  padding: 6cqw 0;
+  border-bottom: 1px solid #e3e9f0;
+}
+.landing-page .guide-league-rank > span {
+  color: #326bd5;
+  font-size: 5cqw;
+  font-weight: 700;
+}
+.landing-page .guide-league-rank > strong {
+  margin-left: auto;
+  color: #d24755;
+  font-size: 4.5cqw;
+}
+.landing-page .guide-league .guide-total h4 {
+  margin: 3cqw 0 0;
+}
 .landing-page .guide-muted {
   color: #52647f;
   font-size: 3cqw;

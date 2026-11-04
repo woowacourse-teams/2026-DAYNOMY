@@ -22,7 +22,8 @@ public class SharedPortfolioController {
 
   @Operation(
       summary = "내 공유 포트폴리오 조회",
-      description = "투자 리그의 공유 포트폴리오 보유 종목과 최근 수집 종가 기준 평가 결과를 조회합니다.")
+      description =
+          "원본 포트폴리오 변경을 자동 반영하고 보유 종목과 종가 기준 평가 결과를 조회합니다. 기존 공개 범위는 유지하며 새 종목은 비공개로 가져옵니다. 공개 여부와 관계없이 국내·미국 종목을 원화 기준 수익률로 합산합니다.")
   @GetMapping
   public ResponseEntity<PortfolioResponse> get(
       @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember member) {

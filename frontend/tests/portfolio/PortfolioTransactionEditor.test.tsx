@@ -1,4 +1,9 @@
 /** @vitest-environment jsdom */
+import { trackPortfolioEvent } from '../../src/features/portfolio/analytics';
+vi.mock('../../src/features/portfolio/analytics', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../src/features/portfolio/analytics')>()),
+  trackPortfolioEvent: vi.fn(),
+}));
 import { act, cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
 import { afterAll, beforeAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getLatestStockPrice, searchStocks, getUsdKrwRate } from '../../src/features/stocks/api';
@@ -49,6 +54,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   cleanup();
+  vi.mocked(trackPortfolioEvent).mockClear();
   vi.resetAllMocks();
 });
 
@@ -671,4 +677,92 @@ it('수수료 창은 비용 오류만 표시하고 올바른 금액으로 고치
   fireEvent.change(modal.getByLabelText('세금 (원)'), { target: { value: '1' } });
   expect(modal.queryByRole('alert')).toBeNull();
   expect(modal.getByRole('button', { name: '적용' })).toHaveProperty('disabled', false);
+});
+
+it('검증 실패를 blur·제출에서 중복 기록하지 않고 외부 대화상자 닫기도 같은 경로로 처리한다', async () => {
+  const { createRef } = await import('react');
+  const ref =
+    createRef<
+      import('../../src/features/portfolio/components/PortfolioTransactionEditor').PortfolioTransactionEditorHandle
+    >();
+  const close = vi.fn();
+  const save = vi.fn();
+  const view = render(
+    <PortfolioTransactionEditor ref={ref} stock={samsung} onClose={close} onSave={save} />,
+  );
+  await waitFor(() =>
+    expect(view.getByLabelText('거래 단가 (원)')).toHaveProperty('value', '75,200'),
+  );
+  const quantity = view.getByLabelText('수량 (주)');
+  fireEvent.change(quantity, { target: { value: '0' } });
+  fireEvent.blur(quantity);
+  fireEvent.click(view.getByRole('button', { name: '매수 기록하기' }));
+  expect(
+    vi
+      .mocked(trackPortfolioEvent)
+      .mock.calls.filter(([name]) => name === 'portfolio_validation_failed'),
+  ).toHaveLength(1);
+  expect(trackPortfolioEvent).toHaveBeenCalledWith(
+    'portfolio_validation_failed',
+    expect.objectContaining({ field: 'quantity', trigger: 'blur', reason: 'invalid_value' }),
+  );
+  act(() => {
+    ref.current?.close();
+    ref.current?.close();
+  });
+  expect(close).toHaveBeenCalledOnce();
+  expect(save).not.toHaveBeenCalled();
+  expect(trackPortfolioEvent).toHaveBeenCalledWith(
+    'portfolio_editor_closed',
+    expect.objectContaining({ stage: 'validation_error', has_changes: true }),
+  );
+  expect(JSON.stringify(vi.mocked(trackPortfolioEvent).mock.calls)).not.toMatch(
+    /삼성전자|75200|005930/,
+  );
+});
+
+it('저장 성공 후 제거될 때는 중단 이벤트를 보내지 않는다', async () => {
+  const save = vi.fn().mockResolvedValue(undefined);
+  const view = render(
+    <PortfolioTransactionEditor stock={samsung} onClose={vi.fn()} onSave={save} />,
+  );
+  await waitFor(() =>
+    expect(view.getByLabelText('거래 단가 (원)')).toHaveProperty('value', '75,200'),
+  );
+  fireEvent.click(view.getByRole('button', { name: '매수 기록하기' }));
+  await waitFor(() => expect(save).toHaveBeenCalledOnce());
+  view.unmount();
+  expect(
+    vi
+      .mocked(trackPortfolioEvent)
+      .mock.calls.filter(([name]) => name === 'portfolio_editor_closed'),
+  ).toHaveLength(0);
+});
+
+it('취소된 검색은 결과로 세지 않고 완료된 국내·미국 검색만 한 번 기록한다', async () => {
+  let resolveOld!: (stocks: (typeof sk)[]) => void;
+  const oldResult = new Promise<(typeof sk)[]>((resolve) => {
+    resolveOld = resolve;
+  });
+  vi.mocked(searchStocks).mockImplementation((query) =>
+    query === 'private-old' ? oldResult : Promise.resolve([sk]),
+  );
+  const view = render(<PortfolioTransactionEditor onClose={vi.fn()} onSave={vi.fn()} />);
+  fireEvent.change(view.getByRole('searchbox'), { target: { value: 'private-old' } });
+  await waitFor(() => expect(searchStocks).toHaveBeenCalledTimes(2));
+  fireEvent.change(view.getByRole('searchbox'), { target: { value: 'private-new' } });
+  await act(async () => resolveOld([sk]));
+  await view.findByRole('button', { name: /SK하이닉스/ });
+  const results = vi
+    .mocked(trackPortfolioEvent)
+    .mock.calls.filter(([name]) => name === 'portfolio_search_result');
+  expect(results).toHaveLength(1);
+  expect(results[0][1]).toMatchObject({
+    search_length: 11,
+    result_count: 1,
+    kr_result_count: 1,
+    us_result_count: 1,
+    status: 'success',
+  });
+  expect(JSON.stringify(results)).not.toMatch(/private|SK하이닉스|000660/);
 });

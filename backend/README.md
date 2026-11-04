@@ -37,7 +37,14 @@ DAYNOMY의 **포트폴리오 기록과 AI 분석**을 처리하는 Spring Boot A
 - 자동 수집 콘텐츠의 관리자 검수
 - 주간 투자 리그 집계와 순위 확정
 - 공유 포트폴리오와 공개 투자 기록
+- 미복기 기록 알림과 기사 기반 AI 복기 질문
 - 거래일 달력, 종가 수집과 집계 상태 관리
+
+### 이메일 알림
+
+- 중요 보유 종목 자동 분석
+- 포트폴리오 소식 이메일 구독·해지
+- 예약 발송과 발송 이력 관리
 
 ### 인증과 운영
 
@@ -81,6 +88,7 @@ src/main/java/org/grit/daynomy/
 ├── person/               # 주요 인물과 게시물
 ├── search/               # 통합 검색
 ├── feedback/             # 사용자 피드백
+├── emailsubscription/    # 포트폴리오 이메일 알림
 ├── external/             # 외부 API 연동
 ├── config/               # 애플리케이션 설정
 └── common/               # 공통 응답, 예외와 로깅
@@ -247,6 +255,8 @@ DB 동작이 중요한 Repository 테스트에는 PostgreSQL Testcontainers를 �
 ## 관련 문서
 
 - [백엔드 ADR](./docs/adr)
+- [포트폴리오 일괄 편집](./docs/portfolio-bulk-edit.md)
+- [투자 리그 AI 복기 기술 명세](../docs/league-ai-review-technical.md)
 - [부하 테스트](./loadtest/README.md)
 - [공통 부하 테스트 문서](../docs/loadtest)
 - [모니터링 운영 문서](../monitoring/docs)

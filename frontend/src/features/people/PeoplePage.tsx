@@ -326,7 +326,13 @@ export function PeoplePage() {
             className="people-selector-item people-find-link"
             aria-expanded={finderOpen}
             aria-controls="people-finder"
-            onClick={() => setFinderOpen(!finderOpen)}
+            onClick={() => {
+              trackEvent('toggle_people_finder', {
+                surface: 'people',
+                expanded: !finderOpen,
+              });
+              setFinderOpen(!finderOpen);
+            }}
           >
             <span className="people-selector-avatar" aria-hidden="true">
               <svg viewBox="0 0 24 24">
@@ -381,6 +387,13 @@ export function PeoplePage() {
                     {selected.xProfileUrl && (
                       <a
                         href={selected.xProfileUrl}
+                        onClick={() =>
+                          trackEvent('click_person_profile', {
+                            surface: 'people',
+                            person_id: selected.id,
+                            source_type: 'X',
+                          })
+                        }
                         target="_blank"
                         rel="noreferrer"
                         aria-label="X 프로필 보기 (새 탭)"
@@ -404,6 +417,13 @@ export function PeoplePage() {
                     {selected.threadsProfileUrl && (
                       <a
                         href={selected.threadsProfileUrl}
+                        onClick={() =>
+                          trackEvent('click_person_profile', {
+                            surface: 'people',
+                            person_id: selected.id,
+                            source_type: 'THREADS',
+                          })
+                        }
                         target="_blank"
                         rel="noreferrer"
                         aria-label="Threads 프로필 보기 (새 탭)"
@@ -427,6 +447,13 @@ export function PeoplePage() {
                     {selected.youtubeProfileUrl && (
                       <a
                         href={selected.youtubeProfileUrl}
+                        onClick={() =>
+                          trackEvent('click_person_profile', {
+                            surface: 'people',
+                            person_id: selected.id,
+                            source_type: 'YOUTUBE',
+                          })
+                        }
                         target="_blank"
                         rel="noreferrer"
                         aria-label="YouTube 채널 보기 (새 탭)"

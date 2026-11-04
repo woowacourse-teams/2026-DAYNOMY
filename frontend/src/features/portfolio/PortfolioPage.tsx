@@ -7,9 +7,10 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProper
 import { PortfolioTour } from './components/PortfolioTour';
 import { PortfolioNews } from './components/PortfolioNews';
 import { calculatePortfolio } from './api';
-import { portfolioErrorType, trackPortfolioEvent } from './analytics';
+import { portfolioErrorType, portfolioMarketScope, trackPortfolioEvent } from './analytics';
 import { PortfolioAnalysis } from './components/PortfolioAnalysis';
 import { PortfolioEditor } from './components/PortfolioEditor';
+import { PortfolioBulkEditor, type BulkEditorMode } from './components/PortfolioBulkEditor';
 import { usePortfolioHoldings } from './hooks/usePortfolioHoldings';
 import { usePortfolioPerformance } from './hooks/usePortfolioPerformance';
 import { toPortfolioAnalysisAssets } from './portfolioAnalysisAssets';
@@ -23,7 +24,10 @@ import type {
 import type { AssetCategory } from '../stocks/types';
 import './portfolio.css';
 import './portfolioLedger.css';
-import { PortfolioTransactionEditor } from './components/PortfolioTransactionEditor';
+import {
+  PortfolioTransactionEditor,
+  type PortfolioTransactionEditorHandle,
+} from './components/PortfolioTransactionEditor';
 import { PortfolioHistory } from './components/PortfolioHistory';
 import { PortfolioDialog } from './components/PortfolioDialog';
 import { PortfolioHoldingDetail } from './components/PortfolioHoldingDetail';
@@ -923,6 +927,9 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
     error: holdingsError,
     retry: retryHoldings,
     saveHolding,
+    saveHoldings,
+    addHoldings,
+    createTransactions,
     removeHolding,
     totalRealizedProfitLoss,
     revision,
@@ -935,6 +942,22 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
   const [error, setError] = useState('');
   const [retryCount, setRetryCount] = useState(0);
   const [editor, setEditor] = useState<{ holding: PortfolioHoldingInput } | null>(null);
+  const [bulkMode, setBulkMode] = useState<BulkEditorMode | null>(null);
+  const [addMenuOpen, setAddMenuOpen] = useState(false);
+  const addMenuRef = useRef<HTMLDivElement>(null);
+  const addButtonRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!addMenuOpen) return;
+    const close = (event: PointerEvent) => {
+      if (
+        !addMenuRef.current?.contains(event.target as Node) &&
+        !addButtonRef.current?.contains(event.target as Node)
+      )
+        setAddMenuOpen(false);
+    };
+    document.addEventListener('pointerdown', close);
+    return () => document.removeEventListener('pointerdown', close);
+  }, [addMenuOpen]);
   const [tourStep, setTourStep] = useState<number | null>(null);
   const touring = tourStep !== null;
   const [activeTab, setActiveTab] = useState<'holdings' | 'history'>('holdings');
@@ -964,6 +987,8 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
   const [trendDialogOpen, setTrendDialogOpen] = useState(false);
   const trendDialogTriggerRef = useRef<HTMLButtonElement | null>(null);
   const [selectedStock, setSelectedStock] = useState<StockSearchItem | null>(null);
+  const transactionEditorRef = useRef<PortfolioTransactionEditorHandle>(null);
+  const dashboardStartedAt = useRef(window.performance.now());
   const viewedRef = useRef(false);
   const loadedRef = useRef(false);
 
@@ -1130,13 +1155,25 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
     trackPortfolioEvent('portfolio_dashboard_loaded', {
       is_logged_in: isLoggedIn,
       has_holdings: holdings.length > 0,
+      market_scope: portfolioMarketScope(holdings),
       pricing_status: dashboardCalculation.pricingStatus,
+      duration_ms: Math.max(0, Math.round(window.performance.now() - dashboardStartedAt.current)),
+      holding_count_bucket:
+        holdings.length === 0
+          ? '0'
+          : holdings.length === 1
+            ? '1'
+            : holdings.length <= 5
+              ? '2_5'
+              : holdings.length <= 20
+                ? '6_20'
+                : '21_plus',
     });
   }, [
     calculation,
     dashboardCalculation,
     error,
-    holdings.length,
+    holdings,
     holdingsError,
     holdingsLoading,
     isLoggedIn,
@@ -1227,7 +1264,12 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
 
   async function save(nextHolding: PortfolioHoldingInput) {
     const operation = 'holding_update';
-    const properties = { operation, storage: isLoggedIn ? 'server' : 'temporary' } as const;
+    const properties = {
+      operation,
+      storage: isLoggedIn ? 'server' : 'temporary',
+      has_holdings: holdings.length > 0,
+      market_scope: portfolioMarketScope(holdings),
+    } as const;
     trackPortfolioEvent('portfolio_save_submitted', properties);
     try {
       await saveHolding(nextHolding);
@@ -1333,17 +1375,73 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
             </svg>
           </button>
           <button
+            ref={addButtonRef}
             type="button"
             className="portfolio-primary-button"
-            disabled={holdingsLoading || !!holdingsError}
+            disabled={holdingsLoading || !!holdingsError || holdingsSaving}
             data-portfolio-tour="trade"
-            onClick={() => openAdd('header')}
+            aria-expanded={addMenuOpen}
+            aria-controls="portfolio-add-options"
+            onClick={() => setAddMenuOpen(!addMenuOpen)}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') setAddMenuOpen(false);
+            }}
           >
             <svg aria-hidden="true" viewBox="0 0 24 24">
               <path d="M12 5v14M5 12h14" />
             </svg>
             종목 추가
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <path d="m7 10 5 5 5-5" />
+            </svg>
           </button>
+          {addMenuOpen && (
+            <div
+              id="portfolio-add-options"
+              className="portfolio-add-menu"
+              ref={addMenuRef}
+              onKeyDown={(event) => {
+                if (event.key === 'Escape') {
+                  setAddMenuOpen(false);
+                  addButtonRef.current?.focus();
+                }
+              }}
+            >
+              <button
+                aria-label="한 종목 추가"
+                type="button"
+                onClick={() => {
+                  addButtonRef.current?.focus();
+                  setAddMenuOpen(false);
+                  openAdd('header');
+                }}
+              >
+                한 종목 추가
+              </button>
+              <button
+                aria-label="여러 종목 일괄 추가"
+                type="button"
+                onClick={() => {
+                  addButtonRef.current?.focus();
+                  setAddMenuOpen(false);
+                  setBulkMode('add');
+                }}
+              >
+                일괄 추가
+              </button>
+              <button
+                aria-label="CSV 파일 업로드"
+                type="button"
+                onClick={() => {
+                  addButtonRef.current?.focus();
+                  setAddMenuOpen(false);
+                  setBulkMode('csv');
+                }}
+              >
+                CSV 업로드
+              </button>
+            </div>
+          )}
         </div>
       </header>
       <div className={`portfolio-dashboard-layout${displayedNewsOpen ? ' has-news' : ''}`}>
@@ -1489,6 +1587,7 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                   <PortfolioAnalysis
                     demoStep={tourStep ?? undefined}
                     assets={analysisAssets}
+                    pricingStatus={dashboardCalculation.pricingStatus}
                     onAddAsset={addAnalysisAsset}
                     isLoggedIn={isLoggedIn}
                     holdingsKey={JSON.stringify(
@@ -1617,18 +1716,32 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                         거래 내역
                       </button>
                     </div>
-                    <button
-                      type="button"
-                      className="portfolio-secondary-button portfolio-ledger-add"
-                      aria-label="목록에서 종목 추가"
-                      disabled={holdingsLoading || !!holdingsError}
-                      onClick={() => openAdd('ledger')}
-                    >
-                      <svg aria-hidden="true" viewBox="0 0 24 24">
-                        <path d="M12 5v14M5 12h14" />
-                      </svg>
-                      종목 추가
-                    </button>
+                    <div className="portfolio-ledger-actions">
+                      {displayedTab === 'holdings' && (
+                        <button
+                          type="button"
+                          className="portfolio-secondary-button"
+                          disabled={
+                            holdingsSaving || holdingsLoading || loading || !holdings.length
+                          }
+                          onClick={() => setBulkMode('holdings')}
+                        >
+                          일괄 편집
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        className="portfolio-secondary-button portfolio-ledger-add"
+                        aria-label="목록에서 종목 추가"
+                        disabled={holdingsLoading || !!holdingsError}
+                        onClick={() => openAdd('ledger')}
+                      >
+                        <svg aria-hidden="true" viewBox="0 0 24 24">
+                          <path d="M12 5v14M5 12h14" />
+                        </svg>
+                        종목 추가
+                      </button>
+                    </div>
                   </div>
                   {displayedTab === 'history' ? (
                     <PortfolioHistory
@@ -1853,6 +1966,39 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
           />
         </PortfolioDialog>
       )}
+      {bulkMode && (
+        <PortfolioBulkEditor
+          mode={bulkMode}
+          holdings={holdings}
+          prices={calculation?.holdings ?? []}
+          isLoggedIn={isLoggedIn}
+          amountsHidden={amountsHidden}
+          onClose={() => setBulkMode(null)}
+          onSaveHoldings={async (changes) => {
+            await saveHoldings(changes);
+            setNotice(
+              isLoggedIn
+                ? '보유정보를 한 번에 저장했어요.'
+                : '보유정보를 현재 탭에 임시 보관했어요.',
+            );
+          }}
+          onAddHoldings={async (items) => {
+            await addHoldings(items);
+            setNotice(
+              `${items.length}개 종목의 보유잔고를 ${isLoggedIn ? '저장했어요.' : '현재 탭에 임시 보관했어요.'}`,
+            );
+          }}
+          onSaveTransactions={async (items, csv) => {
+            const duplicate = await createTransactions(items, csv);
+            setNotice(
+              duplicate
+                ? '이미 가져온 CSV 거래예요. 중복 등록하지 않았어요.'
+                : `${items.length}건의 거래를 ${isLoggedIn ? '저장했어요.' : '현재 탭에 임시 보관했어요.'}`,
+            );
+            return duplicate;
+          }}
+        />
+      )}
       {(selectedStock || transactionEditor || editor || removing) && (
         <PortfolioDialog
           titleId={
@@ -1868,7 +2014,7 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
           onClose={() => {
             if (removing) setRemoving(null);
             else if (editor) setEditor(null);
-            else if (transactionEditor) setTransactionEditor(null);
+            else if (transactionEditor) transactionEditorRef.current?.close();
             else setSelectedStock(null);
           }}
           className={
@@ -1915,6 +2061,7 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
             <div hidden={!!removing}>
               <PortfolioTransactionEditor
                 {...transactionEditor}
+                ref={transactionEditorRef}
                 onClose={() => setTransactionEditor(null)}
                 onDelete={
                   transactionEditor.transaction
@@ -1923,10 +2070,14 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
                 }
                 onSave={async (request, stock) => {
                   const transaction = transactionEditor.transaction;
+                  const targetStock =
+                    stock ?? holdings.find((holding) => holding.assetId === request.assetId);
                   const properties = {
                     operation: transaction ? 'transaction_update' : 'transaction_create',
                     storage: isLoggedIn ? 'server' : 'temporary',
                     transaction_type: request.type,
+                    has_holdings: holdings.length > 0,
+                    market_scope: targetStock ? portfolioMarketScope([targetStock]) : undefined,
                   } as const;
                   trackPortfolioEvent('portfolio_save_submitted', properties);
                   try {

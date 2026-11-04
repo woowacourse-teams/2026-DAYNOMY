@@ -38,6 +38,7 @@ public class InvestorProfileService {
   private final LeagueEnrollmentService enrollmentService;
   private final LeagueReturnService returnService;
   private final LeagueRankingCache rankingCache;
+  private final LeagueAutoSyncService autoSyncService;
 
   @Transactional(readOnly = true)
   public ProfileResponse getMine(Long memberId) {
@@ -86,6 +87,7 @@ public class InvestorProfileService {
             .findByMemberIdForUpdate(memberId)
             .orElseThrow(() -> new BusinessException(LeagueErrorCode.PROFILE_REQUIRED));
     if (request.leagueEnabled()) {
+      autoSyncService.reconcile(memberId);
       var portfolio =
           portfolioRepository
               .findByMemberId(memberId)
@@ -95,7 +97,8 @@ public class InvestorProfileService {
       Map<Long, String> reasons =
           InvestmentDecision.latestReasons(
               decisionRepository.findAllByPortfolioMemberIdOrderByTradedOnDescIdDesc(memberId));
-      if (holdings.stream().anyMatch(holding -> holding.reasonFrom(reasons).isBlank())) {
+      if (holdings.stream()
+          .anyMatch(holding -> !holding.isHidden() && holding.reasonFrom(reasons).isBlank())) {
         throw new BusinessException(LeagueErrorCode.HOLDING_REASON_REQUIRED);
       }
     }

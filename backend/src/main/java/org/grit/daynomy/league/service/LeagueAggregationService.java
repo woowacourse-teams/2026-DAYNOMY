@@ -20,6 +20,7 @@ public class LeagueAggregationService {
   private final CronExpression priceCron;
   private final CronExpression calculationCron;
   private final CronExpression snapshotCron;
+  private final CronExpression usPriceCron;
   private final boolean priceEnabled;
   private final boolean calculationEnabled;
   private final boolean snapshotEnabled;
@@ -29,6 +30,7 @@ public class LeagueAggregationService {
       @Value("${stock.price.sync.cron}") String priceCron,
       @Value("${league.calculation.cron}") String calculationCron,
       @Value("${portfolio.snapshot.cron}") String snapshotCron,
+      @Value("${league.price-preparation.cron:0 0 7,16 * * MON-SAT}") String usPriceCron,
       @Value("${stock.price.sync.enabled:false}") boolean priceEnabled,
       @Value("${league.calculation.enabled:false}") boolean calculationEnabled,
       @Value("${portfolio.snapshot.enabled:false}") boolean snapshotEnabled) {
@@ -36,17 +38,40 @@ public class LeagueAggregationService {
     this.priceCron = CronExpression.parse(priceCron);
     this.calculationCron = CronExpression.parse(calculationCron);
     this.snapshotCron = CronExpression.parse(snapshotCron);
+    this.usPriceCron = CronExpression.parse(usPriceCron);
     this.priceEnabled = priceEnabled;
     this.calculationEnabled = calculationEnabled;
     this.snapshotEnabled = snapshotEnabled;
   }
 
   public AggregationResponse ranking(LocalDate week, LocalDate pendingCalculationDate) {
-    return ranking(week, pendingCalculationDate, Instant.now());
+    return ranking(week, pendingCalculationDate, false);
+  }
+
+  public AggregationResponse ranking(
+      LocalDate week, LocalDate pendingCalculationDate, boolean usRelevant) {
+    return ranking(week, pendingCalculationDate, usRelevant, true);
+  }
+
+  public AggregationResponse ranking(
+      LocalDate week,
+      LocalDate pendingCalculationDate,
+      boolean usRelevant,
+      boolean domesticRelevant) {
+    return ranking(week, pendingCalculationDate, Instant.now(), usRelevant, domesticRelevant);
   }
 
   AggregationResponse ranking(LocalDate week, LocalDate pendingCalculationDate, Instant now) {
-    var collection = estimate(week, null, Map.of(), now);
+    return ranking(week, pendingCalculationDate, now, false, true);
+  }
+
+  AggregationResponse ranking(
+      LocalDate week,
+      LocalDate pendingCalculationDate,
+      Instant now,
+      boolean usRelevant,
+      boolean domesticRelevant) {
+    var collection = estimate(week, null, Map.of(), now, usRelevant, domesticRelevant);
     if (pendingCalculationDate == null
         || (collection != null
             && (collection.baseDate() == null
@@ -58,7 +83,24 @@ public class LeagueAggregationService {
 
   public AggregationResponse investor(
       LocalDate week, InvestorProfile profile, Map<LocalDate, PortfolioDailyReturn> values) {
-    return estimate(week, profile, values, Instant.now());
+    return estimate(week, profile, values, Instant.now(), false, true);
+  }
+
+  public AggregationResponse investor(
+      LocalDate week,
+      InvestorProfile profile,
+      Map<LocalDate, PortfolioDailyReturn> values,
+      boolean usRelevant) {
+    return investor(week, profile, values, usRelevant, true);
+  }
+
+  public AggregationResponse investor(
+      LocalDate week,
+      InvestorProfile profile,
+      Map<LocalDate, PortfolioDailyReturn> values,
+      boolean usRelevant,
+      boolean domesticRelevant) {
+    return estimate(week, profile, values, Instant.now(), usRelevant, domesticRelevant);
   }
 
   AggregationResponse estimate(
@@ -66,24 +108,45 @@ public class LeagueAggregationService {
       InvestorProfile profile,
       Map<LocalDate, PortfolioDailyReturn> values,
       Instant now) {
+    return estimate(week, profile, values, now, false, true);
+  }
+
+  AggregationResponse estimate(
+      LocalDate week,
+      InvestorProfile profile,
+      Map<LocalDate, PortfolioDailyReturn> values,
+      Instant now,
+      boolean usRelevant,
+      boolean domesticRelevant) {
     var calendar =
         tradingDayRepository.findAllByBaseDateBetweenOrderByBaseDate(week, week.plusDays(6));
-    if (calendar.size() != 7) return unavailable(null, "CALENDAR_PENDING");
+    if (calendar.size() != 7
+        || (usRelevant && calendar.stream().anyMatch(day -> day.getUsTrading() == null)))
+      return unavailable(null, "CALENDAR_PENDING");
     var days =
         calendar.stream()
-            .filter(MarketTradingDay::isTrading)
+            .filter(
+                day ->
+                    (domesticRelevant && day.isTrading())
+                        || (usRelevant && Boolean.TRUE.equals(day.getUsTrading())))
             .filter(
                 day ->
                     profile == null
                         || profile.getParticipations().stream()
-                            .anyMatch(period -> period.contains(day.closesAt())))
+                            .anyMatch(
+                                period ->
+                                    period.contains(
+                                        usRelevant ? day.leagueClosesAt() : day.closesAt())))
             .toList();
     if (days.isEmpty()) return null;
     var pending =
         days.stream()
             .filter(
                 day ->
-                    day.getCollectedAt() == null
+                    (domesticRelevant && day.isTrading() && day.getCollectedAt() == null)
+                        || (usRelevant
+                            && Boolean.TRUE.equals(day.getUsTrading())
+                            && day.getUsCollectedAt() == null)
                         || (profile != null
                             && (!values.containsKey(day.getBaseDate())
                                 || !values.get(day.getBaseDate()).isEligible())))
@@ -100,32 +163,53 @@ public class LeagueAggregationService {
       return new AggregationResponse(
           pending.getBaseDate(), expected, null, "SNAPSHOT_PENDING", false);
     }
+    boolean exchangeRatePending =
+        value != null && "EXCHANGE_RATE_PENDING".equals(value.getIneligibleReason());
     if (value != null
         && !value.isEligible()
-        && !"PRICE_COLLECTION_PENDING".equals(value.getIneligibleReason())) {
+        && !"PRICE_COLLECTION_PENDING".equals(value.getIneligibleReason())
+        && !exchangeRatePending) {
       return unavailable(pending.getBaseDate(), value.getIneligibleReason());
     }
-    if (!calculationEnabled || (pending.getCollectedAt() == null && !priceEnabled)) {
+    boolean domesticReady =
+        !domesticRelevant || !pending.isTrading() || pending.getCollectedAt() != null;
+    boolean usReady =
+        !usRelevant
+            || !Boolean.TRUE.equals(pending.getUsTrading())
+            || pending.getUsCollectedAt() != null;
+    if (!calculationEnabled || (!domesticReady && !priceEnabled)) {
       return unavailable(pending.getBaseDate(), "COLLECTION_PAUSED");
     }
-    Instant expected;
+    Instant expected = null;
     boolean delayed = false;
-    String reason;
-    if (pending.getCollectedAt() != null) {
-      expected = next(calculationCron, now);
-      reason = "CALCULATION_PENDING";
-    } else {
+    if (!domesticReady) {
       Instant scheduled = collectionAt(pending.getBaseDate());
       if (scheduled == null) return unavailable(pending.getBaseDate(), "CALENDAR_PENDING");
       delayed = now.isAfter(scheduled);
       expected = delayed ? next(priceCron, now) : scheduled;
-      reason =
-          delayed
-              ? "PRICE_COLLECTION_DELAYED"
-              : pending.closesAt().isAfter(now)
-                  ? "MARKET_CLOSE_PENDING"
-                  : "PRICE_COLLECTION_PENDING";
     }
+    if (!usReady || exchangeRatePending) {
+      Instant scheduled = usCollectionAt(pending.getBaseDate());
+      if (scheduled == null) return unavailable(pending.getBaseDate(), "CALENDAR_PENDING");
+      Instant firstCalculation = next(calculationCron, scheduled);
+      boolean usDelayed = firstCalculation == null || now.isAfter(firstCalculation);
+      delayed |= usDelayed;
+      Instant collection = usDelayed ? next(usPriceCron, now) : scheduled;
+      Instant calculated = collection == null ? null : next(calculationCron, collection);
+      if (calculated == null) return unavailable(pending.getBaseDate(), "COLLECTION_PAUSED");
+      expected = later(expected, calculated);
+    }
+    String reason =
+        exchangeRatePending
+            ? "EXCHANGE_RATE_PENDING"
+            : domesticReady && usReady
+                ? "CALCULATION_PENDING"
+                : delayed
+                    ? "PRICE_COLLECTION_DELAYED"
+                    : (usRelevant ? pending.leagueClosesAt() : pending.closesAt()).isAfter(now)
+                        ? "MARKET_CLOSE_PENDING"
+                        : "PRICE_COLLECTION_PENDING";
+    if (expected == null) expected = next(calculationCron, now);
     boolean awaitingFirstReturn =
         profile != null
             && ((profile.getTrackingStartedOn() == null
@@ -135,20 +219,58 @@ public class LeagueAggregationService {
             && values.values().stream()
                 .noneMatch(day -> day.isEligible() && !day.isTrackingBaseline());
     Instant firstReturn = null;
-    if (awaitingFirstReturn && priceEnabled) {
+    if (awaitingFirstReturn && (usRelevant || priceEnabled)) {
       boolean hasBaseline = values.values().stream().anyMatch(PortfolioDailyReturn::isEligible);
-      LocalDate returnDate =
+      MarketTradingDay returnDay =
           hasBaseline
-              ? pending.getBaseDate()
-              : tradingDayRepository
-                  .findFirstByTradingTrueAndBaseDateGreaterThanOrderByBaseDateAsc(
-                      pending.getBaseDate())
-                  .map(MarketTradingDay::getBaseDate)
-                  .orElse(null);
-      firstReturn = returnDate == null ? null : collectionAt(returnDate);
-      if (firstReturn != null && now.isAfter(firstReturn)) firstReturn = next(priceCron, now);
+              ? pending
+              : nextTradingDay(pending.getBaseDate(), usRelevant, domesticRelevant);
+      if (returnDay != null) {
+        if (domesticRelevant && returnDay.isTrading() && priceEnabled) {
+          firstReturn = collectionAt(returnDay.getBaseDate());
+          if (firstReturn != null && now.isAfter(firstReturn)) firstReturn = next(priceCron, now);
+        }
+        if (usRelevant && Boolean.TRUE.equals(returnDay.getUsTrading())) {
+          Instant collection = usCollectionAt(returnDay.getBaseDate());
+          if (collection != null && now.isAfter(collection)) collection = next(usPriceCron, now);
+          Instant calculated = collection == null ? null : next(calculationCron, collection);
+          firstReturn = later(firstReturn, calculated);
+        }
+      }
     }
     return new AggregationResponse(pending.getBaseDate(), expected, firstReturn, reason, delayed);
+  }
+
+  private MarketTradingDay nextTradingDay(LocalDate date, boolean us, boolean domestic) {
+    MarketTradingDay kr =
+        domestic
+            ? tradingDayRepository
+                .findFirstByTradingTrueAndBaseDateGreaterThanOrderByBaseDateAsc(date)
+                .orElse(null)
+            : null;
+    if (!us) return kr;
+    MarketTradingDay nextUs =
+        tradingDayRepository
+            .findAllByBaseDateBetweenOrderByBaseDate(date.plusDays(1), date.plusDays(14))
+            .stream()
+            .filter(day -> Boolean.TRUE.equals(day.getUsTrading()))
+            .findFirst()
+            .orElse(null);
+    if (kr == null) return nextUs;
+    if (nextUs == null || kr.getBaseDate().isBefore(nextUs.getBaseDate())) return kr;
+    return nextUs;
+  }
+
+  private Instant usCollectionAt(LocalDate date) {
+    // 가격 수집의 뉴욕 기준 익일 제한에 맞춰 실제 요청 가능한 일정을 안내한다.
+    return next(
+        usPriceCron,
+        date.plusDays(1).atStartOfDay(ZoneId.of("America/New_York")).toInstant().minusNanos(1));
+  }
+
+  private Instant later(Instant first, Instant second) {
+    if (first == null) return second;
+    return second == null || first.isAfter(second) ? first : second;
   }
 
   private AggregationResponse unavailable(LocalDate date, String reason) {
