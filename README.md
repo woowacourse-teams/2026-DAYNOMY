@@ -177,113 +177,42 @@ DAYNOMY는 4명의 개발자가 기획부터 프론트엔드, 백엔드, 테스�
 
 ## 로컬 실행
 
-### 요구사항
-
-- JDK 21
-- PostgreSQL 17
-- Node.js 20.19 이상 또는 22.12 이상
-- Git
-
-### 저장소 복제
+JDK 21, PostgreSQL 17과 Node.js 20.19 이상 또는 22.12 이상이 필요합니다.
 
 ```bash
 git clone https://github.com/woowacourse-teams/2026-DAYNOMY.git
 cd 2026-DAYNOMY
 ```
 
-### Backend
-
-PostgreSQL 데이터베이스를 생성합니다.
-
-```sql
-CREATE DATABASE daynomy;
-```
-
-`backend/.env` 파일에 로컬 실행에 필요한 값을 설정합니다.
-
-```dotenv
-DB_URL=jdbc:postgresql://localhost:5432/daynomy
-DB_USERNAME=<database-username>
-DB_PASSWORD=<database-password>
-
-GOOGLE_CLIENT_ID=<google-client-id>
-GOOGLE_CLIENT_SECRET=<google-client-secret>
-JWT_SECRET=<jwt-secret>
-
-AWS_S3_PUBLIC_BASE_URL=<public-image-base-url>
-PUBLIC_DATA_SERVICE_KEY=<public-data-service-key>
-
-FRONTEND_BASE_URL=http://localhost:5173
-COOKIE_SECURE=false
-```
-
-AI 분석, 이미지 업로드와 외부 콘텐츠 수집 기능에는 추가 환경변수가 필요합니다. 자세한 설정은 [백엔드 README](./backend/README.md)를 확인해 주세요.
-
 ```bash
+# Backend
 cd backend
 ./gradlew bootRun
-```
+cd ..
 
-- API 서버: `http://localhost:8080`
-- Swagger UI: `http://localhost:8080/swagger-ui.html`
-- OpenAPI: `http://localhost:8080/v3/api-docs`
-- Health Check: `http://localhost:8081/actuator/health`
-
-### Frontend
-
-새 터미널에서 프론트엔드를 실행합니다.
-
-```bash
+# Frontend
 cd frontend
 npm install
 npm run dev
 ```
 
-프론트엔드는 `http://localhost:5173`에서 실행됩니다. 로컬 개발 환경에서는 Vite가 `/api`, `/oauth2`, `/login/oauth2` 요청을 백엔드로 전달합니다.
-
-Google OAuth의 로컬 리디렉션 URI는 다음과 같습니다.
-
-```text
-http://localhost:8080/login/oauth2/code/google
-```
-
-자세한 설정은 [프론트엔드 README](./frontend/README.md)를 확인해 주세요.
+환경변수와 데이터베이스 설정은 [백엔드 README](./backend/README.md), 프록시와 OAuth 설정은 [프론트엔드 README](./frontend/README.md)를 확인해 주세요.
 
 ## 테스트와 검증
 
-### Backend
-
 ```bash
+# Backend
 cd backend
-
-# 코드 포맷과 전체 테스트
 ./gradlew spotlessCheck test
+cd ..
 
-# PR 수준 전체 검증
-./gradlew clean build
-```
-
-### Frontend
-
-```bash
+# Frontend
 cd frontend
-
-# 포맷·린트·타입·테스트
 npm run format:check
 npm run lint
 npm run typecheck
 npm test
-
-# 프로덕션 빌드
 npm run build
-```
-
-브라우저 E2E 테스트는 Chromium을 설치한 뒤 실행합니다.
-
-```bash
-npx playwright install chromium
-npm run build
-npm run test:e2e
 ```
 
 ## 관련 문서
@@ -297,17 +226,6 @@ npm run test:e2e
 - [모니터링 운영 문서](./monitoring/docs)
 - [부하 테스트 문서](./docs/loadtest)
 - [팀 개발 규칙](./AGENTS.md)
-
-## 개발 원칙
-
-- API 명세와 관련 ADR, 기존 코드를 먼저 확인합니다.
-- 기능과 구조 변경 전 구현 방향과 범위를 공유합니다.
-- 요청받지 않은 리팩터링이나 선제적인 추상화를 추가하지 않습니다.
-- 변경에 필요한 테스트와 문서만 함께 수정합니다.
-- 실패한 테스트를 삭제하거나 비활성화하지 않습니다.
-- 민감정보와 인증 정보를 코드, 로그와 커밋에 포함하지 않습니다.
-
-커밋 메시지는 `타입: 한국어 설명` 형식을 사용합니다. `main`, `dev` 브랜치에는 직접 커밋하지 않으며 강제 푸시하지 않습니다.
 
 ---
 
