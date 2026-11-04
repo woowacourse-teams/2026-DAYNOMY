@@ -1,3 +1,53 @@
+# PMF 설문 UI 검증 — FE #805
+
+- 날짜: 2026-11-05 (Asia/Seoul)
+- 브랜치: `feature/FE/#805`
+- 범위: 고정 PMF 문항 → 저장 성공 → 선택 이유 질문 → 완료/건너뛰기. 기존 포트폴리오 화면은 유지한다.
+- 미리보기: `http://127.0.0.1:5178/pmf-survey-demo.html`. 별도 개발 문서의 모의 API로만 동작하며 실제 설문 응답을 저장하지 않는다.
+
+## 기준과 비교 증거
+
+- 첫 문항 기준: `/Users/seoyeong/.codex/generated_images/01a1a741-e6a9-7283-b102-d2d114954dea/exec-de4addb0-0687-47f2-8d4b-5b9a44aabf8c.png`
+- 추가 질문 기준: `/Users/seoyeong/.codex/generated_images/01a1a741-e6a9-7283-b102-d2d114954dea/exec-bef4199b-3550-48b3-b2e9-dfe971df698b.png`
+- 기준 이미지 각각 1487×1058px. CSS viewport 1488×1056, devicePixelRatio 1에서 구현을 캡처했다. 비교용 기준 이미지만 1488×1056으로 정규화했다(축별 차이 0.2% 미만). 원본은 변경하지 않았다.
+- 구현: `/private/tmp/pmf805-answer-desktop-v2.png`, `/private/tmp/pmf805-reason-desktop-v2.png`.
+- 원본·구현을 실제로 나란히 합친 비교 이미지: `/private/tmp/pmf805-answer-comparison.png`, `/private/tmp/pmf805-reason-comparison.png`. 두 이미지를 열어 첫 문항과 선택 질문을 각각 비교했다. 전체 비교에서 제목·라디오 문구·textarea·버튼이 원본 해상도로 판독 가능해 추가 확대 크롭은 필요하지 않았다.
+- 모바일 390×844, 1px/CSS px: `/private/tmp/pmf805-answer-mobile.png`, `/private/tmp/pmf805-reason-mobile.png`. 가로 넘침 없음.
+- 낮은 데스크톱 1280×720: `/private/tmp/pmf805-answer-compact.png`. 팝업 560×603px로 제목부터 하단 동작까지 표시한다.
+- 최종 사용자 확인용 화면: `/private/tmp/daynomy-pmf-final.png`.
+
+## 비교 및 수정 이력
+
+1. [P2, 수정 완료] 최초 구현은 질문이 한 줄로 표시되고 대화상자 높이가 기준보다 작았다. 증거: `/private/tmp/pmf805-answer-desktop-v1.png`. 넓이 720px, 제목 40px, 응답 행 74px와 여백을 적용해 두 줄 위계를 복원했다. 이후 `answer-desktop-v2`와 첫 번째 비교 이미지에서 확인했다.
+2. [P2, 수정 완료] 선택 질문의 `(선택)`만 다음 줄로 밀렸다. 증거: `/private/tmp/pmf805-reason-desktop-v1.png`. 질문을 의미 단위 두 줄로 나누고 선택 표기를 두 번째 줄에 유지했다. 이후 `reason-desktop-v2`와 두 번째 비교 이미지에서 확인했다.
+3. [P2, 수정 완료] 높이 720px 데스크톱에서 큰 팝업의 하단 동작이 초기 화면 아래로 밀렸다. 낮은 데스크톱용 크기·타이포·여백을 적용했다. `answer-compact`에서 하단 동작까지 보이는 것을 확인했다.
+4. [P2, 수정 완료] native dialog의 Tab 순환 경계에서 포커스가 문서 뷰포트로 이동했다. 대화상자 안에서 첫/마지막 컨트롤 순환을 명시하고 배경 단축키 전파를 차단했다. 수정 후 실제 브라우저에서 Tab 세 번으로 닫기 버튼에 도달하고 `insideDialog: true`임을 확인했다. 테스트에도 정방향/역방향 경계 검증을 추가했다.
+
+## 필수 표면·상호작용 점검
+
+- 글꼴/위계: 기존 Inter·한국어 시스템 폴백 사용. 큰 질문, 보조 설명, 선택지 순서를 보존했다. 두 단계 질문 줄바꿈과 모바일 가독성을 확인했다. 생성 이미지와 시스템 폴백의 글리프 폭·굵기 차이는 P3 수준으로 남는다.
+- 여백/레이아웃: 중앙 흰색 팝업, 제한된 넓이, 균일한 네 응답 행, textarea, 전체 너비 주 버튼과 하단 텍스트 동작을 유지한다. 작은 높이에서는 내부 스크롤을 허용한다.
+- 색상/토큰: 흰색·검정·중립 회색, 기존 파란 포커스 테두리. 어느 선택지도 미리 고르거나 색으로 유도하지 않는다. 추가 의견이 비어 있을 때 보내기 버튼을 비활성화하는 것은 시안의 검정 버튼과 달리 실제 입력 상태를 반영한 의도된 동작이다.
+- 이미지/아이콘: 팝업에는 새 래스터 자산이 필요 없다. 닫기는 기존 의존성인 Phosphor 아이콘으로 구현했다. 배경은 실제 포트폴리오를 렌더링하며 생성 이미지의 배경을 재구현하지 않았다.
+- 문구/내용: 고정 PMF 문항과 네 선택지·순서를 그대로 유지했다. 선택 이유 질문, 건너뛰기, 저장 완료 안내를 적용했다. 500자 제한과 글자 수를 실제 입력에 연결했다.
+- 브라우저에서 단일 선택·방향키 이동, 제출 중 비활성화, 첫 저장 성공 이후 단계 전환, 의견 제출 완료, 건너뛰기·닫기, 새로고침 후 재노출 방지, Tab 순환을 확인했다.
+- `?fail=answer`, `?fail=reason`으로 각각 실패를 재현했다. 첫 실패 시 답변 선택 유지, 추가 의견 실패 시 입력과 첫 응답 저장 안내 유지, 재시도 성공을 확인했다. 오류 캡처: `/private/tmp/pmf805-answer-error.png`, `/private/tmp/pmf805-reason-mobile-error.png`.
+- 정상 미리보기의 브라우저 console error: 없음. 응답 내용은 URL·브라우저 저장소·분석 이벤트에 넣지 않는다.
+- format:check, lint, typecheck, 전체 unit/server/UI 테스트(UI 691개), production build 통과. 마지막 레이아웃·포커스 수정 후 PMF 17개 테스트와 format/lint/typecheck/build를 다시 통과했다.
+- 후속 프론트 점검: 계정 전환·화면 이탈 시 저장 요청도 중단하고 늦은 응답을 무시하도록 보완했다. 첫 응답 저장 표시는 추가 의견 요청 중단과 독립적으로 유지한다. 해당 회귀 테스트를 포함한 PMF 19개 테스트와 format/lint/typecheck/build를 통과했다.
+- 후속 브라우저 점검: 첫 응답 저장 후 추가 질문으로 전환됨을 확인했으며 console error는 없었다. 캡처: `/private/tmp/pmf805-followup-final.png`. 화면 구성 변경은 없다.
+- 커밋 전 최종 검증: format/lint/typecheck, 전체 unit/server/UI 테스트(UI 693개, 66개 파일), production build 통과.
+
+## 제한 및 후속 작업
+
+- P0/P1/P2 잔여 UI 문제 없음. 글리프의 미세한 차이는 P3 후속 조정 대상이다.
+- **실제 서버 영속화·분석 사용 여부 분류·응답자별 중복 방지는 검증되지 않았다.** 별도 BE 이슈에서 신규 API를 구현해야 한다. 신규 API가 없거나 대상 판정에 실패하면 실제 앱은 팝업을 표시하지 않는다.
+- BE API 계약과 새 이슈 초안: `frontend/docs/pmf-survey-api.md`.
+
+final result: passed
+
+---
+
 # 종목 보유 상세 UI 검증
 
 ## 2026-10-29: 후속 조정 최종 상태
