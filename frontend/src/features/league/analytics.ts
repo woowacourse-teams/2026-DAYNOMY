@@ -2,6 +2,8 @@ import { trackEvent } from '../../analytics';
 import { ApiError } from '../../api/client';
 import type { CollectionStatus, TransactionType, Performance } from './types';
 
+export type ReviewReminderEntryPoint = 'ranking' | 'holdings' | 'source_holdings';
+
 type Surface =
   | 'service_header'
   | 'ranking'
@@ -14,6 +16,7 @@ type Surface =
   | 'source_holdings'
   | 'decisions'
   | 'reviews'
+  | 'review_coach'
   | 'publication'
   | 'daily_history';
 type Action =
@@ -37,6 +40,9 @@ type Action =
   | 'open_review'
   | 'save_review'
   | 'edit_review'
+  | 'review_guide'
+  | 'dismiss_reminder'
+  | 'snooze_reminder'
   | 'save_publication'
   | 'join'
   | 'update'
@@ -46,6 +52,10 @@ type Action =
   | 'toggle_daily_history';
 type ErrorType = 'unauthorized' | 'client_error' | 'server_error' | 'network_or_unknown';
 type Event =
+  | 'view_league_review_reminder'
+  | 'league_review_reminder_action'
+  | 'league_review_saved'
+  | 'league_review_article_click'
   | 'view_league'
   | 'change_league_week'
   | 'view_investor_profile'
@@ -63,6 +73,9 @@ type Event =
   | 'league_performance_viewed';
 type Params = {
   surface?: Surface;
+  entry_point?: ReviewReminderEntryPoint;
+  target?: 'bubble' | 'cat' | 'entry' | 'minimize' | 'hide' | 'later';
+  position?: number;
   action?: Action;
   status?: 'clicked' | 'submitted' | 'success' | 'error';
   error_type?: ErrorType;
@@ -97,9 +110,15 @@ type Params = {
   closed_day_count?: number;
   baseline_only?: boolean;
   source_managed_count?: number;
+  guide_used?: boolean;
+  retrieval_status?: 'FOUND' | 'NO_EVIDENCE';
+  duration_ms?: number;
 };
 const keys = new Set([
   'surface',
+  'entry_point',
+  'target',
+  'position',
   'action',
   'status',
   'error_type',
@@ -134,6 +153,9 @@ const keys = new Set([
   'closed_day_count',
   'baseline_only',
   'source_managed_count',
+  'guide_used',
+  'retrieval_status',
+  'duration_ms',
 ]);
 
 export function leagueErrorType(error: unknown): ErrorType {

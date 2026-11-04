@@ -141,6 +141,30 @@ export type InvestmentReview = {
   updatedAt?: string | null;
 };
 
+export type ReviewGuide = {
+  transactionId: number;
+  retrievalStatus: 'FOUND' | 'NO_EVIDENCE';
+  evidence: Array<{
+    id: string;
+    title: string;
+    publishedAt: string;
+    excerpt: string;
+    href: string;
+  }>;
+  basis: {
+    weekStart: string;
+    asOfDate: string;
+    portfolioWeeklyReturnRate: number;
+  } | null;
+  questions: {
+    actualResult: ReviewGuideQuestion;
+    differenceFromExpectation: ReviewGuideQuestion;
+    nextAction: ReviewGuideQuestion;
+  };
+};
+
+export type ReviewGuideQuestion = { text: string; evidenceIds: string[] };
+
 export type InvestmentDecisionInput = {
   reason: string;
   expectedHoldingPeriod: HoldingPeriod | null;

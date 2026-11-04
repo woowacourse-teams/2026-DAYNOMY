@@ -9,6 +9,9 @@ import {
   getFollowSummary,
   updateReview,
   updateDecisionReason,
+  getReviewGuide,
+  claimReviewReminder,
+  snoozeReviewReminder,
 } from '../../src/features/league/api.ts';
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -546,5 +549,103 @@ test('휴장일 0%는 누적과 실제 종가 기준일을 유지하고 잘못�
   ]) {
     globalThis.fetch = async () => jsonResponse(invalid);
     await assert.rejects(getDailyHistory('investor-1'), /일별 수익률 응답 형식/);
+  }
+});
+
+test('AI 복기 질문은 CSRF로 요청하고 거래·성과·질문 형식을 검증한다', async () => {
+  const calls: Array<{ url: string; init?: RequestInit }> = [];
+  const guide = {
+    transactionId: 7,
+    retrievalStatus: 'FOUND',
+    evidence: [
+      {
+        id: 'NEWS:12',
+        title: '실적 발표',
+        publishedAt: '2026-10-20T00:00:00Z',
+        excerpt: '매출 증가',
+        href: '/news/12',
+      },
+    ],
+    basis: { weekStart: '2026-10-19', asOfDate: '2026-10-23', portfolioWeeklyReturnRate: 1.25 },
+    questions: {
+      actualResult: { text: '지금 확인할 수 있는 결과는 무엇인가요?', evidenceIds: ['NEWS:12'] },
+      differenceFromExpectation: { text: '기대와 어떤 차이가 있나요?', evidenceIds: [] },
+      nextAction: { text: '다음에는 무엇을 확인할 건가요?', evidenceIds: [] },
+    },
+  };
+  globalThis.fetch = async (input, init) => {
+    calls.push({ url: String(input), init });
+    return String(input) === '/api/auth/csrf'
+      ? jsonResponse({ headerName: 'X-XSRF-TOKEN', token: 'csrf-token' })
+      : jsonResponse(guide);
+  };
+  assert.deepEqual(await getReviewGuide(7), guide);
+  assert.equal(calls[1]?.url, '/api/users/me/portfolio/decisions/7/review-guide');
+  assert.equal(calls[1]?.init?.method, 'POST');
+  assert.equal(new Headers(calls[1]?.init?.headers).get('X-XSRF-TOKEN'), 'csrf-token');
+  assert.equal(calls[1]?.init?.body, undefined);
+
+  globalThis.fetch = async (input) =>
+    String(input) === '/api/auth/csrf'
+      ? jsonResponse({ headerName: 'X-XSRF-TOKEN', token: 'csrf-token' })
+      : jsonResponse({ ...guide, transactionId: 8 });
+  await assert.rejects(getReviewGuide(7), /응답 형식/);
+  globalThis.fetch = async (input) =>
+    String(input) === '/api/auth/csrf'
+      ? jsonResponse({ headerName: 'X-XSRF-TOKEN', token: 'csrf-token' })
+      : jsonResponse({ ...guide, evidence: [{ ...guide.evidence[0], publishedAt: 'tomorrow' }] });
+  await assert.rejects(getReviewGuide(7), /응답 형식/);
+  globalThis.fetch = async (input) =>
+    String(input) === '/api/auth/csrf'
+      ? jsonResponse({ headerName: 'X-XSRF-TOKEN', token: 'csrf-token' })
+      : jsonResponse({
+          ...guide,
+          questions: { ...guide.questions, nextAction: { text: '', evidenceIds: [] } },
+        });
+  await assert.rejects(getReviewGuide(7), /응답 형식/);
+  globalThis.fetch = async (input) =>
+    String(input) === '/api/auth/csrf'
+      ? jsonResponse({ headerName: 'X-XSRF-TOKEN', token: 'csrf-token' })
+      : jsonResponse({
+          ...guide,
+          questions: {
+            ...guide.questions,
+            nextAction: { text: '무엇을 확인하나요?', evidenceIds: ['NEWS:99'] },
+          },
+        });
+  await assert.rejects(getReviewGuide(7), /응답 형식/);
+});
+
+test('복기 알림과 미루기는 CSRF를 사용하고 서버 일정과 요청 키를 검증한다', async () => {
+  const originalFetch = globalThis.fetch;
+  const requestKey = '7ef19645-d715-4d80-9f2f-3551e0e8971b';
+  const nextNotificationAt = '2026-11-09T00:00:00Z';
+  const calls: Array<{ url: string; init?: RequestInit }> = [];
+  let response: unknown = { requestKey: null, transactions: [], nextNotificationAt };
+  globalThis.fetch = async (input, init) => {
+    calls.push({ url: String(input), init });
+    return jsonResponse(
+      String(input) === '/api/auth/csrf'
+        ? { headerName: 'X-XSRF-TOKEN', token: 'csrf-token' }
+        : response,
+    );
+  };
+  try {
+    assert.deepEqual(await claimReviewReminder(requestKey), response);
+    assert.equal(calls[1].url, '/api/users/me/league/review-reminder/claim');
+    assert.equal(calls[1].init?.method, 'POST');
+    assert.equal(new Headers(calls[1].init?.headers).get('X-XSRF-TOKEN'), 'csrf-token');
+    assert.deepEqual(JSON.parse(String(calls[1].init?.body)), { requestKey });
+    response = { nextNotificationAt };
+    assert.equal(await snoozeReviewReminder(requestKey), nextNotificationAt);
+    assert.equal(calls[3].url, '/api/users/me/league/review-reminder/snooze');
+    response = { requestKey, transactions: [], nextNotificationAt };
+    await assert.rejects(claimReviewReminder(requestKey), /응답 형식/);
+    response = { requestKey: null, transactions: [], nextNotificationAt: 'not-a-date' };
+    await assert.rejects(claimReviewReminder(requestKey), /응답 형식/);
+    response = { nextNotificationAt: null };
+    await assert.rejects(snoozeReviewReminder(requestKey), /응답 형식/);
+  } finally {
+    globalThis.fetch = originalFetch;
   }
 });
