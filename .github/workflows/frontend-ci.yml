@@ -71,8 +71,9 @@ jobs:
       - name: Test
         run: npm test
 
+      # Typecheck already passed in this job.
       - name: Build
-        run: npm run build
+        run: npx vite build --mode production
 
       - name: Install Chromium
         run: npx playwright install --with-deps --only-shell chromium
