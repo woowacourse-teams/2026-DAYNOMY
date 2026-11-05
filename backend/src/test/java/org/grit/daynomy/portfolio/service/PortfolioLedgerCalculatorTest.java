@@ -91,8 +91,46 @@ class PortfolioLedgerCalculatorTest {
     assertThat(result.positions().get(99L).averagePurchasePrice())
         .isEqualByComparingTo("130810.42");
     assertThat(result.positions().get(99L).quantity()).isEqualTo(1);
+    assertThat(result.positions().get(99L).nativeAveragePurchasePrice())
+        .isEqualByComparingTo("100.6234");
     assertThat(result.realizedProfitLoss()).isEqualByComparingTo("21089.58");
     assertThatThrownBy(() -> buy.applyExchangeRate(null)).isInstanceOf(BusinessException.class);
+  }
+
+  @Test
+  void openingBalanceNativeCostSurvivesAdditionalBuyAndSell() {
+    Asset usd =
+        Asset.listedStock(
+            "USD",
+            "TEST.US",
+            org.grit.daynomy.asset.domain.StockMarket.NASDAQ,
+            null,
+            LocalDate.of(2020, 1, 1));
+    org.springframework.test.util.ReflectionTestUtils.setField(usd, "id", 98L);
+    var holding =
+        new org.grit.daynomy.portfolio.domain.PortfolioHolding(
+            mock(org.grit.daynomy.portfolio.domain.Portfolio.class),
+            usd,
+            2,
+            new BigDecimal("140000"),
+            new BigDecimal("100"));
+    var opening = new PortfolioHoldingHistory(holding, PortfolioHoldingChangeType.OPENING_BALANCE);
+    var buy = transaction(usd, PortfolioHoldingChangeType.BUY, 2, "120", "1", "0");
+    var sell = transaction(usd, PortfolioHoldingChangeType.SELL, 1, "130", "1", "0");
+    var result = calculator.replay(List.of(opening, buy, sell));
+    assertThat(result.positions().get(98L).nativeAveragePurchasePrice())
+        .isEqualByComparingTo("110.25");
+    assertThat(result.positions().get(98L).quantity()).isEqualTo(3);
+    var legacy =
+        new PortfolioHoldingHistory(
+            null, usd, PortfolioHoldingChangeType.OPENING_BALANCE, 2, new BigDecimal("140000"));
+    assertThat(
+            calculator
+                .replay(List.of(legacy, buy))
+                .positions()
+                .get(98L)
+                .nativeAveragePurchasePrice())
+        .isNull();
   }
 
   private PortfolioHoldingHistory transaction(

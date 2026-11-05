@@ -303,12 +303,17 @@ export const IssueFeed = memo(function IssueFeed({
   const peopleTimeline = surface === 'people';
   const compactNews =
     surface === 'news_home' ||
+    surface === 'news_home_trending' ||
     surface === 'news_contents' ||
     peopleTimeline ||
     surface === 'search_results';
-  const showThumbnails = ['news_home', 'news_contents', 'people', 'search_results'].includes(
-    surface,
-  );
+  const showThumbnails = [
+    'news_home',
+    'news_home_trending',
+    'news_contents',
+    'people',
+    'search_results',
+  ].includes(surface);
   return (
     <>
       <ul

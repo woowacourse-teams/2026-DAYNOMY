@@ -29,6 +29,8 @@ test('키보드로 소개·거래 입력 오류 수정·뉴스 검색과 읽기�
   await expect(page.getByRole('complementary', { name: '처음 이용 안내' })).toHaveCount(0);
   await tabTo(page, '.portfolio-page-actions .portfolio-primary-button');
   await page.keyboard.press('Enter');
+  await tabTo(page, '#portfolio-add-options button:first-child');
+  await page.keyboard.press('Enter');
   const quantity = page.getByLabel('수량 (주)');
   await expect(page.getByRole('searchbox', { name: '종목 검색' })).toBeFocused();
   await page.keyboard.insertText('삼성');

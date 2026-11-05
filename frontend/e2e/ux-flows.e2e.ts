@@ -22,6 +22,17 @@ test.beforeEach(async ({ page }) => {
   );
   await page.route('**/api/auth/refresh', (route) => route.fulfill({ status: 401 }));
   await page.route('**/api/users/me', (route) => route.fulfill({ status: 401 }));
+  await page.route('**/api/users/me/email-subscription', (route) => {
+    expect(route.request().method()).toBe('GET');
+    return route.fulfill({
+      json: {
+        status: 'DECLINED',
+        email: 'ux@example.invalid',
+        promptRequired: false,
+        subscribedAt: null,
+      },
+    });
+  });
   await page.route('**/api/users/me/investor-profile', (route) => route.fulfill({ status: 204 }));
   await page.route('**/api/users/me/portfolio/transactions', (route) =>
     route.fulfill({ json: { transactions: [] } }),
@@ -56,10 +67,19 @@ for (const viewport of [
     await page.goto('/league');
     await page.getByRole('link', { name: '마이페이지' }).click();
     await expect(page).toHaveURL('/mypage');
-    await expect(page.getByText('ux@example.invalid', { exact: true })).toBeVisible();
+    await expect(
+      page
+        .getByRole('region', { name: '내 계정' })
+        .getByText('ux@example.invalid', { exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('region', { name: '이메일 알림' }).getByRole('heading', { name: '미구독' }),
+    ).toBeVisible();
     await checkWidth(page);
     await page.getByRole('button', { name: '로그아웃', exact: true }).click();
-    await expect(page.getByRole('alert')).toContainText('로그아웃하지 못했습니다');
+    await expect(page.getByRole('region', { name: '계정 관리' }).getByRole('alert')).toContainText(
+      '로그아웃하지 못했습니다',
+    );
     await expect(page.getByRole('link', { name: '마이페이지' })).toBeVisible();
     await page.getByRole('button', { name: '로그아웃', exact: true }).click();
     await expect(page).toHaveURL('/news');
@@ -94,18 +114,24 @@ for (const viewport of [
       return route.fulfill({ json: account });
     });
     await page.goto('/mypage');
-    await expect(page.getByText(account.email, { exact: true })).toBeVisible();
+    await expect(
+      page.getByRole('region', { name: '내 계정' }).getByText(account.email, { exact: true }),
+    ).toBeVisible();
     await expect(page.getByText(account.name, { exact: true })).toBeVisible();
     await expect(page.getByText('비공개', { exact: true })).toHaveCount(2);
     await expect(page.getByText('공개용', { exact: true })).toBeVisible();
     await page.getByRole('button', { name: '닉네임 변경' }).click();
     await page.getByLabel('새 닉네임', { exact: true }).fill('사용중');
     await page.getByRole('button', { name: '닉네임 저장' }).click();
-    await expect(page.getByRole('alert')).toContainText('이미 사용 중');
+    await expect(page.getByRole('region', { name: '내 계정' }).getByRole('alert')).toContainText(
+      '이미 사용 중',
+    );
     await expect(page.getByLabel('새 닉네임')).toHaveValue('사용중');
     await page.getByLabel('새 닉네임').fill('새로운공개별명');
     await page.getByRole('button', { name: '닉네임 저장' }).click();
-    await expect(page.getByRole('status')).toContainText('닉네임을 변경했어요');
+    await expect(page.getByRole('region', { name: '내 계정' }).getByRole('status')).toContainText(
+      '닉네임을 변경했어요',
+    );
     await expect(page.getByRole('link', { name: '마이페이지' })).toHaveText('새');
     await expect(page.getByText(account.name, { exact: true })).toBeVisible();
     await page.reload();
@@ -167,7 +193,9 @@ test('모바일: 이름이 없는 기존 계정은 재로그인을 안내하고 
   await page.getByRole('button', { name: '닉네임 변경' }).click();
   await page.getByLabel('새 닉네임').fill('');
   await page.getByRole('button', { name: '닉네임 저장' }).click();
-  await expect(page.getByRole('alert')).toContainText('1~20자');
+  await expect(page.getByRole('region', { name: '내 계정' }).getByRole('alert')).toContainText(
+    '1~20자',
+  );
   await page.getByLabel('새 닉네임').fill('바꾸지않을닉네임');
   await page.getByRole('button', { name: '취소', exact: true }).click();
   await expect(page.getByText('공개별명', { exact: true })).toBeVisible();
@@ -277,7 +305,8 @@ for (const width of [390, 1440]) {
       }
       if (path === '/league/reviews') {
         await page.getByRole('button', { name: /복기 작성/ }).click();
-        await expect(page.getByRole('textbox', { name: '실제 결과' })).toBeFocused();
+        await expect(page.getByRole('heading', { name: '나의 복기', exact: true })).toBeFocused();
+        await expect(page.getByRole('textbox', { name: '실제 결과' })).toBeEditable();
       }
       await checkWidth(page);
       const smallButtons = await page

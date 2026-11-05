@@ -34,6 +34,11 @@ import org.grit.daynomy.member.repository.MemberRepository;
 import org.grit.daynomy.member.service.MemberService;
 import org.grit.daynomy.portfolio.domain.Portfolio;
 import org.grit.daynomy.portfolio.domain.PortfolioHolding;
+import org.grit.daynomy.portfolio.domain.PortfolioTransactionType;
+import org.grit.daynomy.portfolio.dto.PortfolioHoldingsCreateRequest;
+import org.grit.daynomy.portfolio.dto.PortfolioHoldingsUpdateRequest;
+import org.grit.daynomy.portfolio.dto.PortfolioTransactionImportRequest;
+import org.grit.daynomy.portfolio.dto.PortfolioTransactionRequest;
 import org.grit.daynomy.portfolio.repository.PortfolioHoldingHistoryRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioHoldingRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioRepository;
@@ -80,8 +85,235 @@ class SharedPortfolioAcceptanceTest {
   @Autowired private TokenService tokenService;
   @Autowired private JdbcTemplate jdbc;
   @Autowired private LeagueReturnService leagueReturns;
+  @Autowired private org.grit.daynomy.portfolio.service.SavedPortfolioService savedPortfolios;
   @Autowired private InvestorProfileRepository profiles;
   private static final String SHARED = "/api/users/me/shared-portfolio";
+
+  @Test
+  void sourceChangesAutomaticallyIncludePublicAndPrivateHoldingsWithoutOptIn() {
+    Member owner = member();
+    Asset visible = asset();
+    Asset hidden = asset();
+    Asset added = asset();
+    Portfolio original = originals.save(Portfolio.create(owner));
+    originalHoldings.save(new PortfolioHolding(original, visible, 1, new BigDecimal("100")));
+    originalHoldings.save(new PortfolioHolding(original, hidden, 2, new BigDecimal("100")));
+    client(owner)
+        .body(
+            """
+        {"holdings":[{"assetId":%d,"quantity":1,"averagePurchasePrice":100,
+          "decision":{"reason":"공개 보유 이유"}}],"overwriteExisting":false}
+        """
+                .formatted(visible.getId()))
+        .post(SHARED + "/import")
+        .then()
+        .statusCode(200);
+    client(owner)
+        .get(SHARED)
+        .then()
+        .statusCode(200)
+        .body("holdings", hasSize(2))
+        .body("holdings.sourceManaged", everyItem(equalTo(true)))
+        .body("holdings.find { it.assetId == " + hidden.getId() + " }.hidden", equalTo(true));
+
+    originalHoldings.save(new PortfolioHolding(original, added, 3, new BigDecimal("100")));
+    savedPortfolios.update(
+        owner.getId(),
+        visible.getId(),
+        new org.grit.daynomy.portfolio.dto.SavedPortfolioHoldingUpdateRequest(
+            4L, new BigDecimal("100")));
+
+    Long sharedId =
+        jdbc.queryForObject(
+            "SELECT id FROM shared_portfolios WHERE member_id=?", Long.class, owner.getId());
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT quantity FROM shared_holdings WHERE portfolio_id=? AND asset_id=?",
+                Long.class,
+                sharedId,
+                visible.getId()))
+        .isEqualTo(4L);
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT hidden FROM shared_holdings WHERE portfolio_id=? AND asset_id=?",
+                Boolean.class,
+                sharedId,
+                visible.getId()))
+        .isFalse();
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT hidden FROM shared_holdings WHERE portfolio_id=? AND asset_id=?",
+                Boolean.class,
+                sharedId,
+                hidden.getId()))
+        .isTrue();
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT hidden FROM shared_holdings WHERE portfolio_id=? AND asset_id=?",
+                Boolean.class,
+                sharedId,
+                added.getId()))
+        .isTrue();
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT COUNT(*) FROM shared_holding_histories WHERE portfolio_id=? AND asset_id=?",
+                Integer.class,
+                sharedId,
+                added.getId()))
+        .isEqualTo(1);
+
+    savedPortfolios.remove(owner.getId(), added.getId());
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT COUNT(*) FROM shared_holdings WHERE portfolio_id=? AND asset_id=?",
+                Integer.class,
+                sharedId,
+                added.getId()))
+        .isZero();
+  }
+
+  @Test
+  void bulkHoldingsAndCsvTransactionsSyncPrivateLeagueHoldingsAfterCommit() {
+    Member owner = member();
+    Asset first = asset();
+    Asset second = asset();
+    Asset traded = asset();
+    BigDecimal price = new BigDecimal("100");
+    savedPortfolios.createHoldings(
+        owner.getId(),
+        new PortfolioHoldingsCreateRequest(
+            List.of(
+                new PortfolioHoldingsCreateRequest.Holding(first.getId(), 1L, price, null),
+                new PortfolioHoldingsCreateRequest.Holding(second.getId(), 2L, price, null))));
+    Long sharedId =
+        jdbc.queryForObject(
+            "SELECT id FROM shared_portfolios WHERE member_id=?", Long.class, owner.getId());
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT COUNT(*) FROM shared_holdings WHERE portfolio_id=?",
+                Integer.class,
+                sharedId))
+        .isEqualTo(2);
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT bool_and(hidden) FROM shared_holdings WHERE portfolio_id=?",
+                Boolean.class,
+                sharedId))
+        .isTrue();
+
+    savedPortfolios.updateHoldings(
+        owner.getId(),
+        new PortfolioHoldingsUpdateRequest(
+            List.of(
+                new PortfolioHoldingsUpdateRequest.Holding(first.getId(), 3L, price, null),
+                new PortfolioHoldingsUpdateRequest.Holding(second.getId(), 4L, price, null))));
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT quantity FROM shared_holdings WHERE portfolio_id=? AND asset_id=?",
+                Long.class,
+                sharedId,
+                first.getId()))
+        .isEqualTo(3L);
+
+    LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
+    savedPortfolios.createTransactions(
+        owner.getId(),
+        new PortfolioTransactionImportRequest(
+            List.of(
+                new PortfolioTransactionRequest(
+                    traded.getId(),
+                    PortfolioTransactionType.BUY,
+                    today,
+                    2L,
+                    price,
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO))));
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT quantity FROM shared_holdings WHERE portfolio_id=? AND asset_id=?",
+                Long.class,
+                sharedId,
+                traded.getId()))
+        .isEqualTo(2L);
+
+    var csv =
+        new PortfolioTransactionImportRequest(
+            List.of(
+                new PortfolioTransactionRequest(
+                    traded.getId(),
+                    PortfolioTransactionType.BUY,
+                    today,
+                    3L,
+                    price,
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO)));
+    savedPortfolios.importTransactions(owner.getId(), csv);
+    savedPortfolios.importTransactions(owner.getId(), csv);
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT quantity FROM shared_holdings WHERE portfolio_id=? AND asset_id=?",
+                Long.class,
+                sharedId,
+                traded.getId()))
+        .isEqualTo(5L);
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT COUNT(*) FROM shared_holding_histories WHERE portfolio_id=? AND asset_id=?",
+                Integer.class,
+                sharedId,
+                traded.getId()))
+        .isEqualTo(2);
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT bool_and(hidden) FROM shared_holdings WHERE portfolio_id=?",
+                Boolean.class,
+                sharedId))
+        .isTrue();
+  }
+
+  @Test
+  void unchangedSharedReadsDoNotWaitForTheMemberWriteLock() throws Exception {
+    Member owner = member();
+    Asset asset = asset();
+    sourceHolding(owner, asset, 2, "100");
+    client(owner).get(SHARED).then().statusCode(200).body("holdings", hasSize(1));
+    var requests = List.of(client(owner), client(owner), client(owner));
+    try (var executor = Executors.newFixedThreadPool(3);
+        var connection =
+            DriverManager.getConnection(
+                POSTGRESQL.getJdbcUrl(), POSTGRESQL.getUsername(), POSTGRESQL.getPassword())) {
+      connection.setAutoCommit(false);
+      try {
+        try (var statement =
+            connection.prepareStatement("SELECT id FROM members WHERE id=? FOR UPDATE")) {
+          statement.setLong(1, owner.getId());
+          try (var rows = statement.executeQuery()) {
+            assertThat(rows.next()).isTrue();
+          }
+        }
+        var calls =
+            requests.stream()
+                .map(
+                    request ->
+                        executor.submit(
+                            () ->
+                                request
+                                    .get(SHARED)
+                                    .then()
+                                    .statusCode(200)
+                                    .body("holdings[0].quantity", equalTo(2))))
+                .toList();
+        for (var call : calls) call.get(5, TimeUnit.SECONDS);
+      } finally {
+        connection.rollback();
+      }
+    }
+    jdbc.update(
+        "UPDATE portfolio_holdings SET quantity=3 WHERE asset_id=? AND portfolio_id=(SELECT id FROM portfolios WHERE member_id=?)",
+        asset.getId(),
+        owner.getId());
+    client(owner).get(SHARED).then().statusCode(200).body("holdings[0].quantity", equalTo(3));
+  }
 
   @Test
   void swaggerRemainsPublicInJsonAndYaml() {
@@ -184,12 +416,14 @@ class SharedPortfolioAcceptanceTest {
 
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
-  void removalPreservesOriginalAndRecordsAndEndsParticipationOnlyForLastHolding(boolean last) {
+  void sourceRemovalPreservesRecordsAndEndsParticipationOnlyForLastHolding(boolean last) {
     Member owner = member();
     Asset first = asset();
     Asset second = asset();
     Portfolio original = originals.save(Portfolio.create(owner));
     originalHoldings.save(new PortfolioHolding(original, first, 2, new BigDecimal("100")));
+    if (!last)
+      originalHoldings.save(new PortfolioHolding(original, second, 2, new BigDecimal("100")));
     for (Asset selected : last ? List.of(first) : List.of(first, second)) {
       client(owner)
           .body(
@@ -231,9 +465,10 @@ class SharedPortfolioAcceptanceTest {
     client(owner)
         .delete(target)
         .then()
-        .statusCode(200)
-        .header("Cache-Control", "no-store")
-        .body("holdings", hasSize(last ? 0 : 1));
+        .statusCode(409)
+        .body("code", equalTo("SHARED_HOLDING_SOURCE_MANAGED"));
+    savedPortfolios.remove(owner.getId(), first.getId());
+    client(owner).get(SHARED).then().statusCode(200).body("holdings", hasSize(last ? 0 : 1));
     client(owner).delete(target).then().statusCode(404);
     client(owner)
         .get("/api/users/me/investor-profile")
@@ -241,7 +476,8 @@ class SharedPortfolioAcceptanceTest {
         .statusCode(200)
         .body("leagueEnabled", equalTo(!last))
         .body("profilePublic", equalTo(!last));
-    assertThat(originalHoldings.findAllByPortfolioIdOrderById(original.getId())).hasSize(1);
+    assertThat(originalHoldings.findAllByPortfolioIdOrderById(original.getId()))
+        .hasSize(last ? 0 : 1);
     assertThat(
             jdbc.queryForObject(
                 "SELECT COUNT(*) FROM shared_holding_histories h JOIN shared_portfolios p ON p.id=h.portfolio_id WHERE p.member_id=? AND h.change_type='REMOVED'",
@@ -265,6 +501,7 @@ class SharedPortfolioAcceptanceTest {
   void editsOwnedReasonAndPreservesRecordReviewsAndHoldings() {
     Member owner = member();
     Asset asset = asset();
+    sourceHolding(owner, asset, 2, "100");
     client(owner)
         .body(
             Map.of(
@@ -356,6 +593,7 @@ class SharedPortfolioAcceptanceTest {
   void reasonEditsPreserveOriginalRequestAcrossDatabaseReloads() {
     Member owner = member();
     Asset asset = asset();
+    sourceHolding(owner, asset, 2, "100");
     client(owner)
         .body(
             Map.of(
@@ -453,9 +691,10 @@ class SharedPortfolioAcceptanceTest {
   }
 
   @Test
-  void newParticipantWithSameDayImportedHoldingsAppearsInThatWeeksRankingsAtZero() {
+  void newParticipantHasPartialReturnAndEntersThatWeeksRankings() {
     Member owner = member();
     Asset asset = asset();
+    sourceHolding(owner, asset, 1, "100");
     client(owner)
         .body(
             """
@@ -603,6 +842,14 @@ class SharedPortfolioAcceptanceTest {
         Member.createGoogleMember(key, key + "@example.invalid", key.substring(0, 12), null));
   }
 
+  private void sourceHolding(Member owner, Asset asset, long quantity, String price) {
+    Portfolio source =
+        originals
+            .findByMemberId(owner.getId())
+            .orElseGet(() -> originals.save(Portfolio.create(owner)));
+    originalHoldings.save(new PortfolioHolding(source, asset, quantity, new BigDecimal(price)));
+  }
+
   private Asset asset() {
     String code = UUID.randomUUID().toString();
     return assets.save(
@@ -666,6 +913,7 @@ class SharedPortfolioAcceptanceTest {
   void holidayWeekFinalizesAfterLastTradingDayAndKeepsVersionsAndCurrentConsent() {
     Member owner = member();
     Asset stock = asset();
+    sourceHolding(owner, stock, 1, "100");
     client(owner)
         .body(
             Map.of(
@@ -703,6 +951,7 @@ class SharedPortfolioAcceptanceTest {
             .path("publicId");
     // 최근 3주 안의 목·금 휴장 주차를 만들어 수요일 종가 마감을 검증한다.
     LocalDate week = LocalDate.now(ZoneId.of("Asia/Seoul")).with(DayOfWeek.MONDAY).minusWeeks(2);
+    jdbc.update("DELETE FROM weekly_leaderboards WHERE week_start=?", week);
     LocalDate baseline = week.minusDays(3);
     jdbc.update(
         "UPDATE market_trading_days SET trading=true WHERE base_date IN (?, ?, ?, ?)",
@@ -931,6 +1180,7 @@ class SharedPortfolioAcceptanceTest {
         .ifValidationFails()
         .statusCode(400)
         .body("code", equalTo("LEAGUE_HOLDINGS_REQUIRED"));
+    sourceHolding(owner, first, 2, "70000");
     client(owner)
         .body(
             Map.of(
@@ -958,8 +1208,7 @@ class SharedPortfolioAcceptanceTest {
         .then()
         .log()
         .ifValidationFails()
-        .statusCode(400)
-        .body("code", equalTo("HOLDING_REASON_REQUIRED"));
+        .statusCode(200);
     client(owner)
         .body(
             Map.of(
@@ -985,6 +1234,7 @@ class SharedPortfolioAcceptanceTest {
         .log()
         .ifValidationFails()
         .statusCode(200);
+    sourceHolding(owner, second, 1, "10000");
     client(owner)
         .body(
             Map.of(
@@ -1018,13 +1268,12 @@ class SharedPortfolioAcceptanceTest {
         .log()
         .ifValidationFails()
         .statusCode(400);
-    client(owner)
-        .get(SHARED)
-        .then()
-        .log()
-        .ifValidationFails()
-        .statusCode(200)
-        .body("holdings", hasSize(1));
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT COUNT(*) FROM shared_holdings h JOIN shared_portfolios p ON p.id=h.portfolio_id WHERE p.member_id=?",
+                Integer.class,
+                owner.getId()))
+        .isEqualTo(1);
     client(owner)
         .get("/api/users/me/portfolio/transactions")
         .then()
@@ -1185,18 +1434,22 @@ class SharedPortfolioAcceptanceTest {
         .isEqualTo(1);
 
     client(owner)
-        .body(request.replace("false", "true").replace("\"quantity\":10", "\"quantity\":20"))
+        .body(
+            request
+                .replace("false", "true")
+                .replace("\"quantity\":10", "\"quantity\":20")
+                .replace("70000", "1"))
         .post(SHARED + "/import")
         .then()
         .statusCode(200)
-        .body("holdings[0].quantity", equalTo(20));
+        .body("holdings[0].quantity", equalTo(10));
     assertThat(
             jdbc.queryForObject(
                 "SELECT COUNT(*) FROM shared_holding_histories WHERE portfolio_id ="
                     + " (SELECT id FROM shared_portfolios WHERE member_id = ?)",
                 Integer.class,
                 owner.getId()))
-        .isEqualTo(2);
+        .isEqualTo(1);
     assertThat(
             originalHoldings
                 .findByPortfolioIdAndAssetId(original.getId(), asset.getId())
@@ -1244,11 +1497,13 @@ class SharedPortfolioAcceptanceTest {
 
   @ParameterizedTest
   @ValueSource(
-      strings = {"SHARED_IMPORT_CONFLICT", "DUPLICATE_SHARED_ASSET", "INVALID_LEAGUE_ASSET"})
+      strings = {"SHARED_IMPORT_CONFLICT", "DUPLICATE_SHARED_ASSET", "PORTFOLIO_HOLDING_NOT_FOUND"})
   void failedBatchImportRollsBackEarlierHoldingsAndHistory(String errorCode) {
     Member owner = member();
     Asset existing = asset();
     Asset added = asset();
+    sourceHolding(owner, existing, 10, "70000");
+    sourceHolding(owner, added, 5, "70000");
     String holding = "{\"assetId\":%d,\"quantity\":%d,\"averagePurchasePrice\":70000}";
     client(owner)
         .body(
@@ -1258,7 +1513,8 @@ class SharedPortfolioAcceptanceTest {
         .then()
         .statusCode(200);
     boolean overwrite = !errorCode.equals("SHARED_IMPORT_CONFLICT");
-    long failingAssetId = errorCode.equals("INVALID_LEAGUE_ASSET") ? Long.MAX_VALUE : added.getId();
+    long failingAssetId =
+        errorCode.equals("PORTFOLIO_HOLDING_NOT_FOUND") ? Long.MAX_VALUE : added.getId();
 
     client(owner)
         .body(
@@ -1270,16 +1526,14 @@ class SharedPortfolioAcceptanceTest {
                     overwrite))
         .post(SHARED + "/import")
         .then()
-        .statusCode(overwrite ? 400 : 409)
+        .statusCode(errorCode.equals("PORTFOLIO_HOLDING_NOT_FOUND") ? 404 : overwrite ? 400 : 409)
         .body("code", equalTo(errorCode));
 
-    client(owner)
-        .get(SHARED)
-        .then()
-        .statusCode(200)
-        .body("holdings", hasSize(1))
-        .body("holdings[0].assetId", equalTo(existing.getId().intValue()))
-        .body("holdings[0].quantity", equalTo(10));
+    assertThat(
+            jdbc.queryForList(
+                "SELECT h.asset_id,h.quantity FROM shared_holdings h JOIN shared_portfolios p ON p.id=h.portfolio_id WHERE p.member_id=?",
+                owner.getId()))
+        .containsExactly(Map.of("asset_id", existing.getId(), "quantity", 10L));
     assertThat(
             jdbc.queryForObject(
                 "SELECT COUNT(*) FROM shared_holding_histories WHERE portfolio_id ="
@@ -1320,6 +1574,28 @@ class SharedPortfolioAcceptanceTest {
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
   void decisionReviewPublicationRankingAndPublicDetailsUseRealStoredData(boolean withdraw) {
+    var calendar =
+        jdbc.queryForList("SELECT base_date, trading, collected_at FROM market_trading_days");
+    Long lastLeaderboardId =
+        jdbc.queryForObject("SELECT COALESCE(MAX(id), 0) FROM weekly_leaderboards", Long.class);
+    try {
+      jdbc.update("UPDATE market_trading_days SET collected_at=NULL");
+      verifyDecisionReviewPublicationRankingAndPublicDetails(withdraw);
+    } finally {
+      jdbc.update("DELETE FROM weekly_leaderboards WHERE id > ?", lastLeaderboardId);
+      jdbc.batchUpdate(
+          "UPDATE market_trading_days SET trading=?, collected_at=? WHERE base_date=?",
+          calendar.stream()
+              .map(
+                  row ->
+                      new Object[] {
+                        row.get("trading"), row.get("collected_at"), row.get("base_date")
+                      })
+              .toList());
+    }
+  }
+
+  private void verifyDecisionReviewPublicationRankingAndPublicDetails(boolean withdraw) {
     Member owner = member();
     Member viewer = member();
     Asset asset = asset();
@@ -1617,7 +1893,11 @@ class SharedPortfolioAcceptanceTest {
         .body("investors[0].newReviewCount", equalTo(1));
 
     // 집계 검증용 과거 이력은 격리된 Testcontainers DB에서만 만든다.
-    LocalDate date = LocalDate.now(ZoneId.of("Asia/Seoul")).minusWeeks(1).with(DayOfWeek.MONDAY);
+    LocalDate date = LocalDate.now(ZoneId.of("Asia/Seoul")).minusWeeks(2).with(DayOfWeek.MONDAY);
+    jdbc.update(
+        "UPDATE market_trading_days SET trading=(EXTRACT(ISODOW FROM base_date) < 6) WHERE base_date BETWEEN ? AND ?",
+        date.minusWeeks(1),
+        date.plusWeeks(2).minusDays(1));
     Instant past = date.minusDays(10).atStartOfDay(ZoneId.of("Asia/Seoul")).toInstant();
     jdbc.update(
         "UPDATE public_investor_profiles SET league_enabled_at=? WHERE member_id=?",
@@ -1661,7 +1941,8 @@ class SharedPortfolioAcceptanceTest {
           "UPDATE market_trading_days SET collected_at=base_date + TIME '17:00' AT TIME ZONE 'Asia/Seoul' WHERE base_date=?",
           trading);
     }
-    leagueReturns.recalculate();
+    // 과거로 이동한 새 참가자를 기존 확정 주차에도 반영한다.
+    leagueReturns.recalculateFrom(date);
     given()
         .port(port)
         .queryParam("weekStart", date.toString())
@@ -1738,28 +2019,29 @@ class SharedPortfolioAcceptanceTest {
         .statusCode(200)
         .body("transactions", hasSize(1))
         .body("transactions[0].reviews", hasSize(1));
-    // 현재 주차에도 가격·수익률을 준비하고, 실제 노출된 순위의 캐시를 채운다.
-    LocalDate currentWeek = LocalDate.now(ZoneId.of("Asia/Seoul")).with(DayOfWeek.MONDAY);
-    jdbc.update("UPDATE market_trading_days SET trading=true WHERE base_date=?", currentWeek);
-    List<LocalDate> currentTradingDays =
+    // 지난주 금요일은 수집 대기로 남겨 장 마감 시각과 무관하게 미확정 순위 캐시를 채운다.
+    LocalDate pendingWeek = date.plusWeeks(1);
+    List<LocalDate> collectedDays =
         jdbc.queryForList(
             "SELECT base_date FROM market_trading_days WHERE trading AND base_date BETWEEN ? AND ? ORDER BY base_date",
             LocalDate.class,
-            currentWeek,
-            LocalDate.now(ZoneId.of("Asia/Seoul")));
-    for (LocalDate trading : currentTradingDays) {
+            pendingWeek,
+            pendingWeek.plusDays(3));
+    for (LocalDate trading : collectedDays) {
       prices.save(new StockDailyPrice(asset, trading, new BigDecimal("77000")));
       jdbc.update(
           "UPDATE market_trading_days SET collected_at=base_date + TIME '17:00' AT TIME ZONE 'Asia/Seoul' WHERE base_date=?",
           trading);
     }
-    leagueReturns.recalculateFrom(currentWeek);
+    leagueReturns.recalculateFrom(pendingWeek);
     given()
         .port(port)
+        .queryParam("weekStart", pendingWeek.toString())
         .queryParam("size", 100)
         .get("/api/league/rankings")
         .then()
         .statusCode(200)
+        .body("confirmed", equalTo(false))
         .body("rankings.publicId", hasItem(publicId));
     client(viewer).post("/api/users/me/league/follows/" + publicId).then().statusCode(204);
     if (withdraw) {
@@ -1794,7 +2076,7 @@ class SharedPortfolioAcceptanceTest {
             .body("code", equalTo("PROFILE_NOT_FOUND"));
       }
     }
-    for (LocalDate week : List.of(date, currentWeek)) {
+    for (LocalDate week : List.of(date, pendingWeek)) {
       for (var reader : List.of(given().port(port), client(viewer))) {
         reader
             .queryParam("weekStart", week.toString())

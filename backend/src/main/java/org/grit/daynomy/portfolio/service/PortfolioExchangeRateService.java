@@ -19,6 +19,13 @@ public class PortfolioExchangeRateService {
   private final PortfolioHoldingHistoryRepository histories;
   private final ExchangeRateService exchangeRates;
 
+  public Map<LocalDate, BigDecimal> forImport(
+      Long memberId, List<Long> additionalAssetIds, LocalDate fromDate) {
+    var ids = new HashSet<>(histories.findAssetIdsByMemberId(memberId));
+    ids.addAll(additionalAssetIds);
+    return load(ids, null, fromDate);
+  }
+
   public Map<LocalDate, BigDecimal> forMember(
       Long memberId, Long additionalAssetId, LocalDate fromDate) {
     var ids = new HashSet<>(histories.findAssetIdsByMemberId(memberId));

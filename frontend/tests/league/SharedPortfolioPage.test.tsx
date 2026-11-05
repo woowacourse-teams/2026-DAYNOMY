@@ -21,8 +21,12 @@ vi.mock('../../src/features/league/sharedPortfolioApi', async (importOriginal) =
 vi.mock('../../src/features/league/api', async (importOriginal) => ({
   ...(await importOriginal<typeof leagueApi>()),
   getInvestmentDecisions: vi.fn(),
+  claimReviewReminder: vi.fn(),
+  snoozeReviewReminder: vi.fn(),
   getMyInvestorProfile: vi.fn(),
   recordDecision: vi.fn(),
+  createReview: vi.fn(),
+  getReviewGuide: vi.fn(),
 }));
 vi.mock('../../src/features/portfolio/api', () => ({ getSavedPortfolio: vi.fn() }));
 const stock = {
@@ -37,6 +41,7 @@ const holding = {
   quantity: 2,
   averagePurchasePrice: 70000,
   hidden: false,
+  pendingReason: false,
   reason: '기존 판단',
   baseDate: '2026-10-02',
   closePrice: 77000,
@@ -59,6 +64,12 @@ const portfolio = {
 };
 const storageKey = 'daynomy:portfolio-holdings:v1';
 beforeEach(() => {
+  vi.mocked(leagueApi.claimReviewReminder).mockResolvedValue({
+    requestKey: null,
+    transactions: [],
+    nextNotificationAt: null,
+  });
+  vi.mocked(leagueApi.snoozeReviewReminder).mockResolvedValue('2026-11-09T00:00:00Z');
   vi.mocked(leagueApi.getInvestmentDecisions).mockResolvedValue([]);
   vi.mocked(leagueApi.getMyInvestorProfile).mockResolvedValue(null);
   vi.mocked(api.getSharedPortfolio).mockResolvedValue(empty);
@@ -96,6 +107,21 @@ async function importButton(view: ReturnType<typeof render>) {
 }
 
 describe('원본 가져오기와 숨김만 허용하는 공유 포트폴리오', () => {
+  it('자동 동기화 중 화면으로 돌아오면 서버의 최신 종목을 다시 읽는다', async () => {
+    vi.mocked(api.getSharedPortfolio).mockResolvedValueOnce(empty).mockResolvedValueOnce(portfolio);
+    const view = renderPage();
+    await view.findByRole('heading', { name: '등록한 종목 0개' });
+    fireEvent.focus(window);
+    expect(await view.findByRole('heading', { name: '등록한 종목 1개' })).toBeTruthy();
+  });
+  it('원본 변경은 항상 동기화하며 비공개 종목도 통합 수익률에 포함함을 안내한다', async () => {
+    const view = renderPage();
+    expect(
+      await view.findByText('포트폴리오 자동 동기화 · 비공개 종목도 수익률에 포함'),
+    ).toBeTruthy();
+    expect(view.getByText(/비공개 종목도/)).toBeTruthy();
+    expect(view.queryByRole('checkbox', { name: /자동 반영/ })).toBeNull();
+  });
   it('분석 전송이 실패해도 원본 자산을 가져오고 원본 저장소는 변경하지 않는다', async () => {
     vi.mocked(trackEvent).mockImplementation(() => {
       throw new Error('SDK failed');
@@ -189,27 +215,20 @@ describe('원본 가져오기와 숨김만 허용하는 공유 포트폴리오',
     expect(api.importSharedHoldings).not.toHaveBeenCalled();
   });
 
-  it('기존 종목 재가져오기는 확인을 요구하고 원본 값을 사용한다', async () => {
+  it('기존 종목의 원본 값이 달라도 재가져오기나 변경 확인을 요구하지 않는다', async () => {
     vi.mocked(api.getSharedPortfolio).mockResolvedValue({
       ...portfolio,
       holdings: [{ ...holding, quantity: 3 }],
     });
-    vi.mocked(api.importSharedHoldings).mockResolvedValue(portfolio);
     const view = renderPage();
     fireEvent.click(await importButton(view));
-    await view.findByRole('heading', { name: '종목 추가' });
-    fireEvent.click(view.getByRole('checkbox', { name: /삼성전자/ }));
-    expect(view.getByText('리그: 3주 · 평균 70,000원')).toBeTruthy();
-    expect(view.getByRole('button', { name: '1개 종목 추가' })).toHaveProperty('disabled', true);
-    fireEvent.click(view.getByRole('checkbox', { name: /등록된 1개 종목/ }));
-    fireEvent.click(view.getByRole('button', { name: '1개 종목 추가' }));
-    await waitFor(() =>
-      expect(api.importSharedHoldings).toHaveBeenCalledWith(
-        [expect.objectContaining({ quantity: 2, averagePurchasePrice: 70000 })],
-        true,
-        {},
-      ),
-    );
+    const existing = await view.findByRole('checkbox', { name: /삼성전자/ });
+    expect(existing).toHaveProperty('disabled', true);
+    expect(existing).toHaveProperty('checked', false);
+    expect(view.queryByText('리그: 3주 · 평균 70,000원')).toBeNull();
+    expect(view.queryByRole('checkbox', { name: /등록된 1개 종목/ })).toBeNull();
+    expect(view.queryByRole('button', { name: '1개 종목 추가' })).toBeNull();
+    expect(api.importSharedHoldings).not.toHaveBeenCalled();
   });
 
   it('숨김과 해제는 자산·성과·원본을 보존하고 수정·삭제 버튼은 없다', async () => {
@@ -250,6 +269,20 @@ describe('원본 가져오기와 숨김만 허용하는 공유 포트폴리오',
   it('가져오기 처리 중 중복 저장과 숨김 변경을 막는다', async () => {
     let resolveImport!: (value: typeof portfolio) => void;
     vi.mocked(api.getSharedPortfolio).mockResolvedValue(portfolio);
+    vi.mocked(portfolioApi.getSavedPortfolio).mockResolvedValue({
+      holdings: [
+        { ...stock, name: stock.assetName, quantity: 2, averagePurchasePrice: 70000 },
+        {
+          ...stock,
+          assetId: 2,
+          assetCode: '000660',
+          name: 'SK하이닉스',
+          quantity: 1,
+          averagePurchasePrice: 100000,
+        },
+      ],
+      totalRealizedProfitLoss: 0,
+    });
     vi.mocked(api.importSharedHoldings).mockImplementationOnce(
       () =>
         new Promise((resolve) => {
@@ -259,8 +292,9 @@ describe('원본 가져오기와 숨김만 허용하는 공유 포트폴리오',
     const view = renderPage();
     fireEvent.click(await importButton(view));
     await view.findByRole('heading', { name: '종목 추가' });
-    fireEvent.click(view.getByRole('checkbox', { name: /삼성전자/ }));
-    fireEvent.click(view.getByRole('checkbox', { name: /등록된 1개 종목/ }));
+    fireEvent.change(view.getByRole('textbox', { name: 'SK하이닉스 보유 이유' }), {
+      target: { value: '업황 개선 기대' },
+    });
     fireEvent.click(view.getByRole('button', { name: '1개 종목 추가' }));
     expect(view.getByRole('button', { name: '추가 중…' })).toHaveProperty('disabled', true);
     expect(view.queryByRole('button', { name: '투자 기록' })).toBeNull();
@@ -369,7 +403,7 @@ describe('원본 가져오기와 숨김만 허용하는 공유 포트폴리오',
     expect(view.queryByText('0원')).toBeNull();
     expect(view.queryByText('집계 전')).toBeNull();
   });
-  it('숨긴 종목도 보유 이유가 필수이며 저장 후 작성 상태를 갱신한다', async () => {
+  it('비공개 종목은 보유 이유 없이 참여할 수 있고 이유 저장 상태도 갱신한다', async () => {
     vi.mocked(api.getSharedPortfolio).mockResolvedValue({
       ...portfolio,
       holdings: [{ ...holding, hidden: true, reason: '' }],
@@ -394,7 +428,9 @@ describe('원본 가져오기와 숨김만 허용하는 공유 포트폴리오',
       reviews: [],
     });
     const view = renderPage();
-    expect(await view.findByText('보유 이유 미작성')).toBeTruthy();
+    await view.findByRole('button', { name: '삼성전자 보유 이유 작성' });
+    expect(view.queryByText('보유 이유 미작성')).toBeNull();
+    expect(await view.findByRole('link', { name: '리그 참여하기' })).toBeTruthy();
     const writeReason = await view.findByRole('button', { name: '삼성전자 보유 이유 작성' });
     await waitFor(() => expect(writeReason).toHaveProperty('disabled', false));
     fireEvent.click(writeReason);
@@ -418,63 +454,54 @@ describe('원본 가져오기와 숨김만 허용하는 공유 포트폴리오',
   });
 });
 
-it.each([false, true])(
-  '가져오기 성공 이벤트는 종목 관리에서 한 번 기록한 뒤 이동한다 (덮어쓰기: %s)',
-  async (overwrite) => {
-    window.history.replaceState(null, '', '/league/portfolio#select');
-    if (overwrite) vi.mocked(api.getSharedPortfolio).mockResolvedValue(portfolio);
-    vi.mocked(api.importSharedHoldings)
-      .mockRejectedValueOnce(new Error('가져오기 실패'))
-      .mockResolvedValueOnce(portfolio);
-    const successLocations: string[] = [];
-    vi.mocked(trackEvent).mockImplementation((name, params) => {
-      if (
-        name === 'league_action' &&
-        params?.action === 'import_holdings' &&
-        params.status === 'success'
-      ) {
-        successLocations.push(window.location.pathname);
-      }
-    });
-    const view = render(
-      <BrowserRouter>
-        <Routes>
-          <Route path="/league/portfolio" element={<SharedPortfolioPage />} />
-          <Route path="/portfolio/publication" element={<h1>참여 설정 화면</h1>} />
-        </Routes>
-      </BrowserRouter>,
-    );
-    await view.findByRole('heading', { name: '종목 추가' });
-    if (overwrite) {
-      fireEvent.click(view.getByRole('checkbox', { name: /삼성전자/ }));
-      fireEvent.click(view.getByRole('checkbox', { name: /등록된 1개 종목/ }));
-    } else {
-      fireEvent.change(view.getByLabelText('삼성전자 보유 이유'), {
-        target: { value: '장기 성장 기대' },
-      });
+it('신규 종목 가져오기 성공 이벤트는 종목 관리에서 한 번 기록한 뒤 이동한다', async () => {
+  window.history.replaceState(null, '', '/league/portfolio#select');
+  vi.mocked(api.importSharedHoldings)
+    .mockRejectedValueOnce(new Error('가져오기 실패'))
+    .mockResolvedValueOnce(portfolio);
+  const successLocations: string[] = [];
+  vi.mocked(trackEvent).mockImplementation((name, params) => {
+    if (
+      name === 'league_action' &&
+      params?.action === 'import_holdings' &&
+      params.status === 'success'
+    ) {
+      successLocations.push(window.location.pathname);
     }
-    const submit = view.getByRole('button', { name: '1개 종목 추가' });
-    await waitFor(() => expect(submit).toHaveProperty('disabled', false));
-    fireEvent.click(submit);
-    expect(await view.findByRole('alert')).toHaveProperty('textContent', '가져오기 실패');
-    expect(window.location.pathname).toBe('/league/portfolio');
-    expect(successLocations).toEqual([]);
-    await waitFor(() => expect(submit).toHaveProperty('disabled', false));
-    fireEvent.click(submit);
-    await view.findByRole('heading', { name: '참여 설정 화면' });
-    expect(window.location.pathname + window.location.search).toBe(
-      '/portfolio/publication?join=true',
-    );
-    expect(successLocations).toEqual(['/league/portfolio']);
-    expect(trackEvent).toHaveBeenCalledWith('league_action', {
-      surface: 'holdings',
-      action: 'import_holdings',
-      status: 'success',
-      result_count: 1,
-      overwrite_existing: overwrite,
-    });
-  },
-);
+  });
+  const view = render(
+    <BrowserRouter>
+      <Routes>
+        <Route path="/league/portfolio" element={<SharedPortfolioPage />} />
+        <Route path="/portfolio/publication" element={<h1>참여 설정 화면</h1>} />
+      </Routes>
+    </BrowserRouter>,
+  );
+  await view.findByRole('heading', { name: '종목 추가' });
+  fireEvent.change(view.getByLabelText('삼성전자 보유 이유'), {
+    target: { value: '장기 성장 기대' },
+  });
+  const submit = view.getByRole('button', { name: '1개 종목 추가' });
+  await waitFor(() => expect(submit).toHaveProperty('disabled', false));
+  fireEvent.click(submit);
+  expect(await view.findByRole('alert')).toHaveProperty('textContent', '가져오기 실패');
+  expect(window.location.pathname).toBe('/league/portfolio');
+  expect(successLocations).toEqual([]);
+  await waitFor(() => expect(submit).toHaveProperty('disabled', false));
+  fireEvent.click(submit);
+  await view.findByRole('heading', { name: '참여 설정 화면' });
+  expect(window.location.pathname + window.location.search).toBe(
+    '/portfolio/publication?join=true',
+  );
+  expect(successLocations).toEqual(['/league/portfolio']);
+  expect(trackEvent).toHaveBeenCalledWith('league_action', {
+    surface: 'holdings',
+    action: 'import_holdings',
+    status: 'success',
+    result_count: 1,
+    overwrite_existing: false,
+  });
+});
 
 it('처음 참여하는 사용자는 종목과 보유 이유 준비를 마친 뒤 참여 설정으로 이동한다', async () => {
   vi.mocked(api.getSharedPortfolio).mockResolvedValue(portfolio);
@@ -508,4 +535,152 @@ it('종목 빼기는 확인 후 실행하고 실패 시 종목과 원본을 보�
   expect(api.removeSharedHolding).toHaveBeenCalledWith(1);
   expect(view.queryByRole('heading', { name: '삼성전자' })).toBeNull();
   expect(localStorage.getItem(storageKey)).toBe(original);
+});
+
+const reviewRecord = {
+  ...stock,
+  id: 7,
+  transactionType: 'HOLD' as const,
+  quantity: 2,
+  unitPrice: 70000,
+  fee: 0,
+  tradedOn: '2026-10-23',
+  reason: '기존 판단',
+  expectedHoldingPeriod: null,
+  expectedChange: '',
+  invalidationCondition: '',
+  maximumAcceptableLossRate: null,
+  writtenAfterTrade: false,
+  reviews: [],
+};
+
+it('종목 관리의 고양이도 보유 이유 대신 복기를 열고 저장 후 기존 목록에 반영한다', async () => {
+  vi.mocked(api.getSharedPortfolio).mockResolvedValue(portfolio);
+  vi.mocked(leagueApi.getInvestmentDecisions).mockResolvedValue([reviewRecord]);
+  vi.mocked(leagueApi.claimReviewReminder).mockImplementation(async (requestKey) => ({
+    requestKey,
+    transactions: [reviewRecord],
+    nextNotificationAt: '2026-11-09T00:00:00Z',
+  }));
+  vi.mocked(leagueApi.getReviewGuide).mockImplementation(() => new Promise(() => {}));
+  const review = {
+    id: 101,
+    actualResult: '결과',
+    differenceFromExpectation: '차이',
+    nextAction: '기준',
+    createdAt: '2026-10-30T00:00:00Z',
+  };
+  vi.mocked(leagueApi.createReview).mockResolvedValue(review);
+  const view = renderPage();
+  fireEvent.click(await view.findByRole('button', { name: '바로 작성하기' }));
+  expect(view.getByRole('dialog', { name: '삼성전자 복기' })).toBeTruthy();
+  expect(view.queryByRole('button', { name: '보유 이유 작성하기' })).toBeNull();
+  expect(leagueApi.getInvestmentDecisions).toHaveBeenCalledOnce();
+  expect(leagueApi.getReviewGuide).toHaveBeenCalledOnce();
+  for (const [label, value] of [
+    ['실제 결과', '결과'],
+    ['예상과 달랐던 점', '차이'],
+    ['다음 행동', '기준'],
+  ])
+    fireEvent.change(view.getByRole('textbox', { name: label! }), { target: { value } });
+  fireEvent.click(view.getByRole('button', { name: '복기 저장' }));
+  await view.findByText('복기를 남겼어요.');
+  vi.mocked(leagueApi.getInvestmentDecisions).mockResolvedValue([
+    { ...reviewRecord, reviews: [review] },
+  ]);
+  fireEvent.click(view.getByRole('button', { name: '기록으로 돌아가기' }));
+  await view.findByText('결과');
+  expect(view.queryByRole('button', { name: '복기 도우미 열기' })).toBeNull();
+  expect(leagueApi.getInvestmentDecisions).toHaveBeenCalledTimes(2);
+  expect(leagueApi.createReview).toHaveBeenCalledWith(7, {
+    actualResult: '결과',
+    differenceFromExpectation: '차이',
+    nextAction: '기준',
+  });
+});
+
+it('종목 추가에서도 필수 이유 입력과 별개로 미복기 기록만 알린다', async () => {
+  vi.mocked(leagueApi.getInvestmentDecisions).mockResolvedValue([reviewRecord]);
+  vi.mocked(leagueApi.claimReviewReminder).mockImplementation(async (requestKey) => ({
+    requestKey,
+    transactions: [reviewRecord],
+    nextNotificationAt: '2026-11-09T00:00:00Z',
+  }));
+  vi.mocked(portfolioApi.getSavedPortfolio).mockResolvedValue({
+    holdings: [
+      {
+        ...stock,
+        assetId: 2,
+        assetCode: '000660',
+        name: 'SK하이닉스',
+        quantity: 1,
+        averagePurchasePrice: 100000,
+      },
+    ],
+    totalRealizedProfitLoss: 0,
+  });
+  const view = renderPage();
+  fireEvent.click(await importButton(view));
+  expect(await view.findByRole('textbox', { name: 'SK하이닉스 보유 이유' })).toHaveProperty(
+    'required',
+    true,
+  );
+  expect(view.getByText('복기할 기록이 1개 있어요')).toBeTruthy();
+  expect(view.queryByRole('button', { name: '보유 이유 작성하기' })).toBeNull();
+  expect(view.queryByRole('button', { name: '변경 내용 확인하기' })).toBeNull();
+  expect(leagueApi.getReviewGuide).not.toHaveBeenCalled();
+});
+
+it('자동 반영되는 기존 종목은 추가 대상에서 제외하고 업데이트 확인을 요구하지 않는다', async () => {
+  vi.mocked(api.getSharedPortfolio).mockResolvedValue(portfolio);
+  vi.mocked(portfolioApi.getSavedPortfolio).mockResolvedValue({
+    holdings: [
+      { ...stock, name: stock.assetName, quantity: 3, averagePurchasePrice: 75000 },
+      {
+        ...stock,
+        assetId: 2,
+        assetCode: '000660',
+        name: 'SK하이닉스',
+        quantity: 1,
+        averagePurchasePrice: 100000,
+      },
+    ],
+    totalRealizedProfitLoss: 0,
+  });
+  vi.mocked(api.importSharedHoldings).mockResolvedValue(portfolio);
+  const view = renderPage();
+  fireEvent.click(await importButton(view));
+  const existing = await view.findByRole('checkbox', { name: /삼성전자/ });
+  expect(existing).toHaveProperty('disabled', true);
+  expect(existing).toHaveProperty('checked', false);
+  expect(view.queryByRole('checkbox', { name: /업데이트합니다/ })).toBeNull();
+  expect(view.queryByText(/리그: 2주/)).toBeNull();
+  fireEvent.change(view.getByRole('textbox', { name: 'SK하이닉스 보유 이유' }), {
+    target: { value: '업황 개선 기대' },
+  });
+  fireEvent.click(view.getByRole('button', { name: '1개 종목 추가' }));
+  await waitFor(() => expect(api.importSharedHoldings).toHaveBeenCalledOnce());
+  expect(api.importSharedHoldings).toHaveBeenCalledWith(
+    [expect.objectContaining({ assetId: 2 })],
+    false,
+    expect.objectContaining({ 2: expect.objectContaining({ reason: '업황 개선 기대' }) }),
+  );
+});
+
+it('이미 등록한 종목만 있으면 새로 추가하거나 변경 확인을 할 필요가 없다고 표시한다', async () => {
+  vi.mocked(api.getSharedPortfolio).mockResolvedValue(portfolio);
+  const view = renderPage();
+  fireEvent.click(await importButton(view));
+  await view.findByText('추가할 새 종목이 없어요.');
+  expect(view.queryByRole('button', { name: '0개 종목 추가' })).toBeNull();
+  expect(view.queryByRole('checkbox', { name: /업데이트합니다/ })).toBeNull();
+  expect(api.importSharedHoldings).not.toHaveBeenCalled();
+});
+
+it('미복기 기록이 없거나 조회에 실패한 경우 필수 입력 가이드를 대신 띄우지 않는다', async () => {
+  vi.mocked(leagueApi.getInvestmentDecisions).mockRejectedValue(new Error('기록 조회 실패'));
+  const view = renderPage();
+  await view.findByText(/투자 기록을 불러오지 못했습니다/);
+  expect(view.queryByRole('complementary', { name: '투자 복기 도우미' })).toBeNull();
+  expect(view.queryByRole('complementary', { name: '종목 추가 도우미' })).toBeNull();
 });

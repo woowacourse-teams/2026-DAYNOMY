@@ -5,7 +5,7 @@ export function GuideMockup({
   screen,
   label,
 }: {
-  screen: 'trade' | 'overview' | 'news' | 'analysis' | 'sources';
+  screen: 'trade' | 'overview' | 'news' | 'analysis' | 'sources' | 'league';
   label: string;
 }) {
   return (
@@ -83,10 +83,43 @@ export function GuideMockup({
                     <span>로그인</span>
                   </div>
                   <div className="guide-tabs">
-                    <b>포트폴리오</b>
+                    {screen === 'league' ? <span>포트폴리오</span> : <b>포트폴리오</b>}
                     <span>소식</span>
-                    <span>투자 리그</span>
+                    {screen === 'league' ? <b>투자 리그</b> : <span>투자 리그</span>}
                   </div>
+                  {screen === 'league' && (
+                    <>
+                      <div className="guide-row">
+                        <h3>주간 리그</h3>
+                        <span className="guide-pill">참여하기</span>
+                      </div>
+                      <p className="guide-muted">주간 수익률과 공개 투자 기록을 함께 살펴보세요.</p>
+                      <div className="guide-row guide-rule">
+                        <b>주간 순위</b>
+                        <span className="guide-pill">이번 주 ⌄</span>
+                      </div>
+                      {[
+                        { name: '꾸준한 하루', rate: '+8.40%' },
+                        { name: '시장을 읽는 사람', rate: '+6.20%' },
+                        { name: '내일의 투자자', rate: '+4.70%' },
+                      ].map((investor, index) => (
+                        <div className="guide-league-rank" key={investor.name}>
+                          <span>{index + 1}</span>
+                          <div>
+                            <b>{investor.name}</b>
+                            <small>투자 기록 보기 →</small>
+                          </div>
+                          <strong>{investor.rate}</strong>
+                        </div>
+                      ))}
+                      <div className="guide-total">
+                        <small>공개 투자 기록 · 삼성전자</small>
+                        <h4>숫자 너머의 투자 생각</h4>
+                        <p>실적과 산업의 흐름을 살펴보며 보유 이유를 기록했어요.</p>
+                        <small>보유 이유와 투자 복기를 함께 확인해요.</small>
+                      </div>
+                    </>
+                  )}
                   {screen === 'overview' && (
                     <>
                       <h3>내 포트폴리오</h3>

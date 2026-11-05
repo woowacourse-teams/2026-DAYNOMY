@@ -15,14 +15,11 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  verify:
-    name: Frontend checks
+  changes:
+    name: Detect frontend changes
     runs-on: ubuntu-latest
-
-    defaults:
-      run:
-        working-directory: frontend
-
+    outputs:
+      frontend: ${{ steps.changes.outputs.frontend }}
     steps:
       - name: Detect frontend changes
         id: changes
@@ -40,12 +37,19 @@ jobs:
             echo "frontend=false" >> "$GITHUB_OUTPUT"
           fi
 
+  app:
+    name: Frontend app checks
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
       - name: Checkout
-        if: steps.changes.outputs.frontend == 'true'
         uses: actions/checkout@v7
 
       - name: Set up Node
-        if: steps.changes.outputs.frontend == 'true'
         uses: actions/setup-node@v7
         with:
           node-version: 22
@@ -53,40 +57,29 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
-        if: steps.changes.outputs.frontend == 'true'
         run: npm ci
 
       - name: Check formatting
-        if: steps.changes.outputs.frontend == 'true'
         run: npm run format:check
 
       - name: Lint
-        if: steps.changes.outputs.frontend == 'true'
         run: npm run lint
 
       - name: Typecheck
-        if: steps.changes.outputs.frontend == 'true'
         run: npm run typecheck
 
       - name: Test
-        if: steps.changes.outputs.frontend == 'true'
         run: npm test
 
-      - name: Test deployment and cache policy
-        if: steps.changes.outputs.frontend == 'true'
-        run: bash scripts/test-deploy-frontend.sh
-
+      # Typecheck already passed in this job.
       - name: Build
-        if: steps.changes.outputs.frontend == 'true'
-        run: npm run build
+        run: npx vite build --mode production
 
       - name: Install Chromium
-        if: steps.changes.outputs.frontend == 'true'
         run: npx playwright install --with-deps --only-shell chromium
 
       - name: Test browser flows
         id: e2e
-        if: steps.changes.outputs.frontend == 'true'
         run: npm run test:e2e
 
       - name: Upload failed browser test results
@@ -96,3 +89,37 @@ jobs:
           name: frontend-e2e-${{ github.run_id }}
           path: frontend/test-results/
           retention-days: 7
+
+  deployment:
+    name: Frontend deployment checks
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Test deployment and cache policy
+        run: bash frontend/scripts/test-deploy-frontend.sh
+
+  verify:
+    name: Frontend checks
+    needs: [changes, app, deployment]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check required results
+        env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          FRONTEND_CHANGED: ${{ needs.changes.outputs.frontend }}
+          APP_RESULT: ${{ needs.app.result }}
+          DEPLOYMENT_RESULT: ${{ needs.deployment.result }}
+        run: |
+          test "$CHANGES_RESULT" = success
+          if [ "$FRONTEND_CHANGED" = false ]; then
+            test "$APP_RESULT" = skipped
+            test "$DEPLOYMENT_RESULT" = skipped
+          else
+            test "$FRONTEND_CHANGED" = true
+            test "$APP_RESULT" = success
+            test "$DEPLOYMENT_RESULT" = success
+          fi

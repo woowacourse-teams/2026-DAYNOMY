@@ -1,5 +1,6 @@
 package org.grit.daynomy.content.repository;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import org.grit.daynomy.content.domain.AssetContent;
@@ -23,6 +24,20 @@ public interface AssetContentRepository extends JpaRepository<AssetContent, Long
       "select distinct content.asset.id from AssetContent content left join content.news news "
           + "where news is null or news.status = :published order by content.asset.id")
   Slice<Long> findDiscoverableAssetIds(@Param("published") NewsStatus published, Pageable pageable);
+
+  @Query(
+      """
+      select news.id from AssetContent content join content.news news
+      where content.asset.id = :assetId and news.status = :status
+        and news.publishedAt > :after and news.publishedAt <= :before
+      order by news.publishedAt desc, news.id desc
+      """)
+  List<Long> findPublishedNewsIdsForAsset(
+      @Param("assetId") Long assetId,
+      @Param("status") NewsStatus status,
+      @Param("after") Instant after,
+      @Param("before") Instant before,
+      Pageable pageable);
 
   boolean existsByAssetIdAndUrl(Long assetId, String url);
 
