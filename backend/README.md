@@ -79,6 +79,8 @@ AI 분석에는 `OPENAI_API_KEY`, 이미지 업로드에는 `AWS_REGION`, `AWS_S
 나중에 추가된 경우 `/api/admin/content-collection-reviews/rematch`로 미매칭 원문을 다시 매칭합니다.
 승인한 후보만 종목 관련 소식으로 공개됩니다.
 
+PMF 설문 활성화와 그룹별 집계는 [PMF 설문 API 운영과 집계](docs/pmf-survey.md)를 참고합니다.
+
 ---
 
 ## 빌드
