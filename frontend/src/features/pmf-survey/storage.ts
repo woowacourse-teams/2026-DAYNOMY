@@ -40,23 +40,3 @@ export function writeSurveyPreference(
     return false;
   }
 }
-
-export function serviceVisitKey(memberId: number | null | undefined) {
-  return `daynomy:pmf-survey:v2:${memberId ?? 'guest'}:service-used`;
-}
-
-export function hasUsedService(memberId: number | null | undefined) {
-  try {
-    return sessionStorage.getItem(serviceVisitKey(memberId)) === 'true';
-  } catch {
-    return false;
-  }
-}
-
-export function rememberServiceUse(memberId: number | null | undefined) {
-  try {
-    sessionStorage.setItem(serviceVisitKey(memberId), 'true');
-  } catch {
-    /* An unknown first visit is handled conservatively. */
-  }
-}

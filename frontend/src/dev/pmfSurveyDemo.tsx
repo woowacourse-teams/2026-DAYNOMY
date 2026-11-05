@@ -5,11 +5,7 @@ import { AuthContext } from '../auth/AuthContext';
 import { ServiceHeader } from '../features/navigation/ServiceHeader';
 import { PortfolioPage } from '../features/portfolio/PortfolioPage';
 import { PmfSurveyPrompt } from '../features/pmf-survey/PmfSurveyPrompt';
-import {
-  nextKoreanMidnight,
-  serviceVisitKey,
-  surveyStorageKey,
-} from '../features/pmf-survey/storage';
+import { nextKoreanMidnight, surveyStorageKey } from '../features/pmf-survey/storage';
 import { portfolioDemoFetch } from './portfolioDemoData';
 import '../index.css';
 import '../App.css';
@@ -48,7 +44,6 @@ export function PmfSurveyDemo() {
                 answered = false;
                 hiddenUntil = null;
                 localStorage.removeItem(surveyStorageKey(805, null));
-                sessionStorage.removeItem(serviceVisitKey(null));
                 setVersion((value) => value + 1);
               }}
             >

@@ -29,7 +29,6 @@ const status = {
 };
 beforeEach(() => {
   localStorage.clear();
-  sessionStorage.clear();
   vi.mocked(getCurrentPmfSurvey).mockResolvedValue(status);
   vi.mocked(hidePmfSurveyToday).mockResolvedValue(undefined);
   vi.mocked(submitPmfResponse).mockResolvedValue(21);
@@ -127,13 +126,9 @@ it('오늘 숨김은 새 탭·재진입에도 유지하고 KST 자정부터 새 
   expect(await nextDay.findByRole('dialog')).toBeTruthy();
   vi.restoreAllMocks();
 });
-it('첫 방문자는 최초 진입을 보류하고 실제 서비스 화면을 방문한 뒤 복귀하면 표시한다', async () => {
+it('첫 방문자도 대시보드 첫 진입에서 설문을 표시한다', async () => {
   vi.mocked(getCurrentPmfSurvey).mockResolvedValue({ ...status, isFirstVisit: true });
   const v = setup();
-  await act(async () => {});
-  expect(v.queryByRole('dialog')).toBeNull();
-  fireEvent.click(v.getByRole('link', { name: '소식으로' }));
-  fireEvent.click(v.getByRole('link', { name: '대시보드로' }));
   expect(await v.findByRole('dialog')).toBeTruthy();
 });
 it('서버 숨김·기응답·비대상·장애에는 표시하지 않는다', async () => {

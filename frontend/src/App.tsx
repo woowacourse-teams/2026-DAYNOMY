@@ -94,7 +94,6 @@ function AppFooter() {
     location.pathname === '/login' ||
     location.pathname.startsWith('/admin') ? null : (
     <>
-      <PmfSurveyPrompt />
       <FeedbackWidget />
       <Footer />
     </>
@@ -164,7 +163,10 @@ function PortfolioRoute() {
   }
 
   return (
-    <PortfolioPage key={isLoggedIn ? `member:${memberId}` : 'guest'} isLoggedIn={isLoggedIn} />
+    <>
+      <PortfolioPage key={isLoggedIn ? `member:${memberId}` : 'guest'} isLoggedIn={isLoggedIn} />
+      <PmfSurveyPrompt />
+    </>
   );
 }
 

@@ -5,10 +5,8 @@ import { isStaffHostname } from '../../serviceDomain';
 import { getCurrentPmfSurvey, hidePmfSurveyToday, submitPmfResponse } from './api';
 import { PmfSurveyDialog } from './PmfSurveyDialog';
 import {
-  hasUsedService,
   nextKoreanMidnight,
   readSurveyPreference,
-  rememberServiceUse,
   surveyStorageKey,
   writeSurveyPreference,
 } from './storage';
@@ -18,10 +16,6 @@ export function PmfSurveyPrompt() {
   const { pathname } = useLocation();
   const { loading, memberId, role } = useAuth();
   const allowed = !loading && role !== 'ADMIN' && !isStaffHostname(window.location.hostname);
-  useEffect(() => {
-    if (allowed && /^\/(news|league|stocks|people|search)(\/|$)/.test(pathname))
-      rememberServiceUse(memberId);
-  }, [allowed, memberId, pathname]);
   if (!allowed || pathname !== '/') return null;
   return <CurrentPmfSurvey key={memberId ?? 'guest'} memberId={memberId} />;
 }
@@ -35,12 +29,7 @@ function CurrentPmfSurvey({ memberId }: { memberId: number | null | undefined })
     const controller = new AbortController();
     void getCurrentPmfSurvey(controller.signal)
       .then((current) => {
-        if (
-          !controller.signal.aborted &&
-          current?.eligible &&
-          current.responseId === null &&
-          (!current.isFirstVisit || hasUsedService(memberId))
-        )
+        if (!controller.signal.aborted && current?.eligible && current.responseId === null)
           setSurvey(current);
       })
       .catch(() => {
