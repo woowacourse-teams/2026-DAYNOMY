@@ -160,6 +160,7 @@ Actuator와 Prometheus 메트릭, OpenTelemetry 트레이싱, 요청 식별자�
 
 - [백엔드 ADR](./docs/adr)
 - [포트폴리오 일괄 편집](./docs/portfolio-bulk-edit.md)
+- [PMF 설문 API 운영과 집계](./docs/pmf-survey.md)
 - [투자 리그 AI 복기 기술 명세](../docs/league-ai-review-technical.md)
 - [부하 테스트](./loadtest/README.md)
 - [공통 부하 테스트 문서](../docs/loadtest)

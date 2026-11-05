@@ -97,6 +97,9 @@ jwt:
 cookie:
   secure: ${COOKIE_SECURE:false}
 
+pmf-survey:
+  active-id: ${PMF_SURVEY_ACTIVE_ID:0}
+
 content-interaction:
   anonymous-token-secret: ${CONTENT_INTERACTION_ANONYMOUS_TOKEN_SECRET:${jwt.secret}}
   rate-limit-per-minute: ${CONTENT_INTERACTION_RATE_LIMIT_PER_MINUTE:60}

@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import { LandingIcon } from './LandingIcon';
 import { GuideMockup } from './GuideMockup';
+import { BrowserMockup } from './BrowserMockup';
 import { WelcomeGuide } from './WelcomeGuide';
 import { WelcomeDetails } from './WelcomeDetails';
 import './landing.css';
@@ -10,9 +11,13 @@ import './welcomeShowcase.css';
 
 const steps = [
   { id: 'portfolio', label: '내 포트폴리오', screen: 'overview', title: '내 자산에서 시작해요.' },
-  { id: 'news', label: '관련 소식', screen: 'news', title: '내 종목의 소식을 모아요.' },
-  { id: 'analysis', label: 'AI 영향 분석', screen: 'analysis', title: 'AI가 예상 영향을 읽어요.' },
-  { id: 'sources', label: '분석 근거', screen: 'sources', title: '판단의 근거까지 확인해요.' },
+  { id: 'news', label: '관련 소식', screen: 'news', title: '내가 보유한 종목의 뉴스만 모아봐요.' },
+  {
+    id: 'analysis',
+    label: 'AI 분석 · 근거',
+    screen: 'analysis',
+    title: 'AI 분석과 판단의 근거를 함께 확인해요.',
+  },
   { id: 'league', label: '투자 리그', screen: 'league', title: '다른 투자자의 기록도 살펴봐요.' },
 ] as const;
 const scrollStep = 180;
@@ -102,6 +107,38 @@ export default function LandingPage({ onStart }: { onStart: () => void }) {
 
   useEffect(() => {
     const root = rootRef.current;
+    if (!root || !introDone) return;
+    let lastWheelAt = -Infinity;
+    let lastDirection = 0;
+    let capturedGesture = false;
+    const handleWheel = (event: WheelEvent) => {
+      if (event.ctrlKey || !event.deltaY || Math.abs(event.deltaX) > Math.abs(event.deltaY)) return;
+      const now = performance.now();
+      const direction = Math.sign(event.deltaY);
+      const continuingGesture = now - lastWheelAt < 220 && direction === lastDirection;
+      lastWheelAt = now;
+      lastDirection = direction;
+      // Trackpad momentum belongs to the same step, including when it reaches the last scene.
+      if (continuingGesture && capturedGesture) {
+        event.preventDefault();
+        return;
+      }
+      const end = (steps.length - 1) * scrollStep;
+      capturedGesture =
+        root.scrollTop <= end + 1 &&
+        !(root.scrollTop >= end - 1 && direction > 0) &&
+        !(root.scrollTop <= 0 && direction < 0);
+      if (!capturedGesture) return;
+      event.preventDefault();
+      const next = Math.max(0, Math.min(steps.length - 1, stepRef.current + direction));
+      root.scrollTo({ top: next * scrollStep, behavior: reducedMotion ? 'instant' : 'smooth' });
+    };
+    root.addEventListener('wheel', handleWheel, { passive: false });
+    return () => root.removeEventListener('wheel', handleWheel);
+  }, [introDone, reducedMotion]);
+
+  useEffect(() => {
+    const root = rootRef.current;
     const stage = stageRef.current;
     if (!root || !stage) return;
     const observer = new ResizeObserver((entries) => {
@@ -124,16 +161,31 @@ export default function LandingPage({ onStart }: { onStart: () => void }) {
   useEffect(() => {
     const direction = step >= previousStep.current ? 1 : -1;
     previousStep.current = step;
-    if (reducedMotion) return;
-    const animation = stageRef.current?.querySelector('.guide-screen')?.animate(
-      [
-        { opacity: 0.25, transform: `translateY(${direction * 12}px)` },
-        { opacity: 1, transform: 'translateY(0)' },
-      ],
-      { duration: 320, easing: 'ease-out' },
+    if (reducedMotion || !introDone) return;
+    const sceneAnimations = Array.from(
+      rootRef.current?.querySelectorAll('.film-browser-screen, .film-step-copy') ?? [],
+    ).map((element) =>
+      element.animate(
+        [
+          { opacity: 0, transform: `translateY(${direction * 24}px)` },
+          { opacity: 1, transform: 'translateY(0)' },
+        ],
+        { duration: 650, easing: 'cubic-bezier(.2,.7,.2,1)' },
+      ),
     );
-    return () => animation?.cancel();
-  }, [step, reducedMotion]);
+    const mobile = stageRef.current?.querySelector('.film-mobile-preview');
+    const mobileAnimation = mobile?.animate(
+      [
+        { transform: 'translateY(14px)', opacity: 0.6 },
+        { transform: 'translateY(0)', opacity: 1 },
+      ],
+      { duration: 700, easing: 'cubic-bezier(.2,.7,.2,1)' },
+    );
+    return () => {
+      mobileAnimation?.cancel();
+      sceneAnimations.forEach((item) => item.cancel());
+    };
+  }, [step, reducedMotion, introDone]);
 
   const current = steps[step];
   return (
@@ -287,7 +339,12 @@ export default function LandingPage({ onStart }: { onStart: () => void }) {
                     <span className="film-accent">AI로 한눈에.</span>
                   </span>
                 </h1>
-                <p className="film-step-copy" role="status">
+                <p className="film-platform-copy">
+                  웹에서 넓게 관리하고,
+                  <br />
+                  모바일에서도 간편하게 확인하세요.
+                </p>
+                <p className="film-step-copy" role="status" key={current.id}>
                   <span>
                     {String(step + 1).padStart(2, '0')} / {String(steps.length).padStart(2, '0')}
                   </span>
@@ -295,14 +352,22 @@ export default function LandingPage({ onStart }: { onStart: () => void }) {
                 </p>
               </div>
               <div className="film-stage" ref={stageRef} aria-label="DAYNOMY 서비스 소개">
+                <BrowserMockup screen={current.screen} animate={introDone && !reducedMotion} />
                 <div className="film-device">
-                  <GuideMockup screen={current.screen} label={`${current.label} 소개용 목업`} />
+                  <div className="film-mobile-preview">
+                    <p className="film-mobile-label">
+                      모바일에서도
+                      <br />
+                      간편하게 확인해요
+                    </p>
+                    <GuideMockup screen={current.screen} label={`${current.label} 소개용 목업`} />
+                  </div>
                 </div>
                 <p className="film-example-note">소개용 예시 · 투자 참고 자료</p>
               </div>
               <div className="cta-row film-actions">
                 <a className="primary-cta" href="/" onClick={handleStart}>
-                  DAYNOMY 시작하기 <LandingIcon name="ArrowUpRight" size={18} />
+                  웹에서 시작하기 <LandingIcon name="ArrowUpRight" size={18} />
                 </a>
                 <button
                   className="secondary-cta film-scroll-hint"
