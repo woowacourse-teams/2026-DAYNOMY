@@ -148,10 +148,15 @@ export function PmfSurveyDialog({ onSubmit, onHideToday, onDismiss }: Props) {
               ))}
             </fieldset>
             <div className="pmf-reason">
-              <label className="pmf-reason-label" htmlFor={`${id}-reason`}>
-                그렇게 답하신 가장 큰 이유는 무엇인가요?{' '}
-                <span className="pmf-optional">(선택)</span>
-              </label>
+              <div className="pmf-reason-heading">
+                <label className="pmf-reason-label" htmlFor={`${id}-reason`}>
+                  그렇게 답하신 가장 큰 이유는 무엇인가요?{' '}
+                  <span className="pmf-optional">(선택)</span>
+                </label>
+                <span className="pmf-reason-count" id={`${id}-count`}>
+                  {reason.length} / {PMF_REASON_MAX_LENGTH}
+                </span>
+              </div>
               <textarea
                 id={`${id}-reason`}
                 placeholder="이유를 입력해 주세요."
@@ -164,11 +169,6 @@ export function PmfSurveyDialog({ onSubmit, onHideToday, onDismiss }: Props) {
                   setError('');
                 }}
               />
-              <div className="pmf-reason-meta">
-                <span id={`${id}-count`}>
-                  {reason.length} / {PMF_REASON_MAX_LENGTH}
-                </span>
-              </div>
             </div>
             {error ? (
               <p className="pmf-error" role="alert">

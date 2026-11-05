@@ -43,7 +43,6 @@
   cursor: pointer;
 }
 .pmf-title {
-  max-width: 390px;
   margin: 0;
   color: #111320;
   font-size: 24px;
@@ -102,7 +101,6 @@
 }
 .pmf-reason-label {
   display: block;
-  margin-bottom: 10px;
   font-size: 13px;
   font-weight: 600;
   line-height: 1.5;
@@ -128,18 +126,18 @@
 .pmf-reason textarea::placeholder {
   color: #6f7481;
 }
-.pmf-reason-meta {
+.pmf-reason-heading {
   display: flex;
-  flex-wrap: wrap;
+  align-items: flex-end;
   justify-content: space-between;
-  gap: 4px 12px;
-  margin-top: 6px;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.pmf-reason-count {
+  flex: 0 0 auto;
   color: #6f7481;
   font-size: 12px;
   line-height: 1.6;
-}
-.pmf-reason-meta span {
-  margin-left: auto;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -218,6 +216,11 @@
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
+}
+@media (min-width: 601px) {
+  .pmf-title {
+    white-space: nowrap;
+  }
 }
 @media (max-width: 420px) {
   .pmf-dialog-panel {
