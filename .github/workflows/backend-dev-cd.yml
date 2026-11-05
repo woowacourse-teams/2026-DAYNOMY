@@ -100,7 +100,7 @@ jobs:
         run: |
           set -Eeuo pipefail
 
-          APP_DIR="/home/ubuntu/backend"
+          APP_DIR="/home/ec2-user/backend"
           ARTIFACT="${RUNNER_TEMP}/daynomy-backend-dev/daynomy-${APP_VERSION}.jar"
           RELEASE="${APP_DIR}/releases/daynomy-${APP_VERSION}.jar"
           PREVIOUS="$(readlink -f "${APP_DIR}/current.jar" || true)"
