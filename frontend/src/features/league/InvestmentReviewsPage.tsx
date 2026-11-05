@@ -6,6 +6,7 @@ import type { InvestmentDecisionRecord } from './types';
 import { InvestmentRecords } from './InvestmentRecords';
 import './league.css';
 import './shared-portfolio.css';
+import './investment-reviews.css';
 import { useLeaguePageHeading } from './useLeaguePageHeading';
 
 export function InvestmentReviewsPage() {
@@ -43,9 +44,12 @@ export function InvestmentReviewsPage() {
   return (
     <main className="league-page shared-page league-reviews-page">
       <header className="league-hero">
-        <h1 ref={heading} tabIndex={-1}>
-          투자 복기
-        </h1>
+        <div>
+          <h1 ref={heading} tabIndex={-1}>
+            투자 복기
+          </h1>
+          <p>당시의 판단과 결과를 비교하고, 다음 행동을 남겨보세요.</p>
+        </div>
         <Link className="league-text-link" to="/league/portfolio">
           {records?.length === 0 ? '보유 이유 작성하기' : '종목 관리'}
         </Link>

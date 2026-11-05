@@ -305,7 +305,8 @@ for (const width of [390, 1440]) {
       }
       if (path === '/league/reviews') {
         await page.getByRole('button', { name: /복기 작성/ }).click();
-        await expect(page.getByRole('textbox', { name: '실제 결과' })).toBeFocused();
+        await expect(page.getByRole('heading', { name: '나의 복기', exact: true })).toBeFocused();
+        await expect(page.getByRole('textbox', { name: '실제 결과' })).toBeEditable();
       }
       await checkWidth(page);
       const smallButtons = await page

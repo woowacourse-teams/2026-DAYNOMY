@@ -729,6 +729,46 @@ describe('관리자 뉴스 화면', () => {
     );
   });
 
+  it('관련 종목은 미국 주식 한글명을 포함해 전체 시장에서 검색한다', async () => {
+    const requestedUrls: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const requestedUrl = String(input);
+        requestedUrls.push(requestedUrl);
+        const country = new URL(requestedUrl, 'http://localhost').searchParams.get('country');
+        return jsonResponse({
+          stocks:
+            country === 'US'
+              ? [
+                  {
+                    assetId: 2,
+                    assetCode: 'AAPL.US',
+                    name: '애플',
+                    category: 'STOCK',
+                    market: 'NASDAQ',
+                  },
+                ]
+              : [],
+        });
+      }),
+    );
+    const view = renderAdmin(<AdminNewsFormPage />);
+
+    fireEvent.change(view.getByLabelText('관련 종목 검색'), { target: { value: '애플' } });
+    fireEvent.click(view.getByRole('button', { name: '종목 검색' }));
+
+    expect(await view.findByRole('button', { name: /애플.*AAPL.US/ })).toBeTruthy();
+    expect(
+      requestedUrls.map((url) => new URL(url, 'http://localhost').searchParams.get('country')),
+    ).toEqual([null, 'US']);
+    expect(
+      requestedUrls.every(
+        (url) => new URL(url, 'http://localhost').searchParams.get('q') === '애플',
+      ),
+    ).toBe(true);
+  });
+
   it('수정 내용을 버리는 취소를 확인하고 저장 실패 후 입력을 유지한다', async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       if (String(input).endsWith('/api/auth/csrf'))

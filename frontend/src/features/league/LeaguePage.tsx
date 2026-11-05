@@ -16,6 +16,7 @@ import type { CollectionStatus, LeagueWeek, RankingEntry, RankingResponse } from
 import { recentLeagueWeeks } from './weeks';
 import { LeagueWeekNavigation } from './LeagueWeekNavigation';
 import { AggregationNotice } from './AggregationNotice';
+import { LeagueReviewReminder } from './LeagueReviewReminder';
 import { IssuePagination } from '../news/issue/IssuePagination';
 import '../news/issue/issue.css';
 import './league.css';
@@ -271,11 +272,14 @@ export function LeaguePage() {
 
   return (
     <main className="league-page">
+      {isLoggedIn && memberId ? <LeagueReviewReminder key={memberId} /> : null}
       <header className="league-hero">
-        <h1 ref={heading} tabIndex={-1}>
-          주간 리그
-        </h1>
-        <p>국내·미국 통합 수익률 순위</p>
+        <div>
+          <h1 ref={heading} tabIndex={-1}>
+            주간 리그
+          </h1>
+          <p>국내·미국 통합 수익률 순위</p>
+        </div>
         <div className="league-hero-actions">
           {isLoggedIn && profileError ? (
             <button type="button" onClick={() => setProfileRetry((value) => value + 1)}>

@@ -34,6 +34,9 @@ dependencies {
     implementation("org.jsoup:jsoup:1.21.2")
     implementation("org.apache.pdfbox:pdfbox:3.0.8")
     implementation("org.apache.httpcomponents.client5:httpclient5")
+    implementation("dev.langchain4j:langchain4j:1.22.0")
+    implementation("dev.langchain4j:langchain4j-open-ai:1.22.0")
+    implementation("dev.langchain4j:langchain4j-http-client-jdk:1.22.0")
     compileOnly("org.projectlombok:lombok")
     annotationProcessor("org.projectlombok:lombok")
     runtimeOnly("org.postgresql:postgresql")
@@ -58,6 +61,9 @@ dependencies {
 tasks.withType<Test> {
     useJUnitPlatform()
     systemProperty("spring.test.context.cache.maxSize", "8")
+    if (System.getenv("CI_DIAGNOSTICS") == "true") {
+        systemProperty("logging.level.org.springframework.test.context.cache", "DEBUG")
+    }
     maxHeapSize = "2g"
     if (System.getenv("LEAGUE_BENCHMARK") == "true") maxHeapSize = "3g"
 }

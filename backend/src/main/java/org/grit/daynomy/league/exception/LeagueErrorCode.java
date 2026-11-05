@@ -12,7 +12,11 @@ public enum LeagueErrorCode implements ErrorCode {
   INVALID_LEAGUE_WEEK(HttpStatus.BAD_REQUEST, "최근 3주 안의 주차를 선택해 주세요."),
   INVALID_LEAGUE_ASSET(HttpStatus.BAD_REQUEST, "국내·미국 상장 주식과 ETF만 거래할 수 있습니다."),
   TRANSACTION_NOT_FOUND(HttpStatus.NOT_FOUND, "투자 기록을 찾을 수 없습니다."),
+  REVIEW_REMINDER_EXPIRED(HttpStatus.CONFLICT, "복기 알림이 갱신됐습니다. 화면을 새로고침해 주세요."),
   REVIEW_NOT_FOUND(HttpStatus.NOT_FOUND, "복기를 찾을 수 없습니다."),
+  REVIEW_GUIDE_ALREADY_REVIEWED(HttpStatus.CONFLICT, "이미 복기한 투자 기록입니다."),
+  REVIEW_GUIDE_RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "AI 복기 요청이 많습니다. 나중에 다시 시도해 주세요."),
+  REVIEW_GUIDE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "AI 복기 질문을 만들지 못했습니다. 직접 복기를 작성해 주세요."),
   DECISION_REQUEST_CONFLICT(HttpStatus.CONFLICT, "이미 사용한 요청 키입니다. 작성 내용을 다시 확인해 주세요."),
   SHARED_HOLDING_NOT_FOUND(HttpStatus.NOT_FOUND, "공유용 자산을 찾을 수 없습니다."),
   SHARED_HOLDING_SOURCE_MANAGED(

@@ -141,7 +141,8 @@ jobs:
             : "${SENTRY_PROJECT:?SENTRY_PROJECT is required}"
           fi
 
-          npm run "build:${DEPLOY_ENV}"
+          # Typecheck already passed in this job.
+          npx vite build --mode "$DEPLOY_ENV"
           marker="${DEPLOY_ENV}:${GITHUB_SHA}"
           sed -i "s|</head>|<meta name=\"daynomy-deployment\" content=\"$marker\" /></head>|" dist/index.html
           grep -Fq "name=\"daynomy-deployment\" content=\"$marker\"" dist/index.html

@@ -24,6 +24,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -393,6 +394,75 @@ class LeagueRankingRepositoryTest {
         new org.grit.daynomy.league.domain.SharedHolding(legacy, asset, 1, BigDecimal.TEN));
     entityManager.flush();
     assertThat(originals.hasSharedPortfolioChanges(legacy.getMember().getId())).isFalse();
+  }
+
+  @Test
+  void reminderRecordsRespectOwnerCreationBoundaryAndAnyCompletedReview() {
+    var mine = portfolio("mine");
+    var other = portfolio("other");
+    var asset = entityManager.persist(new Asset("test", AssetCategory.STOCK, "TEST"));
+    var cutoff = Instant.parse("2026-10-26T00:00:00Z");
+    var old = decision(mine, asset, LocalDate.of(2026, 10, 20), "old");
+    var boundary = decision(mine, asset, LocalDate.of(2026, 10, 19), "boundary");
+    var fresh = decision(mine, asset, LocalDate.of(2026, 10, 1), "fresh-backdated-trade");
+    var reviewed = decision(mine, asset, LocalDate.of(2026, 10, 20), "reviewed");
+    var otherRecord = decision(other, asset, LocalDate.of(2026, 10, 20), "other");
+    entityManager.persist(new InvestmentReview(reviewed, "result", "difference", "next"));
+    entityManager.flush();
+    for (var record : List.of(old, boundary, fresh, reviewed, otherRecord)) {
+      Instant created =
+          record == fresh
+              ? cutoff.plusNanos(1000)
+              : record == boundary ? cutoff : cutoff.minusSeconds(1);
+      entityManager
+          .getEntityManager()
+          .createNativeQuery(
+              "update portfolio_transactions set created_at = :created where id = :id")
+          .setParameter("created", created)
+          .setParameter("id", record.getId())
+          .executeUpdate();
+    }
+    entityManager.clear();
+    assertThat(
+            decisions.findUnreviewedCreatedBefore(
+                mine.getMember().getId(), cutoff, PageRequest.of(0, 20)))
+        .extracting(InvestmentDecision::getId)
+        .containsExactly(old.getId(), boundary.getId());
+  }
+
+  @Test
+  void reminderRecordsLimitTheDatabaseResultToTheOldestTwentyDecisions() {
+    var mine = portfolio("bounded-reminder");
+    var asset = entityManager.persist(new Asset("test", AssetCategory.STOCK, "TEST"));
+    var cutoff = Instant.parse("2026-10-26T00:00:00Z");
+    var records = new java.util.ArrayList<InvestmentDecision>();
+    for (int index = 0; index < 25; index++) {
+      records.add(decision(mine, asset, LocalDate.of(2026, 10, 20), "bounded-" + index));
+    }
+    entityManager.flush();
+    entityManager
+        .getEntityManager()
+        .createNativeQuery(
+            "update portfolio_transactions set created_at = :created where portfolio_id = :portfolio")
+        .setParameter("created", cutoff)
+        .setParameter("portfolio", mine.getId())
+        .executeUpdate();
+    var oldest = records.getLast();
+    entityManager
+        .getEntityManager()
+        .createNativeQuery("update portfolio_transactions set created_at = :created where id = :id")
+        .setParameter("created", cutoff.minusSeconds(1))
+        .setParameter("id", oldest.getId())
+        .executeUpdate();
+    var expected = new java.util.ArrayList<>(records.subList(0, 19));
+    expected.addFirst(oldest);
+    entityManager.clear();
+
+    assertThat(
+            decisions.findUnreviewedCreatedBefore(
+                mine.getMember().getId(), cutoff, PageRequest.of(0, 20)))
+        .extracting(InvestmentDecision::getId)
+        .containsExactlyElementsOf(expected.stream().map(InvestmentDecision::getId).toList());
   }
 
   private SharedPortfolio portfolio(String name) {

@@ -125,7 +125,11 @@ export function AdminStockContentsPanel() {
     setLoading(true);
     setError('');
     try {
-      setStocks(await searchStocks(trimmedKeyword));
+      const responses = await Promise.all([
+        searchStocks(trimmedKeyword),
+        searchStocks(trimmedKeyword, undefined, 'US'),
+      ]);
+      setStocks([...new Map(responses.flat().map((stock) => [stock.assetId, stock])).values()]);
       setStockSearched(true);
     } catch (caughtError) {
       setStocks([]);

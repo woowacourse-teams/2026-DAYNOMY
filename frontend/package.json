@@ -1,11 +1,10 @@
 {
   "name": "frontend",
   "private": true,
-  "version": "2.0.5",
+  "version": "2.0.6",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:league-preview": "node scripts/league-preview.mjs",
     "build": "npm run build:production",
     "build:development": "npm run typecheck && vite build --mode development",
     "build:production": "npm run typecheck && vite build --mode production",
