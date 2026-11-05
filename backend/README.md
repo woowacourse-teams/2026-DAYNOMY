@@ -64,6 +64,9 @@ COOKIE_SECURE=false
 Google 로그인 리디렉션 URI는 `http://localhost:8080/login/oauth2/code/google`입니다.
 AI 분석에는 `OPENAI_API_KEY`, 이미지 업로드에는 `AWS_REGION`, `AWS_S3_BUCKET`과
 실행 환경의 AWS 인증이 필요합니다. 상세 설정 이름과 기본값은 `application.yaml`을 따릅니다.
+영문 외부 종목 소식은 처음 수집할 때 `OPENAI_API_KEY`로 제목과 설명을 한국어로 번역해
+저장합니다. 키 미설정·타임아웃·외부 API 실패 시에는 원문을 저장하며, 관리자는 승인 전에
+`PUT /api/admin/content-collection-reviews/{contentId}`로 번역 결과를 수정할 수 있습니다.
 주요 인물 게시물은 운영 환경에서 매일 오전 6시(Asia/Seoul)에 등록된 X·Threads·YouTube
 공식 프로필을 수집해 승인 대기 후보로 저장합니다. `PERSON_POST_COLLECTION_ENABLED`와
 `PERSON_POST_COLLECTION_CRON`으로 실행 여부와 시각을 변경합니다. 자동 수집은 기본적으로
@@ -73,10 +76,11 @@ AI 분석에는 `OPENAI_API_KEY`, 이미지 업로드에는 `AWS_REGION`, `AWS_S
 공개 게시물로 전환됩니다. 관리자는 후보를 개별 처리하거나 한 번에 최대 100개까지 선택해
 일괄 승인·거절할 수 있으며, 일부 후보가 실패해도 나머지 후보는 계속 처리됩니다.
 
-외부 소식 자동 수집은 원문과 종목 매칭 후보만 저장하며 바로 공개하지 않습니다. 관리자는
+외부 소식 자동 수집은 수집 결과와 종목 매칭 후보만 저장하며 바로 공개하지 않습니다. 관리자는
 `/api/admin/content-collection-reviews`에서 후보를 조회하고 종목을 확정해 승인하거나 거절합니다.
 한 콘텐츠에 여러 종목을 연결할 수 있고 최대 100건을 일괄 승인·거절할 수 있습니다. 종목 데이터가
-나중에 추가된 경우 `/api/admin/content-collection-reviews/rematch`로 미매칭 원문을 다시 매칭합니다.
+나중에 추가된 경우 `/api/admin/content-collection-reviews/rematch`로 미매칭 수집 콘텐츠를 다시
+매칭합니다.
 승인한 후보만 종목 관련 소식으로 공개됩니다.
 
 PMF 설문 활성화와 그룹별 집계는 [PMF 설문 API 운영과 집계](docs/pmf-survey.md)를 참고합니다.
