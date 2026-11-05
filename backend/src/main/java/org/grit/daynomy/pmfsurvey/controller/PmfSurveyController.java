@@ -52,7 +52,9 @@ public class PmfSurveyController {
         .cacheControl(CacheControl.noStore())
         .body(
             service.current(
-                identity.getOrCreate(member, request, response), identity.visitSession(request)));
+                identity.getOrCreate(member, request, response),
+                identity.visitSession(request),
+                member == null ? null : member.memberId()));
   }
 
   @Operation(summary = "필수 응답과 선택 이유를 한 번에 저장")

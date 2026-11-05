@@ -7,12 +7,16 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 import io.restassured.specification.RequestSpecification;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import org.grit.daynomy.asset.domain.Asset;
+import org.grit.daynomy.asset.domain.StockMarket;
+import org.grit.daynomy.asset.repository.AssetRepository;
 import org.grit.daynomy.auth.service.TokenService;
 import org.grit.daynomy.member.domain.Member;
 import org.grit.daynomy.member.repository.MemberRepository;
@@ -52,6 +56,7 @@ class PmfSurveyAcceptanceTest {
 
   @LocalServerPort int port;
   @Autowired MemberRepository members;
+  @Autowired AssetRepository assets;
   @Autowired TokenService tokens;
   @Autowired JdbcTemplate jdbc;
 
@@ -152,6 +157,75 @@ class PmfSurveyAcceptanceTest {
   }
 
   @Test
+  void existingMemberIsReturningAndResponseFollowsTheAccountWithoutGuestCookies() {
+    Member existing = createMember();
+    jdbc.update(
+        "UPDATE members SET created_at = now() - interval '2 days' WHERE id = ?", existing.getId());
+    var firstDevice = Map.of("access_token", tokens.issue(existing.getId()).accessToken());
+    request()
+        .cookies(firstDevice)
+        .get(CURRENT)
+        .then()
+        .statusCode(200)
+        .body("isFirstVisit", equalTo(false))
+        .body("responseId", nullValue());
+    var submitted = write(firstDevice).body(Map.of("answer", "VERY_DISAPPOINTED")).post(RESPONSES);
+    submitted.then().statusCode(201);
+    var secondDevice = Map.of("access_token", tokens.issue(existing.getId()).accessToken());
+    request()
+        .cookies(secondDevice)
+        .get(CURRENT)
+        .then()
+        .statusCode(200)
+        .body("responseId", equalTo(submitted.jsonPath().getInt("id")));
+  }
+
+  @Test
+  void firstObservedMemberCanBeReturningBasedOnExistingPortfolioUse() {
+    Member existing = createMember();
+    String code = UUID.randomUUID().toString();
+    long assetId =
+        assets
+            .save(
+                Asset.listedStock(
+                    "PMF 검증 종목",
+                    code,
+                    StockMarket.KOSPI,
+                    "KR" + code.replace("-", "").substring(0, 10),
+                    LocalDate.now()))
+            .getId();
+    Long portfolioId =
+        jdbc.queryForObject(
+            "INSERT INTO portfolios (member_id, created_at, updated_at) VALUES (?, now(), now()) RETURNING id",
+            Long.class,
+            existing.getId());
+    jdbc.update(
+        """
+        INSERT INTO portfolio_holdings
+            (portfolio_id, asset_id, quantity, average_purchase_price, created_at, updated_at)
+        VALUES (?, ?, 1, 100, now() - interval '1 second', now() - interval '1 second')
+        """,
+        portfolioId,
+        assetId);
+
+    var returning = Map.of("access_token", tokens.issue(existing.getId()).accessToken());
+    request()
+        .cookies(returning)
+        .get(CURRENT)
+        .then()
+        .statusCode(200)
+        .body("isFirstVisit", equalTo(false));
+
+    var newMember = Map.of("access_token", member(false));
+    request()
+        .cookies(newMember)
+        .get(CURRENT)
+        .then()
+        .statusCode(200)
+        .body("isFirstVisit", equalTo(true));
+  }
+
+  @Test
   void onlyAdministratorsCanReadResultsAndStaffCannotParticipate() {
     var admin = Map.of("access_token", member(true));
     var member = Map.of("access_token", member(false));
@@ -205,14 +279,17 @@ class PmfSurveyAcceptanceTest {
   }
 
   private String member(boolean administrator) {
-    String key = UUID.randomUUID().toString();
-    Member member =
-        members.save(
-            Member.createGoogleMember(key, key + "@example.invalid", key.substring(0, 12), null));
+    Member member = createMember();
     if (administrator) {
       jdbc.update("UPDATE members SET role='ADMIN' WHERE id=?", member.getId());
     }
     return tokens.issue(member.getId()).accessToken();
+  }
+
+  private Member createMember() {
+    String key = UUID.randomUUID().toString();
+    return members.save(
+        Member.createGoogleMember(key, key + "@example.invalid", key.substring(0, 12), null));
   }
 
   private RequestSpecification request() {

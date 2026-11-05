@@ -66,6 +66,33 @@ public class PmfSurveyRepository {
         .optional();
   }
 
+  public boolean hasEarlierMemberUse(long memberId, OffsetDateTime firstObservedAt) {
+    return jdbc.sql(
+            """
+        SELECT EXISTS (
+            SELECT 1 FROM members m
+            LEFT JOIN portfolios p ON p.member_id = m.id
+            WHERE m.id = :memberId
+              AND (
+                  m.created_at < :firstObservedDay
+                  OR EXISTS (SELECT 1 FROM portfolio_transactions t
+                             WHERE t.portfolio_id = p.id AND t.created_at < :firstObservedAt)
+                  OR EXISTS (SELECT 1 FROM portfolio_holdings h
+                             WHERE h.portfolio_id = p.id AND h.created_at < :firstObservedAt)
+                  OR EXISTS (SELECT 1 FROM portfolio_analyses a
+                             WHERE a.portfolio_id = p.id AND a.created_at < :firstObservedAt)
+              )
+        )
+        """)
+        .param("memberId", memberId)
+        .param("firstObservedAt", firstObservedAt)
+        .param(
+            "firstObservedDay",
+            firstObservedAt.toLocalDate().atStartOfDay().atOffset(firstObservedAt.getOffset()))
+        .query(Boolean.class)
+        .single();
+  }
+
   public Optional<Long> responseId(long surveyId, String respondent) {
     return jdbc.sql(
             """

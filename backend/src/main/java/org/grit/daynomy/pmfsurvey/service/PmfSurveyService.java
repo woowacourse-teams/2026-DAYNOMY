@@ -46,7 +46,7 @@ public class PmfSurveyService {
   }
 
   @Transactional
-  public PmfSurveyResponse current(String respondent, String session) {
+  public PmfSurveyResponse current(String respondent, String session, Long memberId) {
     OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
     repository.recordVisit(respondent, session, now);
     PmfSurveyActivity activity = repository.activity(respondent).orElseThrow();
@@ -54,7 +54,10 @@ public class PmfSurveyService {
         activeSurveyId,
         true,
         repository.responseId(activeSurveyId, respondent).orElse(null),
-        activity.isFirstVisit(session),
+        activity.isFirstVisit(session)
+            && (memberId == null
+                || !repository.hasEarlierMemberUse(
+                    memberId, activity.firstObservedAt().atZone(SEOUL).toOffsetDateTime())),
         repository
             .hiddenUntil(activeSurveyId, respondent)
             .filter(until -> until.isAfter(now))
