@@ -39,6 +39,7 @@ import { PeoplePage } from './features/people/PeoplePage';
 import { StockContentPage } from './features/stock-content/StockContentPage';
 import { CardDesignPreviewPage } from './features/stock-content/CardDesignPreviewPage';
 import { FeedbackWidget } from './features/feedback/FeedbackWidget';
+import { PmfSurveyPrompt } from './features/pmf-survey/PmfSurveyPrompt';
 import { hasStartedService, rememberServiceStart } from './features/landing/startedService';
 import { loadGuestPortfolioHoldings } from './features/portfolio/portfolioHoldingsStorage';
 import { isAdminOnlyHostname, isUserHostname } from './serviceDomain';
@@ -93,6 +94,7 @@ function AppFooter() {
     location.pathname === '/login' ||
     location.pathname.startsWith('/admin') ? null : (
     <>
+      <PmfSurveyPrompt />
       <FeedbackWidget />
       <Footer />
     </>
