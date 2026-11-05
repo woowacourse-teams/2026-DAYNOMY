@@ -82,8 +82,7 @@ class OpenAiContentTranslatorTest {
                 {"output":[{"content":[{"type":"output_text","text":"{\\\"title\\\":\\\"번역 제목\\\",\\\"description\\\":\\\"추가 설명\\\"}"}]}]}
                 """));
 
-    assertThatThrownBy(
-            () -> translator(Duration.ofSeconds(1), "test-key").translate("Title", ""))
+    assertThatThrownBy(() -> translator(Duration.ofSeconds(1), "test-key").translate("Title", ""))
         .isInstanceOf(OpenAiContentTranslationException.class);
   }
 
