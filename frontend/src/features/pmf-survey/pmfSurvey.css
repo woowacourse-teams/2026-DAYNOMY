@@ -134,6 +134,7 @@
   margin-bottom: 10px;
 }
 .pmf-reason-count {
+  transform: translateY(6px);
   flex: 0 0 auto;
   color: #6f7481;
   font-size: 12px;
