@@ -69,7 +69,6 @@ function setup(auth = guest, path = '/') {
 it('응답과 선택 이유를 한 요청으로 저장하고 완료 후 재노출하지 않는다', async () => {
   const v = setup();
   fireEvent.click(await v.findByRole('radio', { name: '매우 실망' }));
-  fireEvent.click(v.getByRole('button', { name: /그렇게 답하신/ }));
   fireEvent.change(v.getByRole('textbox'), { target: { value: ' 이유입니다. ' } });
   fireEvent.click(v.getByRole('button', { name: '응답 보내기' }));
   await v.findByRole('heading', { name: '의견을 보내주셔서 감사합니다' });

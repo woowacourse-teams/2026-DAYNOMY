@@ -47,7 +47,9 @@ it('고정 문항과 순서를 유지하며 기본 선택과 두 번째 단계�
     '더 이상 쓰지 않음',
   ]);
   expect(v.getAllByRole('radio').some((r) => (r as HTMLInputElement).checked)).toBe(false);
-  expect(v.queryByRole('textbox')).toBeNull();
+  expect(v.getByRole('textbox')).toBeTruthy();
+  expect(v.queryByText('가장 가까운 답변 하나를 선택해 주세요.')).toBeNull();
+  expect(v.queryByText('의견 없이도 제출할 수 있어요.')).toBeNull();
   expect((v.getByRole('button', { name: '응답 보내기' }) as HTMLButtonElement).disabled).toBe(true);
 });
 it('의견 없이 한 번 제출하고 저장 중 중복 요청과 닫기를 막는다', async () => {
@@ -65,16 +67,11 @@ it('의견 없이 한 번 제출하고 저장 중 중복 요청과 닫기를 막
   await v.findByRole('heading', { name: '의견을 보내주셔서 감사합니다' });
   expect(v.queryByRole('textbox')).toBeNull();
 });
-it('선택 이유를 접어도 유지하고 응답과 함께 저장하며 실패 시 두 입력 모두 보존한다', async () => {
+it('기본 표시된 선택 이유를 응답과 함께 저장하며 실패 시 두 입력 모두 보존한다', async () => {
   const v = setup();
-  const toggle = v.getByRole('button', { name: /그렇게 답하신/ });
-  fireEvent.click(toggle);
   const input = v.getByRole('textbox');
   expect(input.getAttribute('maxlength')).toBe('500');
   fireEvent.change(input, { target: { value: '  내 자산의 소식을 볼 수 있어요.  ' } });
-  fireEvent.click(toggle);
-  expect(v.queryByRole('textbox')).toBeNull();
-  fireEvent.click(toggle);
   expect((v.getByRole('textbox') as HTMLTextAreaElement).value).toContain('내 자산');
   fireEvent.click(v.getByRole('radio', { name: '매우 실망' }));
   v.onSubmit.mockRejectedValueOnce(new Error('private-server-message'));
@@ -92,7 +89,6 @@ it('선택 이유를 접어도 유지하고 응답과 함께 저장하며 실패
 });
 it('선택 이유가 공백이면 null로 보내며 닫기는 아무 응답도 보내지 않는다', async () => {
   const v = setup();
-  fireEvent.click(v.getByRole('button', { name: /그렇게 답하신/ }));
   fireEvent.change(v.getByRole('textbox'), { target: { value: '   ' } });
   fireEvent.click(v.getByRole('radio', { name: '실망하지 않음' }));
   fireEvent.click(v.getByRole('button', { name: '응답 보내기' }));

@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
-import { CaretDownIcon, CaretUpIcon, XIcon } from '@phosphor-icons/react';
+import { XIcon } from '@phosphor-icons/react';
 import { PMF_ANSWERS, PMF_QUESTION, PMF_REASON_MAX_LENGTH, type PmfAnswer } from './types';
 import './pmfSurvey.css';
 
@@ -14,7 +14,6 @@ export function PmfSurveyDialog({ onSubmit, onHideToday, onDismiss }: Props) {
   const headingRef = useRef<HTMLHeadingElement>(null);
   const busyRef = useRef(false);
   const [complete, setComplete] = useState(false);
-  const [expanded, setExpanded] = useState(false);
   const [answer, setAnswer] = useState<PmfAnswer | null>(null);
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState<'submit' | 'snooze' | null>(null);
@@ -79,7 +78,6 @@ export function PmfSurveyDialog({ onSubmit, onHideToday, onDismiss }: Props) {
       className="pmf-dialog ph-no-capture"
       aria-labelledby={`${id}-title`}
       aria-busy={busy !== null}
-      aria-describedby={complete ? undefined : `${id}-description`}
       onCancel={(event) => {
         event.preventDefault();
         dismiss();
@@ -131,9 +129,6 @@ export function PmfSurveyDialog({ onSubmit, onHideToday, onDismiss }: Props) {
           </>
         ) : (
           <form onSubmit={submit}>
-            <p id={`${id}-description`} className="pmf-description">
-              가장 가까운 답변 하나를 선택해 주세요.
-            </p>
             <fieldset className="pmf-answers" disabled={busy !== null}>
               <legend className="pmf-sr-only">{PMF_QUESTION}</legend>
               {PMF_ANSWERS.map((option) => (
@@ -153,46 +148,26 @@ export function PmfSurveyDialog({ onSubmit, onHideToday, onDismiss }: Props) {
               ))}
             </fieldset>
             <div className="pmf-reason">
-              <button
-                type="button"
-                className="pmf-reason-toggle"
-                aria-expanded={expanded}
-                aria-controls={`${id}-reason-panel`}
+              <label className="pmf-reason-label" htmlFor={`${id}-reason`}>
+                그렇게 답하신 가장 큰 이유는 무엇인가요?{' '}
+                <span className="pmf-optional">(선택)</span>
+              </label>
+              <textarea
+                id={`${id}-reason`}
+                placeholder="이유를 입력해 주세요."
+                maxLength={PMF_REASON_MAX_LENGTH}
                 disabled={busy !== null}
-                onClick={() => setExpanded((value) => !value)}
-              >
-                <span>
-                  그렇게 답하신 가장 큰 이유는 무엇인가요?{' '}
-                  <span className="pmf-optional">(선택)</span>
+                value={reason}
+                aria-describedby={`${id}-count`}
+                onChange={(event) => {
+                  setReason(event.target.value);
+                  setError('');
+                }}
+              />
+              <div className="pmf-reason-meta">
+                <span id={`${id}-count`}>
+                  {reason.length} / {PMF_REASON_MAX_LENGTH}
                 </span>
-                {expanded ? (
-                  <CaretUpIcon size={16} aria-hidden="true" />
-                ) : (
-                  <CaretDownIcon size={16} aria-hidden="true" />
-                )}
-              </button>
-              <div id={`${id}-reason-panel`} hidden={!expanded}>
-                <label className="pmf-sr-only" htmlFor={`${id}-reason`}>
-                  그렇게 답하신 가장 큰 이유는 무엇인가요? (선택)
-                </label>
-                <textarea
-                  id={`${id}-reason`}
-                  placeholder="이유를 입력해 주세요."
-                  maxLength={PMF_REASON_MAX_LENGTH}
-                  disabled={busy !== null}
-                  value={reason}
-                  aria-describedby={`${id}-hint ${id}-count`}
-                  onChange={(event) => {
-                    setReason(event.target.value);
-                    setError('');
-                  }}
-                />
-                <div className="pmf-reason-meta">
-                  <p id={`${id}-hint`}>의견 없이도 제출할 수 있어요.</p>
-                  <span id={`${id}-count`}>
-                    {reason.length} / {PMF_REASON_MAX_LENGTH}
-                  </span>
-                </div>
               </div>
             </div>
             {error ? (

@@ -100,26 +100,12 @@
 .pmf-reason {
   margin-top: 16px;
 }
-.pmf-reason-toggle {
-  display: flex;
-  width: 100%;
-  min-height: 44px;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 6px 0;
-  border: 0;
-  color: #171821;
-  background: transparent;
-  font: inherit;
+.pmf-reason-label {
+  display: block;
+  margin-bottom: 10px;
   font-size: 13px;
   font-weight: 600;
   line-height: 1.5;
-  text-align: left;
-  cursor: pointer;
-}
-.pmf-reason-toggle svg {
-  flex: 0 0 auto;
 }
 .pmf-optional {
   color: #6f7481;
@@ -195,7 +181,6 @@
   cursor: pointer;
 }
 .pmf-close:disabled,
-.pmf-reason-toggle:disabled,
 .pmf-dialog-footer button:disabled,
 .pmf-answers:disabled .pmf-answer {
   opacity: 0.6;
@@ -210,7 +195,6 @@
 .pmf-close:focus-visible,
 .pmf-submit:focus-visible,
 .pmf-dialog-footer button:focus-visible,
-.pmf-reason-toggle:focus-visible,
 .pmf-reason textarea:focus-visible,
 .pmf-answer:has(input:focus-visible) {
   outline: 3px solid var(--button-primary, #326bd5);
