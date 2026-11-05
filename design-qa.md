@@ -1,5 +1,7 @@
 # PMF 설문 글자 수 위치·질문 한 줄 표시 — FE #805 최신 수정
 
+- 후속 상단 간격 조정: 안내·X 행과 질문 제목 사이를 PC 16px/모바일 12px에서 모두 4px로 줄였다. 데스크톱 브라우저 실측 4px, 캡처 `/private/tmp/pmf805-header-gap-final.png`. format/lint/typecheck/build 통과. 설문 동작 변경 없음.
+
 - 후속 간격 조정: 글자 수만 6px 아래로 옮겨 입력 상자까지 실제 간격을 10px에서 4px로 줄였다. 브라우저 실측 4px, 캡처 `/private/tmp/pmf805-counter-close.png`. format/lint/typecheck/build 통과. 입력·제출 로직 변경 없음.
 
 - 글자 수를 선택 질문 오른쪽, 입력 상자 위로 이동했다. 데스크톱에서 질문 한 줄을 유지하고 모바일은 화면 폭에 맞춰 줄바꿈한다.

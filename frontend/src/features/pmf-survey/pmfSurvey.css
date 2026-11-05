@@ -22,7 +22,7 @@
   justify-content: space-between;
   align-items: center;
   gap: 12px;
-  margin-bottom: 16px;
+  margin-bottom: 4px;
   color: #6f7481;
   font-size: 13px;
   font-weight: 600;
@@ -232,7 +232,7 @@
   }
   .pmf-dialog-header {
     font-size: 12px;
-    margin-bottom: 12px;
+    margin-bottom: 4px;
   }
   .pmf-reason textarea {
     font-size: 16px;
