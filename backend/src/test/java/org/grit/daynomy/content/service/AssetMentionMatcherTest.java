@@ -48,6 +48,16 @@ class AssetMentionMatcherTest {
   }
 
   @Test
+  void shortUsTickersRequireCashtag() {
+    Asset on = usStock("ON Semiconductor Corporation", "ON.US");
+    Asset ford = usStock("Ford Motor Company", "F.US");
+
+    assertThat(matcher.match("update on inflation", "", List.of(on))).isEmpty();
+    assertThat(matcher.match("F reports earnings", "", List.of(ford))).isEmpty();
+    assertThat(matcher.match("$ON and $F", "", List.of(on, ford))).containsExactly(on, ford);
+  }
+
+  @Test
   void matchesUsAssetByKoreanNameAndEnglishNameWithoutCompanySuffix() {
     Asset apple = usStock("Apple Inc.", "AAPL.US");
     apple.synchronizeKoreanName("애플");
@@ -55,6 +65,8 @@ class AssetMentionMatcherTest {
     assertThat(matcher.match("Apple 신제품 공개", "", List.of(apple))).containsExactly(apple);
     assertThat(matcher.match("애플 실적 발표", "", List.of(apple))).containsExactly(apple);
     assertThat(matcher.match("애플은 실적을 발표했다", "", List.of(apple))).containsExactly(apple);
+    assertThat(matcher.match("애플에서는 신제품을 발표했다", "", List.of(apple))).containsExactly(apple);
+    assertThat(matcher.match("애플에게도 영향을 준다", "", List.of(apple))).containsExactly(apple);
     assertThat(matcher.match("Pineapple 시장 성장", "", List.of(apple))).isEmpty();
     assertThat(matcher.match("파인애플 시장 성장", "", List.of(apple))).isEmpty();
   }
