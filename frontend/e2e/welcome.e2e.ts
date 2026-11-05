@@ -47,27 +47,23 @@ test('검은 브랜드 인트로가 합쳐지고 갈라진 뒤 소개 장면은 
   page,
 }) => {
   await page.emulateMedia({ reducedMotion: 'no-preference' });
-  await page.clock.install();
   await page.goto('/welcome');
   const intro = page.locator('.brand-intro');
   await expect(intro).toBeVisible();
   await expect(intro).toHaveCSS('background-color', 'rgb(9, 9, 9)');
   await expect(page.locator('.welcome-film')).toHaveCSS('overflow-y', 'hidden');
-  await page.clock.fastForward(1600);
   await expect(intro).toHaveClass('brand-intro phase-combine');
-  await page.clock.fastForward(1200);
   await expect(intro).toHaveClass('brand-intro phase-seam');
   await expect(intro.locator('.curtain')).toHaveCount(2);
-  await page.clock.fastForward(450);
   await expect(intro).toHaveClass('brand-intro phase-open');
   expect(
     await intro.locator('.curtain-top').evaluate((el) => getComputedStyle(el).transitionDuration),
   ).not.toBe('0s');
-  await page.clock.fastForward(950);
   await expect(page.locator('.hero .primary-cta')).toBeVisible();
   await expect(intro).toHaveCount(0);
   await expect(page.locator('.welcome-film')).toHaveCSS('overflow-y', 'auto');
   await expect(page.getByRole('button', { name: /소개 재생|소개 일시정지/ })).toHaveCount(0);
+  await page.clock.install();
   await page.clock.fastForward(60000);
   await expect(page.locator('.welcome-film')).toHaveAttribute('data-scene', 'portfolio');
   expect(await page.locator('.welcome-film').evaluate((el) => el.scrollTop)).toBe(0);
@@ -111,18 +107,20 @@ test('기기 위에서 휠로 앞뒤 장면을 넘겨도 기기와 시작 버튼
 }) => {
   await page.emulateMedia({ reducedMotion: 'no-preference' });
   await page.goto('/welcome');
+  await expect(page.locator('.welcome-film')).toHaveAttribute('data-motion-paused', 'true', {
+    timeout: 10000,
+  });
   await expect(page.locator('.brand-intro')).toHaveCount(0);
   const root = page.locator('.welcome-film');
   const phone = page.locator('.film-device .mockup-hardware');
   const original = await phone.elementHandle();
+  await phone.hover();
   const box = await phone.boundingBox();
   const distance = await introDistance(page);
-  await phone.hover();
   for (const [index, scene] of [
     [1, 'news'],
     [2, 'analysis'],
-    [3, 'sources'],
-    [4, 'league'],
+    [3, 'league'],
   ] as const) {
     await page.mouse.wheel(0, 120);
     await expect(root).toHaveAttribute('data-scene', scene);
@@ -132,12 +130,12 @@ test('기기 위에서 휠로 앞뒤 장면을 넘겨도 기기와 시작 버튼
         (el) => el === document.querySelector('.film-device .mockup-hardware'),
       ),
     ).toBe(true);
-    expect(await phone.boundingBox()).toEqual(box);
+    await expect.poll(() => phone.boundingBox()).toEqual(box);
     await expect(page.locator('.hero .primary-cta')).toBeInViewport({ ratio: 1 });
   }
   await page.mouse.wheel(0, -120);
-  await expect(root).toHaveAttribute('data-scene', 'sources');
-  await expect.poll(() => root.evaluate((el) => el.scrollTop)).toBe(3 * distance);
+  await expect(root).toHaveAttribute('data-scene', 'analysis');
+  await expect.poll(() => root.evaluate((el) => el.scrollTop)).toBe(2 * distance);
 });
 
 test('장면 버튼으로 AI와 근거를 바로 열고 동작 줄이기에서도 동일하게 탐색한다', async ({
@@ -145,11 +143,15 @@ test('장면 버튼으로 AI와 근거를 바로 열고 동작 줄이기에서�
 }) => {
   await page.goto('/welcome');
   const choices = page.getByRole('group', { name: '소개 장면 선택' });
-  await choices.getByRole('button', { name: 'AI 영향 분석' }).click();
+  await choices.getByRole('button', { name: 'AI 분석 · 근거' }).click();
   await expect(page.locator('.welcome-film')).toHaveAttribute('data-scene', 'analysis');
-  await expect(page.locator('.film-step-copy')).toHaveText('03 / 05AI가 예상 영향을 읽어요.');
-  await choices.getByRole('button', { name: '분석 근거' }).click();
-  await expect(page.getByRole('figure', { name: '분석 근거 소개용 목업' })).toBeVisible();
+  await expect(page.locator('.film-step-copy')).toHaveText(
+    '03 / 04AI 분석과 판단의 근거를 함께 확인해요.',
+  );
+  await expect(
+    page.getByRole('img', { name: /AI 분석 · 근거 실제 서비스 화면.*출처/ }),
+  ).toBeVisible();
+  await expect(choices.getByRole('button')).toHaveCount(4);
   expect(
     await page.evaluate(
       () => document.getAnimations().filter((a) => a.playState === 'running').length,
@@ -159,7 +161,7 @@ test('장면 버튼으로 AI와 근거를 바로 열고 동작 줄이기에서�
   await expect(page.getByRole('figure', { name: '투자 리그 소개용 목업' })).toBeInViewport({
     ratio: 1,
   });
-  await expect(page.locator('.film-step-copy')).toHaveText('05 / 05다른 투자자의 기록도 살펴봐요.');
+  await expect(page.locator('.film-step-copy')).toHaveText('04 / 04다른 투자자의 기록도 살펴봐요.');
   await page.getByRole('link', { name: 'DAYNOMY 홈' }).click();
   await expect(page.locator('.welcome-film')).toHaveAttribute('data-scene', 'portfolio');
   await page.getByRole('button', { name: '다음 소개 장면으로' }).click();
@@ -177,7 +179,7 @@ test('화면 크기를 바꿔도 선택한 장면과 스크롤 위치가 일치�
   await page.setViewportSize({ width: 1440, height: 900 });
   await expect
     .poll(() => page.locator('.welcome-film').evaluate((el) => el.scrollTop))
-    .toBe(4 * (await introDistance(page)));
+    .toBe(3 * (await introDistance(page)));
   await expect(page.locator('.welcome-film')).toHaveAttribute('data-scene', 'league');
   await expect(page.locator('.hero .primary-cta')).toBeInViewport({ ratio: 1 });
 });
@@ -196,7 +198,7 @@ for (const viewport of [
     await page.setViewportSize(viewport);
     await page.goto('/welcome');
     await expect(page.getByRole('main')).toHaveCount(1);
-    for (const name of ['내 포트폴리오', '관련 소식', 'AI 영향 분석', '분석 근거', '투자 리그']) {
+    for (const name of ['내 포트폴리오', '관련 소식', 'AI 분석 · 근거', '투자 리그']) {
       await page
         .getByRole('group', { name: '소개 장면 선택' })
         .getByRole('button', { name })
@@ -289,7 +291,7 @@ for (const width of [1440, 390]) {
     const root = page.locator('.welcome-film');
     await expect
       .poll(() => root.evaluate((el) => el.scrollTop))
-      .toBe(4 * (await introDistance(page)));
+      .toBe(3 * (await introDistance(page)));
     const introEnd = await root.evaluate((el) => el.scrollTop);
     await page.locator('.film-device').hover();
     await page.mouse.wheel(0, 120);
@@ -407,7 +409,7 @@ test.describe('터치 탐색', () => {
       .click();
     await expect
       .poll(() => page.locator('.welcome-film').evaluate((el) => el.scrollTop))
-      .toBe(4 * (await introDistance(page)));
+      .toBe(3 * (await introDistance(page)));
     await page.getByRole('button', { name: '사용법 살펴보기' }).click();
     await expect(page.locator('#guide-title')).toBeInViewport();
     const root = page.locator('.welcome-film');
@@ -448,4 +450,35 @@ test('공유 뉴스 상세는 소개를 거치지 않고 쿼리·해시를 보�
   await expect(page.locator('.landing-page')).toHaveCount(0);
   await page.getByRole('link', { name: '포트폴리오', exact: true }).click();
   await expect(page.getByRole('button', { name: '종목 추가', exact: true })).toBeVisible();
+});
+
+test('목업 재생 중에도 연속 휠 입력은 다음 한 단계만 보여준다', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await page.goto('/welcome');
+  await page.getByRole('button', { name: '인트로 건너뛰기' }).click();
+  const root = page.locator('.welcome-film');
+  await page.locator('.film-browser-screen img').evaluate(async (image: HTMLImageElement) => {
+    await image.decode();
+    image.getAnimations().forEach((animation) => {
+      animation.currentTime = 6000;
+    });
+  });
+  await expect(root).toHaveAttribute('data-scene', 'portfolio');
+  expect(await root.evaluate((element) => element.scrollTop)).toBe(0);
+  const box = (await page.locator('.film-browser').boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + 100);
+  const distance = await introDistance(page);
+  for (const [index, scene] of ['news', 'analysis', 'league'].entries()) {
+    for (const delta of [400, 200, 80]) {
+      await page.mouse.wheel(0, delta);
+      await page.waitForTimeout(40);
+    }
+    await expect(root).toHaveAttribute('data-scene', scene);
+    await expect
+      .poll(() => root.evaluate((element) => element.scrollTop))
+      .toBe((index + 1) * distance);
+    await page.waitForTimeout(250);
+  }
+  await page.mouse.wheel(0, 120);
+  await expect.poll(() => root.evaluate((element) => element.scrollTop)).toBe(3 * distance + 120);
 });
