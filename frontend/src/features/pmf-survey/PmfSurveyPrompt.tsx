@@ -2,36 +2,26 @@ import { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '../../hooks/useLoginStatus';
 import { isStaffHostname } from '../../serviceDomain';
-import { getCurrentPmfSurvey, submitPmfAnswer, submitPmfReason } from './api';
+import { getCurrentPmfSurvey, hidePmfSurveyToday, submitPmfResponse } from './api';
 import { PmfSurveyDialog } from './PmfSurveyDialog';
+import {
+  hasUsedService,
+  nextKoreanMidnight,
+  readSurveyPreference,
+  rememberServiceUse,
+  surveyStorageKey,
+  writeSurveyPreference,
+} from './storage';
 import type { PmfSurveyStatus } from './types';
-
-function dismissalKey(surveyId: number, memberId: number | null | undefined) {
-  return `daynomy:pmf-survey:v1:${surveyId}:${memberId ?? 'guest'}:dismissed`;
-}
-
-function wasDismissed(key: string) {
-  try {
-    return sessionStorage.getItem(key) === 'true';
-  } catch {
-    return false;
-  }
-}
-
-function rememberDismissal(key: string) {
-  try {
-    sessionStorage.setItem(key, 'true');
-  } catch {
-    // Storage restrictions must not prevent closing the survey.
-  }
-}
 
 export function PmfSurveyPrompt() {
   const { pathname } = useLocation();
   const { loading, memberId, role } = useAuth();
   const allowed = !loading && role !== 'ADMIN' && !isStaffHostname(window.location.hostname);
-
-  // Unmount on navigation/account changes so one user's pending form cannot reach another account.
+  useEffect(() => {
+    if (allowed && /^\/(news|league|stocks|people|search)(\/|$)/.test(pathname))
+      rememberServiceUse(memberId);
+  }, [allowed, memberId, pathname]);
   if (!allowed || pathname !== '/') return null;
   return <CurrentPmfSurvey key={memberId ?? 'guest'} memberId={memberId} />;
 }
@@ -40,9 +30,7 @@ function CurrentPmfSurvey({ memberId }: { memberId: number | null | undefined })
   const [survey, setSurvey] = useState<PmfSurveyStatus | null>(null);
   const [visible, setVisible] = useState(false);
   const [dismissed, setDismissed] = useState(false);
-  const responseId = useRef<number | null>(null);
   const submission = useRef<AbortController | null>(null);
-
   useEffect(() => {
     const controller = new AbortController();
     void getCurrentPmfSurvey(controller.signal)
@@ -51,13 +39,12 @@ function CurrentPmfSurvey({ memberId }: { memberId: number | null | undefined })
           !controller.signal.aborted &&
           current?.eligible &&
           current.responseId === null &&
-          !wasDismissed(dismissalKey(current.surveyId, memberId))
-        ) {
+          (!current.isFirstVisit || hasUsedService(memberId))
+        )
           setSurvey(current);
-        }
       })
       .catch(() => {
-        // Eligibility is optional to the portfolio. Unknown/error states must never open a survey.
+        /* Unknown eligibility must not interrupt the portfolio. */
       });
     return () => {
       controller.abort();
@@ -67,52 +54,72 @@ function CurrentPmfSurvey({ memberId }: { memberId: number | null | undefined })
 
   useEffect(() => {
     if (!survey || dismissed) return;
-    function openWhenReady() {
-      if (document.visibilityState !== 'hidden' && !document.querySelector('dialog[open]')) {
-        setVisible(true);
-      }
+    const key = surveyStorageKey(survey.surveyId, memberId);
+    function suppressed() {
+      const preference = readSurveyPreference(key);
+      return (
+        preference.answered ||
+        preference.hiddenUntil > Date.now() ||
+        (survey?.hiddenUntil ? Date.parse(survey.hiddenUntil) > Date.now() : false)
+      );
     }
+    function openWhenReady() {
+      if (
+        !suppressed() &&
+        document.visibilityState !== 'hidden' &&
+        !document.querySelector('dialog[open]')
+      )
+        setVisible(true);
+    }
+    function sync(event: StorageEvent) {
+      if ((event.key === key || event.key === null) && suppressed()) setDismissed(true);
+    }
+    // A snooze that expires while this dashboard is open waits for a new entry.
+    if (suppressed()) return;
     openWhenReady();
     document.addEventListener('close', openWhenReady, true);
     document.addEventListener('visibilitychange', openWhenReady);
+    window.addEventListener('storage', sync);
     return () => {
       document.removeEventListener('close', openWhenReady, true);
       document.removeEventListener('visibilitychange', openWhenReady);
+      window.removeEventListener('storage', sync);
     };
-  }, [survey, dismissed]);
+  }, [survey, dismissed, memberId]);
 
   if (!survey || !visible || dismissed) return null;
-
+  const key = surveyStorageKey(survey.surveyId, memberId);
   return (
     <PmfSurveyDialog
-      onSubmitAnswer={async (answer) => {
+      onSubmit={async (answer, reason) => {
         const controller = new AbortController();
         submission.current = controller;
         try {
-          const savedId = await submitPmfAnswer(survey.surveyId, answer, controller.signal);
+          await submitPmfResponse(survey.surveyId, answer, reason, controller.signal);
           controller.signal.throwIfAborted();
-          responseId.current = savedId;
-          // The first answer is durable; reopening/reloading must not request another answer.
-          rememberDismissal(dismissalKey(survey.surveyId, memberId));
+          writeSurveyPreference(key, { answered: true });
         } finally {
           submission.current = null;
         }
       }}
-      onSubmitReason={async (reason) => {
-        if (responseId.current === null) throw new Error('저장된 설문 응답이 없습니다.');
+      onHideToday={async () => {
+        const localSaved = writeSurveyPreference(key, { hiddenUntil: nextKoreanMidnight() });
         const controller = new AbortController();
         submission.current = controller;
         try {
-          await submitPmfReason(survey.surveyId, responseId.current, reason, controller.signal);
+          await hidePmfSurveyToday(survey.surveyId, controller.signal);
           controller.signal.throwIfAborted();
+          setDismissed(true);
+          return 'saved';
+        } catch (error) {
+          controller.signal.throwIfAborted();
+          if (localSaved) return 'local-only';
+          throw error;
         } finally {
           submission.current = null;
         }
       }}
-      onDismiss={() => {
-        rememberDismissal(dismissalKey(survey.surveyId, memberId));
-        setDismissed(true);
-      }}
+      onDismiss={() => setDismissed(true)}
     />
   );
 }

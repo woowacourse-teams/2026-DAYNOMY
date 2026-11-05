@@ -1,32 +1,38 @@
 /** @vitest-environment jsdom */
 import { act, cleanup, fireEvent, render } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { Link, MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { AuthContext, type AuthContextValue } from '../../src/auth/AuthContext';
 import { PmfSurveyPrompt } from '../../src/features/pmf-survey/PmfSurveyPrompt';
 import {
   getCurrentPmfSurvey,
-  submitPmfAnswer,
-  submitPmfReason,
+  hidePmfSurveyToday,
+  submitPmfResponse,
 } from '../../src/features/pmf-survey/api';
-
+import {
+  nextKoreanMidnight,
+  readSurveyPreference,
+  surveyStorageKey,
+} from '../../src/features/pmf-survey/storage';
 vi.mock('../../src/features/pmf-survey/api', () => ({
   getCurrentPmfSurvey: vi.fn(),
-  submitPmfAnswer: vi.fn(),
-  submitPmfReason: vi.fn(),
+  hidePmfSurveyToday: vi.fn(),
+  submitPmfResponse: vi.fn(),
 }));
-
 const guest: AuthContextValue = { isLoggedIn: false, memberId: null, loading: false, role: null };
-
+const status = {
+  surveyId: 805,
+  eligible: true,
+  responseId: null,
+  isFirstVisit: false,
+  hiddenUntil: null,
+};
 beforeEach(() => {
+  localStorage.clear();
   sessionStorage.clear();
-  vi.mocked(getCurrentPmfSurvey).mockResolvedValue({
-    surveyId: 805,
-    eligible: true,
-    responseId: null,
-  });
-  vi.mocked(submitPmfAnswer).mockResolvedValue(21);
-  vi.mocked(submitPmfReason).mockResolvedValue(undefined);
+  vi.mocked(getCurrentPmfSurvey).mockResolvedValue(status);
+  vi.mocked(hidePmfSurveyToday).mockResolvedValue(undefined);
+  vi.mocked(submitPmfResponse).mockResolvedValue(21);
   Object.defineProperty(HTMLDialogElement.prototype, 'showModal', {
     configurable: true,
     value() {
@@ -44,130 +50,146 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.resetAllMocks();
+  vi.restoreAllMocks();
+  vi.useRealTimers();
 });
-
 function setup(auth = guest, path = '/') {
   return render(
     <AuthContext.Provider value={auth}>
       <MemoryRouter initialEntries={[path]}>
+        <nav>
+          <Link to="/">대시보드로</Link>
+          <Link to="/news">소식으로</Link>
+        </nav>
         <PmfSurveyPrompt />
       </MemoryRouter>
     </AuthContext.Provider>,
   );
 }
-
-it('서버가 허용한 일반 사용자에게만 노출하고 응답 ID로 추가 의견을 연결한다', async () => {
-  const view = setup();
-  fireEvent.click(await view.findByRole('radio', { name: '매우 실망' }));
-  fireEvent.click(view.getByRole('button', { name: '응답 제출' }));
-  const input = await view.findByRole('textbox');
-  expect(submitPmfAnswer).toHaveBeenCalledWith(805, 'VERY_DISAPPOINTED', expect.any(AbortSignal));
-  fireEvent.change(input, { target: { value: ' 관련 소식을 볼 수 있어서요. ' } });
-  fireEvent.click(view.getByRole('button', { name: '의견 보내기' }));
-  await view.findByRole('heading', { name: '의견을 보내주셔서 감사합니다' });
-  expect(submitPmfReason).toHaveBeenCalledWith(
+it('응답과 선택 이유를 한 요청으로 저장하고 완료 후 재노출하지 않는다', async () => {
+  const v = setup();
+  fireEvent.click(await v.findByRole('radio', { name: '매우 실망' }));
+  fireEvent.click(v.getByRole('button', { name: /그렇게 답하신/ }));
+  fireEvent.change(v.getByRole('textbox'), { target: { value: ' 이유입니다. ' } });
+  fireEvent.click(v.getByRole('button', { name: '응답 보내기' }));
+  await v.findByRole('heading', { name: '의견을 보내주셔서 감사합니다' });
+  expect(submitPmfResponse).toHaveBeenCalledExactlyOnceWith(
     805,
-    21,
-    '관련 소식을 볼 수 있어서요.',
+    'VERY_DISAPPOINTED',
+    '이유입니다.',
     expect.any(AbortSignal),
   );
-});
-
-it('대상이 아니거나 이미 응답했거나 API가 없거나 장애이면 팝업을 띄우지 않는다', async () => {
-  for (const status of [
-    null,
-    { surveyId: 805, eligible: false, responseId: null },
-    { surveyId: 805, eligible: true, responseId: 21 },
-  ]) {
-    vi.mocked(getCurrentPmfSurvey).mockResolvedValueOnce(status);
-    const view = setup();
-    await act(async () => {});
-    expect(view.queryByRole('dialog')).toBeNull();
-    view.unmount();
-  }
-  vi.mocked(getCurrentPmfSurvey).mockRejectedValueOnce(new Error('unavailable'));
-  const view = setup();
+  fireEvent.click(v.getByRole('button', { name: '닫기' }));
+  v.unmount();
+  const again = setup();
   await act(async () => {});
-  expect(view.queryByRole('dialog')).toBeNull();
+  expect(again.queryByRole('dialog')).toBeNull();
 });
-
-it('관리자·로그인 확인 중·다른 경로에서는 대상 API를 호출하지 않는다', async () => {
+it('닫기는 현재 화면에서만 유지하며 데이터 재렌더링에는 열지 않고 대시보드 재진입 시 다시 연다', async () => {
+  const v = setup();
+  fireEvent.click(await v.findByRole('button', { name: '닫기' }));
+  expect(v.queryByRole('dialog')).toBeNull();
+  fireEvent(document, new Event('visibilitychange'));
+  await act(async () => {});
+  expect(v.queryByRole('dialog')).toBeNull();
+  fireEvent.click(v.getByRole('link', { name: '소식으로' }));
+  expect(v.queryByRole('dialog')).toBeNull();
+  fireEvent.click(v.getByRole('link', { name: '대시보드로' }));
+  expect(await v.findByRole('dialog')).toBeTruthy();
+});
+it('닫은 뒤 새로 불러오면 같은 날에도 노출한다', async () => {
+  const v = setup();
+  fireEvent.click(await v.findByRole('button', { name: '설문 닫기' }));
+  v.unmount();
+  const again = setup();
+  expect(await again.findByRole('dialog')).toBeTruthy();
+  expect(hidePmfSurveyToday).not.toHaveBeenCalled();
+});
+it('오늘 숨김은 새 탭·재진입에도 유지하고 KST 자정부터 새 진입에서 다시 표시한다', async () => {
+  const now = Date.parse('2026-11-05T23:59:00+09:00');
+  vi.spyOn(Date, 'now').mockReturnValue(now);
+  const v = setup();
+  fireEvent.click(await v.findByRole('button', { name: '오늘 하루 그만 보기' }));
+  await act(async () => {});
+  expect(v.queryByRole('dialog')).toBeNull();
+  expect(readSurveyPreference(surveyStorageKey(805, null)).hiddenUntil).toBe(
+    Date.parse('2026-11-06T00:00:00+09:00'),
+  );
+  v.unmount();
+  const sameDay = setup();
+  await act(async () => {});
+  expect(sameDay.queryByRole('dialog')).toBeNull();
+  vi.mocked(Date.now).mockReturnValue(nextKoreanMidnight(now));
+  fireEvent(document, new Event('visibilitychange'));
+  await act(async () => {});
+  expect(sameDay.queryByRole('dialog')).toBeNull();
+  sameDay.unmount();
+  const nextDay = setup();
+  expect(await nextDay.findByRole('dialog')).toBeTruthy();
+  vi.restoreAllMocks();
+});
+it('첫 방문자는 최초 진입을 보류하고 실제 서비스 화면을 방문한 뒤 복귀하면 표시한다', async () => {
+  vi.mocked(getCurrentPmfSurvey).mockResolvedValue({ ...status, isFirstVisit: true });
+  const v = setup();
+  await act(async () => {});
+  expect(v.queryByRole('dialog')).toBeNull();
+  fireEvent.click(v.getByRole('link', { name: '소식으로' }));
+  fireEvent.click(v.getByRole('link', { name: '대시보드로' }));
+  expect(await v.findByRole('dialog')).toBeTruthy();
+});
+it('서버 숨김·기응답·비대상·장애에는 표시하지 않는다', async () => {
+  for (const current of [
+    null,
+    { ...status, eligible: false },
+    { ...status, responseId: 21 },
+    { ...status, hiddenUntil: new Date(Date.now() + 3600000).toISOString() },
+  ]) {
+    vi.mocked(getCurrentPmfSurvey).mockResolvedValueOnce(current);
+    const v = setup();
+    await act(async () => {});
+    expect(v.queryByRole('dialog')).toBeNull();
+    v.unmount();
+  }
+  vi.mocked(getCurrentPmfSurvey).mockRejectedValueOnce(new Error('offline'));
+  const v = setup();
+  await act(async () => {});
+  expect(v.queryByRole('dialog')).toBeNull();
+});
+it('관리자·인증 확인 중·다른 경로에서는 조회하지 않는다', async () => {
   for (const [auth, path] of [
-    [{ ...guest, isLoggedIn: true, memberId: 1, role: 'ADMIN' }, '/'],
+    [{ ...guest, role: 'ADMIN' }, '/'],
     [{ ...guest, loading: true }, '/'],
     [guest, '/login'],
-    [guest, '/welcome'],
-    [guest, '/admin/news'],
     [guest, '/news'],
   ] as Array<[AuthContextValue, string]>) {
-    const view = setup(auth, path);
+    const v = setup(auth, path);
     await act(async () => {});
-    expect(view.queryByRole('dialog')).toBeNull();
-    view.unmount();
+    expect(v.queryByRole('dialog')).toBeNull();
+    v.unmount();
   }
   expect(getCurrentPmfSurvey).not.toHaveBeenCalled();
 });
-
-it('다른 팝업이 열려 있으면 닫힐 때까지 기다린다', async () => {
-  const otherDialog = document.createElement('dialog');
-  document.body.append(otherDialog);
-  otherDialog.showModal();
-  const view = setup();
+it('다른 모달이 닫힐 때까지 기다린다', async () => {
+  const other = document.createElement('dialog');
+  document.body.append(other);
+  other.showModal();
+  const v = setup();
   await act(async () => {});
-  expect(view.queryByRole('heading')).toBeNull();
-  await act(async () => otherDialog.close());
-  expect(await view.findByRole('radio', { name: '매우 실망' })).toBeTruthy();
-  otherDialog.remove();
+  expect(v.queryByRole('heading')).toBeNull();
+  await act(async () => other.close());
+  expect(await v.findByRole('radio', { name: '매우 실망' })).toBeTruthy();
+  other.remove();
 });
-
-it('나중에를 누르면 같은 방문에서 다시 띄우지 않으며 다른 계정에는 적용하지 않는다', async () => {
-  const view = setup();
-  fireEvent.click(await view.findByRole('button', { name: '나중에' }));
-  expect(view.queryByRole('dialog')).toBeNull();
-  view.unmount();
-  const again = setup();
-  await act(async () => {});
-  expect(again.queryByRole('dialog')).toBeNull();
-  again.unmount();
-  const member = setup({ ...guest, isLoggedIn: true, memberId: 5, role: 'USER' });
-  expect(await member.findByRole('dialog')).toBeTruthy();
-});
-
-it('첫 응답 후 추가 의견을 건너뛰어도 새로 방문했을 때 응답을 다시 요구하지 않는다', async () => {
-  const view = setup();
-  fireEvent.click(await view.findByRole('radio', { name: '약간 실망' }));
-  fireEvent.click(view.getByRole('button', { name: '응답 제출' }));
-  fireEvent.click(await view.findByRole('button', { name: '건너뛰기' }));
-  view.unmount();
-  const again = setup();
-  await act(async () => {});
-  expect(again.queryByRole('dialog')).toBeNull();
-  expect(submitPmfAnswer).toHaveBeenCalledOnce();
-  expect(submitPmfReason).not.toHaveBeenCalled();
-});
-
-it('대상 조회를 중단한 뒤 도착한 응답으로 팝업을 열지 않는다', async () => {
-  let resolve!: (status: { surveyId: number; eligible: boolean; responseId: null }) => void;
-  vi.mocked(getCurrentPmfSurvey).mockImplementationOnce(
+it('계정 전환 시 이전 저장을 중단하고 늦은 응답을 반영하지 않는다', async () => {
+  let resolve!: (id: number) => void;
+  vi.mocked(submitPmfResponse).mockImplementationOnce(
     () => new Promise((done) => (resolve = done)),
   );
-  const view = setup();
-  const signal = vi.mocked(getCurrentPmfSurvey).mock.calls[0]?.[0];
-  view.unmount();
-  expect(signal?.aborted).toBe(true);
-  await act(async () => resolve({ surveyId: 805, eligible: true, responseId: null }));
-  expect(document.querySelector('.pmf-dialog')).toBeNull();
-});
-
-it('계정을 전환하면 이전 계정의 저장 요청을 중단하고 늦은 응답을 새 화면에 반영하지 않는다', async () => {
-  let resolve!: (id: number) => void;
-  vi.mocked(submitPmfAnswer).mockImplementationOnce(() => new Promise((done) => (resolve = done)));
-  const view = setup();
-  fireEvent.click(await view.findByRole('radio', { name: '약간 실망' }));
-  fireEvent.click(view.getByRole('button', { name: '응답 제출' }));
-  const signal = vi.mocked(submitPmfAnswer).mock.calls[0]?.[2];
-
-  view.rerender(
+  const v = setup();
+  fireEvent.click(await v.findByRole('radio', { name: '약간 실망' }));
+  fireEvent.click(v.getByRole('button', { name: '응답 보내기' }));
+  const signal = vi.mocked(submitPmfResponse).mock.calls[0]?.[3];
+  v.rerender(
     <AuthContext.Provider value={{ ...guest, isLoggedIn: true, memberId: 5, role: 'USER' }}>
       <MemoryRouter>
         <PmfSurveyPrompt />
@@ -176,24 +198,28 @@ it('계정을 전환하면 이전 계정의 저장 요청을 중단하고 늦은
   );
   expect(signal?.aborted).toBe(true);
   await act(async () => resolve(21));
-  expect(await view.findByRole('radio', { name: '약간 실망' })).toBeTruthy();
-  expect(view.queryByRole('textbox')).toBeNull();
-  expect(sessionStorage.getItem('daynomy:pmf-survey:v1:805:guest:dismissed')).toBeNull();
+  expect(await v.findByRole('radio', { name: '약간 실망' })).toBeTruthy();
+  expect(readSurveyPreference(surveyStorageKey(805, null)).answered).toBe(false);
 });
-
-it('추가 의견 저장 중 화면을 떠나면 요청을 중단하고 첫 응답의 저장 표시는 유지한다', async () => {
-  let resolve!: () => void;
-  vi.mocked(submitPmfReason).mockImplementationOnce(() => new Promise((done) => (resolve = done)));
-  const view = setup();
-  fireEvent.click(await view.findByRole('radio', { name: '매우 실망' }));
-  fireEvent.click(view.getByRole('button', { name: '응답 제출' }));
-  const input = await view.findByRole('textbox');
-  fireEvent.change(input, { target: { value: '내 자산에 관련된 소식을 볼 수 있어서요.' } });
-  fireEvent.click(view.getByRole('button', { name: '의견 보내기' }));
-  const signal = vi.mocked(submitPmfReason).mock.calls[0]?.[3];
-  view.unmount();
-  expect(signal?.aborted).toBe(true);
-  await act(async () => resolve());
-  expect(sessionStorage.getItem('daynomy:pmf-survey:v1:805:guest:dismissed')).toBe('true');
-  expect(submitPmfAnswer).toHaveBeenCalledOnce();
+it('다른 탭에서 오늘 숨김을 설정하면 열린 팝업도 닫고 계정별로 분리한다', async () => {
+  const v = setup();
+  await v.findByRole('dialog');
+  const key = surveyStorageKey(805, null);
+  localStorage.setItem(key, JSON.stringify({ hiddenUntil: nextKoreanMidnight() }));
+  fireEvent(window, new StorageEvent('storage', { key }));
+  expect(v.queryByRole('dialog')).toBeNull();
+  v.unmount();
+  const member = setup({ ...guest, isLoggedIn: true, memberId: 5, role: 'USER' });
+  expect(await member.findByRole('dialog')).toBeTruthy();
+});
+it('오늘 숨김 서버 저장 실패를 안내하며 브라우저 숨김은 유지한다', async () => {
+  vi.mocked(hidePmfSurveyToday).mockRejectedValueOnce(new Error('offline'));
+  const v = setup();
+  fireEvent.click(await v.findByRole('button', { name: '오늘 하루 그만 보기' }));
+  expect((await v.findByRole('alert')).textContent).toContain('이 브라우저에서는 오늘 숨겼어요');
+  fireEvent.click(v.getByRole('button', { name: '닫기' }));
+  v.unmount();
+  const again = setup();
+  await act(async () => {});
+  expect(again.queryByRole('dialog')).toBeNull();
 });

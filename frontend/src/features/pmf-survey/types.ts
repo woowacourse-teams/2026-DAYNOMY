@@ -15,4 +15,6 @@ export type PmfSurveyStatus = {
   surveyId: number;
   eligible: boolean;
   responseId: number | null;
+  isFirstVisit: boolean;
+  hiddenUntil: string | null;
 };

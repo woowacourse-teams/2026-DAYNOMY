@@ -22,7 +22,12 @@ export async function getCurrentPmfSurvey(signal?: AbortSignal): Promise<PmfSurv
     !('eligible' in value) ||
     typeof value.eligible !== 'boolean' ||
     !('responseId' in value) ||
-    (value.responseId !== null && !isId(value.responseId))
+    (value.responseId !== null && !isId(value.responseId)) ||
+    !('isFirstVisit' in value) ||
+    typeof value.isFirstVisit !== 'boolean' ||
+    !('hiddenUntil' in value) ||
+    (value.hiddenUntil !== null &&
+      (typeof value.hiddenUntil !== 'string' || !Number.isFinite(Date.parse(value.hiddenUntil))))
   ) {
     throw new Error('PMF 설문 API 응답 형식이 올바르지 않습니다.');
   }
@@ -30,18 +35,21 @@ export async function getCurrentPmfSurvey(signal?: AbortSignal): Promise<PmfSurv
     surveyId: value.surveyId,
     eligible: value.eligible,
     responseId: value.responseId,
+    isFirstVisit: value.isFirstVisit,
+    hiddenUntil: value.hiddenUntil,
   };
 }
 
-export async function submitPmfAnswer(
+export async function submitPmfResponse(
   surveyId: number,
   answer: PmfAnswer,
+  reason: string | null,
   signal?: AbortSignal,
 ): Promise<number> {
   const value = await requestWithCsrf<unknown>(`/api/pmf-surveys/${surveyId}/responses`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ answer }),
+    body: JSON.stringify({ answer, reason }),
     signal,
   });
   if (typeof value !== 'object' || value === null || !('id' in value) || !isId(value.id)) {
@@ -50,16 +58,9 @@ export async function submitPmfAnswer(
   return value.id;
 }
 
-export async function submitPmfReason(
-  surveyId: number,
-  responseId: number,
-  reason: string,
-  signal?: AbortSignal,
-) {
-  await requestWithCsrf<void>(`/api/pmf-surveys/${surveyId}/responses/${responseId}/reason`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ reason }),
+export async function hidePmfSurveyToday(surveyId: number, signal?: AbortSignal) {
+  await requestWithCsrf<void>(`/api/pmf-surveys/${surveyId}/snooze`, {
+    method: 'POST',
     signal,
   });
 }
