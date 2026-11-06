@@ -77,10 +77,16 @@ public class AdminNewsController {
   }
 
   @Operation(summary = "한국 뉴스 초안 생성 실행", description = "한국 뉴스 초안 생성을 즉시 실행합니다.")
-  @ApiResponse(
-      responseCode = "200",
-      description = "생성 실행 성공",
-      content = @Content(schema = @Schema(implementation = AdminNewsGenerationResponse.class)))
+  @ApiResponses({
+    @ApiResponse(
+        responseCode = "200",
+        description = "생성 실행 성공",
+        content = @Content(schema = @Schema(implementation = AdminNewsGenerationResponse.class))),
+    @ApiResponse(
+        responseCode = "409",
+        description = "같은 시장의 주제 생성이 이미 진행 중",
+        content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+  })
   @PostMapping("/generate/economy/korea")
   public ResponseEntity<AdminNewsGenerationResponse> generateKoreanEconomicNewsDrafts() {
     int savedCount = newsGenerationService.generateKoreanEconomicNewsDrafts().size();
@@ -89,10 +95,16 @@ public class AdminNewsController {
   }
 
   @Operation(summary = "미국 뉴스 초안 생성 실행", description = "미국 뉴스 초안 생성을 즉시 실행합니다.")
-  @ApiResponse(
-      responseCode = "200",
-      description = "생성 실행 성공",
-      content = @Content(schema = @Schema(implementation = AdminNewsGenerationResponse.class)))
+  @ApiResponses({
+    @ApiResponse(
+        responseCode = "200",
+        description = "생성 실행 성공",
+        content = @Content(schema = @Schema(implementation = AdminNewsGenerationResponse.class))),
+    @ApiResponse(
+        responseCode = "409",
+        description = "같은 시장의 주제 생성이 이미 진행 중",
+        content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+  })
   @PostMapping("/generate/economy/us")
   public ResponseEntity<AdminNewsGenerationResponse> generateUsEconomicNewsDrafts() {
     int savedCount = newsGenerationService.generateUsEconomicNewsDrafts().size();

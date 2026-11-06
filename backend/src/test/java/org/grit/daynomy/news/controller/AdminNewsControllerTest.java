@@ -16,6 +16,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import org.grit.daynomy.auth.token.JwtAuthenticationFilter;
+import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.common.exception.GlobalExceptionHandler;
 import org.grit.daynomy.config.SwaggerConfig;
 import org.grit.daynomy.content.service.AssetContentService;
@@ -31,6 +32,7 @@ import org.grit.daynomy.news.dto.ImageSourceRequest;
 import org.grit.daynomy.news.dto.NewsSourceRequest;
 import org.grit.daynomy.news.dto.NewsSourceResponse;
 import org.grit.daynomy.news.dto.WikimediaImageCandidateResponse;
+import org.grit.daynomy.news.exception.NewsErrorCode;
 import org.grit.daynomy.news.service.AdminNewsService;
 import org.grit.daynomy.news.service.NewsGenerationService;
 import org.grit.daynomy.search.domain.NewsSearchSort;
@@ -302,6 +304,18 @@ class AdminNewsControllerTest {
 
     then(newsGenerationService).should().generateUsEconomicNewsDrafts();
     then(newsGenerationService).shouldHaveNoMoreInteractions();
+  }
+
+  @Test
+  @DisplayName("같은 시장의 뉴스 주제 생성이 진행 중이면 409를 반환한다")
+  void generateEconomicNewsDraftsRejectsConcurrentDiscovery() throws Exception {
+    given(newsGenerationService.generateKoreanEconomicNewsDrafts())
+        .willThrow(new BusinessException(NewsErrorCode.NEWS_GENERATION_IN_PROGRESS));
+
+    mockMvc
+        .perform(post("/api/admin/news/generate/economy/korea"))
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.code").value("NEWS_GENERATION_IN_PROGRESS"));
   }
 
   @Test
