@@ -114,19 +114,17 @@ class NewsGenerationTopicRepositoryTest {
     UUID activeToken = UUID.randomUUID();
     expired.reserve(expiredToken, Instant.parse("2026-11-06T00:00:00Z"));
     active.reserve(activeToken, Instant.parse("2026-11-06T01:00:00Z"));
-    List<Long> ids =
-        topicRepository.saveAllAndFlush(List.of(expired, active)).stream()
-            .map(NewsGenerationTopic::getId)
-            .toList();
+    topicRepository.saveAllAndFlush(List.of(expired, active));
 
     int released =
         topicRepository.releaseExpiredReservations("KOREA", Instant.parse("2026-11-06T00:30:00Z"));
 
-    List<NewsGenerationTopic> topics = topicRepository.findAllById(ids);
+    NewsGenerationTopic reloadedExpired = topicRepository.findById(expired.getId()).orElseThrow();
+    NewsGenerationTopic reloadedActive = topicRepository.findById(active.getId()).orElseThrow();
     assertThat(released).isEqualTo(1);
-    assertThat(topics.getFirst().getStatus()).isEqualTo(NewsGenerationTopicStatus.READY);
-    assertThat(topics.getFirst().getReservationToken()).isNull();
-    assertThat(topics.getLast().isReservedBy(activeToken)).isTrue();
+    assertThat(reloadedExpired.getStatus()).isEqualTo(NewsGenerationTopicStatus.READY);
+    assertThat(reloadedExpired.getReservationToken()).isNull();
+    assertThat(reloadedActive.isReservedBy(activeToken)).isTrue();
   }
 
   private NewsGenerationTopic topic(String keyCharacter, int sourceNumber) {
