@@ -168,12 +168,14 @@ it('소식 홈 조회 결과와 목록 상태를 영역별로 기록한다', asy
       attempt: 0,
     }),
   );
-  expect(trackEvent).toHaveBeenCalledWith('view_content_list', {
-    surface: 'news_home',
-    source_type: 'ALL',
-    result_count: 1,
-    status: 'ready',
-  });
+  await waitFor(() =>
+    expect(trackEvent).toHaveBeenCalledWith('view_content_list', {
+      surface: 'news_home',
+      source_type: 'ALL',
+      result_count: 1,
+      status: 'ready',
+    }),
+  );
 });
 
 it('트렌딩은 외부 콘텐츠를 제외하고 데이노미 이슈 인기순으로 네 개를 표시한다', async () => {
