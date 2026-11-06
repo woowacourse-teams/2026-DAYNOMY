@@ -8,6 +8,8 @@ CREATE TABLE news_generation_topics (
     facts JSONB NOT NULL,
     sources JSONB NOT NULL,
     status VARCHAR(20) NOT NULL,
+    reservation_token UUID,
+    reserved_at TIMESTAMP(6) WITH TIME ZONE,
     news_id BIGINT UNIQUE REFERENCES news (id),
     created_at TIMESTAMP(6) WITH TIME ZONE NOT NULL,
     updated_at TIMESTAMP(6) WITH TIME ZONE NOT NULL,
@@ -16,6 +18,12 @@ CREATE TABLE news_generation_topics (
         CHECK (generation_type IN ('KOREA', 'US')),
     CONSTRAINT ck_news_generation_topics_status
         CHECK (status IN ('READY', 'RESERVED', 'GENERATED')),
+    CONSTRAINT ck_news_generation_topics_reservation
+        CHECK (
+            (status = 'RESERVED' AND reservation_token IS NOT NULL AND reserved_at IS NOT NULL)
+            OR
+            (status <> 'RESERVED' AND reservation_token IS NULL AND reserved_at IS NULL)
+        ),
     CONSTRAINT ck_news_generation_topics_facts
         CHECK (jsonb_typeof(facts) = 'array' AND jsonb_array_length(facts) >= 3),
     CONSTRAINT ck_news_generation_topics_sources

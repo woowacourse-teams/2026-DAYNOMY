@@ -1,6 +1,7 @@
 package org.grit.daynomy.news.repository;
 
 import jakarta.persistence.LockModeType;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
@@ -9,6 +10,7 @@ import org.grit.daynomy.news.domain.NewsGenerationType;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 
 public interface NewsGenerationTopicRepository extends JpaRepository<NewsGenerationTopic, Long> {
@@ -28,6 +30,19 @@ public interface NewsGenerationTopicRepository extends JpaRepository<NewsGenerat
       nativeQuery = true)
   List<NewsGenerationTopic> findReadyForUpdate(
       String generationType, LocalDate firstDate, int limit);
+
+  @Modifying(flushAutomatically = true, clearAutomatically = true)
+  @Query(
+      value =
+          """
+          UPDATE news_generation_topics
+          SET status = 'READY', reservation_token = NULL, reserved_at = NULL
+          WHERE generation_type = :generationType
+            AND status = 'RESERVED'
+            AND reserved_at < :expiredBefore
+          """,
+      nativeQuery = true)
+  int releaseExpiredReservations(String generationType, Instant expiredBefore);
 
   @Lock(LockModeType.PESSIMISTIC_WRITE)
   @Query("select t from NewsGenerationTopic t where t.id in :ids order by t.id")

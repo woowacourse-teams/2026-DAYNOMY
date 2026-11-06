@@ -11,9 +11,11 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Objects;
+import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -61,6 +63,12 @@ public class NewsGenerationTopic extends BaseEntity {
   @Column(nullable = false, length = 20)
   private NewsGenerationTopicStatus status;
 
+  @Column(name = "reservation_token")
+  private UUID reservationToken;
+
+  @Column(name = "reserved_at")
+  private Instant reservedAt;
+
   @OneToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "news_id", unique = true)
   private News news;
@@ -107,37 +115,49 @@ public class NewsGenerationTopic extends BaseEntity {
         topicKey, generationType, title, referenceDate, category, facts, sources);
   }
 
-  public void reserve() {
+  public void reserve(UUID token, Instant reservedAt) {
     if (status != NewsGenerationTopicStatus.READY) {
       throw new IllegalStateException("Only ready topics can be reserved.");
     }
+    reservationToken = Objects.requireNonNull(token);
+    this.reservedAt = Objects.requireNonNull(reservedAt);
     status = NewsGenerationTopicStatus.RESERVED;
   }
 
-  public void generated(News generatedNews) {
-    if (status != NewsGenerationTopicStatus.RESERVED) {
-      throw new IllegalStateException("Only reserved topics can be completed.");
-    }
+  public void generated(News generatedNews, UUID token) {
+    validateReservationOwner(token);
     if (generatedNews == null) {
       throw new IllegalArgumentException("Generated news must not be null.");
     }
     news = generatedNews;
     status = NewsGenerationTopicStatus.GENERATED;
+    reservationToken = null;
+    reservedAt = null;
   }
 
-  public void release() {
-    if (status != NewsGenerationTopicStatus.RESERVED) {
-      throw new IllegalStateException("Only reserved topics can be released.");
-    }
+  public void release(UUID token) {
+    validateReservationOwner(token);
     status = NewsGenerationTopicStatus.READY;
+    reservationToken = null;
+    reservedAt = null;
   }
 
   public boolean isReserved() {
     return status == NewsGenerationTopicStatus.RESERVED;
   }
 
+  public boolean isReservedBy(UUID token) {
+    return isReserved() && reservationToken.equals(token);
+  }
+
   public NewsGenerationTopicResearch toResearch() {
     return new NewsGenerationTopicResearch(
         topicKey, title, referenceDate, category, facts, sources);
+  }
+
+  private void validateReservationOwner(UUID token) {
+    if (!isReservedBy(token)) {
+      throw new IllegalStateException("Only the reservation owner can change this topic.");
+    }
   }
 }

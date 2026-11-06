@@ -2,13 +2,16 @@ package org.grit.daynomy.news.repository;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.NewsGenerationTopic;
+import org.grit.daynomy.news.domain.NewsGenerationTopicStatus;
 import org.grit.daynomy.news.domain.NewsGenerationType;
 import org.grit.daynomy.news.domain.NewsSourceInfo;
 import org.junit.jupiter.api.DisplayName;
@@ -73,7 +76,7 @@ class NewsGenerationTopicRepositoryTest {
                                 .getFirst();
                         firstLocked.countDown();
                         await(releaseFirst);
-                        selected.reserve();
+                        selected.reserve(UUID.randomUUID(), Instant.now());
                         return selected.getId();
                       }));
       assertThat(firstLocked.await(5, TimeUnit.SECONDS)).isTrue();
@@ -87,7 +90,7 @@ class NewsGenerationTopicRepositoryTest {
                             topicRepository
                                 .findReadyForUpdate("KOREA", LocalDate.of(2026, 11, 4), 1)
                                 .getFirst();
-                        selected.reserve();
+                        selected.reserve(UUID.randomUUID(), Instant.now());
                         return selected.getId();
                       }));
 
@@ -100,6 +103,30 @@ class NewsGenerationTopicRepositoryTest {
       releaseFirst.countDown();
       topicRepository.deleteAll();
     }
+  }
+
+  @Test
+  @DisplayName("만료된 예약만 준비 상태로 복구한다")
+  void releaseExpiredReservationsReleasesOnlyExpiredReservation() {
+    NewsGenerationTopic expired = topic("a", 1);
+    NewsGenerationTopic active = topic("b", 2);
+    UUID expiredToken = UUID.randomUUID();
+    UUID activeToken = UUID.randomUUID();
+    expired.reserve(expiredToken, Instant.parse("2026-11-06T00:00:00Z"));
+    active.reserve(activeToken, Instant.parse("2026-11-06T01:00:00Z"));
+    List<Long> ids =
+        topicRepository.saveAllAndFlush(List.of(expired, active)).stream()
+            .map(NewsGenerationTopic::getId)
+            .toList();
+
+    int released =
+        topicRepository.releaseExpiredReservations("KOREA", Instant.parse("2026-11-06T00:30:00Z"));
+
+    List<NewsGenerationTopic> topics = topicRepository.findAllById(ids);
+    assertThat(released).isEqualTo(1);
+    assertThat(topics.getFirst().getStatus()).isEqualTo(NewsGenerationTopicStatus.READY);
+    assertThat(topics.getFirst().getReservationToken()).isNull();
+    assertThat(topics.getLast().isReservedBy(activeToken)).isTrue();
   }
 
   private NewsGenerationTopic topic(String keyCharacter, int sourceNumber) {

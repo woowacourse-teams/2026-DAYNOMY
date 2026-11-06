@@ -3,6 +3,7 @@ package org.grit.daynomy.news.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -10,6 +11,7 @@ import static org.mockito.Mockito.verify;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.function.Supplier;
 import org.grit.daynomy.external.openai.EconomicNewsResearch;
 import org.grit.daynomy.external.openai.OpenAiNewsGenerator;
@@ -47,10 +49,13 @@ class NewsGenerationServiceTest {
     GeneratedEconomicNews article =
         new GeneratedEconomicNews("a".repeat(64), "한국 경제 뉴스", "본문", Category.STOCK, List.of());
     News savedNews = org.mockito.Mockito.mock(News.class);
-    given(topicService.reserveReady(NewsGenerationType.KOREA, 5)).willReturn(topics);
+    given(topicService.reserveReady(eq(NewsGenerationType.KOREA), eq(5), any(UUID.class)))
+        .willReturn(topics);
     given(openAiNewsGenerator.write(topics.stream().map(NewsGenerationTopic::toResearch).toList()))
         .willReturn(List.of(article));
-    given(newsPersistenceService.saveDrafts(List.of(article), List.of(1L, 2L, 3L, 4L)))
+    given(
+            newsPersistenceService.saveDrafts(
+                eq(List.of(article)), eq(List.of(1L, 2L, 3L, 4L)), any(UUID.class)))
         .willReturn(List.of(savedNews));
 
     List<News> drafts = newsGenerationService.generateKoreanEconomicNewsDrafts();
@@ -68,7 +73,9 @@ class NewsGenerationServiceTest {
     NewsGenerationTopic topic = topic(1L, "a");
     GeneratedEconomicNews article =
         new GeneratedEconomicNews("a".repeat(64), "새 경제 뉴스", "본문", Category.STOCK, List.of());
-    given(topicService.reserveReady(NewsGenerationType.KOREA, 5))
+    given(
+            topicService.reserveReady(
+                eq(NewsGenerationType.KOREA), any(Integer.class), any(UUID.class)))
         .willReturn(List.of(), List.of(), List.of(topic));
     given(discoveryLock.withLock(any(), any()))
         .willAnswer(
@@ -80,7 +87,8 @@ class NewsGenerationServiceTest {
     given(topicDeduplicator.removeDuplicates(List.of(research), List.of()))
         .willReturn(List.of(research));
     given(openAiNewsGenerator.write(List.of(topic.toResearch()))).willReturn(List.of(article));
-    given(newsPersistenceService.saveDrafts(List.of(article), List.of(1L))).willReturn(List.of());
+    given(newsPersistenceService.saveDrafts(eq(List.of(article)), eq(List.of(1L)), any(UUID.class)))
+        .willReturn(List.of());
 
     newsGenerationService.generateKoreanEconomicNewsDrafts();
 
@@ -97,12 +105,13 @@ class NewsGenerationServiceTest {
     List<NewsGenerationTopicResearch> research =
         topics.stream().map(NewsGenerationTopic::toResearch).toList();
     RuntimeException failure = new RuntimeException("generation failed");
-    given(topicService.reserveReady(NewsGenerationType.US, 5)).willReturn(topics);
+    given(topicService.reserveReady(eq(NewsGenerationType.US), eq(5), any(UUID.class)))
+        .willReturn(topics);
     given(openAiNewsGenerator.write(research)).willThrow(failure);
 
     assertThatThrownBy(newsGenerationService::generateUsEconomicNewsDrafts).isSameAs(failure);
 
-    verify(topicService).release(List.of(1L, 2L, 3L, 4L));
+    verify(topicService).release(eq(List.of(1L, 2L, 3L, 4L)), any(UUID.class));
   }
 
   @SuppressWarnings("unchecked")
@@ -111,7 +120,9 @@ class NewsGenerationServiceTest {
   void discoveryFailureReleasesTopicsReservedInsideLock() {
     NewsGenerationTopic topic = topic(1L, "a");
     RuntimeException failure = new RuntimeException("research failed");
-    given(topicService.reserveReady(NewsGenerationType.KOREA, 5))
+    given(
+            topicService.reserveReady(
+                eq(NewsGenerationType.KOREA), any(Integer.class), any(UUID.class)))
         .willReturn(List.of(), List.of(topic));
     given(discoveryLock.withLock(any(), any()))
         .willAnswer(
@@ -123,7 +134,30 @@ class NewsGenerationServiceTest {
 
     assertThatThrownBy(newsGenerationService::generateKoreanEconomicNewsDrafts).isSameAs(failure);
 
-    verify(topicService).release(List.of(1L));
+    verify(topicService).release(eq(List.of(1L)), any(UUID.class));
+  }
+
+  @SuppressWarnings("unchecked")
+  @Test
+  @DisplayName("잠금 정리 실패 시 잠금 안에서 추가 예약한 주제도 복구한다")
+  void lockCleanupFailureReleasesTopicsReservedInsideLock() {
+    List<NewsGenerationTopic> topics =
+        List.of(topic(1L, "a"), topic(2L, "b"), topic(3L, "c"), topic(4L, "d"));
+    RuntimeException failure = new RuntimeException("unlock failed");
+    given(
+            topicService.reserveReady(
+                eq(NewsGenerationType.KOREA), any(Integer.class), any(UUID.class)))
+        .willReturn(List.of(), topics);
+    given(discoveryLock.withLock(any(), any()))
+        .willAnswer(
+            invocation -> {
+              ((Supplier<List<NewsGenerationTopic>>) invocation.getArgument(1)).get();
+              throw failure;
+            });
+
+    assertThatThrownBy(newsGenerationService::generateKoreanEconomicNewsDrafts).isSameAs(failure);
+
+    verify(topicService).release(eq(List.of(1L, 2L, 3L, 4L)), any(UUID.class));
   }
 
   private NewsGenerationTopic topic(Long id, String keyCharacter) {

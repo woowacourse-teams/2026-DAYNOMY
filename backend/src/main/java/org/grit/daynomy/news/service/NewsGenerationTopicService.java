@@ -5,6 +5,8 @@ import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -15,6 +17,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.external.openai.EconomicNewsResearch;
@@ -30,17 +33,23 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class NewsGenerationTopicService {
 
+  // shortcut: 고정 lease가 실제 생성 시간에 가까워지면 heartbeat 갱신 방식으로 전환한다.
+  private static final Duration RESERVATION_TIMEOUT = Duration.ofMinutes(30);
+
   private final NewsGenerationTopicRepository topicRepository;
 
   @Transactional
-  public List<NewsGenerationTopic> reserveReady(NewsGenerationType type, int limit) {
+  public List<NewsGenerationTopic> reserveReady(
+      NewsGenerationType type, int limit, UUID reservationToken) {
     if (limit <= 0) {
       return List.of();
     }
+    Instant now = Instant.now();
+    topicRepository.releaseExpiredReservations(type.name(), now.minus(RESERVATION_TIMEOUT));
     LocalDate firstDate = LocalDate.now(ZoneId.of("Asia/Seoul")).minusDays(2);
     List<NewsGenerationTopic> topics =
         topicRepository.findReadyForUpdate(type.name(), firstDate, limit);
-    topics.forEach(NewsGenerationTopic::reserve);
+    topics.forEach(topic -> topic.reserve(reservationToken, now));
     return List.copyOf(topics);
   }
 
@@ -86,13 +95,13 @@ public class NewsGenerationTopicService {
   }
 
   @Transactional
-  public void release(List<Long> topicIds) {
+  public void release(List<Long> topicIds, UUID reservationToken) {
     if (topicIds.isEmpty()) {
       return;
     }
     topicRepository.findAllByIdForUpdate(topicIds).stream()
-        .filter(NewsGenerationTopic::isReserved)
-        .forEach(NewsGenerationTopic::release);
+        .filter(topic -> topic.isReservedBy(reservationToken))
+        .forEach(topic -> topic.release(reservationToken));
   }
 
   private String topicKey(NewsGenerationType type, EconomicNewsResearch item) {

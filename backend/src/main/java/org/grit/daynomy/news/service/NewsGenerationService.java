@@ -5,6 +5,7 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -45,18 +46,25 @@ public class NewsGenerationService {
 
   private List<News> generateDrafts(NewsGenerationType generationType) {
     long startedAt = System.nanoTime();
+    UUID reservationToken = UUID.randomUUID();
     List<NewsGenerationTopic> reserved =
-        new ArrayList<>(topicService.reserveReady(generationType, MAX_TOPIC_COUNT));
+        new ArrayList<>(
+            topicService.reserveReady(generationType, MAX_TOPIC_COUNT, reservationToken));
     try {
       if (reserved.size() < MIN_TOPIC_COUNT) {
         int reservedCount = reserved.size();
         Optional<List<NewsGenerationTopic>> discovered =
             discoveryLock.withLock(
-                generationType, () -> discoverAndReserve(generationType, reservedCount));
+                generationType,
+                () -> {
+                  List<NewsGenerationTopic> additional =
+                      discoverAndReserve(generationType, reservedCount, reservationToken);
+                  reserved.addAll(additional);
+                  return additional;
+                });
         if (discovered.isEmpty()) {
           throw new BusinessException(NewsErrorCode.NEWS_GENERATION_IN_PROGRESS);
         }
-        reserved.addAll(discovered.get());
       }
 
       if (reserved.isEmpty()) {
@@ -69,20 +77,23 @@ public class NewsGenerationService {
               reserved.stream().map(NewsGenerationTopic::toResearch).toList());
       List<News> drafts =
           newsPersistenceService.saveDrafts(
-              generatedNews, reserved.stream().map(NewsGenerationTopic::getId).toList());
+              generatedNews,
+              reserved.stream().map(NewsGenerationTopic::getId).toList(),
+              reservationToken);
       logCompletion(generationType, generatedNews.size(), drafts.size(), startedAt);
       return drafts;
     } catch (RuntimeException exception) {
-      topicService.release(reserved.stream().map(NewsGenerationTopic::getId).toList());
+      topicService.release(
+          reserved.stream().map(NewsGenerationTopic::getId).toList(), reservationToken);
       throw exception;
     }
   }
 
   private List<NewsGenerationTopic> discoverAndReserve(
-      NewsGenerationType generationType, int alreadyReserved) {
+      NewsGenerationType generationType, int alreadyReserved, UUID reservationToken) {
     int remaining = MAX_TOPIC_COUNT - alreadyReserved;
     List<NewsGenerationTopic> additional =
-        new ArrayList<>(topicService.reserveReady(generationType, remaining));
+        new ArrayList<>(topicService.reserveReady(generationType, remaining, reservationToken));
     try {
       if (alreadyReserved + additional.size() >= MIN_TOPIC_COUNT) {
         return additional;
@@ -100,10 +111,13 @@ public class NewsGenerationService {
       topicService.register(generationType, uniqueResearch);
       additional.addAll(
           topicService.reserveReady(
-              generationType, MAX_TOPIC_COUNT - alreadyReserved - additional.size()));
+              generationType,
+              MAX_TOPIC_COUNT - alreadyReserved - additional.size(),
+              reservationToken));
       return additional;
     } catch (RuntimeException exception) {
-      topicService.release(additional.stream().map(NewsGenerationTopic::getId).toList());
+      topicService.release(
+          additional.stream().map(NewsGenerationTopic::getId).toList(), reservationToken);
       throw exception;
     }
   }

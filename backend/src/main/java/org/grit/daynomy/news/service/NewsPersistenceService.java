@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.news.ai.GeneratedEconomicNews;
 import org.grit.daynomy.news.domain.News;
@@ -22,10 +23,15 @@ public class NewsPersistenceService {
 
   @Transactional
   public List<News> saveDrafts(
-      List<GeneratedEconomicNews> generatedNews, List<Long> reservedTopicIds) {
+      List<GeneratedEconomicNews> generatedNews,
+      List<Long> reservedTopicIds,
+      UUID reservationToken) {
     List<NewsGenerationTopic> topics = topicRepository.findAllByIdForUpdate(reservedTopicIds);
     if (topics.size() != reservedTopicIds.size()) {
       throw new IllegalStateException("Reserved news topics could not be loaded.");
+    }
+    if (topics.stream().anyMatch(topic -> !topic.isReservedBy(reservationToken))) {
+      throw new IllegalStateException("News topic reservation ownership was lost.");
     }
     Map<String, NewsGenerationTopic> topicsByKey = new HashMap<>();
     topics.forEach(topic -> topicsByKey.put(topic.getTopicKey(), topic));
@@ -41,9 +47,13 @@ public class NewsPersistenceService {
     }
     List<News> savedDrafts = newsRepository.saveAll(drafts);
     for (int index = 0; index < generatedNews.size(); index++) {
-      topicsByKey.get(generatedNews.get(index).topicKey()).generated(savedDrafts.get(index));
+      topicsByKey
+          .get(generatedNews.get(index).topicKey())
+          .generated(savedDrafts.get(index), reservationToken);
     }
-    topics.stream().filter(NewsGenerationTopic::isReserved).forEach(NewsGenerationTopic::release);
+    topics.stream()
+        .filter(topic -> topic.isReservedBy(reservationToken))
+        .forEach(topic -> topic.release(reservationToken));
     return savedDrafts;
   }
 }

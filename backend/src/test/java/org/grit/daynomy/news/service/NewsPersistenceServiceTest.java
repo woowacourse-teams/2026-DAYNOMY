@@ -1,11 +1,14 @@
 package org.grit.daynomy.news.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import java.util.List;
+import java.util.UUID;
 import org.grit.daynomy.news.ai.GeneratedEconomicNews;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
@@ -33,12 +36,15 @@ class NewsPersistenceServiceTest {
   void saveDraftsSavesNews() {
     GeneratedEconomicNews article =
         new GeneratedEconomicNews("a".repeat(64), "제목", "본문", Category.STOCK, List.of());
+    UUID reservationToken = UUID.randomUUID();
     NewsGenerationTopic topic = org.mockito.Mockito.mock(NewsGenerationTopic.class);
     given(topic.getTopicKey()).willReturn("a".repeat(64));
+    given(topic.isReservedBy(reservationToken)).willReturn(true);
     given(topicRepository.findAllByIdForUpdate(List.of(1L))).willReturn(List.of(topic));
     given(newsRepository.saveAll(anyList())).willAnswer(invocation -> invocation.getArgument(0));
 
-    List<News> drafts = newsPersistenceService.saveDrafts(List.of(article), List.of(1L));
+    List<News> drafts =
+        newsPersistenceService.saveDrafts(List.of(article), List.of(1L), reservationToken);
 
     ArgumentCaptor<List<News>> newsCaptor = ArgumentCaptor.forClass(List.class);
     verify(newsRepository).saveAll(newsCaptor.capture());
@@ -46,6 +52,24 @@ class NewsPersistenceServiceTest {
     assertThat(newsCaptor.getValue().getFirst().getTitle()).isEqualTo("제목");
     assertThat(newsCaptor.getValue().getFirst().getSources()).isEmpty();
     assertThat(newsCaptor.getValue().getFirst().getImageUrl()).isNull();
-    verify(topic).generated(drafts.getFirst());
+    verify(topic).generated(drafts.getFirst(), reservationToken);
+  }
+
+  @Test
+  @DisplayName("예약 소유권을 잃은 요청은 뉴스를 저장하지 않는다")
+  void saveDraftsRejectsLostReservationOwnership() {
+    GeneratedEconomicNews article =
+        new GeneratedEconomicNews("a".repeat(64), "제목", "본문", Category.STOCK, List.of());
+    UUID reservationToken = UUID.randomUUID();
+    NewsGenerationTopic topic = org.mockito.Mockito.mock(NewsGenerationTopic.class);
+    given(topicRepository.findAllByIdForUpdate(List.of(1L))).willReturn(List.of(topic));
+
+    assertThatThrownBy(
+            () ->
+                newsPersistenceService.saveDrafts(List.of(article), List.of(1L), reservationToken))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("News topic reservation ownership was lost.");
+
+    verify(newsRepository, never()).saveAll(anyList());
   }
 }
