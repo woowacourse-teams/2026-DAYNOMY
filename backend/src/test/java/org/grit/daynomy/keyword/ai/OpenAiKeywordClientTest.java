@@ -187,6 +187,50 @@ class OpenAiKeywordClientTest {
     assertThat(server.getRequestCount()).isZero();
   }
 
+  @Test
+  void readTimeoutIsPropagatedWithoutReturningAnalysis() {
+    var factory = new org.springframework.http.client.SimpleClientHttpRequestFactory();
+    factory.setConnectTimeout(1000);
+    factory.setReadTimeout(100);
+    var bounded =
+        new OpenAiKeywordClient(
+            RestClient.builder().requestFactory(factory),
+            server.url("/v1").toString(),
+            "test-key",
+            "gpt-test");
+    server.enqueue(new MockResponse().setHeadersDelay(500, TimeUnit.MILLISECONDS).setBody("{}"));
+    assertThatThrownBy(() -> bounded.extractKeywords(CONTENT))
+        .isInstanceOf(org.springframework.web.client.RestClientException.class)
+        .hasRootCauseInstanceOf(java.net.SocketTimeoutException.class);
+    assertThat(server.getRequestCount()).isEqualTo(1);
+  }
+
+  @ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(ints = {401, 429, 500, 503})
+  void httpFailuresAreNotConvertedToEmptyKeywords(int status) {
+    var factory = new org.springframework.http.client.SimpleClientHttpRequestFactory();
+    factory.setConnectTimeout(1000);
+    factory.setReadTimeout(1000);
+    var transport =
+        new OpenAiKeywordClient(
+            RestClient.builder().requestFactory(factory),
+            server.url("/v1").toString(),
+            "test-key",
+            "gpt-test");
+    server.enqueue(new MockResponse().setResponseCode(status));
+    assertThatThrownBy(() -> transport.extractKeywords(CONTENT))
+        .isInstanceOf(org.springframework.web.client.HttpStatusCodeException.class);
+    assertThat(server.getRequestCount()).isEqualTo(1);
+  }
+
+  @ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"not-json", "{}", "{\"output\":[]}"})
+  void malformedEnvelopeIsNotReturnedAsSuccessfulEmptyAnalysis(String body) {
+    server.enqueue(new MockResponse().setHeader("Content-Type", "application/json").setBody(body));
+    assertThatThrownBy(() -> client.extractKeywords(CONTENT))
+        .isInstanceOf(IllegalStateException.class);
+  }
+
   private Map<String, Object> keyword(String term, String evidence) {
     return new LinkedHashMap<>(
         Map.of(

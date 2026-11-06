@@ -227,6 +227,24 @@ class OpenAiMarketAnalysisClientTest {
     assertThatThrownBy(() -> client.analyze(CONTENT)).isInstanceOf(IllegalStateException.class);
   }
 
+  @Test
+  void readTimeoutIsPropagatedWithoutReturningAnalysis() {
+    var factory = new org.springframework.http.client.SimpleClientHttpRequestFactory();
+    factory.setConnectTimeout(1000);
+    factory.setReadTimeout(100);
+    var bounded =
+        new OpenAiMarketAnalysisClient(
+            RestClient.builder().requestFactory(factory),
+            server.url("/v1").toString(),
+            "test-key",
+            "gpt-test");
+    server.enqueue(new MockResponse().setHeadersDelay(500, TimeUnit.MILLISECONDS).setBody("{}"));
+    assertThatThrownBy(() -> bounded.analyze(CONTENT))
+        .isInstanceOf(org.springframework.web.client.RestClientException.class)
+        .hasRootCauseInstanceOf(java.net.SocketTimeoutException.class);
+    assertThat(server.getRequestCount()).isEqualTo(1);
+  }
+
   private Map<String, Object> validAnalysis() {
     return new LinkedHashMap<>(
         Map.of(
