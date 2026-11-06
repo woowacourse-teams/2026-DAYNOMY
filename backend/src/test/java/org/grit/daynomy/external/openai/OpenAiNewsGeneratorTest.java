@@ -13,6 +13,7 @@ import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.news.ai.GeneratedEconomicNews;
+import org.grit.daynomy.news.ai.NewsGenerationTopicResearch;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.NewsSourceInfo;
 import org.junit.jupiter.api.AfterEach;
@@ -48,7 +49,8 @@ class OpenAiNewsGeneratorTest {
 
     OpenAiNewsGenerator generator = newGenerator();
 
-    List<GeneratedEconomicNews> generatedNews = generator.generateEconomicNews();
+    List<GeneratedEconomicNews> generatedNews =
+        generator.write(toTopicResearch(generator.researchEconomicNews()));
 
     assertThat(generatedNews).hasSize(4);
     assertThat(generatedNews)
@@ -85,7 +87,9 @@ class OpenAiNewsGeneratorTest {
                     validContent("미국 뉴스 2"),
                     validContent("미국 뉴스 3")))));
 
-    List<GeneratedEconomicNews> generatedNews = newGenerator().generateUsEconomicNews();
+    OpenAiNewsGenerator generator = newGenerator();
+    List<GeneratedEconomicNews> generatedNews =
+        generator.write(toTopicResearch(generator.researchUsEconomicNews()));
 
     assertThat(generatedNews).hasSize(4);
     String researchRequest = server.takeRequest().getBody().readUtf8();
@@ -124,7 +128,7 @@ class OpenAiNewsGeneratorTest {
 
     List<GeneratedEconomicNews> generated =
         new OpenAiNewsWriter(properties(), org.springframework.web.client.RestClient.builder())
-            .write(List.of(research("첫 번째 뉴스"), research("두 번째 뉴스")));
+            .write(List.of(topicResearch("첫 번째 뉴스"), topicResearch("두 번째 뉴스")));
 
     assertThat(generated).hasSize(2);
     assertThat(generated.get(0).content()).hasSizeBetween(800, 1_500);
@@ -140,8 +144,9 @@ class OpenAiNewsGeneratorTest {
   void writerRetriesWhenContentIsBlank() throws Exception {
     server.enqueue(jsonResponse(writerResponse(List.of(" "))));
     server.enqueue(jsonResponse(writerResponse(List.of(validContent("재작성된 뉴스")))));
-    EconomicNewsResearch research =
-        new EconomicNewsResearch(
+    NewsGenerationTopicResearch research =
+        new NewsGenerationTopicResearch(
+            "a".repeat(64),
             "뉴스 제목",
             LocalDate.now(ZoneId.of("Asia/Seoul")),
             Category.STOCK,
@@ -172,7 +177,7 @@ class OpenAiNewsGeneratorTest {
 
     List<GeneratedEconomicNews> generated =
         new OpenAiNewsWriter(properties(), org.springframework.web.client.RestClient.builder())
-            .write(List.of(research("뉴스 제목")));
+            .write(List.of(topicResearch("뉴스 제목")));
 
     assertThat(generated)
         .singleElement()
@@ -190,7 +195,7 @@ class OpenAiNewsGeneratorTest {
             () ->
                 new OpenAiNewsWriter(
                         properties(), org.springframework.web.client.RestClient.builder())
-                    .write(List.of(research("뉴스 제목"))))
+                    .write(List.of(topicResearch("뉴스 제목"))))
         .isInstanceOf(BusinessException.class);
 
     assertThat(server.getRequestCount()).isEqualTo(2);
@@ -203,7 +208,7 @@ class OpenAiNewsGeneratorTest {
 
     List<GeneratedEconomicNews> generated =
         new OpenAiNewsWriter(properties(), org.springframework.web.client.RestClient.builder())
-            .write(List.of(research("첫 번째 뉴스"), research("두 번째 뉴스")));
+            .write(List.of(topicResearch("첫 번째 뉴스"), topicResearch("두 번째 뉴스")));
 
     assertThat(generated).hasSize(1);
     assertThat(generated.getFirst().title()).isEqualTo("첫 번째 뉴스");
@@ -219,6 +224,33 @@ class OpenAiNewsGeneratorTest {
         List.of(
             new NewsSourceInfo("출처 1", "https://example.com/1"),
             new NewsSourceInfo("출처 2", "https://example.com/2")));
+  }
+
+  private NewsGenerationTopicResearch topicResearch(String title) {
+    EconomicNewsResearch research = research(title);
+    return new NewsGenerationTopicResearch(
+        "a".repeat(64),
+        research.title(),
+        research.referenceDate(),
+        research.category(),
+        research.facts(),
+        research.sources());
+  }
+
+  private List<NewsGenerationTopicResearch> toTopicResearch(List<EconomicNewsResearch> research) {
+    return java.util.stream.IntStream.range(0, research.size())
+        .mapToObj(
+            index -> {
+              EconomicNewsResearch item = research.get(index);
+              return new NewsGenerationTopicResearch(
+                  Integer.toHexString(index).repeat(64).substring(0, 64),
+                  item.title(),
+                  item.referenceDate(),
+                  item.category(),
+                  item.facts(),
+                  item.sources());
+            })
+        .toList();
   }
 
   private OpenAiNewsGenerator newGenerator() {
