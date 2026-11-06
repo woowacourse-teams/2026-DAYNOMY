@@ -120,7 +120,7 @@ describe('투자 캘린더 화면', () => {
 
     const previous = view.getByRole('button', { name: '이전 달' });
     expect(previous.hasAttribute('disabled')).toBe(false);
-    vi.setSystemTime(new Date('2026-11-01T00:00:00+09:00'));
+    vi.setSystemTime(new Date(2026, 10, 1));
     fireEvent.click(previous);
 
     expect(mockedGetInvestmentCalendar).toHaveBeenCalledTimes(2);
