@@ -75,14 +75,21 @@ class NewsPersistenceServiceTest {
   }
 
   @Test
-  @DisplayName("생성된 뉴스와 이미지 URL 개수가 다르면 저장하지 않는다")
-  void saveDraftsRejectsMismatchedImageUrls() {
+  @DisplayName("예약된 주제와 생성된 뉴스의 주제가 다르면 저장하지 않는다")
+  void saveDraftsRejectsUnreservedTopic() {
     GeneratedEconomicNews article =
-        new GeneratedEconomicNews("제목", "본문", Category.STOCK, List.of());
+        new GeneratedEconomicNews("b".repeat(64), "제목", "본문", Category.STOCK, List.of());
+    UUID reservationToken = UUID.randomUUID();
+    NewsGenerationTopic topic = org.mockito.Mockito.mock(NewsGenerationTopic.class);
+    given(topic.getTopicKey()).willReturn("a".repeat(64));
+    given(topic.isReservedBy(reservationToken)).willReturn(true);
+    given(topicRepository.findAllByIdForUpdate(List.of(1L))).willReturn(List.of(topic));
 
-    assertThatThrownBy(() -> newsPersistenceService.saveDrafts(List.of(article), List.of()))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Each generated news article must have an image URL slot.");
+    assertThatThrownBy(
+            () ->
+                newsPersistenceService.saveDrafts(List.of(article), List.of(1L), reservationToken))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Generated news does not match a reserved topic.");
 
     verifyNoInteractions(newsRepository);
   }

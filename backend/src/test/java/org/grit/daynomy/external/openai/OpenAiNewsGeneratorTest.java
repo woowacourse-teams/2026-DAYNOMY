@@ -259,7 +259,7 @@ class OpenAiNewsGeneratorTest {
     assertNewsGenerationFailed(
         () ->
             new OpenAiNewsWriter(properties(), org.springframework.web.client.RestClient.builder())
-                .write(List.of(research("뉴스 제목"))));
+                .write(List.of(topicResearch("뉴스 제목"))));
   }
 
   @Test
@@ -270,7 +270,7 @@ class OpenAiNewsGeneratorTest {
         () ->
             new OpenAiNewsWriter(
                     shortTimeoutProperties(), org.springframework.web.client.RestClient.builder())
-                .write(List.of(research("뉴스 제목"))));
+                .write(List.of(topicResearch("뉴스 제목"))));
   }
 
   private EconomicNewsResearch research(String title) {
