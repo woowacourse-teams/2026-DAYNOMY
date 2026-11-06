@@ -116,6 +116,7 @@ COOKIE_SECURE=false
 
 AI, S3와 외부 콘텐츠 기능의 추가 설정은 `src/main/resources/application.yaml`을 기준으로 합니다.
 
+
 ### 실행
 
 ```bash

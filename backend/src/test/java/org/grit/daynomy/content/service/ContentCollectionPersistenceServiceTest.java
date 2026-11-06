@@ -36,6 +36,7 @@ class ContentCollectionPersistenceServiceTest {
   @Mock private CollectedExternalContentReviewRepository reviewRepository;
   @Mock private AssetRepository assetRepository;
   @Mock private AssetMentionMatcher assetMentionMatcher;
+  @Mock private ContentTranslationService contentTranslationService;
 
   @Test
   void savesNewContentAndLinksConfiguredAsset() {
@@ -47,10 +48,18 @@ class ContentCollectionPersistenceServiceTest {
     ReflectionTestUtils.setField(source, "id", 1L);
     CollectedContentItem item =
         new CollectedContentItem(
-            "신제품 공개", "", "https://x.com/samsung/status/123", null, LocalDate.of(2026, 10, 26));
+            "New product revealed",
+            "Product details",
+            "https://x.com/samsung/status/123",
+            null,
+            LocalDate.of(2026, 10, 26));
+    CollectedContentItem translated =
+        new CollectedContentItem(
+            "신제품 공개", "제품 상세 내용", item.url(), item.imageUrl(), item.publishedDate());
     Instant collectedAt = Instant.parse("2026-10-26T01:00:00Z");
     given(sourceRepository.findById(1L)).willReturn(Optional.of(source));
     given(collectedContentRepository.findByUrl(item.url())).willReturn(Optional.empty());
+    given(contentTranslationService.translateIfEnglish(item)).willReturn(translated);
     given(collectedContentRepository.save(org.mockito.ArgumentMatchers.any()))
         .willAnswer(
             invocation -> {
@@ -71,6 +80,8 @@ class ContentCollectionPersistenceServiceTest {
         ArgumentCaptor.forClass(CollectedExternalContent.class);
     then(collectedContentRepository).should().save(collectedCaptor.capture());
     assertThat(collectedCaptor.getValue().getUrl()).isEqualTo(item.url());
+    assertThat(collectedCaptor.getValue().getTitle()).isEqualTo("신제품 공개");
+    assertThat(collectedCaptor.getValue().getDescription()).isEqualTo("제품 상세 내용");
     ArgumentCaptor<CollectedExternalContentReview> reviewCaptor =
         ArgumentCaptor.forClass(CollectedExternalContentReview.class);
     then(reviewRepository).should().save(reviewCaptor.capture());
@@ -106,11 +117,12 @@ class ContentCollectionPersistenceServiceTest {
 
     assertThat(result.duplicateCount()).isEqualTo(1);
     assertThat(result.linkedCount()).isEqualTo(1);
+    then(contentTranslationService).shouldHaveNoInteractions();
     then(reviewRepository).should().save(org.mockito.ArgumentMatchers.any());
   }
 
   @Test
-  void manualContentUsesMentionedAssetsWithoutUpdatingCollectionTime() {
+  void manualContentMatchesOriginalTextAndStoresTranslationWithoutUpdatingCollectionTime() {
     Asset asset = new Asset("삼성전자", AssetCategory.STOCK, "005930");
     ReflectionTestUtils.setField(asset, "id", 10L);
     ContentCollectionSource source =
@@ -118,13 +130,17 @@ class ContentCollectionPersistenceServiceTest {
             "한국경제신문", ContentSourceType.X, "https://x.com/hankyungmedia", null, true);
     CollectedContentItem item =
         new CollectedContentItem(
-            "삼성전자 투자 확대",
+            "Samsung Electronics expands investment",
             "",
             "https://x.com/hankyungmedia/status/123",
             null,
             LocalDate.of(2026, 10, 27));
+    CollectedContentItem translated =
+        new CollectedContentItem(
+            "삼성전자 투자 확대", "", item.url(), item.imageUrl(), item.publishedDate());
     given(sourceRepository.findById(1L)).willReturn(Optional.of(source));
     given(collectedContentRepository.findByUrl(item.url())).willReturn(Optional.empty());
+    given(contentTranslationService.translateIfEnglish(item)).willReturn(translated);
     given(assetRepository.findAllByCategoryInAndListedTrue(org.mockito.ArgumentMatchers.any()))
         .willReturn(List.of(asset));
     given(assetMentionMatcher.match(item.title(), item.description(), List.of(asset)))
@@ -141,6 +157,11 @@ class ContentCollectionPersistenceServiceTest {
 
     assertThat(result.linkedCount()).isEqualTo(1);
     assertThat(source.getLastCollectedAt()).isNull();
+    ArgumentCaptor<CollectedExternalContent> contentCaptor =
+        ArgumentCaptor.forClass(CollectedExternalContent.class);
+    then(collectedContentRepository).should().save(contentCaptor.capture());
+    assertThat(contentCaptor.getValue().getTitle()).isEqualTo("삼성전자 투자 확대");
+    then(assetMentionMatcher).should().match(item.title(), item.description(), List.of(asset));
     then(reviewRepository).should().save(org.mockito.ArgumentMatchers.any());
   }
 
@@ -160,6 +181,7 @@ class ContentCollectionPersistenceServiceTest {
         .isInstanceOf(BusinessException.class)
         .extracting(exception -> ((BusinessException) exception).errorCode())
         .isEqualTo(ContentErrorCode.CONTENT_COLLECTION_CONTENT_ALREADY_EXISTS);
+    then(contentTranslationService).shouldHaveNoInteractions();
   }
 
   private ContentCollectionPersistenceService service() {
@@ -168,6 +190,7 @@ class ContentCollectionPersistenceServiceTest {
         collectedContentRepository,
         reviewRepository,
         assetRepository,
-        assetMentionMatcher);
+        assetMentionMatcher,
+        contentTranslationService);
   }
 }

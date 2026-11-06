@@ -68,4 +68,9 @@ public class CollectedExternalContent extends BaseEntity {
       publishedDate = confirmedDate;
     }
   }
+
+  public void updateText(String title, String description) {
+    this.title = title.strip();
+    this.description = description.strip();
+  }
 }
