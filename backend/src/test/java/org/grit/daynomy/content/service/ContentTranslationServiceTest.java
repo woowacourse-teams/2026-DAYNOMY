@@ -56,6 +56,36 @@ class ContentTranslationServiceTest {
   }
 
   @Test
+  @DisplayName("영어 제목만 번역하고 한국어 설명은 유지한다")
+  void translateIfEnglishTranslatesOnlyEnglishTitle() {
+    CollectedContentItem item =
+        new CollectedContentItem(
+            "Market rallies", "주식이 상승했다.", "https://example.com/1", null, null);
+    given(translator.translate(item.title(), item.description()))
+        .willReturn(new ContentTranslation("시장 상승", "변경된 설명"));
+
+    CollectedContentItem translated = service.translateIfEnglish(item);
+
+    assertThat(translated.title()).isEqualTo("시장 상승");
+    assertThat(translated.description()).isEqualTo(item.description());
+  }
+
+  @Test
+  @DisplayName("영어 설명만 번역하고 한국어 제목은 유지한다")
+  void translateIfEnglishTranslatesOnlyEnglishDescription() {
+    CollectedContentItem item =
+        new CollectedContentItem(
+            "시장 상승", "Stocks closed higher.", "https://example.com/1", null, null);
+    given(translator.translate(item.title(), item.description()))
+        .willReturn(new ContentTranslation("변경된 제목", "주식은 상승 마감했다."));
+
+    CollectedContentItem translated = service.translateIfEnglish(item);
+
+    assertThat(translated.title()).isEqualTo(item.title());
+    assertThat(translated.description()).isEqualTo("주식은 상승 마감했다.");
+  }
+
+  @Test
   @DisplayName("번역 실패 시 원문을 유지한다")
   void translateIfEnglishKeepsOriginalOnFailure() {
     CollectedContentItem item =

@@ -16,7 +16,9 @@ public class ContentTranslationService {
   private final OpenAiContentTranslator translator;
 
   CollectedContentItem translateIfEnglish(CollectedContentItem item) {
-    if (!isEnglish(text(item.title()) + "\n" + text(item.description()))) {
+    boolean translateTitle = isEnglish(text(item.title()));
+    boolean translateDescription = isEnglish(text(item.description()));
+    if (!translateTitle && !translateDescription) {
       return item;
     }
 
@@ -33,8 +35,8 @@ public class ContentTranslationService {
           .addKeyValue("operation", "external-content-translation")
           .log(LogEvent.EXTERNAL_API_COMPLETED.message());
       return new CollectedContentItem(
-          translation.title(),
-          translation.description(),
+          translateTitle ? translation.title() : item.title(),
+          translateDescription ? translation.description() : item.description(),
           item.url(),
           item.imageUrl(),
           item.publishedDate());
