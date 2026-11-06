@@ -9,6 +9,7 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import org.grit.daynomy.common.exception.BusinessException;
@@ -210,6 +211,63 @@ class OpenAiNewsGeneratorTest {
     assertThat(server.getRequestCount()).isEqualTo(2);
   }
 
+  @Test
+  void researcherConvertsHttpError() {
+    server.enqueue(new MockResponse().setResponseCode(503));
+
+    assertNewsGenerationFailed(
+        () ->
+            new OpenAiNewsResearcher(
+                    properties(), org.springframework.web.client.RestClient.builder())
+                .researchEconomicNews());
+  }
+
+  @Test
+  void researcherConvertsTimeout() {
+    server.enqueue(jsonResponse("{}").setHeadersDelay(500, TimeUnit.MILLISECONDS));
+
+    assertNewsGenerationFailed(
+        () ->
+            new OpenAiNewsResearcher(
+                    shortTimeoutProperties(), org.springframework.web.client.RestClient.builder())
+                .researchEconomicNews());
+  }
+
+  @Test
+  void researcherConvertsMalformedResponseAfterRetry() {
+    server.enqueue(jsonResponse("not-json"));
+    server.enqueue(jsonResponse("not-json"));
+    server.enqueue(jsonResponse("not-json"));
+
+    assertNewsGenerationFailed(
+        () ->
+            new OpenAiNewsResearcher(
+                    properties(), org.springframework.web.client.RestClient.builder())
+                .researchEconomicNews());
+    assertThat(server.getRequestCount()).isEqualTo(3);
+  }
+
+  @Test
+  void writerConvertsHttpError() {
+    server.enqueue(new MockResponse().setResponseCode(429));
+
+    assertNewsGenerationFailed(
+        () ->
+            new OpenAiNewsWriter(properties(), org.springframework.web.client.RestClient.builder())
+                .write(List.of(research("뉴스 제목"))));
+  }
+
+  @Test
+  void writerConvertsTimeout() {
+    server.enqueue(jsonResponse("{}").setHeadersDelay(500, TimeUnit.MILLISECONDS));
+
+    assertNewsGenerationFailed(
+        () ->
+            new OpenAiNewsWriter(
+                    shortTimeoutProperties(), org.springframework.web.client.RestClient.builder())
+                .write(List.of(research("뉴스 제목"))));
+  }
+
   private EconomicNewsResearch research(String title) {
     return new EconomicNewsResearch(
         title,
@@ -236,6 +294,27 @@ class OpenAiNewsGeneratorTest {
         "test-news-model",
         Duration.ofSeconds(1),
         Duration.ofSeconds(1));
+  }
+
+  private OpenAiProperties shortTimeoutProperties() {
+    return new OpenAiProperties(
+        "test-key",
+        server.url("/v1").toString(),
+        "test-image-model",
+        "test-news-model",
+        Duration.ofSeconds(1),
+        Duration.ofMillis(100));
+  }
+
+  private void assertNewsGenerationFailed(
+      org.assertj.core.api.ThrowableAssert.ThrowingCallable call) {
+    assertThatThrownBy(call)
+        .isInstanceOfSatisfying(
+            BusinessException.class,
+            exception ->
+                assertThat(exception.errorCode())
+                    .isEqualTo(
+                        org.grit.daynomy.external.ExternalErrorCode.AI_NEWS_GENERATION_FAILED));
   }
 
   private MockResponse jsonResponse(String body) {

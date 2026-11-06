@@ -1,9 +1,11 @@
 package org.grit.daynomy.news.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import java.util.Collections;
 import java.util.List;
@@ -42,5 +44,18 @@ class NewsPersistenceServiceTest {
     assertThat(newsCaptor.getValue().getFirst().getTitle()).isEqualTo("제목");
     assertThat(newsCaptor.getValue().getFirst().getSources()).isEmpty();
     assertThat(newsCaptor.getValue().getFirst().getImageUrl()).isNull();
+  }
+
+  @Test
+  @DisplayName("생성된 뉴스와 이미지 URL 개수가 다르면 저장하지 않는다")
+  void saveDraftsRejectsMismatchedImageUrls() {
+    GeneratedEconomicNews article =
+        new GeneratedEconomicNews("제목", "본문", Category.STOCK, List.of());
+
+    assertThatThrownBy(() -> newsPersistenceService.saveDrafts(List.of(article), List.of()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Each generated news article must have an image URL slot.");
+
+    verifyNoInteractions(newsRepository);
   }
 }
