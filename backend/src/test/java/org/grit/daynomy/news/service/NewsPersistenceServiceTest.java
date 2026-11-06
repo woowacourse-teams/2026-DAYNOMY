@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import java.util.List;
 import java.util.UUID;
@@ -71,5 +72,18 @@ class NewsPersistenceServiceTest {
         .hasMessage("News topic reservation ownership was lost.");
 
     verify(newsRepository, never()).saveAll(anyList());
+  }
+
+  @Test
+  @DisplayName("생성된 뉴스와 이미지 URL 개수가 다르면 저장하지 않는다")
+  void saveDraftsRejectsMismatchedImageUrls() {
+    GeneratedEconomicNews article =
+        new GeneratedEconomicNews("제목", "본문", Category.STOCK, List.of());
+
+    assertThatThrownBy(() -> newsPersistenceService.saveDrafts(List.of(article), List.of()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Each generated news article must have an image URL slot.");
+
+    verifyNoInteractions(newsRepository);
   }
 }
