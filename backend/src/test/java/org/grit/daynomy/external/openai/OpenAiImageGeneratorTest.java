@@ -48,7 +48,7 @@ class OpenAiImageGeneratorTest {
   }
 
   @Test
-  @DisplayName("두 이미지 생성 프롬프트가 사람과 문자 생성을 엄격히 제한한다")
+  @DisplayName("두 이미지 생성 프롬프트가 사람·문자·범용 금융 상징 생성을 제한한다")
   void imagePromptsSharePeopleAndTextGuidelines() throws Exception {
     OpenAiImageGenerator generator =
         new OpenAiImageGenerator(
@@ -69,6 +69,25 @@ class OpenAiImageGeneratorTest {
         .contains("semantic subject reference only")
         .doesNotContain("Headline:");
     assertSharedImageRestrictions(economicPrompt);
+  }
+
+  @Test
+  @DisplayName("OpenAI Images API에 설정한 모델과 이미지 옵션을 전달한다")
+  void generateEconomicNewsImageUsesConfiguredRequestOptions() throws Exception {
+    OpenAiImageGenerator generator =
+        new OpenAiImageGenerator(
+            new OpenAiProperties(
+                "test-key", startServer(openAiImageResponse()), "gpt-image-2.5-flare"),
+            org.springframework.web.client.RestClient.builder());
+
+    generator.generateEconomicNewsImage("금리 인상 전망", "시장 금리가 상승했다", Category.STOCK);
+
+    JsonNode request = OBJECT_MAPPER.readTree(requestBody);
+    assertThat(request.path("model").asText()).isEqualTo("gpt-image-2.5-flare");
+    assertThat(request.path("quality").asText()).isEqualTo("low");
+    assertThat(request.path("size").asText()).isEqualTo("1536x1024");
+    assertThat(request.path("output_format").asText()).isEqualTo("webp");
+    assertThat(request.path("n").asInt()).isOne();
   }
 
   @Test
@@ -219,6 +238,11 @@ class OpenAiImageGeneratorTest {
         .contains("Do not create fake writing, pseudo-text, scribbles, or random glyphs")
         .contains("Only include a specific text element when the request explicitly identifies it")
         .contains("No such text is requested here, so use no text at all")
+        .contains("at least two concrete visual anchors specific to the supplied title")
+        .contains("an image that could be reused for an unrelated finance story is invalid")
+        .contains("rising or falling arrows, stacks of coins")
+        .contains("generic bar, line, or candlestick charts")
+        .contains("bull or bear figures, floating currency symbols")
         .contains("Never render, copy, paraphrase, translate, or visualize any words, letters")
         .contains("Final check: remove all text-like marks and all unnecessary people");
   }
