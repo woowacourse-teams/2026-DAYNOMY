@@ -16,6 +16,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import org.grit.daynomy.auth.token.JwtAuthenticationFilter;
+import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.common.exception.GlobalExceptionHandler;
 import org.grit.daynomy.config.SwaggerConfig;
 import org.grit.daynomy.content.service.AssetContentService;
@@ -31,6 +32,7 @@ import org.grit.daynomy.news.dto.ImageSourceRequest;
 import org.grit.daynomy.news.dto.NewsSourceRequest;
 import org.grit.daynomy.news.dto.NewsSourceResponse;
 import org.grit.daynomy.news.dto.WikimediaImageCandidateResponse;
+import org.grit.daynomy.news.exception.NewsErrorCode;
 import org.grit.daynomy.news.service.AdminNewsService;
 import org.grit.daynomy.news.service.NewsGenerationService;
 import org.grit.daynomy.search.domain.NewsSearchSort;
@@ -115,12 +117,27 @@ class AdminNewsControllerTest {
                     800)));
 
     mockMvc
-        .perform(get("/api/admin/news/image-search").param("keyword", "Seoul"))
+        .perform(get("/api/admin/news/image-search").param("keyword", " Seoul "))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.items[0].title").value("File:Seoul.jpg"))
         .andExpect(jsonPath("$.items[0].license").value("CC BY 4.0"));
 
     then(adminNewsService).should().searchWikimediaImages("Seoul");
+  }
+
+  @Test
+  @DisplayName("관리자 이미지 검색 API는 검색어 길이 경계를 검증한다")
+  void searchWikimediaImagesRejectsInvalidKeywordLength() throws Exception {
+    mockMvc
+        .perform(get("/api/admin/news/image-search").param("keyword", "가"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+    mockMvc
+        .perform(get("/api/admin/news/image-search").param("keyword", "가".repeat(101)))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+
+    verifyNoInteractions(adminNewsService);
   }
 
   @Test
@@ -204,6 +221,41 @@ class AdminNewsControllerTest {
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
         .andExpect(jsonPath("$.errors").isArray());
+
+    verifyNoInteractions(adminNewsService);
+  }
+
+  @Test
+  @DisplayName("관리자 뉴스 등록 API는 관련 종목의 개수와 ID를 검증한다")
+  void createNewsRejectsInvalidAssetIds() throws Exception {
+    String tooManyAssetIds =
+        java.util.stream.LongStream.rangeClosed(1, 21)
+            .mapToObj(Long::toString)
+            .collect(java.util.stream.Collectors.joining(","));
+
+    for (String assetIds : java.util.List.of("0", "null", tooManyAssetIds)) {
+      MockMultipartFile requestPart =
+          new MockMultipartFile(
+              "request",
+              "",
+              MediaType.APPLICATION_JSON_VALUE,
+              ("""
+               {
+                 "title": "뉴스 제목",
+                 "content": "뉴스 본문",
+                 "sources": [{"name": "직접 입력", "url": "https://example.com/news/1"}],
+                 "category": "STOCK",
+                 "assetIds": [%s]
+               }
+               """)
+                  .formatted(assetIds)
+                  .getBytes());
+
+      mockMvc
+          .perform(multipart("/api/admin/news").file(requestPart))
+          .andExpect(status().isBadRequest())
+          .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+    }
 
     verifyNoInteractions(adminNewsService);
   }
@@ -302,6 +354,18 @@ class AdminNewsControllerTest {
 
     then(newsGenerationService).should().generateUsEconomicNewsDrafts();
     then(newsGenerationService).shouldHaveNoMoreInteractions();
+  }
+
+  @Test
+  @DisplayName("같은 시장의 뉴스 주제 생성이 진행 중이면 409를 반환한다")
+  void generateEconomicNewsDraftsRejectsConcurrentDiscovery() throws Exception {
+    given(newsGenerationService.generateKoreanEconomicNewsDrafts())
+        .willThrow(new BusinessException(NewsErrorCode.NEWS_GENERATION_IN_PROGRESS));
+
+    mockMvc
+        .perform(post("/api/admin/news/generate/economy/korea"))
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.code").value("NEWS_GENERATION_IN_PROGRESS"));
   }
 
   @Test
@@ -408,6 +472,25 @@ class AdminNewsControllerTest {
   void getNewsPageRejectsTooLongKeyword() throws Exception {
     mockMvc
         .perform(get("/api/admin/news").param("q", "가".repeat(101)))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+
+    verifyNoInteractions(adminNewsService);
+  }
+
+  @Test
+  @DisplayName("관리자 뉴스 목록 API는 페이지와 크기 경계를 검증한다")
+  void getNewsPageRejectsInvalidPagination() throws Exception {
+    mockMvc
+        .perform(get("/api/admin/news").param("page", "0"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+    mockMvc
+        .perform(get("/api/admin/news").param("size", "0"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+    mockMvc
+        .perform(get("/api/admin/news").param("size", "101"))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
 
@@ -542,6 +625,41 @@ class AdminNewsControllerTest {
         .andExpect(jsonPath("$.status").value("DRAFT"));
 
     then(adminNewsService).should().update(eq(1L), eq(request), eq(image));
+  }
+
+  @Test
+  @DisplayName("관리자 뉴스 수정 API는 요청 본문을 검증한다")
+  void updateNewsRejectsInvalidRequest() throws Exception {
+    MockMultipartFile requestPart =
+        new MockMultipartFile(
+            "request",
+            "",
+            MediaType.APPLICATION_JSON_VALUE,
+            """
+            {
+              "title": "",
+              "content": "수정 본문",
+              "sources": [{"name": "직접 입력", "url": "https://example.com/new"}],
+              "category": "ETF",
+              "assetIds": [-1]
+            }
+            """
+                .getBytes());
+
+    mockMvc
+        .perform(
+            multipart("/api/admin/news/1")
+                .file(requestPart)
+                .with(
+                    servletRequest -> {
+                      servletRequest.setMethod("PUT");
+                      return servletRequest;
+                    }))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+        .andExpect(jsonPath("$.errors").isArray());
+
+    verifyNoInteractions(adminNewsService);
   }
 
   @Test

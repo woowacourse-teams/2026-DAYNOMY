@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -14,6 +15,7 @@ import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -66,6 +68,7 @@ import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.web.multipart.MultipartFile;
 
 @ExtendWith(MockitoExtension.class)
 class AdminNewsServiceTest {
@@ -235,6 +238,31 @@ class AdminNewsServiceTest {
   }
 
   @Test
+  @DisplayName("관리자 뉴스 등록은 선택한 관련 종목을 동기화한다")
+  void createNewsSynchronizesAssets() {
+    AdminNewsCreateRequest request =
+        new AdminNewsCreateRequest(
+            "뉴스 제목",
+            "뉴스 본문",
+            List.of(new NewsSourceRequest("직접 입력", "https://example.com/news/1")),
+            Category.STOCK,
+            null,
+            null,
+            List.of(11L, 22L));
+    given(newsRepository.save(any(News.class))).willAnswer(invocation -> invocation.getArgument(0));
+
+    TransactionSynchronizationManager.initSynchronization();
+    News savedNews;
+    try {
+      savedNews = adminNewsService.createDraft(request, null);
+    } finally {
+      TransactionSynchronizationManager.clearSynchronization();
+    }
+
+    verify(assetContentService).syncNewsContents(savedNews, List.of(11L, 22L));
+  }
+
+  @Test
   @DisplayName("초안 이미지 생성은 S3 URL을 뉴스 초안에 저장한다")
   void generateImageStoresImageForDraft() {
     News news = News.createDraft("뉴스 제목", "뉴스 본문", null, List.of(), Category.STOCK);
@@ -363,6 +391,99 @@ class AdminNewsServiceTest {
   }
 
   @Test
+  @DisplayName("업로드 이미지와 Wikimedia 이미지를 동시에 선택하면 등록을 거부한다")
+  void createNewsRejectsImageAndWikimediaSelection() {
+    AdminNewsCreateRequest request =
+        new AdminNewsCreateRequest(
+            "뉴스 제목",
+            "뉴스 본문",
+            List.of(new NewsSourceRequest("직접 입력", "https://example.com/news/1")),
+            Category.STOCK,
+            null,
+            new WikimediaImageSelectionRequest("File:Seoul skyline.jpg"));
+    MockMultipartFile image =
+        new MockMultipartFile("image", "news.png", MediaType.IMAGE_PNG_VALUE, new byte[] {1});
+
+    assertThatThrownBy(() -> adminNewsService.createDraft(request, image))
+        .isInstanceOfSatisfying(
+            BusinessException.class,
+            exception ->
+                assertThat(exception.errorCode()).isEqualTo(NewsErrorCode.INVALID_WIKIMEDIA_IMAGE));
+
+    verifyNoInteractions(wikimediaImageClient, s3ImageStorage, newsRepository);
+  }
+
+  @Test
+  @DisplayName("5MB를 초과한 이미지는 등록을 거부한다")
+  void createNewsRejectsOversizedImage() {
+    AdminNewsCreateRequest request =
+        new AdminNewsCreateRequest(
+            "뉴스 제목",
+            "뉴스 본문",
+            List.of(new NewsSourceRequest("직접 입력", "https://example.com/news/1")),
+            Category.STOCK);
+    MultipartFile image = mock(MultipartFile.class);
+    given(image.isEmpty()).willReturn(false);
+    given(image.getSize()).willReturn(5L * 1024 * 1024 + 1);
+
+    assertThatThrownBy(() -> adminNewsService.createDraft(request, image))
+        .isInstanceOfSatisfying(
+            BusinessException.class,
+            exception ->
+                assertThat(exception.errorCode()).isEqualTo(NewsErrorCode.INVALID_IMAGE_FILE));
+
+    verifyNoInteractions(s3ImageStorage, newsRepository);
+  }
+
+  @Test
+  @DisplayName("이미지 파일을 읽을 수 없으면 등록을 거부한다")
+  void createNewsRejectsUnreadableImage() throws Exception {
+    AdminNewsCreateRequest request =
+        new AdminNewsCreateRequest(
+            "뉴스 제목",
+            "뉴스 본문",
+            List.of(new NewsSourceRequest("직접 입력", "https://example.com/news/1")),
+            Category.STOCK);
+    MultipartFile image = mock(MultipartFile.class);
+    given(image.isEmpty()).willReturn(false);
+    given(image.getSize()).willReturn(3L);
+    given(image.getContentType()).willReturn(MediaType.IMAGE_PNG_VALUE);
+    given(image.getBytes()).willThrow(new IOException("image read failed"));
+
+    assertThatThrownBy(() -> adminNewsService.createDraft(request, image))
+        .isInstanceOfSatisfying(
+            BusinessException.class,
+            exception ->
+                assertThat(exception.errorCode()).isEqualTo(NewsErrorCode.INVALID_IMAGE_FILE));
+
+    verifyNoInteractions(s3ImageStorage, newsRepository, assetContentService);
+  }
+
+  @Test
+  @DisplayName("뉴스 저장에 실패하면 먼저 업로드한 이미지를 정리한다")
+  void createNewsCleansUpUploadedImageWhenSaveFails() {
+    AdminNewsCreateRequest request =
+        new AdminNewsCreateRequest(
+            "뉴스 제목",
+            "뉴스 본문",
+            List.of(new NewsSourceRequest("직접 입력", "https://example.com/news/1")),
+            Category.STOCK);
+    MockMultipartFile image =
+        new MockMultipartFile("image", "news.png", MediaType.IMAGE_PNG_VALUE, new byte[] {1});
+    S3ImageStorage.StoredImage uploadedImage =
+        new S3ImageStorage.StoredImage("news.png", "https://example.com/news.png");
+    RuntimeException failure = new RuntimeException("database save failed");
+    given(s3ImageStorage.upload(any(), eq("png"), eq(MediaType.IMAGE_PNG_VALUE)))
+        .willReturn(uploadedImage);
+    given(newsRepository.save(any(News.class))).willThrow(failure);
+
+    assertThatThrownBy(() -> adminNewsService.createDraft(request, image)).isSameAs(failure);
+
+    verify(s3ImageStorage).delete(uploadedImage);
+    verifyNoInteractions(assetContentService);
+  }
+
+  @Test
   @DisplayName("관리자 뉴스 목록은 필터가 없으면 전체를 페이지로 조회한다")
   void getNewsPageReturnsAllNewsWithoutFilters() {
     News news =
@@ -382,6 +503,28 @@ class AdminNewsServiceTest {
     assertThat(response.items().getFirst().title()).isEqualTo("초안 뉴스");
     assertThat(response.items().getFirst().status()).isEqualTo(NewsStatus.DRAFT);
     verify(newsRepository).findAll(pageable);
+    verifyNoInteractions(newsSearchRepository);
+  }
+
+  @Test
+  @DisplayName("관리자 뉴스 목록은 상태와 카테고리 필터 조합에 맞는 조회를 사용한다")
+  void getNewsPageRoutesFilterCombinations() {
+    PageRequest pageable = PageRequest.of(0, 15, Sort.by(Sort.Direction.DESC, "createdAt", "id"));
+    given(newsRepository.findByCategory(Category.STOCK, pageable))
+        .willReturn(new PageImpl<>(List.of(), pageable, 0));
+    given(newsRepository.findByStatus(NewsStatus.DRAFT, pageable))
+        .willReturn(new PageImpl<>(List.of(), pageable, 0));
+    given(newsRepository.findByStatusAndCategory(NewsStatus.DRAFT, Category.ETF, pageable))
+        .willReturn(new PageImpl<>(List.of(), pageable, 0));
+
+    adminNewsService.getNewsPage(1, 15, null, Category.STOCK, null, NewsSearchSort.LATEST);
+    adminNewsService.getNewsPage(1, 15, NewsStatus.DRAFT, null, null, NewsSearchSort.LATEST);
+    adminNewsService.getNewsPage(
+        1, 15, NewsStatus.DRAFT, Category.ETF, null, NewsSearchSort.LATEST);
+
+    verify(newsRepository).findByCategory(Category.STOCK, pageable);
+    verify(newsRepository).findByStatus(NewsStatus.DRAFT, pageable);
+    verify(newsRepository).findByStatusAndCategory(NewsStatus.DRAFT, Category.ETF, pageable);
     verifyNoInteractions(newsSearchRepository);
   }
 

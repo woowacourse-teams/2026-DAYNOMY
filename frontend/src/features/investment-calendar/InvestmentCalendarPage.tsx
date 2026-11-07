@@ -57,6 +57,11 @@ function moveMonth(year: number, month: number, amount: number) {
   return { year: target.getFullYear(), month: target.getMonth() + 1 };
 }
 
+function isBeforeCurrentMonth(year: number, month: number) {
+  const now = new Date();
+  return year * 12 + month < now.getFullYear() * 12 + now.getMonth() + 1;
+}
+
 function eventDateParts(announcedAt: string) {
   const parts = eventPartsFormatter.formatToParts(new Date(announcedAt));
   const value = (type: Intl.DateTimeFormatPartTypes) =>
@@ -282,6 +287,7 @@ function CalendarGrid({
 function BriefingCalendar({
   year,
   month,
+  canMovePreviousMonth,
   events,
   selectedEventId,
   scope,
@@ -295,6 +301,7 @@ function BriefingCalendar({
 }: {
   year: number;
   month: number;
+  canMovePreviousMonth: boolean;
   events: InvestmentCalendarEvent[];
   selectedEventId: number | null;
   scope: InvestmentCalendarScope;
@@ -319,7 +326,12 @@ function BriefingCalendar({
       </header>
 
       <div className="investment-calendar-briefing-month">
-        <button type="button" aria-label="이전 달" onClick={() => onChangeMonth(-1)}>
+        <button
+          type="button"
+          aria-label="이전 달"
+          disabled={!canMovePreviousMonth}
+          onClick={() => onChangeMonth(-1)}
+        >
           <ChevronIcon direction="left" />
         </button>
         <strong>
@@ -532,6 +544,9 @@ export const InvestmentCalendarPage = memo(function InvestmentCalendarPage({
   const requestedScope: InvestmentCalendarScope =
     compact || calendarView || upcomingOnly ? calendarScope : 'PORTFOLIO';
   const surface = compact ? 'news_home_calendar' : embedded ? 'news_calendar' : 'calendar';
+  const previousMonth = moveMonth(year, month, -1);
+  const canMovePreviousMonth =
+    !upcomingOnly || !isBeforeCurrentMonth(previousMonth.year, previousMonth.month);
 
   const trackCalendarAction = useCallback(
     (action: string, params: Record<string, string | number | boolean> = {}) => {
@@ -616,11 +631,12 @@ export const InvestmentCalendarPage = memo(function InvestmentCalendarPage({
   const changeMonth = useCallback(
     (amount: number) => {
       const next = moveMonth(year, month, amount);
+      if (upcomingOnly && isBeforeCurrentMonth(next.year, next.month)) return;
       trackCalendarAction('change_month', { direction: amount < 0 ? 'previous' : 'next' });
       setYear(next.year);
       setMonth(next.month);
     },
-    [month, trackCalendarAction, year],
+    [month, trackCalendarAction, upcomingOnly, year],
   );
 
   const changeScope = useCallback(
@@ -656,6 +672,7 @@ export const InvestmentCalendarPage = memo(function InvestmentCalendarPage({
       <BriefingCalendar
         year={year}
         month={month}
+        canMovePreviousMonth={canMovePreviousMonth}
         events={events}
         selectedEventId={selectedEventId}
         scope={calendarScope}
@@ -702,7 +719,12 @@ export const InvestmentCalendarPage = memo(function InvestmentCalendarPage({
         <aside className="investment-calendar-schedule">
           <div className="investment-calendar-panel-head">
             <div className="investment-calendar-month-control">
-              <button type="button" aria-label="이전 달" onClick={() => changeMonth(-1)}>
+              <button
+                type="button"
+                aria-label="이전 달"
+                disabled={!canMovePreviousMonth}
+                onClick={() => changeMonth(-1)}
+              >
                 <ChevronIcon direction="left" />
               </button>
               <strong>

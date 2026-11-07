@@ -1,15 +1,22 @@
 package org.grit.daynomy.content.controller;
 
+import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import org.grit.daynomy.auth.token.JwtAuthenticationFilter;
 import org.grit.daynomy.common.exception.GlobalExceptionHandler;
+import org.grit.daynomy.content.domain.ContentSourceType;
 import org.grit.daynomy.content.dto.ContentCollectionRematchResponse;
 import org.grit.daynomy.content.dto.ContentCollectionReviewBulkApproveRequest;
+import org.grit.daynomy.content.dto.ContentCollectionReviewResponse;
+import org.grit.daynomy.content.dto.ContentCollectionReviewUpdateRequest;
 import org.grit.daynomy.content.service.ContentCollectionReviewService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,6 +41,48 @@ class AdminContentCollectionReviewControllerTest {
 
   @Autowired private MockMvc mockMvc;
   @MockitoBean private ContentCollectionReviewService reviewService;
+
+  @Test
+  void updateChangesPendingContentTranslation() throws Exception {
+    given(reviewService.update(3L, new ContentCollectionReviewUpdateRequest("수정 제목", "수정 설명")))
+        .willReturn(
+            new ContentCollectionReviewResponse(
+                3L,
+                "경제 채널",
+                ContentSourceType.YOUTUBE,
+                "수정 제목",
+                "수정 설명",
+                "https://example.com/1",
+                null,
+                LocalDate.of(2026, 10, 26),
+                List.of(),
+                Instant.parse("2026-10-26T01:00:00Z")));
+
+    mockMvc
+        .perform(
+            put("/api/admin/content-collection-reviews/3")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"title\":\"수정 제목\",\"description\":\"수정 설명\"}"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.title").value("수정 제목"))
+        .andExpect(jsonPath("$.description").value("수정 설명"));
+
+    then(reviewService)
+        .should()
+        .update(3L, new ContentCollectionReviewUpdateRequest("수정 제목", "수정 설명"));
+  }
+
+  @Test
+  void updateRejectsBlankTitle() throws Exception {
+    mockMvc
+        .perform(
+            put("/api/admin/content-collection-reviews/3")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"title\":\"\",\"description\":\"수정 설명\"}"))
+        .andExpect(status().isBadRequest());
+
+    then(reviewService).shouldHaveNoInteractions();
+  }
 
   @Test
   void approvePublishesSelectedAsset() throws Exception {

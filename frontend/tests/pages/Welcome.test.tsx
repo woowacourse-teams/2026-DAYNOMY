@@ -76,6 +76,30 @@ describe('첫 방문 서비스 소개', () => {
     expect(localStorage.getItem(SERVICE_STARTED_KEY)).toBeNull();
   });
 
+  it('첫 방문 비회원이 소개에서 시작하기를 누르면 첫 대시보드에서 설문을 표시한다', async () => {
+    const fetchMock = vi.mocked(fetch).mockImplementation(async (input) => {
+      if (String(input).endsWith('/api/pmf-surveys/current')) {
+        return response({
+          surveyId: 805,
+          eligible: true,
+          responseId: null,
+          isFirstVisit: true,
+          hiddenUntil: null,
+        });
+      }
+      return response({}, 401);
+    });
+
+    const view = render(<App />);
+    const start = await view.findByRole('button', { name: '시작하기' });
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/api/pmf-surveys/'))).toBe(
+      false,
+    );
+    fireEvent.click(start);
+    expect(await view.findByRole('heading', { name: '내 포트폴리오' })).toBeTruthy();
+    expect(await view.findByRole('radio', { name: '매우 실망' })).toBeTruthy();
+  });
+
   it('시작하기 후에는 기록을 남기고 새로 접속해도 포트폴리오를 표시한다', async () => {
     const view = render(<App />);
     const start = await view.findByRole('button', { name: '시작하기' });

@@ -100,4 +100,26 @@ class InvestmentCalendarControllerTest {
         .should()
         .get(3L, java.time.YearMonth.of(2026, 10), InvestmentCalendarScope.ALL);
   }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.CsvSource({
+    "1999,10,ALL",
+    "2101,10,ALL",
+    "2026,0,ALL",
+    "2026,13,ALL",
+    "invalid,10,ALL",
+    "2026,10,UNKNOWN"
+  })
+  void rejectsInvalidQueryWithTheErrorContract(String year, String month, String scope)
+      throws Exception {
+    mockMvc
+        .perform(
+            get("/api/users/me/investment-calendar")
+                .param("year", year)
+                .param("month", month)
+                .param("scope", scope))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+    then(investmentCalendarService).shouldHaveNoInteractions();
+  }
 }

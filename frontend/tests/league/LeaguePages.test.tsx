@@ -172,7 +172,7 @@ describe('투자 리그 화면', () => {
         </AuthContext.Provider>,
       );
       const heading = await view.findByRole('heading', { name: '주간 순위' });
-      expect(observe).toHaveBeenCalledWith(heading.closest('header'));
+      await waitFor(() => expect(observe).toHaveBeenCalledWith(heading.closest('header')));
       act(() =>
         visible(
           [{ isIntersecting: true, intersectionRatio: 0.5 } as IntersectionObserverEntry],

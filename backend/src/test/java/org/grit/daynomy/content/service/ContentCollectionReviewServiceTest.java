@@ -16,6 +16,7 @@ import org.grit.daynomy.content.domain.CollectedExternalContentReview;
 import org.grit.daynomy.content.domain.ContentCollectionReviewStatus;
 import org.grit.daynomy.content.domain.ContentCollectionSource;
 import org.grit.daynomy.content.domain.ContentSourceType;
+import org.grit.daynomy.content.dto.ContentCollectionReviewUpdateRequest;
 import org.grit.daynomy.content.repository.AssetContentRepository;
 import org.grit.daynomy.content.repository.CollectedExternalContentRepository;
 import org.grit.daynomy.content.repository.CollectedExternalContentReviewRepository;
@@ -34,6 +35,25 @@ class ContentCollectionReviewServiceTest {
   @Mock private AssetRepository assetRepository;
   @Mock private AssetContentRepository assetContentRepository;
   @Mock private AssetMentionMatcher assetMentionMatcher;
+
+  @Test
+  void updateChangesPendingContentTranslation() {
+    CollectedExternalContent content = content("Market outlook");
+    CollectedExternalContentReview review = new CollectedExternalContentReview(content, null);
+    given(
+            reviewRepository.findAllByCollectedContentIdAndStatusOrderByIdAsc(
+                3L, ContentCollectionReviewStatus.PENDING))
+        .willReturn(List.of(review));
+
+    var response =
+        service()
+            .update(3L, new ContentCollectionReviewUpdateRequest("시장 전망", "주요 기업의 실적 발표가 이어졌다."));
+
+    assertThat(content.getTitle()).isEqualTo("시장 전망");
+    assertThat(content.getDescription()).isEqualTo("주요 기업의 실적 발표가 이어졌다.");
+    assertThat(response.title()).isEqualTo("시장 전망");
+    assertThat(response.description()).isEqualTo("주요 기업의 실적 발표가 이어졌다.");
+  }
 
   @Test
   void approvalPublishesContentForEverySelectedAsset() {
@@ -65,6 +85,9 @@ class ContentCollectionReviewServiceTest {
     assertThat(published.getAllValues())
         .extracting(AssetContent::getPublishedDate)
         .containsOnly(LocalDate.of(2026, 10, 26));
+    assertThat(published.getAllValues())
+        .extracting(AssetContent::getTitle)
+        .containsOnly(content.getTitle());
   }
 
   @Test

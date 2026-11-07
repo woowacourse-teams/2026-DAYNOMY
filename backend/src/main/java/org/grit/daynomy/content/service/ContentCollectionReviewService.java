@@ -21,6 +21,7 @@ import org.grit.daynomy.content.dto.ContentCollectionRematchResponse;
 import org.grit.daynomy.content.dto.ContentCollectionReviewBulkApproveRequest;
 import org.grit.daynomy.content.dto.ContentCollectionReviewPageResponse;
 import org.grit.daynomy.content.dto.ContentCollectionReviewResponse;
+import org.grit.daynomy.content.dto.ContentCollectionReviewUpdateRequest;
 import org.grit.daynomy.content.exception.ContentErrorCode;
 import org.grit.daynomy.content.repository.AssetContentRepository;
 import org.grit.daynomy.content.repository.CollectedExternalContentRepository;
@@ -70,6 +71,15 @@ public class ContentCollectionReviewService {
         contents.getTotalPages(),
         contents.getTotalElements(),
         contents.hasNext());
+  }
+
+  @Transactional
+  public ContentCollectionReviewResponse update(
+      Long contentId, ContentCollectionReviewUpdateRequest request) {
+    List<CollectedExternalContentReview> reviews = getPending(contentId);
+    var content = reviews.getFirst().getCollectedContent();
+    content.updateText(request.title(), request.description());
+    return ContentCollectionReviewResponse.from(content, reviews);
   }
 
   @Transactional
