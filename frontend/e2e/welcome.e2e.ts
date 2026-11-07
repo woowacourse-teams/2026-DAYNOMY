@@ -114,8 +114,11 @@ test('기기 위에서 휠로 앞뒤 장면을 넘겨도 기기와 시작 버튼
   const root = page.locator('.welcome-film');
   const phone = page.locator('.film-device .mockup-hardware');
   const original = await phone.elementHandle();
-  await phone.hover();
-  const box = await phone.boundingBox();
+  await page.locator('.film-mobile-preview').evaluate(async (element) => {
+    await Promise.all(element.getAnimations().map((animation) => animation.finished));
+  });
+  const box = (await phone.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   const distance = await introDistance(page);
   for (const [index, scene] of [
     [1, 'news'],
