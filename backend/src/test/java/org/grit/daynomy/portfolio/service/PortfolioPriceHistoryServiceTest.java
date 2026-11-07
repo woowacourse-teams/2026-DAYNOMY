@@ -318,8 +318,8 @@ class PortfolioPriceHistoryServiceTest {
   @Test
   void weekendOnlyRangeExtendsCoverageWithoutRequestingPrices() {
     LocalDate saturday =
-        LocalDate.now(ZoneId.of("Asia/Seoul"))
-            .minusDays(1)
+        LocalDate.now(ZoneId.of("America/New_York"))
+            .minusWeeks(1)
             .with(java.time.temporal.TemporalAdjusters.previousOrSame(DayOfWeek.SATURDAY));
     LocalDate sunday = saturday.plusDays(1);
     asset.recordPriceHistoryCoverage(saturday.minusDays(1), saturday.minusDays(1));
