@@ -61,7 +61,71 @@ class InvestmentCalendarHistoricalPriceClientTest {
     assertThat(prices.getFirst().closePrice()).isEqualByComparingTo("48750");
   }
 
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.EnumSource(
+      value = AssetCategory.class,
+      names = {"STOCK", "ETF"})
+  void httpFailureDoesNotReturnPartialPrices(AssetCategory category) {
+    server.enqueue(new MockResponse().setResponseCode(503));
+    org.assertj.core.api.Assertions.assertThatThrownBy(
+            () ->
+                client()
+                    .fetch(category, "005930", LocalDate.of(2026, 9, 1), LocalDate.of(2026, 10, 1)))
+        .isInstanceOf(org.springframework.web.client.HttpServerErrorException.class);
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.EnumSource(
+      value = AssetCategory.class,
+      names = {"STOCK", "ETF"})
+  void malformedBodyDoesNotReturnEmptyPrices(AssetCategory category) {
+    server.enqueue(
+        new MockResponse().setHeader("Content-Type", "application/json").setBody("invalid-json"));
+    org.assertj.core.api.Assertions.assertThatThrownBy(
+            () ->
+                client()
+                    .fetch(category, "005930", LocalDate.of(2026, 9, 1), LocalDate.of(2026, 10, 1)))
+        .isInstanceOf(org.springframework.web.client.RestClientException.class);
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.EnumSource(
+      value = AssetCategory.class,
+      names = {"STOCK", "ETF"})
+  void unsuccessfulPayloadDoesNotReturnEmptyPrices(AssetCategory category) {
+    server.enqueue(
+        new MockResponse()
+            .setHeader("Content-Type", "application/json")
+            .setBody(
+                "{\"response\":{\"header\":{\"resultCode\":\"99\"},\"body\":{\"numOfRows\":1000,\"pageNo\":1,\"totalCount\":0,\"items\":{\"item\":[]}}}}"));
+    org.assertj.core.api.Assertions.assertThatThrownBy(
+            () ->
+                client()
+                    .fetch(category, "005930", LocalDate.of(2026, 9, 1), LocalDate.of(2026, 10, 1)))
+        .isInstanceOf(IllegalStateException.class);
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.EnumSource(
+      value = AssetCategory.class,
+      names = {"STOCK", "ETF"})
+  void timeoutDoesNotReturnEmptyPrices(AssetCategory category) {
+    server.enqueue(
+        new MockResponse()
+            .setHeadersDelay(500, java.util.concurrent.TimeUnit.MILLISECONDS)
+            .setBody("{}"));
+    org.assertj.core.api.Assertions.assertThatThrownBy(
+            () ->
+                client(Duration.ofMillis(100))
+                    .fetch(category, "005930", LocalDate.of(2026, 9, 1), LocalDate.of(2026, 10, 1)))
+        .isInstanceOf(org.springframework.web.client.ResourceAccessException.class);
+  }
+
   private InvestmentCalendarHistoricalPriceClient client() {
+    return client(Duration.ofSeconds(1));
+  }
+
+  private InvestmentCalendarHistoricalPriceClient client(Duration timeout) {
     String baseUrl = server.url("/").toString();
     PublicDataProperties publicDataProperties =
         new PublicDataProperties(
@@ -74,7 +138,7 @@ class InvestmentCalendarHistoricalPriceClientTest {
     InvestmentCalendarExternalProperties calendarProperties =
         new InvestmentCalendarExternalProperties(
             Duration.ofSeconds(1),
-            Duration.ofSeconds(1),
+            timeout,
             baseUrl,
             baseUrl,
             baseUrl,

@@ -1,6 +1,7 @@
 package org.grit.daynomy.external.openai;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -8,6 +9,12 @@ import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.util.concurrent.TimeUnit;
+import okhttp3.mockwebserver.MockResponse;
+import okhttp3.mockwebserver.MockWebServer;
+import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.external.ExternalErrorCode;
 import org.grit.daynomy.news.domain.Category;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
@@ -86,6 +93,87 @@ class OpenAiImageGeneratorTest {
         .contains("artificial sharpening")
         .contains("perfectly uniform textures")
         .contains("not a digitally perfected image");
+  }
+
+  @Test
+  @DisplayName("OpenAI Images API HTTP 오류를 내부 예외로 변환한다")
+  void generateNewsImageConvertsHttpError() throws Exception {
+    MockWebServer mockServer = new MockWebServer();
+    mockServer.start();
+    mockServer.enqueue(new MockResponse().setResponseCode(503));
+
+    try {
+      OpenAiImageGenerator generator = newGenerator(mockServer, Duration.ofSeconds(1));
+
+      assertImageGenerationFailed(() -> generator.generateNewsImage("제목"));
+    } finally {
+      mockServer.shutdown();
+    }
+  }
+
+  @Test
+  @DisplayName("OpenAI Images API 타임아웃을 내부 예외로 변환한다")
+  void generateNewsImageConvertsTimeout() throws Exception {
+    MockWebServer mockServer = new MockWebServer();
+    mockServer.start();
+    mockServer.enqueue(
+        new MockResponse()
+            .setHeadersDelay(500, TimeUnit.MILLISECONDS)
+            .setBody(openAiImageResponse()));
+
+    try {
+      OpenAiImageGenerator generator = newGenerator(mockServer, Duration.ofMillis(100));
+
+      assertImageGenerationFailed(() -> generator.generateNewsImage("제목"));
+    } finally {
+      mockServer.shutdown();
+    }
+  }
+
+  @Test
+  @DisplayName("OpenAI Images API 응답에 이미지가 없으면 내부 예외로 변환한다")
+  void generateNewsImageRejectsMissingImage() throws Exception {
+    OpenAiImageGenerator generator =
+        new OpenAiImageGenerator(
+            new OpenAiProperties("test-key", startServer("{\"data\": []}"), "image-model"),
+            org.springframework.web.client.RestClient.builder());
+
+    assertImageGenerationFailed(() -> generator.generateNewsImage("제목"));
+  }
+
+  @Test
+  @DisplayName("OpenAI Images API의 잘못된 Base64 이미지를 내부 예외로 변환한다")
+  void generateNewsImageRejectsInvalidBase64() throws Exception {
+    String response = "{\"data\": [{\"b64_json\": \"not-base64!\"}]}";
+    OpenAiImageGenerator generator =
+        new OpenAiImageGenerator(
+            new OpenAiProperties("test-key", startServer(response), "image-model"),
+            org.springframework.web.client.RestClient.builder());
+
+    assertImageGenerationFailed(() -> generator.generateNewsImage("제목"));
+  }
+
+  private OpenAiImageGenerator newGenerator(MockWebServer mockServer, Duration readTimeout) {
+    OpenAiProperties properties =
+        new OpenAiProperties(
+            "test-key",
+            mockServer.url("/").toString(),
+            "image-model",
+            "news-model",
+            Duration.ofSeconds(1),
+            readTimeout);
+    return new OpenAiImageGenerator(
+        properties, org.springframework.web.client.RestClient.builder());
+  }
+
+  private void assertImageGenerationFailed(
+      org.assertj.core.api.ThrowableAssert.ThrowingCallable call) {
+    assertThatThrownBy(call)
+        .isInstanceOfSatisfying(
+            BusinessException.class,
+            exception ->
+                assertThat(exception.errorCode())
+                    .isEqualTo(ExternalErrorCode.AI_IMAGE_GENERATION_FAILED));
   }
 
   private String startServer(String responseBody) throws IOException {
