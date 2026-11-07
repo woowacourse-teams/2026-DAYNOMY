@@ -371,6 +371,137 @@ class AdminNewsServiceTest {
   }
 
   @Test
+  @DisplayName("이미지 후보 생성은 WebP 바이너리만 반환하고 저장하지 않는다")
+  void generateImageCandidateDoesNotPersistImage() {
+    News news = News.createDraft("뉴스 제목", "뉴스 본문", null, List.of(), Category.STOCK);
+    byte[] image = webpImage();
+    given(newsRepository.findById(1L)).willReturn(Optional.of(news));
+    given(openAiImageGenerator.generateEconomicNewsImage("뉴스 제목", "뉴스 본문", Category.STOCK))
+        .willReturn(image);
+
+    assertThat(adminNewsService.generateImageCandidate(1L)).isEqualTo(image);
+
+    verifyNoInteractions(s3ImageStorage);
+    verify(newsRepository, never()).flush();
+  }
+
+  @Test
+  @DisplayName("삭제된 뉴스는 이미지 후보 생성을 거부한다")
+  void generateImageCandidateRejectsDeletedNews() {
+    News news = News.createDraft("뉴스 제목", "뉴스 본문", null, List.of(), Category.STOCK);
+    news.delete();
+    given(newsRepository.findById(1L)).willReturn(Optional.of(news));
+
+    assertThatThrownBy(() -> adminNewsService.generateImageCandidate(1L))
+        .isInstanceOf(BusinessException.class)
+        .extracting(exception -> ((BusinessException) exception).errorCode())
+        .isEqualTo(NewsErrorCode.NEWS_IMAGE_GENERATION_NOT_ALLOWED);
+
+    verifyNoInteractions(openAiImageGenerator, s3ImageStorage);
+  }
+
+  @Test
+  @DisplayName("선택한 WebP 이미지는 S3와 뉴스에 저장하고 기존 이미지는 커밋 후 정리한다")
+  void selectImageReplacesNewsImage() {
+    String previousImageUrl = "https://example.com/existing.webp";
+    News news =
+        News.createPublished(
+            "뉴스 제목",
+            "뉴스 본문",
+            previousImageUrl,
+            ImageSourceInfo.manual(),
+            List.of(),
+            Category.STOCK,
+            null);
+    byte[] content = webpImage();
+    MockMultipartFile image =
+        new MockMultipartFile("image", "candidate.webp", "image/webp", content);
+    S3ImageStorage.StoredImage uploadedImage =
+        new S3ImageStorage.StoredImage("selected.webp", "https://example.com/selected.webp");
+    given(newsRepository.findById(1L)).willReturn(Optional.of(news));
+    given(s3ImageStorage.upload(content, "webp", "image/webp")).willReturn(uploadedImage);
+
+    TransactionSynchronizationManager.initSynchronization();
+    News result = adminNewsService.selectImage(1L, image);
+
+    assertThat(result.getImageUrl()).isEqualTo(uploadedImage.publicUrl());
+    assertThat(result.getImageSource()).isEqualTo(ImageSourceInfo.aiGenerated());
+    verify(newsRepository).flush();
+    verify(s3ImageStorage, never()).deleteIfManaged(previousImageUrl);
+
+    commitTransaction();
+    verify(s3ImageStorage).deleteIfManaged(previousImageUrl);
+  }
+
+  @Test
+  @DisplayName("선택한 이미지가 실제 WebP 형식이 아니면 저장을 거부한다")
+  void selectImageRejectsInvalidWebp() {
+    News news = News.createDraft("뉴스 제목", "뉴스 본문", null, List.of(), Category.STOCK);
+    MockMultipartFile image =
+        new MockMultipartFile("image", "candidate.webp", "image/webp", new byte[] {1, 2, 3});
+    given(newsRepository.findById(1L)).willReturn(Optional.of(news));
+
+    assertThatThrownBy(() -> adminNewsService.selectImage(1L, image))
+        .isInstanceOf(BusinessException.class)
+        .extracting(exception -> ((BusinessException) exception).errorCode())
+        .isEqualTo(NewsErrorCode.INVALID_IMAGE_FILE);
+
+    verifyNoInteractions(s3ImageStorage);
+  }
+
+  @Test
+  @DisplayName("WebP가 아닌 Content-Type의 후보 이미지는 선택할 수 없다")
+  void selectImageRejectsInvalidContentType() {
+    News news = News.createDraft("뉴스 제목", "뉴스 본문", null, List.of(), Category.STOCK);
+    MockMultipartFile image =
+        new MockMultipartFile("image", "candidate.webp", MediaType.IMAGE_PNG_VALUE, webpImage());
+    given(newsRepository.findById(1L)).willReturn(Optional.of(news));
+
+    assertThatThrownBy(() -> adminNewsService.selectImage(1L, image))
+        .isInstanceOf(BusinessException.class)
+        .extracting(exception -> ((BusinessException) exception).errorCode())
+        .isEqualTo(NewsErrorCode.INVALID_IMAGE_FILE);
+
+    verifyNoInteractions(s3ImageStorage);
+  }
+
+  @Test
+  @DisplayName("5MB를 초과한 후보 이미지는 선택할 수 없다")
+  void selectImageRejectsOversizedImage() {
+    News news = News.createDraft("뉴스 제목", "뉴스 본문", null, List.of(), Category.STOCK);
+    MultipartFile image = mock(MultipartFile.class);
+    given(newsRepository.findById(1L)).willReturn(Optional.of(news));
+    given(image.isEmpty()).willReturn(false);
+    given(image.getSize()).willReturn(5L * 1024 * 1024 + 1);
+
+    assertThatThrownBy(() -> adminNewsService.selectImage(1L, image))
+        .isInstanceOf(BusinessException.class)
+        .extracting(exception -> ((BusinessException) exception).errorCode())
+        .isEqualTo(NewsErrorCode.INVALID_IMAGE_FILE);
+
+    verifyNoInteractions(s3ImageStorage);
+  }
+
+  @Test
+  @DisplayName("선택 이미지의 DB 반영이 실패하면 신규 S3 이미지를 정리한다")
+  void selectImageCleansUpWhenNewsUpdateFails() {
+    News news = News.createDraft("뉴스 제목", "뉴스 본문", null, List.of(), Category.STOCK);
+    byte[] content = webpImage();
+    MockMultipartFile image =
+        new MockMultipartFile("image", "candidate.webp", "image/webp", content);
+    S3ImageStorage.StoredImage uploadedImage =
+        new S3ImageStorage.StoredImage("selected.webp", "https://example.com/selected.webp");
+    RuntimeException failure = new RuntimeException("database update failed");
+    given(newsRepository.findById(1L)).willReturn(Optional.of(news));
+    given(s3ImageStorage.upload(content, "webp", "image/webp")).willReturn(uploadedImage);
+    willThrow(failure).given(newsRepository).flush();
+
+    assertThatThrownBy(() -> adminNewsService.selectImage(1L, image)).isSameAs(failure);
+
+    verify(s3ImageStorage).delete(uploadedImage);
+  }
+
+  @Test
   @DisplayName("관리자 뉴스 등록은 지원하지 않는 이미지 형식을 거부한다")
   void createNewsRejectsUnsupportedImage() {
     AdminNewsCreateRequest request =
@@ -1061,6 +1192,10 @@ class AdminNewsServiceTest {
             synchronization ->
                 synchronization.afterCompletion(TransactionSynchronization.STATUS_COMMITTED));
     TransactionSynchronizationManager.clearSynchronization();
+  }
+
+  private byte[] webpImage() {
+    return new byte[] {'R', 'I', 'F', 'F', 0, 0, 0, 0, 'W', 'E', 'B', 'P'};
   }
 
   private ILoggingEvent assertCompletionLog(LogEvent event) {
