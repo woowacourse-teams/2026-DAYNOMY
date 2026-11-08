@@ -2,12 +2,13 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   createAdminNews,
-  generateAdminNewsImage,
+  generateAdminNewsImageCandidate,
   getAdminNews,
   isSupportedNewsImage,
   publishAdminNews,
   rejectAdminNews,
   searchWikimediaImages,
+  selectAdminNewsImage,
 } from '../../src/features/admin/api.ts';
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -163,7 +164,7 @@ test('관리자 뉴스 발행 API는 CSRF 토큰과 함께 발행 요청을 보�
   );
 });
 
-test('관리자 뉴스 이미지 생성 API는 CSRF 토큰과 함께 이미지 생성을 요청한다', async () => {
+test('관리자 뉴스 이미지 후보 API는 CSRF 토큰과 함께 WebP 바이너리를 요청한다', async () => {
   const calls: Array<{ url: string; init?: RequestInit }> = [];
   globalThis.fetch = async (input, init) => {
     calls.push({ url: String(input), init });
@@ -171,22 +172,63 @@ test('관리자 뉴스 이미지 생성 API는 CSRF 토큰과 함께 이미지 �
       return jsonResponse({ token: 'csrf-token', headerName: 'X-CSRF-TOKEN' });
     }
 
-    assert.equal(String(input), '/api/admin/news/1/generate-image');
+    assert.equal(String(input), '/api/admin/news/1/image-candidates');
     assert.equal(init?.method, 'POST');
     assert.equal(new Headers(init?.headers).get('X-CSRF-TOKEN'), 'csrf-token');
-    return jsonResponse({
-      ...listItem,
-      content: '본문',
-      imageUrl: 'https://example.com/generated.webp',
+    return new Response(new Uint8Array([1, 2, 3]), {
+      headers: { 'content-type': 'image/webp' },
     });
   };
 
-  const news = await generateAdminNewsImage(1);
+  const image = await generateAdminNewsImageCandidate(1);
 
-  assert.equal(news.imageUrl, 'https://example.com/generated.webp');
+  assert.equal(image.type, 'image/webp');
+  assert.equal(image.size, 3);
   assert.deepEqual(
     calls.map(({ url }) => url),
-    ['/api/auth/csrf', '/api/admin/news/1/generate-image'],
+    ['/api/auth/csrf', '/api/admin/news/1/image-candidates'],
+  );
+});
+
+test('관리자 뉴스 이미지 후보 API는 WebP가 아닌 응답을 거부한다', async () => {
+  globalThis.fetch = async (input) =>
+    String(input) === '/api/auth/csrf'
+      ? jsonResponse({ token: 'csrf-token', headerName: 'X-CSRF-TOKEN' })
+      : new Response(new Uint8Array([1]), { headers: { 'content-type': 'image/png' } });
+
+  await assert.rejects(() => generateAdminNewsImageCandidate(1), /응답 형식/);
+});
+
+test('관리자 뉴스 이미지 선택 API는 선택한 후보 한 장만 multipart로 전송한다', async () => {
+  const calls: Array<{ url: string; init?: RequestInit }> = [];
+  globalThis.fetch = async (input, init) => {
+    calls.push({ url: String(input), init });
+    if (String(input) === '/api/auth/csrf') {
+      return jsonResponse({ token: 'csrf-token', headerName: 'X-CSRF-TOKEN' });
+    }
+
+    assert.equal(String(input), '/api/admin/news/1/image');
+    assert.equal(init?.method, 'PUT');
+    assert.equal(new Headers(init?.headers).get('X-CSRF-TOKEN'), 'csrf-token');
+    const body = init?.body;
+    assert.ok(body instanceof FormData);
+    assert.deepEqual([...body.keys()], ['image']);
+    const image = body.get('image');
+    assert.ok(image instanceof Blob);
+    assert.equal(image.type, 'image/webp');
+    return jsonResponse({
+      ...listItem,
+      content: '본문',
+      imageUrl: 'https://example.com/selected.webp',
+    });
+  };
+
+  const news = await selectAdminNewsImage(1, new Blob(['image'], { type: 'image/webp' }));
+
+  assert.equal(news.imageUrl, 'https://example.com/selected.webp');
+  assert.deepEqual(
+    calls.map(({ url }) => url),
+    ['/api/auth/csrf', '/api/admin/news/1/image'],
   );
 });
 
