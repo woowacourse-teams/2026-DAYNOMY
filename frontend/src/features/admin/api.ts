@@ -432,6 +432,18 @@ export async function generateAdminUsEconomicNewsDrafts(): Promise<AdminNewsGene
   return assertResponse(response, isAdminNewsGenerationResponse);
 }
 
+export async function generateAdminEconomicNewsDraftByKeyword(
+  keyword: string,
+): Promise<AdminNewsGenerationResponse> {
+  const response = await requestWithCsrf<unknown>('/api/admin/news/generate/economy/keyword', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ keyword: keyword.trim() }),
+  });
+
+  return assertResponse(response, isAdminNewsGenerationResponse);
+}
+
 export async function deleteAdminNews(id: number) {
   return requestWithCsrf<void>(`/api/admin/news/${id}`, { method: 'DELETE' });
 }
