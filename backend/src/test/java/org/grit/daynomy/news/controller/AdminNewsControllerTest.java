@@ -12,6 +12,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -389,6 +390,53 @@ class AdminNewsControllerTest {
         .andExpect(jsonPath("$.status").value("DRAFT"));
 
     then(adminNewsService).should().generateImage(1L);
+  }
+
+  @Test
+  @DisplayName("관리자 뉴스 이미지 후보 생성 API는 WebP 바이너리를 반환한다")
+  void generateNewsImageCandidateReturnsWebp() throws Exception {
+    byte[] image = {1, 2, 3};
+    given(adminNewsService.generateImageCandidate(1L)).willReturn(image);
+
+    mockMvc
+        .perform(post("/api/admin/news/1/image-candidates"))
+        .andExpect(status().isOk())
+        .andExpect(content().contentType("image/webp"))
+        .andExpect(content().bytes(image));
+
+    then(adminNewsService).should().generateImageCandidate(1L);
+  }
+
+  @Test
+  @DisplayName("관리자 뉴스 이미지 선택 API는 선택한 파일을 서비스에 전달한다")
+  void selectNewsImageReturnsUpdatedNews() throws Exception {
+    News news = mock(News.class);
+    willReturn(1L).given(news).getId();
+    willReturn("뉴스 제목").given(news).getTitle();
+    willReturn("뉴스 본문").given(news).getContent();
+    willReturn("https://example.com/selected.webp").given(news).getImageUrl();
+    willReturn(ImageSourceInfo.aiGenerated()).given(news).getImageSource();
+    willReturn(Category.STOCK).given(news).getCategory();
+    willReturn(NewsStatus.DRAFT).given(news).getStatus();
+    willReturn(java.util.List.of()).given(news).getSources();
+    MockMultipartFile image =
+        new MockMultipartFile("image", "candidate.webp", "image/webp", new byte[] {1, 2, 3});
+    given(adminNewsService.selectImage(1L, image)).willReturn(news);
+
+    mockMvc
+        .perform(
+            multipart("/api/admin/news/1/image")
+                .file(image)
+                .with(
+                    request -> {
+                      request.setMethod("PUT");
+                      return request;
+                    }))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.imageUrl").value("https://example.com/selected.webp"))
+        .andExpect(jsonPath("$.imageSource.type").value("AI_GENERATED"));
+
+    then(adminNewsService).should().selectImage(1L, image);
   }
 
   @Test
