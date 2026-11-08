@@ -5,6 +5,15 @@ import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { IssueHomePage } from '../../src/features/news/issue/IssueHomePage';
+import { createFeed } from '../../src/features/news/issue/feed';
+import {
+  feedContentReference,
+  getContentPopularity,
+  sortByPopularity,
+} from '../../src/features/news/issue/popularity';
+import { getNewsFeed } from '../../src/features/news/issue/feedApi';
+
+vi.mock('../../src/features/news/issue/feedApi', () => ({ getNewsFeed: vi.fn() }));
 
 vi.mock('../../src/features/investment-calendar/InvestmentCalendarPage', () => ({
   InvestmentCalendarPage: () => (
@@ -16,27 +25,29 @@ vi.mock('../../src/features/investment-calendar/InvestmentCalendarPage', () => (
 const article = {
   id: 7,
   title: '오늘의 데이노미 이슈',
-  category: 'STOCK',
+  category: 'STOCK' as const,
   imageUrl: null,
   publishedAt: '2026-10-12T09:00:00Z',
 };
 const person = {
   id: 1,
   name: '테스트 인물',
+  profileImageUrl: null,
   xProfileUrl: null,
   threadsProfileUrl: null,
+  youtubeProfileUrl: null,
   createdAt: null,
   posts: [
     {
       id: 1,
-      sourceType: 'X',
+      sourceType: 'X' as const,
       title: '첫 번째 인물 글',
       url: 'https://x.com/example/status/1',
       createdAt: '2026-10-12T08:00:00Z',
     },
     {
       id: 2,
-      sourceType: 'THREADS',
+      sourceType: 'THREADS' as const,
       title: '두 번째 인물 글',
       url: 'https://www.threads.net/@example/post/ABC',
       createdAt: '2026-10-12T07:00:00Z',
@@ -93,6 +104,39 @@ beforeEach(() => {
   );
   vi.useFakeTimers({ toFake: ['Date'] });
   vi.setSystemTime(new Date('2026-10-12T10:00:00Z'));
+  vi.mocked(getNewsFeed).mockReset();
+  vi.mocked(getNewsFeed).mockImplementation(
+    async (source, currentPage = 1, size = 12, sort = 'LATEST') => {
+      const [newsResponse, contentsResponse, peopleResponse] = await Promise.all([
+        fetch(`/api/news?page=1&size=${size}`),
+        fetch(`/api/contents?page=1&size=${size}`),
+        fetch(`/api/people?page=1&size=${size}`),
+      ]);
+      if (!newsResponse.ok || !contentsResponse.ok) throw new Error('offline');
+      const news = (await newsResponse.json()) as ReturnType<typeof newsPage>;
+      const contents = (await contentsResponse.json()) as ReturnType<typeof newsPage>;
+      const people = peopleResponse.ok
+        ? ((await peopleResponse.json()) as ReturnType<typeof peoplePage>)
+        : peoplePage([]);
+      let items = createFeed(
+        news.items,
+        people.people as (typeof person)[],
+        contents.items as never[],
+      ).filter((item) => source === 'ALL' || item.source === source);
+      if (sort === 'POPULAR') {
+        items = sortByPopularity(items, feedContentReference, await getContentPopularity());
+      }
+      const totalElements = items.length;
+      const start = (currentPage - 1) * size;
+      return {
+        items: items.slice(start, start + size),
+        page: currentPage,
+        size,
+        totalElements,
+        totalPages: Math.ceil(totalElements / size),
+      };
+    },
+  );
 });
 afterEach(() => {
   vi.useRealTimers();
@@ -167,59 +211,55 @@ describe('이슈 홈과 전체 목록', () => {
     fireEvent.click(view.getByRole('button', { name: 'Threads' }));
     expect(view.getByRole('button', { name: 'Threads', pressed: true })).toBeTruthy();
     expect(view.getByRole('button', { name: '전체', pressed: false })).toBeTruthy();
-    expect(view.queryByRole('button', { name: /첫 번째 인물 글/ })).toBeNull();
-    fireEvent.click(view.getByRole('button', { name: /두 번째 인물 글/ }));
+    await waitFor(() => expect(view.queryByRole('button', { name: /첫 번째 인물 글/ })).toBeNull());
+    fireEvent.click(await view.findByRole('button', { name: /두 번째 인물 글/ }));
     expect(view.container.querySelector('blockquote.text-post-media')).toBeTruthy();
   });
-  it('인물 API가 실패해도 뉴스는 유지하고 재시도할 수 있다', async () => {
+  it('인물 API가 실패해도 전체 콘텐츠 조회 결과를 유지한다', async () => {
     mockApi(true);
     const view = render(
       <MemoryRouter>
         <IssueHomePage fullFeed />
       </MemoryRouter>,
     );
-    expect(await view.findByRole('alert')).toBeTruthy();
     expect(await view.findByRole('link', { name: /오늘의 데이노미 이슈/ })).toBeTruthy();
-    mockApi();
-    fireEvent.click(view.getByRole('button', { name: '다시 시도' }));
-    expect(await view.findByRole('button', { name: /첫 번째 인물 글/ })).toBeTruthy();
     expect(view.queryByRole('alert')).toBeNull();
   });
   it.each([false, true])(
-    '홈과 전체 목록은 모든 뉴스 페이지를 모은다 (fullFeed=%s)',
+    '홈과 전체 목록은 요청한 페이지만 가져온다 (fullFeed=%s)',
     async (fullFeed) => {
       const older = { ...article, id: 8, title: '이전 이슈', publishedAt: '2026-10-10T00:00:00Z' };
-      vi.stubGlobal(
-        'fetch',
-        vi.fn(async (input: RequestInfo | URL) => {
-          if (new URL(String(input), 'http://localhost').pathname === '/api/contents')
-            return json({
-              ...newsPage([]),
-              page: Number(new URL(String(input), 'http://localhost').searchParams.get('page')),
-            });
-          if (new URL(String(input), 'http://localhost').pathname === '/api/people')
-            return json(peoplePage([person]));
-          const page = Number(new URL(String(input), 'http://localhost').searchParams.get('page'));
-          return json({
-            ...newsPage(page === 1 ? [article] : [older]),
-            page,
-            totalPages: 2,
-            totalElements: 2,
-            hasNext: page === 1,
-          });
-        }),
-      );
+      vi.mocked(getNewsFeed).mockImplementation(async (_source, currentPage = 1, size = 12) => ({
+        items: [currentPage === 1 ? article : older].map((item) => ({
+          key: `news-${item.id}`,
+          source: 'DAYNOMY' as const,
+          title: item.title,
+          date: item.publishedAt,
+          article: item,
+        })),
+        page: currentPage,
+        size,
+        totalElements: 2,
+        totalPages: 2,
+      }));
+      mockApi();
       const view = render(
         <MemoryRouter>
           <IssueHomePage fullFeed={fullFeed} />
         </MemoryRouter>,
       );
-      await waitFor(() =>
-        expect(view.container.querySelector('.issue-feed')?.textContent).toContain('이전 이슈'),
-      );
+      await view.findByText(article.title);
       expect(view.container.querySelector('.issue-feed')?.textContent).toContain(article.title);
-      expect(view.getByRole('button', { name: /첫 번째 인물 글/ })).toBeTruthy();
-      expect(view.queryByRole('button', { name: /콘텐츠 더 보기/ })).toBeNull();
+      expect(view.container.querySelector('.issue-feed')?.textContent).not.toContain('이전 이슈');
+      expect(getNewsFeed).toHaveBeenCalledWith(
+        'ALL',
+        1,
+        fullFeed ? 12 : 6,
+        'LATEST',
+        expect.anything(),
+      );
+      fireEvent.click(view.getByRole('button', { name: '2페이지' }));
+      await view.findByText('이전 이슈');
     },
   );
   it('홈은 여섯 개씩 페이지를 이동하고 출처 변경 시 첫 페이지로 돌아온다', async () => {
@@ -248,17 +288,23 @@ describe('이슈 홈과 전체 목록', () => {
     expect(view.container.querySelectorAll('.issue-feed > li')).toHaveLength(6);
     expect(view.queryByRole('button', { name: /어제 글/ })).toBeNull();
     fireEvent.click(view.getByRole('button', { name: '2페이지' }));
+    await view.findByRole('button', { name: /오늘 글 9/ });
     expect(view.container.querySelectorAll('.issue-feed > li')).toHaveLength(6);
     fireEvent.click(view.getByRole('button', { name: '3페이지' }));
+    await view.findByRole('button', { name: /어제 글/ });
     expect(view.container.querySelectorAll('.issue-feed > li')).toHaveLength(5);
     expect(view.getByRole('button', { name: /어제 글/ })).toBeTruthy();
     expect(view.queryByRole('link', { name: '전체 콘텐츠 보기' })).toBeNull();
     fireEvent.click(view.getByRole('button', { name: 'X' }));
-    expect(view.getByRole('button', { name: '1페이지' }).getAttribute('aria-current')).toBe('page');
+    await waitFor(() =>
+      expect(view.getByRole('button', { name: '1페이지' }).getAttribute('aria-current')).toBe(
+        'page',
+      ),
+    );
     expect(view.container.querySelectorAll('.issue-feed > li')).toHaveLength(6);
     expect(trackEvent).toHaveBeenCalledWith(
       'filter_content_source',
-      expect.objectContaining({ surface: 'news_home', source_type: 'X', result_count: 16 }),
+      expect.objectContaining({ surface: 'news_home', source_type: 'X' }),
     );
   });
 });
@@ -352,38 +398,33 @@ it('네 출처의 전체 글을 표시하고 YouTube를 목록 안에서 재생�
   expect(document.activeElement).toBe(trigger);
 });
 
-it('외부 자료 수집이 실패하면 번호 이동을 막고 재시도한다', async () => {
-  let fail = true;
-  const requestedPages: number[] = [];
-  vi.stubGlobal(
-    'fetch',
-    vi.fn(async (input: RequestInfo | URL) => {
-      const url = new URL(String(input), 'http://localhost');
-      const page = Number(url.searchParams.get('page') ?? 1);
-      if (url.pathname === '/api/people') return json(peoplePage([]));
-      if (url.pathname === '/api/contents') {
-        requestedPages.push(page);
-        if (page === 2 && fail) return json({}, 500);
-        return json({
-          ...newsPage([]),
-          page,
-          totalPages: 3,
-          items: [
-            {
-              id: page,
-              assetId: 1,
-              sourceType: 'YOUTUBE',
-              title: `영상 페이지 ${page}`,
-              url: `https://youtu.be/abcdefghij${page}`,
-              imageUrl: null,
-              createdAt: `2026-10-${13 - page}T09:00:00Z`,
-            },
-          ],
-        });
-      }
-      return json({ ...newsPage([]), page });
-    }),
-  );
+it('콘텐츠 페이지 조회가 실패하면 번호 이동을 막고 재시도한다', async () => {
+  vi.mocked(getNewsFeed)
+    .mockRejectedValueOnce(new Error('offline'))
+    .mockResolvedValueOnce({
+      items: [
+        {
+          key: 'content-2',
+          source: 'YOUTUBE',
+          title: '영상 페이지 2',
+          date: '2026-10-11T09:00:00Z',
+          content: {
+            id: 2,
+            assetId: 1,
+            sourceType: 'YOUTUBE',
+            title: '영상 페이지 2',
+            url: 'https://youtu.be/abcdefghij2',
+            imageUrl: null,
+            createdAt: '2026-10-11T09:00:00Z',
+          },
+        },
+      ],
+      page: 1,
+      size: 12,
+      totalElements: 1,
+      totalPages: 1,
+    });
+  mockApi();
   const view = render(
     <MemoryRouter>
       <IssueHomePage fullFeed />
@@ -392,10 +433,9 @@ it('외부 자료 수집이 실패하면 번호 이동을 막고 재시도한다
   await view.findByRole('alert');
   expect(view.queryByRole('button', { name: /콘텐츠 더 보기/ })).toBeNull();
   expect(view.queryByRole('navigation', { name: '콘텐츠 페이지' })).toBeNull();
-  fail = false;
   fireEvent.click(view.getByRole('button', { name: '다시 시도' }));
   expect(await view.findByRole('button', { name: /영상 페이지 2/ })).toBeTruthy();
-  expect(requestedPages).toEqual([1, 2, 1, 2, 3]);
+  expect(getNewsFeed).toHaveBeenCalledTimes(2);
 });
 
 it('홈은 투자 캘린더와 전체 기사 목록을 함께 보여준다', async () => {
@@ -464,15 +504,24 @@ it('전체 콘텐츠는 번호로 12개씩 이동하고 출처 변경 시 첫 �
     title: `페이지 기사 ${index}`,
     publishedAt: `2026-10-${String(28 - index).padStart(2, '0')}T09:00:00Z`,
   }));
-  vi.stubGlobal(
-    'fetch',
-    vi.fn(async (input: RequestInfo | URL) => {
-      const path = new URL(String(input), 'http://localhost').pathname;
-      if (path === '/api/people') return json(peoplePage([]));
-      if (path === '/api/contents') return json(newsPage([]));
-      return json(newsPage(articles));
-    }),
-  );
+  vi.mocked(getNewsFeed).mockImplementation(async (source, currentPage = 1, size = 12) => {
+    const filtered = source === 'ALL' || source === 'DAYNOMY' ? articles : [];
+    const start = (currentPage - 1) * size;
+    return {
+      items: filtered.slice(start, start + size).map((item) => ({
+        key: `news-${item.id}`,
+        source: 'DAYNOMY' as const,
+        title: item.title,
+        date: item.publishedAt,
+        article: item,
+      })),
+      page: currentPage,
+      size,
+      totalElements: filtered.length,
+      totalPages: Math.ceil(filtered.length / size),
+    };
+  });
+  mockApi();
   const view = render(
     <MemoryRouter>
       <IssueHomePage fullFeed />
@@ -481,16 +530,20 @@ it('전체 콘텐츠는 번호로 12개씩 이동하고 출처 변경 시 첫 �
   await view.findByRole('button', { name: '2페이지' });
   expect(view.getAllByRole('link', { name: /페이지 기사/ })).toHaveLength(12);
   fireEvent.click(view.getByRole('button', { name: '2페이지' }));
+  await view.findByRole('link', { name: '페이지 기사 12 기사 읽기' });
   expect(view.getAllByRole('link', { name: /페이지 기사/ })).toHaveLength(2);
   expect(view.queryByRole('link', { name: '페이지 기사 0 기사 읽기' })).toBeNull();
   expect(
     view.getByRole('button', { name: '다음 방향 2페이지로 이동' }).hasAttribute('disabled'),
   ).toBe(true);
   fireEvent.click(view.getByRole('button', { name: '이전 방향 1페이지로 이동' }));
-  expect(view.getByRole('link', { name: '페이지 기사 0 기사 읽기' })).toBeTruthy();
+  expect(await view.findByRole('link', { name: '페이지 기사 0 기사 읽기' })).toBeTruthy();
   fireEvent.click(view.getByRole('button', { name: '2페이지' }));
+  await view.findByRole('link', { name: '페이지 기사 12 기사 읽기' });
   fireEvent.click(view.getByRole('button', { name: '데이노미' }));
-  expect(view.getByRole('button', { name: '1페이지' }).getAttribute('aria-current')).toBe('page');
+  await waitFor(() =>
+    expect(view.getByRole('button', { name: '1페이지' }).getAttribute('aria-current')).toBe('page'),
+  );
 });
 
 it('출처별 빈 결과를 기록하고 같은 필터의 반복 선택은 중복 집계하지 않는다', async () => {
@@ -506,13 +559,14 @@ it('출처별 빈 결과를 기록하고 같은 필터의 반복 선택은 중�
     surface: 'news_contents',
     previous_source: 'ALL',
     source_type: 'YOUTUBE',
-    result_count: 0,
   });
-  expect(trackEvent).toHaveBeenCalledWith('view_content_empty', {
-    surface: 'news_contents',
-    source_type: 'YOUTUBE',
-    reason: 'filter_empty',
-  });
+  await waitFor(() =>
+    expect(trackEvent).toHaveBeenCalledWith('view_content_empty', {
+      surface: 'news_contents',
+      source_type: 'YOUTUBE',
+      reason: 'filter_empty',
+    }),
+  );
   const count = vi.mocked(trackEvent).mock.calls.length;
   fireEvent.click(view.getByRole('button', { name: 'YouTube' }));
   expect(vi.mocked(trackEvent).mock.calls).toHaveLength(count);
