@@ -81,13 +81,14 @@ public class OpenAiNewsResearcher {
   }
 
   public EconomicNewsResearch researchEconomicNews(String keyword) {
+    String escapedKeyword = keyword.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
     String retryInstruction =
         """
 
         이전 조사 결과가 키워드 관련성, 최신성, 독립 출처 또는 날짜 검증에 실패했다. 입력 키워드와 직접 관련된 최근 3일 이내 사건 하나를 처음부터 다시 검색하고, 독립된 출처를 2곳 이상 확인해 검증된 facts만 반환하라.
         """;
     return researchEconomicNews(
-            KEYWORD_PROMPT.formatted(LocalDate.now(ZoneId.of("Asia/Seoul")), keyword),
+            KEYWORD_PROMPT.formatted(LocalDate.now(ZoneId.of("Asia/Seoul")), escapedKeyword),
             "keyword-economic-news-research",
             retryInstruction,
             1,

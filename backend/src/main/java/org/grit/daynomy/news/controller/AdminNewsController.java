@@ -123,6 +123,10 @@ public class AdminNewsController {
     @ApiResponse(
         responseCode = "400",
         description = "키워드 형식 오류",
+        content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+    @ApiResponse(
+        responseCode = "502",
+        description = "AI 뉴스 조사 또는 생성 실패",
         content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
   })
   @PostMapping("/generate/economy/keyword")

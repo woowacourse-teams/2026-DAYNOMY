@@ -375,6 +375,18 @@ class AdminNewsControllerTest {
   }
 
   @Test
+  @DisplayName("관리자 키워드 뉴스 초안 생성 API 문서는 AI 생성 실패 응답을 명시한다")
+  void generateEconomicNewsDraftByKeywordOpenApiDocumentsGenerationFailure() throws Exception {
+    mockMvc
+        .perform(get("/v3/api-docs"))
+        .andExpect(status().isOk())
+        .andExpect(
+            jsonPath(
+                    "$.paths['/api/admin/news/generate/economy/keyword'].post.responses['502'].content['*/*'].schema['$ref']")
+                .value("#/components/schemas/ErrorResponse"));
+  }
+
+  @Test
   @DisplayName("관리자 키워드 뉴스 초안 생성 API는 키워드 길이를 검증한다")
   void generateEconomicNewsDraftByKeywordRejectsInvalidKeyword() throws Exception {
     for (String keyword : java.util.List.of(" ", "가", "가".repeat(101))) {
