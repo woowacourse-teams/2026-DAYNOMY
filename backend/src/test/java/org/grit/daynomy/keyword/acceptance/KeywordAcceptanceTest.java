@@ -14,6 +14,7 @@ import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
 import org.grit.daynomy.news.domain.NewsSourceInfo;
 import org.grit.daynomy.news.repository.NewsRepository;
+import org.grit.daynomy.support.SharedDatabaseTest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -24,7 +25,7 @@ import org.springframework.test.context.ActiveProfiles;
 
 @ActiveProfiles("test")
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-class KeywordAcceptanceTest {
+class KeywordAcceptanceTest extends SharedDatabaseTest {
 
   private final ObjectMapper objectMapper = new ObjectMapper();
 

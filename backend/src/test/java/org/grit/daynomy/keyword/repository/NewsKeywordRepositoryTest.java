@@ -10,6 +10,7 @@ import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
 import org.grit.daynomy.news.domain.NewsSourceInfo;
 import org.grit.daynomy.news.repository.NewsRepository;
+import org.grit.daynomy.support.SharedDatabaseTest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,7 +21,7 @@ import org.springframework.test.context.ActiveProfiles;
 @ActiveProfiles("test")
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-class NewsKeywordRepositoryTest {
+class NewsKeywordRepositoryTest extends SharedDatabaseTest {
 
   @Autowired private NewsRepository newsRepository;
 

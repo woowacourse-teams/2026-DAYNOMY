@@ -11,35 +11,18 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.temporal.TemporalAdjusters;
 import java.util.concurrent.TimeUnit;
+import org.grit.daynomy.support.SharedDatabaseTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
-import org.testcontainers.utility.DockerImageName;
 
-@Testcontainers
 @EnabledIfEnvironmentVariable(named = "LEAGUE_BENCHMARK", matches = "true")
 @ActiveProfiles("test")
 @SpringBootTest
-class LeagueFinalizationBenchmarkTest {
-  @Container
-  static final PostgreSQLContainer POSTGRESQL =
-      new PostgreSQLContainer(DockerImageName.parse("postgres:16-alpine"));
-
-  @DynamicPropertySource
-  static void database(DynamicPropertyRegistry registry) {
-    registry.add("spring.datasource.url", POSTGRESQL::getJdbcUrl);
-    registry.add("spring.datasource.username", POSTGRESQL::getUsername);
-    registry.add("spring.datasource.password", POSTGRESQL::getPassword);
-    registry.add("spring.datasource.driver-class-name", POSTGRESQL::getDriverClassName);
-  }
+class LeagueFinalizationBenchmarkTest extends SharedDatabaseTest {
 
   @Autowired private JdbcTemplate jdbc;
   @Autowired private LeagueService leagueService;

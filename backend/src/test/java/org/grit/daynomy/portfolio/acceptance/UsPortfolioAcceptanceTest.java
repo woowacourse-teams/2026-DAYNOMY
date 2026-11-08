@@ -14,16 +14,14 @@ import org.grit.daynomy.asset.repository.*;
 import org.grit.daynomy.auth.token.JwtTokenProvider;
 import org.grit.daynomy.member.domain.*;
 import org.grit.daynomy.member.repository.MemberRepository;
+import org.grit.daynomy.support.SharedDatabaseTest;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.test.context.*;
 import org.testcontainers.junit.jupiter.*;
-import org.testcontainers.postgresql.PostgreSQLContainer;
-import org.testcontainers.utility.DockerImageName;
 
-@Testcontainers
 @ActiveProfiles("test")
 @SpringBootTest(
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
@@ -32,10 +30,7 @@ import org.testcontainers.utility.DockerImageName;
       "stock.sync.enabled=false",
       "stock.price.sync.enabled=false"
     })
-class UsPortfolioAcceptanceTest {
-  @Container
-  static final PostgreSQLContainer DB =
-      new PostgreSQLContainer(DockerImageName.parse("postgres:16-alpine"));
+class UsPortfolioAcceptanceTest extends SharedDatabaseTest {
 
   static final MockWebServer UPSTREAM = startServer();
 
@@ -56,10 +51,6 @@ class UsPortfolioAcceptanceTest {
 
   @DynamicPropertySource
   static void properties(DynamicPropertyRegistry r) {
-    r.add("spring.datasource.url", DB::getJdbcUrl);
-    r.add("spring.datasource.driver-class-name", DB::getDriverClassName);
-    r.add("spring.datasource.username", DB::getUsername);
-    r.add("spring.datasource.password", DB::getPassword);
     r.add("external.eodhd.base-url", () -> UPSTREAM.url("/api").toString());
     r.add("external.eodhd.api-token", () -> "test-token");
   }
