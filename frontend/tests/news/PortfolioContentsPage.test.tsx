@@ -2,7 +2,6 @@
 import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { trackEvent } from '../../src/analytics';
 import { getStockRelatedContents } from '../../src/features/stock-content/api';
 import type { StockRelatedContentsResponse } from '../../src/features/stock-content/types';
 import { IssueHomePage } from '../../src/features/news/issue/IssueHomePage';
@@ -154,20 +153,6 @@ it('보유 종목이 없으면 분석 대신 포트폴리오 등록 안내를 �
   const view = show();
   expect(await view.findByRole('link', { name: '포트폴리오로 이동' })).toBeTruthy();
   expect(view.queryByRole('link', { name: '내 포트폴리오 AI 분석 보기' })).toBeNull();
-});
-
-it('예시 데이노미 제목은 상세로 연결하고 목록에는 분석 버튼을 중복 표시하지 않는다', async () => {
-  const view = show('&data=example');
-  const article = await view.findByRole('link', { name: /삼성전자, 반도체/ });
-  const url = new URL(article.getAttribute('href')!);
-  expect(url.pathname).toBe('/news/900001');
-  expect(url.searchParams.get('data')).toBe('example');
-  expect(url.searchParams.get('from')).toBe('portfolio');
-  expect(view.queryByRole('link', { name: '내 포트폴리오 AI 분석 보기' })).toBeNull();
-  fireEvent.click(view.getByRole('button', { name: /^엔비디아$/ }));
-  expect(await view.findByRole('link', { name: /엔비디아, 주요 고객사/ })).toBeTruthy();
-  expect(getStockRelatedContents).not.toHaveBeenCalled();
-  expect(trackEvent).not.toHaveBeenCalled();
 });
 
 it('데이노미 기사 상세로 이동해도 포트폴리오에서 온 맥락을 유지한다', async () => {

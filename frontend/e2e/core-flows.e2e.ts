@@ -66,7 +66,7 @@ async function mockNewsApi(page: Page) {
   await page.route('**/api/news**', (route) => {
     const path = new URL(route.request().url()).pathname;
 
-    if (path === '/api/news' || path === '/api/news/today') {
+    if (path === '/api/news') {
       return route.fulfill({ json: newsPage });
     }
     if (path === '/api/news/7') {
@@ -201,33 +201,12 @@ test('소식 홈 투자 캘린더에서 다가오는 일정을 확인한다', as
   await expect(calendar.getByText('2026년 10월', { exact: true })).toBeVisible();
 });
 
-test('종목 상세에서 리그와 마이페이지로 이동하고 관리자 메뉴는 분리된다', async ({ page }) => {
-  await mockLeagueApi(page);
+test('관리자 메뉴는 사용자 메뉴와 분리된다', async ({ page }) => {
   await page.route('**/api/users/me', (route) =>
     route.fulfill({
       json: { id: 1, email: 'admin@example.invalid', nickname: '관리자', role: 'ADMIN' },
     }),
   );
-  await page.route('**/api/assets/1/contents', (route) =>
-    route.fulfill({
-      json: { assetId: 1, assetCode: '005930', assetName: '삼성전자', contents: [] },
-    }),
-  );
-
-  await page.goto('/stocks/1');
-  await expect(page.getByRole('heading', { name: '삼성전자', level: 1 })).toBeVisible();
-  await page
-    .getByRole('navigation', { name: '주요 메뉴' })
-    .getByRole('link', { name: '투자 리그' })
-    .click();
-  await expect(page).toHaveURL('/league');
-  await expect(page.getByRole('heading', { name: '주간 리그', exact: true })).toBeVisible();
-  await expect(page.getByRole('navigation', { name: '주요 메뉴' })).toBeVisible();
-  await page.getByRole('link', { name: '마이페이지' }).click();
-  await expect(page).toHaveURL('/mypage');
-  await expect(page.getByRole('heading', { name: '마이페이지' })).toBeVisible();
-  await expect(page.getByRole('navigation', { name: '주요 메뉴' })).toBeVisible();
-
   await page.goto('/admin/stock-contents');
   await expect(page.getByRole('heading', { name: '종목 관련 링크' })).toBeVisible();
   await expect(page.getByRole('navigation', { name: '관리자 메뉴' })).toBeVisible();

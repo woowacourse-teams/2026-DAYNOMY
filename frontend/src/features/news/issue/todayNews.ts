@@ -10,13 +10,3 @@ export async function getAllNews() {
   }
   return { ...first, content };
 }
-
-export function newsDate(value: string | null) {
-  if (!value || Number.isNaN(Date.parse(value))) return '';
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Seoul',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date(value));
-}

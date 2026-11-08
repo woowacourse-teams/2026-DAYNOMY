@@ -1,4 +1,3 @@
-import { getSampleNews, SAMPLE_NEWS_ID, showSampleNews } from '../issue/sampleNews';
 import type {
   KeywordsResponse,
   MarketAnalysisResponse,
@@ -128,8 +127,6 @@ export async function getNewsDetail(
   signal?: AbortSignal,
   onAnalysisLoad?: (area: string, startedAt: number, status: string, count: number) => void,
 ): Promise<NewsDetailPayload> {
-  if (showSampleNews && newsId === SAMPLE_NEWS_ID) return getSampleNews();
-
   const news = await getJson(`/api/news/${newsId}`, isNewsDetailResponse, signal);
   async function loadAnalysis<T>(
     area: string,

@@ -21,7 +21,6 @@ import org.springframework.web.client.RestClientException;
 public class OpenAiImageGenerator {
 
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
-  private static final String IMAGE_SIZE = "1024x1024";
   private static final String ECONOMIC_NEWS_IMAGE_SIZE = "1536x1024";
   private static final String IMAGE_QUALITY = "low";
   private static final String IMAGE_FORMAT = "webp";
@@ -41,10 +40,6 @@ public class OpenAiImageGenerator {
             .baseUrl(openAiProperties.baseUrl())
             .requestFactory(requestFactory)
             .build();
-  }
-
-  public byte[] generateNewsImage(String title) {
-    return generateNewsImage(title, imagePrompt(title), IMAGE_SIZE);
   }
 
   public byte[] generateEconomicNewsImage(String title, String content, Category category) {
@@ -123,10 +118,6 @@ public class OpenAiImageGenerator {
         IMAGE_QUALITY,
         "output_format",
         IMAGE_FORMAT);
-  }
-
-  private String imagePrompt(String title) {
-    return IMAGE_PROMPT.formatted("GENERAL_FINANCE", title, "");
   }
 
   private String economicNewsImagePrompt(String title, String content, Category category) {

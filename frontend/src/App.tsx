@@ -36,8 +36,6 @@ import {
 } from './features/admin/AdminContentCollectionPage';
 import { AdminShell } from './features/admin/components/AdminShell';
 import { PeoplePage } from './features/people/PeoplePage';
-import { StockContentPage } from './features/stock-content/StockContentPage';
-import { CardDesignPreviewPage } from './features/stock-content/CardDesignPreviewPage';
 import { FeedbackWidget } from './features/feedback/FeedbackWidget';
 import { PmfSurveyPrompt } from './features/pmf-survey/PmfSurveyPrompt';
 import { hasStartedService, rememberServiceStart } from './features/landing/startedService';
@@ -382,8 +380,6 @@ function AppContent() {
             <Route path="/search" element={<SearchPage />} />
             <Route path="/finance/*" element={<Navigate to="/" replace />} />
             <Route path="/stocks" element={<Navigate to="/" replace />} />
-            <Route path="/stocks/:assetId/card-preview" element={<CardDesignPreviewPage />} />
-            <Route path="/stocks/:assetId" element={<StockContentPage />} />
             <Route path="/people" element={<PeoplePage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/about" element={<InfoPage page="about" />} />
