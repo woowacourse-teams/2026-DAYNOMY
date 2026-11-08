@@ -68,19 +68,6 @@ class ContentSearchControllerTest {
   }
 
   @Test
-  void acceptsFeedRequestWithoutSearchTerm() throws Exception {
-    given(service.search(null, ContentSearchSource.ALL, 1, 8, ContentSearchSort.LATEST))
-        .willReturn(new ContentSearchResponse(List.of(), 1, 8, 0, 0));
-
-    mockMvc
-        .perform(get("/api/search/contents").param("size", "8"))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$.size").value(8));
-
-    then(service).should().search(null, ContentSearchSource.ALL, 1, 8, ContentSearchSort.LATEST);
-  }
-
-  @Test
   void rejectsInvalidSearchConditions() throws Exception {
     mockMvc
         .perform(get("/api/search/contents").param("q", "  "))

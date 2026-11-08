@@ -81,35 +81,6 @@ class ContentSearchAcceptanceTest {
   }
 
   @Test
-  void pagesLatestFeedWithoutSearchTerm() {
-    News oldest = published("첫 번째 소식", "2026-10-18T00:00:00Z");
-    News middle = published("두 번째 소식", "2026-10-19T00:00:00Z");
-    News latest = published("세 번째 소식", "2026-10-20T00:00:00Z");
-
-    given()
-        .port(port)
-        .queryParam("size", 2)
-        .when()
-        .get("/api/search/contents")
-        .then()
-        .statusCode(200)
-        .body("items.id", equalTo(List.of(latest.getId().intValue(), middle.getId().intValue())))
-        .body("totalElements", equalTo(3))
-        .body("totalPages", equalTo(2));
-
-    given()
-        .port(port)
-        .queryParam("page", 2)
-        .queryParam("size", 2)
-        .when()
-        .get("/api/search/contents")
-        .then()
-        .statusCode(200)
-        .body("items", hasSize(1))
-        .body("items[0].id", equalTo(oldest.getId().intValue()));
-  }
-
-  @Test
   void searchesAllPublishedFeedSourcesBeforePagination() {
     newsRepository.save(
         News.createPublished(

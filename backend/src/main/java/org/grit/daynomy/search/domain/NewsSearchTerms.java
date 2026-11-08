@@ -11,7 +11,6 @@ public record NewsSearchTerms(List<String> values) {
   }
 
   public static NewsSearchTerms from(String keyword) {
-    if (keyword == null) return new NewsSearchTerms(List.of());
     return new NewsSearchTerms(
         Arrays.stream(keyword.strip().split("(?U)\\s+"))
             .filter(term -> !term.isEmpty())
