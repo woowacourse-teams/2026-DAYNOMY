@@ -149,6 +149,78 @@ describe('관리자 뉴스 화면', () => {
     expect(generatedUsNews).toBe(true);
   });
 
+  it('키워드를 입력하면 데이노미 이슈 초안을 생성하고 목록을 새로 불러온다', async () => {
+    let requestBody: unknown;
+    let listRequestCount = 0;
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        if (url.endsWith('/api/auth/csrf')) {
+          return jsonResponse({ token: 'csrf-token', headerName: 'X-CSRF-TOKEN' });
+        }
+        if (url.endsWith('/api/admin/news/generate/economy/keyword')) {
+          requestBody = JSON.parse(String(init?.body));
+          return jsonResponse({ savedCount: 1 });
+        }
+        listRequestCount += 1;
+        return jsonResponse({
+          items: [listItem],
+          page: 1,
+          size: 15,
+          totalPages: 1,
+          totalElements: 1,
+          hasNext: false,
+        });
+      }),
+    );
+
+    const view = renderAdmin(<AdminNewsPage />);
+    fireEvent.change(await view.findByLabelText('이슈 키워드'), {
+      target: { value: '  미국 중간선거  ' },
+    });
+    fireEvent.click(view.getByRole('button', { name: '이슈 생성' }));
+
+    expect(
+      await view.findByText('‘미국 중간선거’ 키워드 데이노미 이슈 초안 생성이 완료되었습니다.'),
+    ).toBeTruthy();
+    expect(requestBody).toEqual({ keyword: '미국 중간선거' });
+    await waitFor(() => expect(listRequestCount).toBe(2));
+  });
+
+  it('두 글자 미만의 키워드는 API를 호출하지 않는다', async () => {
+    let generationRequestCount = 0;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.endsWith('/api/admin/news/generate/economy/keyword')) {
+          generationRequestCount += 1;
+        }
+        return jsonResponse({
+          items: [listItem],
+          page: 1,
+          size: 15,
+          totalPages: 1,
+          totalElements: 1,
+          hasNext: false,
+        });
+      }),
+    );
+
+    const view = renderAdmin(<AdminNewsPage />);
+    fireEvent.change(await view.findByLabelText('이슈 키워드'), { target: { value: '가' } });
+    const form = view.getByRole('button', { name: '이슈 생성' }).closest('form');
+    if (!form) throw new Error('키워드 생성 폼을 찾을 수 없습니다.');
+    fireEvent.submit(form);
+
+    expect((await view.findByRole('alert')).textContent).toContain(
+      '키워드는 2자 이상 입력해 주세요.',
+    );
+    expect(generationRequestCount).toBe(0);
+  });
+
   it('뉴스 목록을 표시하고 상태 필터를 API 요청에 반영한다', async () => {
     const calls: string[] = [];
     vi.stubGlobal(
