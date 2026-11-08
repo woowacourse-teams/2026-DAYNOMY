@@ -880,6 +880,21 @@
   gap: 8px;
 }
 
+.admin-keyword-generation-form {
+  display: flex;
+  width: min(100%, 460px);
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.admin-keyword-generation-form .admin-field {
+  flex: 1;
+}
+
+.admin-keyword-generation-form .admin-primary-button {
+  white-space: nowrap;
+}
+
 .admin-success-panel {
   padding: 18px 20px;
   border-color: #bfe7d0;
@@ -1907,6 +1922,9 @@
   .admin-action-panel {
     align-items: stretch;
     flex-direction: column;
+  }
+  .admin-keyword-generation-form {
+    width: 100%;
   }
   .admin-toolbar select {
     width: 100%;

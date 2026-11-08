@@ -47,20 +47,46 @@ test('검은 브랜드 인트로가 합쳐지고 갈라진 뒤 소개 장면은 
   page,
 }) => {
   await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await page.addInitScript(() => {
+    const animation = { phases: [] as string[], seamCurtains: 0, openTransition: '0s' };
+    (
+      window as unknown as {
+        __introAnimation: typeof animation;
+      }
+    ).__introAnimation = animation;
+    new MutationObserver((mutations) => {
+      for (const { target } of mutations) {
+        if (!(target instanceof HTMLElement) || !target.classList.contains('brand-intro')) continue;
+        const phase = [...target.classList].find((name) => name.startsWith('phase-'));
+        if (phase !== 'phase-combine' && phase !== 'phase-seam' && phase !== 'phase-open') continue;
+        if (animation.phases.at(-1) !== phase) animation.phases.push(phase);
+        if (phase === 'phase-seam')
+          animation.seamCurtains = target.querySelectorAll('.curtain').length;
+        if (phase === 'phase-open')
+          animation.openTransition = getComputedStyle(
+            target.querySelector('.curtain-top') as Element,
+          ).transitionDuration;
+      }
+    }).observe(document, { attributes: true, attributeFilter: ['class'], subtree: true });
+  });
   await page.goto('/welcome');
   const intro = page.locator('.brand-intro');
   await expect(intro).toBeVisible();
   await expect(intro).toHaveCSS('background-color', 'rgb(9, 9, 9)');
   await expect(page.locator('.welcome-film')).toHaveCSS('overflow-y', 'hidden');
-  await expect(intro).toHaveClass('brand-intro phase-combine');
-  await expect(intro).toHaveClass('brand-intro phase-seam');
-  await expect(intro.locator('.curtain')).toHaveCount(2);
-  await expect(intro).toHaveClass('brand-intro phase-open');
-  expect(
-    await intro.locator('.curtain-top').evaluate((el) => getComputedStyle(el).transitionDuration),
-  ).not.toBe('0s');
-  await expect(page.locator('.hero .primary-cta')).toBeVisible();
   await expect(intro).toHaveCount(0);
+  const { phases, seamCurtains, openTransition } = await page.evaluate(
+    () =>
+      (
+        window as unknown as {
+          __introAnimation: { phases: string[]; seamCurtains: number; openTransition: string };
+        }
+      ).__introAnimation,
+  );
+  expect(phases).toEqual(['phase-combine', 'phase-seam', 'phase-open']);
+  expect(seamCurtains).toBe(2);
+  expect(openTransition).not.toBe('0s');
+  await expect(page.locator('.hero .primary-cta')).toBeVisible();
   await expect(page.locator('.welcome-film')).toHaveCSS('overflow-y', 'auto');
   await expect(page.getByRole('button', { name: /소개 재생|소개 일시정지/ })).toHaveCount(0);
   await page.clock.install();
