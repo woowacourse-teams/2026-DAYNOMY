@@ -5,8 +5,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 import java.time.Instant;
-import java.time.LocalDate;
-import java.time.ZoneId;
 import java.util.List;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
@@ -143,27 +141,6 @@ class NewsAcceptanceTest {
         .body("category", equalTo("STOCK"));
   }
 
-  @Test
-  @DisplayName("오늘의 뉴스를 실제 HTTP 요청으로 조회한다")
-  void findTodayNews() {
-    LocalDate today = LocalDate.now();
-    newsRepository.save(
-        createNews("yesterday news", "external-1", Category.STOCK, atHour(today.minusDays(1), 23)));
-    newsRepository.save(createNews("morning news", "external-2", Category.STOCK, atHour(today, 9)));
-    newsRepository.save(
-        createNews("latest today news", "external-3", Category.REAL_ESTATE, atHour(today, 18)));
-
-    given()
-        .port(port)
-        .when()
-        .get("/api/news/today")
-        .then()
-        .statusCode(200)
-        .body("items", hasSize(2))
-        .body("items[0].title", equalTo("latest today news"))
-        .body("items[0].category", equalTo("REAL_ESTATE"));
-  }
-
   private News createNews(String title, String externalId, Category category, Instant publishedAt) {
     return News.createPublished(
         title,
@@ -174,7 +151,4 @@ class NewsAcceptanceTest {
         publishedAt);
   }
 
-  private static Instant atHour(LocalDate date, int hour) {
-    return date.atTime(hour, 0).atZone(ZoneId.systemDefault()).toInstant();
-  }
 }

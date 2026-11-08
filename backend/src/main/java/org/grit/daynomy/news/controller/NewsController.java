@@ -60,16 +60,6 @@ public class NewsController {
     return ResponseEntity.ok(newsService.getNewsPage(page, size, category));
   }
 
-  @Operation(summary = "오늘의 뉴스 조회", description = "오늘 발행된 뉴스 중 최신 뉴스 9건을 조회합니다.")
-  @ApiResponse(
-      responseCode = "200",
-      description = "조회 성공",
-      content = @Content(schema = @Schema(implementation = NewsPageResponse.class)))
-  @GetMapping("/today")
-  public ResponseEntity<NewsPageResponse> getTodayNews() {
-    return ResponseEntity.ok(newsService.getTodayNews());
-  }
-
   @Operation(summary = "뉴스 상세 조회", description = "뉴스 ID로 단일 뉴스를 조회합니다.")
   @ApiResponses({
     @ApiResponse(

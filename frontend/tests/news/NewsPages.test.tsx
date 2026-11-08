@@ -86,17 +86,6 @@ describe('뉴스 탐색 화면', () => {
         const url = getPathWithSearch(input);
         calls.push(url);
 
-        if (getPath(input) === '/api/news/today') {
-          return jsonResponse({
-            items: [article, { ...article, id: 8, title: '오늘의 두 번째 뉴스' }],
-            page: 1,
-            size: 9,
-            totalPages: 1,
-            totalElements: 2,
-            hasNext: false,
-          });
-        }
-
         return jsonResponse({
           items: [article],
           page: 1,
@@ -139,17 +128,6 @@ describe('뉴스 탐색 화면', () => {
         const url = getPathWithSearch(input);
         calls.push(url);
 
-        if (getPath(input) === '/api/news/today') {
-          return jsonResponse({
-            items: [],
-            page: 1,
-            size: 6,
-            totalPages: 0,
-            totalElements: 0,
-            hasNext: false,
-          });
-        }
-
         return jsonResponse({
           items: [article],
           page: Number(new URL(String(input), 'http://localhost').searchParams.get('page')),
@@ -175,18 +153,7 @@ describe('뉴스 탐색 화면', () => {
   it('뉴스 목록 API 실패를 사용자에게 안내한다', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn(async (input: RequestInfo | URL) =>
-        getPath(input) === '/api/news/today'
-          ? jsonResponse({
-              items: [],
-              page: 1,
-              size: 9,
-              totalPages: 0,
-              totalElements: 0,
-              hasNext: false,
-            })
-          : jsonResponse({}, 500),
-      ),
+      vi.fn(async () => jsonResponse({}, 500)),
     );
 
     const view = renderPage(<NewsListPage />);
@@ -199,24 +166,15 @@ describe('뉴스 탐색 화면', () => {
   it('오늘의 뉴스가 없어도 최근 콘텐츠를 보여준다', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn(async (input: RequestInfo | URL) =>
-        getPath(input) === '/api/news/today'
-          ? jsonResponse({
-              items: [],
-              page: 1,
-              size: 9,
-              totalPages: 0,
-              totalElements: 0,
-              hasNext: false,
-            })
-          : jsonResponse({
-              items: [article],
-              page: 1,
-              size: 10,
-              totalPages: 1,
-              totalElements: 1,
-              hasNext: false,
-            }),
+      vi.fn(async () =>
+        jsonResponse({
+          items: [article],
+          page: 1,
+          size: 10,
+          totalPages: 1,
+          totalElements: 1,
+          hasNext: false,
+        }),
       ),
     );
 

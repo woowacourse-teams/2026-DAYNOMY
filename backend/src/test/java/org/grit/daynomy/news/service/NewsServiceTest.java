@@ -6,8 +6,6 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
 import java.time.Instant;
-import java.time.LocalDate;
-import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 import org.grit.daynomy.common.exception.BusinessException;
@@ -72,52 +70,6 @@ class NewsServiceTest {
   }
 
   @Test
-  @DisplayName("오늘 발행된 뉴스 중 최신 9건을 조회한다")
-  void findTodayNewsReturnsLatestNewsPublishedToday() {
-    LocalDate today = LocalDate.now();
-    Instant startInclusive = startOfDay(today);
-    Instant endExclusive = startOfDay(today.plusDays(1));
-    News news =
-        News.createPublished(
-            "today news",
-            "content",
-            "image.png",
-            List.of(new NewsSourceInfo("DART", "https://example.com/1")),
-            Category.STOCK,
-            atHour(today, 10));
-    PageRequest pageable = PageRequest.of(0, 9);
-    given(
-            newsRepository
-                .findByStatusAndPublishedAtGreaterThanEqualAndPublishedAtLessThanOrderByPublishedAtDescIdDesc(
-                    NewsStatus.PUBLISHED, startInclusive, endExclusive, pageable))
-        .willReturn(new PageImpl<>(java.util.List.of(news), pageable, 1));
-
-    var response = newsService.getTodayNews();
-
-    assertThat(response.items()).hasSize(1);
-    assertThat(response.items().getFirst().title()).isEqualTo("today news");
-    verify(newsRepository)
-        .findByStatusAndPublishedAtGreaterThanEqualAndPublishedAtLessThanOrderByPublishedAtDescIdDesc(
-            NewsStatus.PUBLISHED, startInclusive, endExclusive, pageable);
-  }
-
-  @Test
-  @DisplayName("오늘의 뉴스가 없으면 빈 목록을 반환한다")
-  void findTodayNewsReturnsNullWhenMissing() {
-    LocalDate today = LocalDate.now();
-    Instant startInclusive = startOfDay(today);
-    Instant endExclusive = startOfDay(today.plusDays(1));
-    PageRequest pageable = PageRequest.of(0, 9);
-    given(
-            newsRepository
-                .findByStatusAndPublishedAtGreaterThanEqualAndPublishedAtLessThanOrderByPublishedAtDescIdDesc(
-                    NewsStatus.PUBLISHED, startInclusive, endExclusive, pageable))
-        .willReturn(new PageImpl<>(java.util.List.of(), pageable, 0));
-
-    assertThat(newsService.getTodayNews().items()).isEmpty();
-  }
-
-  @Test
   @DisplayName("뉴스 상세를 조회한다")
   void findNewsDetailReturnsNews() {
     News news =
@@ -149,11 +101,4 @@ class NewsServiceTest {
         .isEqualTo(NewsErrorCode.NEWS_NOT_FOUND);
   }
 
-  private static Instant startOfDay(LocalDate date) {
-    return date.atStartOfDay(ZoneId.systemDefault()).toInstant();
-  }
-
-  private static Instant atHour(LocalDate date, int hour) {
-    return date.atTime(hour, 0).atZone(ZoneId.systemDefault()).toInstant();
-  }
 }
