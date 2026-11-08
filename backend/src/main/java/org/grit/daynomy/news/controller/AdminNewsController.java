@@ -19,6 +19,7 @@ import org.grit.daynomy.news.domain.News;
 import org.grit.daynomy.news.domain.NewsStatus;
 import org.grit.daynomy.news.dto.AdminNewsCreateRequest;
 import org.grit.daynomy.news.dto.AdminNewsGenerationResponse;
+import org.grit.daynomy.news.dto.AdminNewsKeywordGenerationRequest;
 import org.grit.daynomy.news.dto.AdminNewsPageResponse;
 import org.grit.daynomy.news.dto.AdminNewsResponse;
 import org.grit.daynomy.news.dto.AdminNewsUpdateRequest;
@@ -35,6 +36,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
@@ -108,6 +110,26 @@ public class AdminNewsController {
   @PostMapping("/generate/economy/us")
   public ResponseEntity<AdminNewsGenerationResponse> generateUsEconomicNewsDrafts() {
     int savedCount = newsGenerationService.generateUsEconomicNewsDrafts().size();
+
+    return ResponseEntity.ok(new AdminNewsGenerationResponse(savedCount));
+  }
+
+  @Operation(summary = "키워드 기반 뉴스 초안 생성", description = "입력한 키워드를 조사해 뉴스 초안 하나를 생성합니다.")
+  @ApiResponses({
+    @ApiResponse(
+        responseCode = "200",
+        description = "생성 성공",
+        content = @Content(schema = @Schema(implementation = AdminNewsGenerationResponse.class))),
+    @ApiResponse(
+        responseCode = "400",
+        description = "키워드 형식 오류",
+        content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+  })
+  @PostMapping("/generate/economy/keyword")
+  public ResponseEntity<AdminNewsGenerationResponse> generateEconomicNewsDraftByKeyword(
+      @Valid @RequestBody AdminNewsKeywordGenerationRequest request) {
+    int savedCount =
+        newsGenerationService.generateEconomicNewsDraftByKeyword(request.keyword()).size();
 
     return ResponseEntity.ok(new AdminNewsGenerationResponse(savedCount));
   }
