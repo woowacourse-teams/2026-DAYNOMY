@@ -1,6 +1,7 @@
 package org.grit.daynomy.external.openai;
 
 import java.util.List;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.news.ai.GeneratedEconomicNews;
 import org.grit.daynomy.news.ai.NewsGenerationTopicResearch;
@@ -23,5 +24,18 @@ public class OpenAiNewsGenerator {
 
   public List<GeneratedEconomicNews> write(List<NewsGenerationTopicResearch> research) {
     return writer.write(research);
+  }
+
+  public List<GeneratedEconomicNews> generateEconomicNewsByKeyword(String keyword) {
+    EconomicNewsResearch research = researcher.researchEconomicNews(keyword);
+    return writer.write(
+        List.of(
+            new NewsGenerationTopicResearch(
+                UUID.randomUUID().toString(),
+                research.title(),
+                research.referenceDate(),
+                research.category(),
+                research.facts(),
+                research.sources())));
   }
 }

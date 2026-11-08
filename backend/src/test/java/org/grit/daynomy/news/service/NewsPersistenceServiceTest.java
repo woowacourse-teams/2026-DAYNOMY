@@ -33,6 +33,19 @@ class NewsPersistenceServiceTest {
   @InjectMocks private NewsPersistenceService newsPersistenceService;
 
   @Test
+  @DisplayName("키워드로 생성한 경제 뉴스 초안을 주제 예약 없이 저장한다")
+  void saveDraftsWithoutReservedTopics() {
+    GeneratedEconomicNews article =
+        new GeneratedEconomicNews("keyword", "미국 중간선거", "본문", Category.STOCK, List.of());
+    given(newsRepository.saveAll(anyList())).willAnswer(invocation -> invocation.getArgument(0));
+
+    List<News> drafts = newsPersistenceService.saveDrafts(List.of(article));
+
+    assertThat(drafts).singleElement().extracting(News::getTitle).isEqualTo("미국 중간선거");
+    verifyNoInteractions(topicRepository);
+  }
+
+  @Test
   @DisplayName("경제 뉴스 초안을 저장한다")
   void saveDraftsSavesNews() {
     GeneratedEconomicNews article =

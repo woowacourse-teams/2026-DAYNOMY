@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -40,6 +41,24 @@ class NewsGenerationServiceTest {
   @Mock private NewsPersistenceService newsPersistenceService;
 
   @InjectMocks private NewsGenerationService newsGenerationService;
+
+  @Test
+  @DisplayName("입력한 키워드로 경제 뉴스 초안을 생성한다")
+  void generateEconomicNewsDraftByKeyword() {
+    GeneratedEconomicNews article =
+        new GeneratedEconomicNews("keyword", "미국 중간선거", "본문", Category.STOCK, List.of());
+    News savedNews = org.mockito.Mockito.mock(News.class);
+    given(openAiNewsGenerator.generateEconomicNewsByKeyword("미국 중간선거"))
+        .willReturn(List.of(article));
+    given(newsPersistenceService.saveDrafts(List.of(article))).willReturn(List.of(savedNews));
+
+    List<News> drafts = newsGenerationService.generateEconomicNewsDraftByKeyword("미국 중간선거");
+
+    assertThat(drafts).containsExactly(savedNews);
+    verify(openAiNewsGenerator).generateEconomicNewsByKeyword("미국 중간선거");
+    verify(newsPersistenceService).saveDrafts(List.of(article));
+    verifyNoInteractions(topicService, topicDeduplicator, discoveryLock);
+  }
 
   @Test
   @DisplayName("준비된 주제를 예약해 한국 뉴스 초안을 생성한다")

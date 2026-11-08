@@ -44,6 +44,11 @@ public class NewsGenerationService {
     return generateDrafts(NewsGenerationType.US);
   }
 
+  public List<News> generateEconomicNewsDraftByKeyword(String keyword) {
+    return newsPersistenceService.saveDrafts(
+        openAiNewsGenerator.generateEconomicNewsByKeyword(keyword));
+  }
+
   private List<News> generateDrafts(NewsGenerationType generationType) {
     long startedAt = System.nanoTime();
     UUID reservationToken = UUID.randomUUID();

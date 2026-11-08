@@ -358,6 +358,51 @@ class AdminNewsControllerTest {
   }
 
   @Test
+  @DisplayName("관리자 키워드 뉴스 초안 생성 API는 정리한 키워드로 뉴스를 생성한다")
+  void generateEconomicNewsDraftByKeywordReturnsSavedCount() throws Exception {
+    given(newsGenerationService.generateEconomicNewsDraftByKeyword("미국 중간선거"))
+        .willReturn(java.util.List.of(mock(News.class)));
+
+    mockMvc
+        .perform(
+            post("/api/admin/news/generate/economy/keyword")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"keyword\":\"  미국 중간선거  \"}"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.savedCount").value(1));
+
+    then(newsGenerationService).should().generateEconomicNewsDraftByKeyword("미국 중간선거");
+  }
+
+  @Test
+  @DisplayName("관리자 키워드 뉴스 초안 생성 API 문서는 AI 생성 실패 응답을 명시한다")
+  void generateEconomicNewsDraftByKeywordOpenApiDocumentsGenerationFailure() throws Exception {
+    mockMvc
+        .perform(get("/v3/api-docs"))
+        .andExpect(status().isOk())
+        .andExpect(
+            jsonPath(
+                    "$.paths['/api/admin/news/generate/economy/keyword'].post.responses['502'].content['*/*'].schema['$ref']")
+                .value("#/components/schemas/ErrorResponse"));
+  }
+
+  @Test
+  @DisplayName("관리자 키워드 뉴스 초안 생성 API는 키워드 길이를 검증한다")
+  void generateEconomicNewsDraftByKeywordRejectsInvalidKeyword() throws Exception {
+    for (String keyword : java.util.List.of(" ", "가", "가".repeat(101))) {
+      mockMvc
+          .perform(
+              post("/api/admin/news/generate/economy/keyword")
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content("{\"keyword\":\"%s\"}".formatted(keyword)))
+          .andExpect(status().isBadRequest())
+          .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+    }
+
+    verifyNoInteractions(newsGenerationService);
+  }
+
+  @Test
   @DisplayName("같은 시장의 뉴스 주제 생성이 진행 중이면 409를 반환한다")
   void generateEconomicNewsDraftsRejectsConcurrentDiscovery() throws Exception {
     given(newsGenerationService.generateKoreanEconomicNewsDrafts())
