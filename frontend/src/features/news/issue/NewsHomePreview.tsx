@@ -5,18 +5,10 @@ import { useAuth } from '../../../hooks/useLoginStatus';
 import { InvestmentCalendarPage } from '../../investment-calendar/InvestmentCalendarPage';
 import { useFeaturedPeople } from '../../people/useFeaturedPeople';
 import { usePortfolioHoldings } from '../../portfolio/hooks/usePortfolioHoldings';
-import type { NewsListItem } from '../newslist/types';
-import { getAllContents } from './contents';
-import { createFeed, feedDate, type ExternalContent, type FeedItem } from './feed';
+import { feedDate, type FeedItem } from './feed';
+import { getNewsFeed } from './feedApi';
 import { IssueFeed } from './IssueFeed';
 import { feedProperties, trackLoadResult, useContentImpression, useContentView } from './analytics';
-import {
-  feedContentReference,
-  getContentPopularity,
-  sortByPopularity,
-  type PopularityScores,
-} from './popularity';
-import { getAllNews } from './todayNews';
 import './newsHomePreview.css';
 
 const latestSources = [
@@ -73,10 +65,11 @@ export default function NewsHomePreview({ preview = false }: { preview?: boolean
   const headingRef = useRef<HTMLHeadingElement>(null);
   const { isLoggedIn } = useAuth();
   const portfolio = usePortfolioHoldings(isLoggedIn);
-  const [news, setNews] = useState<NewsListItem[]>([]);
-  const [contents, setContents] = useState<ExternalContent[]>([]);
-  const [scores, setScores] = useState<PopularityScores>(new Map());
-  const [loading, setLoading] = useState(true);
+  const [trendingItems, setTrendingItems] = useState<FeedItem[]>([]);
+  const [latest, setLatest] = useState<FeedItem[]>([]);
+  const [latestTotalElements, setLatestTotalElements] = useState(0);
+  const [trendingLoading, setTrendingLoading] = useState(true);
+  const [latestLoading, setLatestLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   const [rankingFailed, setRankingFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
@@ -99,83 +92,79 @@ export default function NewsHomePreview({ preview = false }: { preview?: boolean
     const startedAt = performance.now();
     let ignore = false;
     const controller = new AbortController();
-    setLoading(true);
-    setFailed(false);
+    setTrendingLoading(true);
     setRankingFailed(false);
-    Promise.allSettled([
-      getAllNews(),
-      getAllContents(controller.signal),
-      getContentPopularity(controller.signal),
-    ]).then(([articles, external, ranking]) => {
-      if (ignore) return;
-      setNews(articles.status === 'fulfilled' ? articles.value.content : []);
-      setContents(external.status === 'fulfilled' ? external.value.items : []);
-      setScores(ranking.status === 'fulfilled' ? ranking.value : new Map());
-      if (!isPreview) {
-        trackLoadResult(
-          'news_home',
-          'news',
-          startedAt,
-          articles.status === 'fulfilled' ? 'success' : 'error',
-          articles.status === 'fulfilled' ? articles.value.content.length : 0,
-          attempt,
-        );
-        trackLoadResult(
-          'news_home',
-          'external',
-          startedAt,
-          external.status === 'fulfilled' ? 'success' : 'error',
-          external.status === 'fulfilled' ? external.value.items.length : 0,
-          attempt,
-        );
-        trackLoadResult(
-          'news_home',
-          'popularity',
-          startedAt,
-          ranking.status === 'fulfilled' ? 'success' : 'error',
-          ranking.status === 'fulfilled' ? ranking.value.size : 0,
-          attempt,
-        );
-      }
-      setFailed(articles.status === 'rejected' || external.status === 'rejected');
-      setRankingFailed(ranking.status === 'rejected');
-      setLoading(false);
-    });
+    getNewsFeed('DAYNOMY', 1, 4, 'POPULAR', controller.signal)
+      .then((result) => {
+        if (ignore) return;
+        setTrendingItems(result.items);
+        if (!isPreview)
+          trackLoadResult(
+            'news_home',
+            'popularity',
+            startedAt,
+            'success',
+            result.items.length,
+            attempt,
+          );
+      })
+      .catch(() => {
+        if (ignore || controller.signal.aborted) return;
+        setTrendingItems([]);
+        setRankingFailed(true);
+        if (!isPreview) trackLoadResult('news_home', 'popularity', startedAt, 'error', 0, attempt);
+      })
+      .finally(() => {
+        if (!ignore) setTrendingLoading(false);
+      });
     return () => {
       ignore = true;
       controller.abort();
     };
   }, [attempt, isPreview]);
 
-  const feed = createFeed(news, people.people, contents);
-  const trendingItems = rankingFailed
-    ? []
-    : sortByPopularity(
-        feed.filter((item) => 'article' in item),
-        feedContentReference,
-        scores,
-      ).slice(0, 4);
-  const filteredLatest = feed.filter(
-    (item) => latestSource === 'ALL' || item.source === latestSource,
-  );
-  const latest = filteredLatest.slice(0, 5);
-  const pending = loading || people.loading;
-  const listStatus = failed || people.error ? 'partial_error' : 'ready';
-  useContentView(!isPreview && !pending, 'view_content_list', {
+  useEffect(() => {
+    const startedAt = performance.now();
+    let ignore = false;
+    const controller = new AbortController();
+    setLatestLoading(true);
+    setFailed(false);
+    getNewsFeed(latestSource, 1, 8, 'LATEST', controller.signal)
+      .then((result) => {
+        if (ignore) return;
+        setLatest(result.items);
+        setLatestTotalElements(result.totalElements);
+        if (!isPreview)
+          trackLoadResult('news_home', 'feed', startedAt, 'success', result.items.length, attempt);
+      })
+      .catch(() => {
+        if (ignore || controller.signal.aborted) return;
+        setLatest([]);
+        setLatestTotalElements(0);
+        setFailed(true);
+        if (!isPreview) trackLoadResult('news_home', 'feed', startedAt, 'error', 0, attempt);
+      })
+      .finally(() => {
+        if (!ignore) setLatestLoading(false);
+      });
+    return () => {
+      ignore = true;
+      controller.abort();
+    };
+  }, [attempt, isPreview, latestSource]);
+
+  const listStatus = failed ? 'partial_error' : 'ready';
+  useContentView(!isPreview && !latestLoading, 'view_content_list', {
     surface: 'news_home',
     source_type: latestSource,
-    result_count: filteredLatest.length,
+    result_count: latestTotalElements,
     status: listStatus,
   });
-  useContentView(
-    !isPreview && !pending && !failed && !people.error && !latest.length,
-    'view_content_empty',
-    {
-      surface: 'news_home',
-      source_type: latestSource,
-      reason: latestSource === 'ALL' ? 'no_content' : 'filter_empty',
-    },
-  );
+  useContentView(!isPreview && !latestLoading && !failed && !latest.length, 'view_content_empty', {
+    surface: 'news_home',
+    source_type: latestSource,
+    reason: latestSource === 'ALL' ? 'no_content' : 'filter_empty',
+  });
 
   function retry() {
     trackNewsHomeEvent('retry_content_load', {
@@ -211,13 +200,13 @@ export default function NewsHomePreview({ preview = false }: { preview?: boolean
             <p>최근 7일간 반응 기준</p>
           </div>
         </div>
-        {pending ? (
+        {trendingLoading ? (
           <p className="issue-state" role="status">
             소식을 불러오고 있습니다.
           </p>
         ) : (
           <>
-            {failed || people.error || rankingFailed ? (
+            {failed || rankingFailed ? (
               <div className="briefing-data-warning" role="alert">
                 <span>
                   {rankingFailed
@@ -329,8 +318,6 @@ export default function NewsHomePreview({ preview = false }: { preview?: boolean
                     surface: 'news_home',
                     previous_source: latestSource,
                     source_type: value,
-                    result_count: feed.filter((item) => value === 'ALL' || item.source === value)
-                      .length,
                   });
                   setLatestSource(value);
                 }}
@@ -339,7 +326,7 @@ export default function NewsHomePreview({ preview = false }: { preview?: boolean
               </button>
             ))}
           </div>
-          {pending ? (
+          {latestLoading ? (
             <p className="issue-state" role="status">
               최신 소식을 불러오고 있습니다.
             </p>
@@ -347,7 +334,7 @@ export default function NewsHomePreview({ preview = false }: { preview?: boolean
             <IssueFeed items={latest} surface="news_home" />
           ) : (
             <p className="issue-state">
-              {failed || people.error
+              {failed
                 ? '소식을 불러오지 못했어요. 상단에서 다시 시도해 주세요.'
                 : latestSource === 'ALL'
                   ? '아직 등록된 소식이 없어요'

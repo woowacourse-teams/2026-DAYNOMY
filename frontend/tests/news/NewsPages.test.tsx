@@ -10,6 +10,9 @@ import { IssueHomePage } from '../../src/features/news/issue/IssueHomePage';
 import { NewsListPage } from '../../src/features/news/newslist/NewsListPage';
 import { ArticleCard } from '../../src/features/news/newslist/components/ArticleCard';
 import type { NewsListItem } from '../../src/features/news/newslist/types';
+import { getNewsFeed } from '../../src/features/news/issue/feedApi';
+
+vi.mock('../../src/features/news/issue/feedApi', () => ({ getNewsFeed: vi.fn() }));
 
 const article = {
   id: 7,
@@ -44,6 +47,7 @@ function renderPage(element: ReactNode, isLoggedIn = false) {
 }
 
 beforeEach(() => {
+  vi.mocked(getNewsFeed).mockReset();
   vi.stubGlobal('matchMedia', () => ({
     matches: false,
     addEventListener() {},
@@ -164,6 +168,21 @@ describe('뉴스 탐색 화면', () => {
   });
 
   it('오늘의 뉴스가 없어도 최근 콘텐츠를 보여준다', async () => {
+    vi.mocked(getNewsFeed).mockResolvedValue({
+      items: [
+        {
+          key: `news-${article.id}`,
+          source: 'DAYNOMY',
+          title: article.title,
+          date: article.publishedAt,
+          article,
+        },
+      ],
+      page: 1,
+      size: 6,
+      totalPages: 1,
+      totalElements: 1,
+    });
     vi.stubGlobal(
       'fetch',
       vi.fn(async () =>
@@ -185,16 +204,19 @@ describe('뉴스 탐색 화면', () => {
 
     expect(allContents.querySelector('input[type="date"]')).toBeNull();
     expect(allContents.querySelector('a[href="/news/contents"]')).toBeNull();
-    expect(allContents.querySelector(`a[href="/news/${article.id}"]`)).toBeTruthy();
+    await waitFor(() =>
+      expect(allContents.querySelector(`a[href="/news/${article.id}"]`)).toBeTruthy(),
+    );
   });
 
   it('뉴스 목록 오류를 소식 홈에 표시한다', async () => {
+    vi.mocked(getNewsFeed).mockRejectedValue(new Error('offline'));
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => jsonResponse({}, 500)),
     );
     const view = renderPage(<IssueHomePage />);
-    expect(await view.findAllByText('데이노미 이슈를 불러오지 못했습니다.')).toHaveLength(1);
+    expect(await view.findAllByText('콘텐츠를 불러오지 못했습니다.')).toHaveLength(1);
   });
 
   it('뉴스 상세 내용과 시장 분석을 표시한다', async () => {
