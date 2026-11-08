@@ -36,28 +36,24 @@ class OpenAiImageGeneratorTest {
 
   @Test
   @DisplayName("OpenAI Images API 응답의 Base64 이미지를 byte 배열로 변환한다")
-  void generateNewsImageReturnsBytes() throws Exception {
+  void generateEconomicNewsImageReturnsBytes() throws Exception {
     OpenAiImageGenerator generator =
         new OpenAiImageGenerator(
             new OpenAiProperties("test-key", startServer(openAiImageResponse()), "image-model"),
             org.springframework.web.client.RestClient.builder());
 
-    byte[] image = generator.generateNewsImage("제목");
+    byte[] image = generator.generateEconomicNewsImage("제목", "본문", Category.STOCK);
 
     assertThat(image).isEqualTo("image".getBytes(StandardCharsets.UTF_8));
   }
 
   @Test
-  @DisplayName("두 이미지 생성 프롬프트가 사람·문자·범용 금융 상징 생성을 제한한다")
-  void imagePromptsSharePeopleAndTextGuidelines() throws Exception {
+  @DisplayName("이미지 생성 프롬프트가 사람·문자·범용 금융 상징 생성을 제한한다")
+  void imagePromptRestrictsPeopleAndText() throws Exception {
     OpenAiImageGenerator generator =
         new OpenAiImageGenerator(
             new OpenAiProperties("test-key", startServer(openAiImageResponse()), "image-model"),
             org.springframework.web.client.RestClient.builder());
-
-    generator.generateNewsImage("금리 인상 전망");
-    String generalPrompt = requestPrompt();
-    assertSharedImageRestrictions(generalPrompt);
 
     generator.generateEconomicNewsImage("금리 인상 전망", "시장 금리가 상승했다", Category.STOCK);
     String economicPrompt = requestPrompt();
@@ -124,7 +120,8 @@ class OpenAiImageGeneratorTest {
     try {
       OpenAiImageGenerator generator = newGenerator(mockServer, Duration.ofSeconds(1));
 
-      assertImageGenerationFailed(() -> generator.generateNewsImage("제목"));
+      assertImageGenerationFailed(
+          () -> generator.generateEconomicNewsImage("제목", "본문", Category.STOCK));
     } finally {
       mockServer.shutdown();
     }
@@ -143,7 +140,8 @@ class OpenAiImageGeneratorTest {
     try {
       OpenAiImageGenerator generator = newGenerator(mockServer, Duration.ofMillis(100));
 
-      assertImageGenerationFailed(() -> generator.generateNewsImage("제목"));
+      assertImageGenerationFailed(
+          () -> generator.generateEconomicNewsImage("제목", "본문", Category.STOCK));
     } finally {
       mockServer.shutdown();
     }
@@ -157,7 +155,8 @@ class OpenAiImageGeneratorTest {
             new OpenAiProperties("test-key", startServer("{\"data\": []}"), "image-model"),
             org.springframework.web.client.RestClient.builder());
 
-    assertImageGenerationFailed(() -> generator.generateNewsImage("제목"));
+    assertImageGenerationFailed(
+        () -> generator.generateEconomicNewsImage("제목", "본문", Category.STOCK));
   }
 
   @Test
@@ -169,7 +168,8 @@ class OpenAiImageGeneratorTest {
             new OpenAiProperties("test-key", startServer(response), "image-model"),
             org.springframework.web.client.RestClient.builder());
 
-    assertImageGenerationFailed(() -> generator.generateNewsImage("제목"));
+    assertImageGenerationFailed(
+        () -> generator.generateEconomicNewsImage("제목", "본문", Category.STOCK));
   }
 
   private OpenAiImageGenerator newGenerator(MockWebServer mockServer, Duration readTimeout) {
