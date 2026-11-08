@@ -779,7 +779,7 @@ describe('포트폴리오 화면', () => {
     expect(within(dialog).getByLabelText('자산 추이 범례')).toBeTruthy();
   });
 
-  it('종목을 누르면 보유 상세 패널에서 종목 정보로 이동할 수 있다', async () => {
+  it('종목을 누르면 보유 상세 패널을 표시한다', async () => {
     savedHoldings = [{ ...stock, quantity: 10, averagePurchasePrice: 70000 }];
     mockPortfolioApi();
 
@@ -800,11 +800,7 @@ describe('포트폴리오 화면', () => {
     }
     expect(within(detail).getByLabelText('일간 수익 정보 없음').textContent).toBe('—');
     expect(within(detail).getByLabelText('평가 통화 KRW').textContent).toBe('KRW');
-    expect(
-      within(detail)
-        .getByRole('link', { name: /종목 정보 보기/ })
-        .getAttribute('href'),
-    ).toBe('/stocks/1');
+    expect(within(detail).queryByRole('link', { name: /종목 정보 보기/ })).toBeNull();
     expect(view.queryByText('관리')).toBeNull();
   });
 
@@ -843,7 +839,7 @@ describe('포트폴리오 화면', () => {
     fireEvent.click(view.getByRole('button', { name: '삼성전자 보유 상세' }));
     const detail = view.getByRole('dialog', { name: '삼성전자 보유 상세' });
     expect(within(detail).queryByRole('complementary', { name: '소식' })).toBeNull();
-    expect(within(detail).getByRole('link', { name: /종목 정보 보기/ })).toBeTruthy();
+    expect(within(detail).queryByRole('link', { name: /종목 정보 보기/ })).toBeNull();
     expect(within(detail).getByRole('heading', { name: '거래 내역' })).toBeTruthy();
     await within(detail).findByText('이 기간에 표시할 내역이 없어요');
     expect(

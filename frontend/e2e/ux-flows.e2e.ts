@@ -358,7 +358,6 @@ for (const width of [390, 1440]) {
     await checkWidth(page);
   });
 }
-
 for (const width of [1440, 390]) {
   test(`${width}px: 관리자 화면에서 기간별 종가 복구와 리그 재집계를 실행한다`, async ({
     page,
@@ -400,48 +399,6 @@ for (const width of [1440, 390]) {
     await expect(page.getByText('2026.10.01 ~ 2026.10.02 재수집 결과')).toBeVisible();
     await page.getByRole('button', { name: '리그 성과 재집계' }).click();
     await expect(page.getByText('일간 기록 10건 처리')).toBeVisible();
-    await checkWidth(page);
-  });
-}
-
-for (const width of [1440, 390]) {
-  test(`${width}px: 비회원 임시 포트폴리오가 종목 자료 화면에서도 연결된다`, async ({ page }) => {
-    await page.setViewportSize({ width, height: 900 });
-    await page.addInitScript(() => {
-      sessionStorage.setItem(
-        'daynomy:guest-portfolio-holdings:v1',
-        JSON.stringify([
-          {
-            assetId: 1,
-            assetCode: '005930',
-            name: '삼성전자',
-            category: 'STOCK',
-            market: 'KOSPI',
-            quantity: 1,
-            averagePurchasePrice: 70000,
-          },
-        ]),
-      );
-    });
-    await page.route('**/api/assets/1/contents', (route) =>
-      route.fulfill({
-        json: { assetId: 1, assetCode: '005930', assetName: '삼성전자', contents: [] },
-      }),
-    );
-    const privateRequests: string[] = [];
-    page.on('request', (request) => {
-      if (new URL(request.url()).pathname === '/api/users/me/portfolio')
-        privateRequests.push(request.url());
-    });
-    await page.goto('/stocks/1');
-    await expect(page.getByRole('heading', { name: '삼성전자 소식' })).toBeVisible();
-    if (width === 1440)
-      await expect(page.getByRole('complementary', { name: '내 포트폴리오 종목' })).toContainText(
-        '삼성전자',
-      );
-    else
-      await expect(page.getByRole('combobox', { name: '종목 선택', exact: true })).toHaveValue('1');
-    expect(privateRequests).toEqual([]);
     await checkWidth(page);
   });
 }

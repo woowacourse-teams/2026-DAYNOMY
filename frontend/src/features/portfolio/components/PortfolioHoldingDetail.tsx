@@ -1,4 +1,3 @@
-import { CaretRightIcon } from '@phosphor-icons/react/dist/csr/CaretRight';
 import { ChartLineUpIcon } from '@phosphor-icons/react/dist/csr/ChartLineUp';
 import { DotsThreeIcon } from '@phosphor-icons/react/dist/csr/DotsThree';
 import { XIcon } from '@phosphor-icons/react/dist/csr/X';
@@ -58,10 +57,7 @@ export function PortfolioHoldingDetail({
         </span>
         <div>
           <h2 id="holding-detail-title" aria-label={`${stock.name} 보유 상세`}>
-            <a href={`/stocks/${stock.assetId}`} aria-label={`${stock.name} 종목 정보 보기`}>
-              {stock.name}
-              <CaretRightIcon size={18} aria-hidden="true" />
-            </a>
+            {stock.name}
             <span className="sr-only">보유 상세</span>
           </h2>
           <p>

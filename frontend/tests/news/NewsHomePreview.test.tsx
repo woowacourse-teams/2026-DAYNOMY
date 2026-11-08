@@ -277,32 +277,6 @@ it('첫 화면에서 보유 종목 소식과 기존 탐색 경로를 유지한�
   });
 });
 
-it('예시 트렌딩을 펼치고 예시 보유 종목 소식으로 이동할 수 있다', () => {
-  const view = render(
-    <MemoryRouter initialEntries={['/news?preview=briefing&data=example']}>
-      <NewsHomePreview preview />
-    </MemoryRouter>,
-  );
-  fireEvent.click(view.getByText('미국 증시, 금리 경로에 주목… 기술주 중심으로 투자 심리 회복'));
-  expect(view.getByText(/실제 서비스에서는 등록된 기사로 이동/).closest('details')?.open).toBe(
-    true,
-  );
-  expect(view.getByRole('link', { name: '내 종목 소식 전체 보기' }).getAttribute('href')).toBe(
-    '/news/contents?scope=portfolio&data=example',
-  );
-  const latest = within(view.getByRole('region', { name: '전체 소식' }));
-  const exampleArticles = within(latest.getByRole('list'));
-  expect(exampleArticles.getAllByRole('article')).toHaveLength(3);
-  expect(exampleArticles.getAllByText('기사 읽기')).toHaveLength(3);
-  expect(exampleArticles.getAllByText('데이노미')).toHaveLength(3);
-  expect(view.queryByRole('link', { name: /AI 분석/ })).toBeNull();
-  expect(calendarRender).toHaveBeenCalledWith({
-    embedded: true,
-    compact: true,
-    upcomingOnly: false,
-  });
-});
-
 it('등록된 인물과 최신 글을 보여주고 기존 인물 필터로 연결한다', async () => {
   vi.mocked(getNews).mockResolvedValue(page);
   vi.mocked(useFeaturedPeople).mockReturnValue({
@@ -361,36 +335,6 @@ it('등록된 인물과 최신 글을 보여주고 기존 인물 필터로 연�
       retry: vi.fn(),
     });
   }
-});
-
-it('예시 화면은 실제 종목 소식 API를 호출하지 않는다', () => {
-  render(
-    <MemoryRouter initialEntries={['/news?preview=briefing&data=example']}>
-      <NewsHomePreview preview />
-    </MemoryRouter>,
-  );
-  expect(getStockRelatedContents).not.toHaveBeenCalled();
-});
-
-it('전체 소식은 전체보기와 같은 카테고리 필터를 보여준다', () => {
-  const view = render(
-    <MemoryRouter initialEntries={['/news?preview=briefing&data=example']}>
-      <NewsHomePreview preview />
-    </MemoryRouter>,
-  );
-  const latest = within(view.getByRole('region', { name: '전체 소식' }));
-  const filters = within(view.getByRole('group', { name: '전체 소식 카테고리' }));
-  expect(filters.getAllByRole('button').map((button) => button.textContent)).toEqual([
-    '전체',
-    '데이노미',
-    'X',
-    'Threads',
-    'YouTube',
-  ]);
-  expect(latest.getByText(/대형 기술주 강세/)).toBeTruthy();
-  expect(latest.getByText(/환율 상승이 수출 기업/)).toBeTruthy();
-  fireEvent.click(filters.getByRole('button', { name: 'YouTube' }));
-  expect(trackEvent).not.toHaveBeenCalled();
 });
 
 it('전체 소식 카테고리로 출처를 필터링한다', async () => {
@@ -477,25 +421,6 @@ it('더보기와 인물 미리보기 이동은 목적지와 위치만 기록한�
     position: 1,
   });
   expect(JSON.stringify(vi.mocked(trackEvent).mock.calls)).not.toContain('민감한');
-});
-
-it('실제 홈에서는 예시 쿼리를 무시하고 실제 API와 분석 경로만 사용한다', async () => {
-  vi.mocked(getNews).mockResolvedValue(page);
-  const view = render(
-    <MemoryRouter initialEntries={['/news?preview=briefing&data=example']}>
-      <NewsHomePreview />
-    </MemoryRouter>,
-  );
-  expect(
-    await within(view.getByRole('region', { name: '전체 소식' })).findByRole('link', {
-      name: /기준금리 동결/,
-    }),
-  ).toBeTruthy();
-  expect(view.queryByText(/가상 시나리오/)).toBeNull();
-  expect(view.queryByRole('button', { name: /예시 콘텐츠로 보기|실제 데이터 보기/ })).toBeNull();
-  expect(view.queryByText('삼성전자')).toBeNull();
-  expect(getStockRelatedContents).not.toHaveBeenCalled();
-  expect(document.title).toBe('소식 | DAYNOMY');
 });
 
 it.each(['holdings', 'empty', 'loading', 'error'] as const)(
