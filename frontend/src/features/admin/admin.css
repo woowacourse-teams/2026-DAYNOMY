@@ -1732,6 +1732,32 @@
   gap: 8px;
 }
 
+.admin-ai-image-candidates {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.admin-ai-image-candidates > div {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.admin-ai-image-candidate-remove {
+  min-height: 32px;
+  border: 1px solid #d9dee8;
+  border-radius: 6px;
+  color: #526176;
+  background: #fff;
+  cursor: pointer;
+}
+
+.admin-ai-image-candidate-remove:hover {
+  color: #b42318;
+  border-color: #f0b7b2;
+}
+
 .admin-image-candidate {
   display: grid;
   gap: 5px;
@@ -2681,7 +2707,8 @@
     flex-direction: column;
   }
 
-  .admin-image-candidates {
+  .admin-image-candidates,
+  .admin-ai-image-candidates {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .admin-form-actions {
