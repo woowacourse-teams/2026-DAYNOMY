@@ -100,5 +100,4 @@ class NewsServiceTest {
         .extracting(exception -> ((BusinessException) exception).errorCode())
         .isEqualTo(NewsErrorCode.NEWS_NOT_FOUND);
   }
-
 }
