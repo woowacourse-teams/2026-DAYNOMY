@@ -87,11 +87,6 @@ class NewsFeedAcceptanceTest {
   private News published(String title, String publishedAt) {
     return newsRepository.save(
         News.createPublished(
-            title,
-            "본문",
-            null,
-            List.of(),
-            Category.STOCK,
-            Instant.parse(publishedAt)));
+            title, "본문", null, List.of(), Category.STOCK, Instant.parse(publishedAt)));
   }
 }

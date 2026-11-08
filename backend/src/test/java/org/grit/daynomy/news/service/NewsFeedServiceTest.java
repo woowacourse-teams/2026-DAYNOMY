@@ -39,22 +39,13 @@ class NewsFeedServiceTest {
     given(clock.instant()).willReturn(Instant.parse("2026-10-20T15:00:00Z"));
     given(
             repository.findFeed(
-                ContentSearchSource.DAYNOMY,
-                2,
-                4,
-                ContentSearchSort.POPULAR,
-                fromDate))
+                ContentSearchSource.DAYNOMY, 2, 4, ContentSearchSort.POPULAR, fromDate))
         .willReturn(new ContentSearchResponse(List.of(), 2, 4, 10, 3));
 
     assertThat(service.getFeed(NewsFeedSource.DAYNOMY, 2, 4, NewsFeedSort.POPULAR))
         .isEqualTo(new NewsFeedResponse(List.of(), 2, 4, 10, 3));
     then(repository)
         .should()
-        .findFeed(
-            ContentSearchSource.DAYNOMY,
-            2,
-            4,
-            ContentSearchSort.POPULAR,
-            fromDate);
+        .findFeed(ContentSearchSource.DAYNOMY, 2, 4, ContentSearchSort.POPULAR, fromDate);
   }
 }

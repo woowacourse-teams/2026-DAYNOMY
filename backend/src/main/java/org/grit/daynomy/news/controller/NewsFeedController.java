@@ -32,8 +32,7 @@ public class NewsFeedController {
 
   @Operation(
       summary = "소식 탭 피드 조회",
-      description =
-          "발행 기사, 인물의 글, YouTube·Threads·X 자료를 출처별로 필터링하고 최신순 또는 최근 7일 인기순으로 조회합니다.")
+      description = "발행 기사, 인물의 글, YouTube·Threads·X 자료를 출처별로 필터링하고 최신순 또는 최근 7일 인기순으로 조회합니다.")
   @ApiResponses({
     @ApiResponse(
         responseCode = "200",
@@ -47,14 +46,8 @@ public class NewsFeedController {
   @GetMapping
   public NewsFeedResponse getFeed(
       @RequestParam(defaultValue = "ALL") NewsFeedSource source,
-      @Parameter(description = "페이지 번호(1부터 시작)")
-          @RequestParam(defaultValue = "1")
-          @Min(1)
-          int page,
-      @Parameter(description = "페이지 크기(1~100)")
-          @RequestParam(defaultValue = "8")
-          @Min(1)
-          @Max(100)
+      @Parameter(description = "페이지 번호(1부터 시작)") @RequestParam(defaultValue = "1") @Min(1) int page,
+      @Parameter(description = "페이지 크기(1~100)") @RequestParam(defaultValue = "8") @Min(1) @Max(100)
           int size,
       @RequestParam(defaultValue = "LATEST") NewsFeedSort sort) {
     return service.getFeed(source, page, size, sort);

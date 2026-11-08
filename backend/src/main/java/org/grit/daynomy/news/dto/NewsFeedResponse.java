@@ -4,11 +4,7 @@ import java.util.List;
 import org.grit.daynomy.search.dto.ContentSearchResponse;
 
 public record NewsFeedResponse(
-    List<NewsFeedItemResponse> items,
-    int page,
-    int size,
-    long totalElements,
-    int totalPages) {
+    List<NewsFeedItemResponse> items, int page, int size, long totalElements, int totalPages) {
 
   public static NewsFeedResponse from(ContentSearchResponse response) {
     return new NewsFeedResponse(

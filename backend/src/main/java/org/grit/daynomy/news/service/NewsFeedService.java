@@ -23,8 +23,7 @@ public class NewsFeedService {
   private final Clock clock;
 
   @Transactional(readOnly = true)
-  public NewsFeedResponse getFeed(
-      NewsFeedSource source, int page, int size, NewsFeedSort sort) {
+  public NewsFeedResponse getFeed(NewsFeedSource source, int page, int size, NewsFeedSort sort) {
     return NewsFeedResponse.from(
         repository.findFeed(
             ContentSearchSource.valueOf(source.name()),
