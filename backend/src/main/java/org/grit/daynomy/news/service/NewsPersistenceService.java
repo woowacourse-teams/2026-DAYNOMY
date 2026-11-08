@@ -22,6 +22,11 @@ public class NewsPersistenceService {
   private final NewsGenerationTopicRepository topicRepository;
 
   @Transactional
+  public List<News> saveDrafts(List<GeneratedEconomicNews> generatedNews) {
+    return newsRepository.saveAll(generatedNews.stream().map(this::toDraft).toList());
+  }
+
+  @Transactional
   public List<News> saveDrafts(
       List<GeneratedEconomicNews> generatedNews,
       List<Long> reservedTopicIds,
@@ -41,9 +46,7 @@ public class NewsPersistenceService {
       if (!topicsByKey.containsKey(article.topicKey())) {
         throw new IllegalStateException("Generated news does not match a reserved topic.");
       }
-      drafts.add(
-          News.createDraft(
-              article.title(), article.content(), null, article.sources(), article.category()));
+      drafts.add(toDraft(article));
     }
     List<News> savedDrafts = newsRepository.saveAll(drafts);
     for (int index = 0; index < generatedNews.size(); index++) {
@@ -55,5 +58,10 @@ public class NewsPersistenceService {
         .filter(topic -> topic.isReservedBy(reservationToken))
         .forEach(topic -> topic.release(reservationToken));
     return savedDrafts;
+  }
+
+  private News toDraft(GeneratedEconomicNews article) {
+    return News.createDraft(
+        article.title(), article.content(), null, article.sources(), article.category());
   }
 }
