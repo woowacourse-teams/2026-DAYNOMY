@@ -62,6 +62,9 @@ class OpenAiNewsGeneratorTest {
         .contains("web_search")
         .contains("최근 3일")
         .contains("독립된 출처 2곳 이상")
+        .contains("최소 3개는 한국 주식시장 전체")
+        .contains("미국 중간선거")
+        .contains("단순 공시")
         .contains("한국에서 발행된");
     String writerRequest = server.takeRequest().getBody().readUtf8();
     assertThat(writerRequest)
@@ -99,8 +102,10 @@ class OpenAiNewsGeneratorTest {
         .contains("미국 현지 언론")
         .contains("연방준비제도")
         .contains("미국 주식시장 전체")
-        .contains("한 기업의 주가에 직접적이고 구체적인 영향을 줄 수 있는 중요한 사건")
-        .contains("기업의 대규모·전략적 계약")
+        .contains("최소 3개")
+        .contains("미국 중간선거")
+        .contains("대통령·의회 권력구도")
+        .contains("최대 1개")
         .contains("일반적인 분기 실적 발표")
         .doesNotContain("한국에서 발행된 주요 언론사");
     String writerRequest = server.takeRequest().getBody().readUtf8();
@@ -119,7 +124,31 @@ class OpenAiNewsGeneratorTest {
 
     assertThat(server.getRequestCount()).isEqualTo(2);
     assertThat(server.takeRequest()).isNotNull();
-    assertThat(server.takeRequest().getBody().readUtf8()).contains("이전 조사 결과가 최신성");
+    assertThat(server.takeRequest().getBody().readUtf8())
+        .contains("이전 조사 결과가 최신성")
+        .contains("기본 4개 중 최소 3개는 한국 주식시장 전체")
+        .contains("선거·권력구도")
+        .contains("단순 공시·계약·실적")
+        .contains("최대 1개");
+  }
+
+  @Test
+  void usResearcherRetriesWithMarketWideSelectionCriteria() throws Exception {
+    server.enqueue(jsonResponse(researchResponse("2026-09-01")));
+    server.enqueue(
+        jsonResponse(researchResponse(LocalDate.now(ZoneId.of("Asia/Seoul")).toString())));
+
+    new OpenAiNewsResearcher(properties(), org.springframework.web.client.RestClient.builder())
+        .researchUsEconomicNews();
+
+    assertThat(server.getRequestCount()).isEqualTo(2);
+    assertThat(server.takeRequest()).isNotNull();
+    assertThat(server.takeRequest().getBody().readUtf8())
+        .contains("이전 조사 결과가 최신성")
+        .contains("기본 4개 중 최소 3개는 미국 주식시장 전체")
+        .contains("연방 선거와 대통령·의회 권력구도")
+        .contains("단순 공시·계약·실적")
+        .contains("최대 1개");
   }
 
   @Test
