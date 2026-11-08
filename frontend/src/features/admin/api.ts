@@ -1,4 +1,4 @@
-import { request, requestWithCsrf } from '../../api/client';
+import { request, requestBlobWithCsrf, requestWithCsrf } from '../../api/client';
 import { isCategory } from '../news/newslist/types';
 import { isStock } from '../stocks/api';
 import type {
@@ -395,9 +395,22 @@ export async function rejectAdminNews(id: number) {
   return assertResponse(response, isAdminNewsResponse);
 }
 
-export async function generateAdminNewsImage(id: number) {
-  const response = await requestWithCsrf<unknown>(`/api/admin/news/${id}/generate-image`, {
+export async function generateAdminNewsImageCandidate(id: number) {
+  const image = await requestBlobWithCsrf(`/api/admin/news/${id}/image-candidates`, {
     method: 'POST',
+  });
+  if (image.type !== 'image/webp' || image.size === 0) {
+    throw new Error('AI 이미지 후보 응답 형식이 올바르지 않습니다.');
+  }
+  return image;
+}
+
+export async function selectAdminNewsImage(id: number, image: Blob) {
+  const formData = new FormData();
+  formData.append('image', new File([image], 'candidate.webp', { type: image.type }));
+  const response = await requestWithCsrf<unknown>(`/api/admin/news/${id}/image`, {
+    method: 'PUT',
+    body: formData,
   });
 
   return assertResponse(response, isAdminNewsResponse);
