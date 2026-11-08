@@ -3,6 +3,7 @@ package org.grit.daynomy.external.openai;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Duration;
 import java.time.LocalDate;
@@ -111,6 +112,36 @@ class OpenAiNewsGeneratorTest {
     String writerRequest = server.takeRequest().getBody().readUtf8();
     assertThat(writerRequest).contains("조사 자료 묶음").contains("첫 번째 뉴스").contains("해라체");
     assertThat(server.getRequestCount()).isEqualTo(2);
+  }
+
+  @Test
+  void generatorResearchesAndWritesOneKeywordArticle() throws Exception {
+    server.enqueue(jsonResponse(keywordResearchResponse()));
+    server.enqueue(jsonResponse(writerResponse(List.of(validContent("키워드 뉴스")))));
+
+    List<GeneratedEconomicNews> generatedNews =
+        newGenerator().generateEconomicNewsByKeyword("미국 중간선거");
+
+    assertThat(generatedNews)
+        .singleElement()
+        .extracting(GeneratedEconomicNews::title)
+        .isEqualTo("키워드 뉴스");
+    JsonNode researchRequest =
+        new ObjectMapper().readTree(server.takeRequest().getBody().readUtf8());
+    assertThat(researchRequest.path("input").asText())
+        .contains("<keyword>미국 중간선거</keyword>")
+        .contains("최근 3일")
+        .contains("독립된 출처 2곳 이상");
+    JsonNode articlesSchema =
+        researchRequest
+            .path("text")
+            .path("format")
+            .path("schema")
+            .path("properties")
+            .path("articles");
+    assertThat(articlesSchema.path("minItems").asInt()).isEqualTo(1);
+    assertThat(articlesSchema.path("maxItems").asInt()).isEqualTo(1);
+    assertThat(server.takeRequest().getBody().readUtf8()).contains("키워드 뉴스");
   }
 
   @Test
@@ -410,6 +441,32 @@ class OpenAiNewsGeneratorTest {
             "output_text",
             "text",
             objectMapper.writeValueAsString(Map.of("articles", articles)),
+            "annotations",
+            sources);
+    return objectMapper.writeValueAsString(
+        Map.of("output", List.of(Map.of("content", List.of(outputText)))));
+  }
+
+  private String keywordResearchResponse() throws Exception {
+    ObjectMapper objectMapper = new ObjectMapper();
+    List<Map<String, Object>> sources =
+        List.of(
+            Map.of("type", "url_citation", "url", "https://example.com/1", "title", "출처 1"),
+            Map.of("type", "url_citation", "url", "https://example.com/2", "title", "출처 2"));
+    Map<String, Object> outputText =
+        Map.of(
+            "type",
+            "output_text",
+            "text",
+            objectMapper.writeValueAsString(
+                Map.of(
+                    "articles",
+                    List.of(
+                        researchArticle(
+                            "키워드 뉴스",
+                            LocalDate.now(ZoneId.of("Asia/Seoul")).toString(),
+                            "STOCK",
+                            1)))),
             "annotations",
             sources);
     return objectMapper.writeValueAsString(
