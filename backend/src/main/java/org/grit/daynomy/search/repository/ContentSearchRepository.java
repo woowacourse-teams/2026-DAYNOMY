@@ -118,6 +118,11 @@ public class ContentSearchRepository {
 
   private final NamedParameterJdbcTemplate jdbc;
 
+  public ContentSearchResponse findFeed(
+      ContentSearchSource source, int page, int size, ContentSearchSort sort, LocalDate fromDate) {
+    return search(new NewsSearchTerms(List.of()), source, page, size, sort, fromDate);
+  }
+
   public ContentSearchResponse search(
       NewsSearchTerms terms,
       ContentSearchSource source,
