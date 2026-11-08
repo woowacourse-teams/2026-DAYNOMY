@@ -13,10 +13,11 @@ import { ApiError } from '../../api/client';
 import { ADMIN_NEWS_CATEGORIES, CATEGORY_LABELS } from './constants';
 import {
   createAdminNews,
-  generateAdminNewsImage,
+  generateAdminNewsImageCandidate,
   getAdminNewsDetail,
   isSupportedNewsImage,
   searchWikimediaImages,
+  selectAdminNewsImage,
   updateAdminNews,
 } from './api';
 import { searchStocks } from '../stocks/api';
@@ -35,6 +36,7 @@ const initialValues: AdminNewsFormValues = {
 
 type FormErrors = Partial<Record<'title' | 'content' | 'category' | 'sources' | 'image', string>>;
 type SourceErrors = Array<Partial<Record<'name' | 'url', string>>>;
+type AiImageCandidate = { image: Blob; previewUrl: string };
 
 function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof ApiError || error instanceof Error ? error.message : fallback;
@@ -126,6 +128,11 @@ export function AdminNewsFormPage() {
   const [bodyMode, setBodyMode] = useState<'write' | 'preview'>('write');
   const [imageMode, setImageMode] = useState<'upload' | 'search' | 'ai'>('upload');
   const [generatingImage, setGeneratingImage] = useState(false);
+  const [selectingImage, setSelectingImage] = useState(false);
+  const [aiImageCandidates, setAiImageCandidates] = useState<AiImageCandidate[]>([]);
+  const [selectedAiImageCandidate, setSelectedAiImageCandidate] = useState<AiImageCandidate | null>(
+    null,
+  );
   const [imageNotice, setImageNotice] = useState<string | null>(null);
   const [newsStatus, setNewsStatus] = useState<AdminNewsStatus>('DRAFT');
   const persistedNewsId = useRef<number | null>(editingId);
@@ -142,11 +149,15 @@ export function AdminNewsFormPage() {
   const imageSearchController = useRef<AbortController | null>(null);
   const assetSearchRequestId = useRef(0);
   const assetSearchController = useRef<AbortController | null>(null);
+  const aiImageCandidatesRef = useRef<AiImageCandidate[]>([]);
 
   useEffect(() => {
     return () => {
       imageSearchController.current?.abort();
       assetSearchController.current?.abort();
+      aiImageCandidatesRef.current.forEach((candidate) =>
+        URL.revokeObjectURL(candidate.previewUrl),
+      );
     };
   }, []);
 
@@ -198,8 +209,12 @@ export function AdminNewsFormPage() {
   }, [image]);
 
   const previewSource = useMemo(
-    () => imagePreview ?? selectedImageCandidate?.thumbnailUrl ?? existingImageUrl,
-    [existingImageUrl, imagePreview, selectedImageCandidate],
+    () =>
+      imagePreview ??
+      selectedImageCandidate?.thumbnailUrl ??
+      selectedAiImageCandidate?.previewUrl ??
+      existingImageUrl,
+    [existingImageUrl, imagePreview, selectedAiImageCandidate, selectedImageCandidate],
   );
 
   const hasChanges =
@@ -332,6 +347,7 @@ export function AdminNewsFormPage() {
 
     setImage(nextImage);
     setSelectedImageCandidate(null);
+    setSelectedAiImageCandidate(null);
     setValues((current) => ({ ...current, imageSelection: null }));
     setErrors((current) => ({ ...current, image: undefined }));
   }
@@ -378,11 +394,68 @@ export function AdminNewsFormPage() {
     setImage(null);
     setImageInputKey((current) => current + 1);
     setSelectedImageCandidate(candidate);
+    setSelectedAiImageCandidate(null);
     setValues((current) => ({
       ...current,
       imageSelection: { title: candidate.title },
     }));
     setErrors((current) => ({ ...current, image: undefined }));
+  }
+
+  function selectAiImageCandidate(candidate: AiImageCandidate) {
+    setImage(null);
+    setImageInputKey((current) => current + 1);
+    setSelectedImageCandidate(null);
+    setSelectedAiImageCandidate(candidate);
+    setValues((current) => ({ ...current, imageSelection: null }));
+  }
+
+  function addAiImageCandidate(imageCandidate: Blob) {
+    const candidate = {
+      image: imageCandidate,
+      previewUrl: URL.createObjectURL(imageCandidate),
+    };
+    const candidates = [...aiImageCandidatesRef.current, candidate];
+    aiImageCandidatesRef.current = candidates;
+    setAiImageCandidates(candidates);
+    selectAiImageCandidate(candidate);
+  }
+
+  function removeAiImageCandidate(candidate: AiImageCandidate) {
+    URL.revokeObjectURL(candidate.previewUrl);
+    const candidates = aiImageCandidatesRef.current.filter((item) => item !== candidate);
+    aiImageCandidatesRef.current = candidates;
+    setAiImageCandidates(candidates);
+    if (selectedAiImageCandidate === candidate) {
+      setSelectedAiImageCandidate(candidates.at(-1) ?? null);
+    }
+  }
+
+  function clearAiImageCandidates() {
+    aiImageCandidatesRef.current.forEach((candidate) => URL.revokeObjectURL(candidate.previewUrl));
+    aiImageCandidatesRef.current = [];
+    setAiImageCandidates([]);
+    setSelectedAiImageCandidate(null);
+  }
+
+  async function saveSelectedAiImage() {
+    const newsId = persistedNewsId.current;
+    if (selectingImage || newsId === null || selectedAiImageCandidate === null) return;
+
+    setSelectingImage(true);
+    setErrorMessage(null);
+    setImageNotice(null);
+    try {
+      const news = await selectAdminNewsImage(newsId, selectedAiImageCandidate.image);
+      setExistingImageUrl(news.imageUrl);
+      clearAiImageCandidates();
+      setImageNotice('선택한 AI 이미지를 대표 이미지로 저장했습니다.');
+      if (!isEditing) navigate(`/admin/news/${newsId}/edit`, { replace: true });
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error, '선택한 AI 이미지를 저장하지 못했습니다.'));
+    } finally {
+      setSelectingImage(false);
+    }
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -405,12 +478,6 @@ export function AdminNewsFormPage() {
       return;
     }
 
-    if (
-      generateImage &&
-      previewSource &&
-      !window.confirm('현재 내용을 저장하고 대표 이미지를 AI 이미지로 교체할까요?')
-    )
-      return;
     setSubmitting(true);
     setImageNotice(null);
     let savedId: number | null = null;
@@ -438,21 +505,20 @@ export function AdminNewsFormPage() {
         setImageInputKey((current) => current + 1);
         setExistingImageUrl(savedNews.imageUrl);
         setGeneratingImage(true);
-        const generatedNews = await generateAdminNewsImage(savedId);
-        setExistingImageUrl(generatedNews.imageUrl);
-        setImageNotice('AI 이미지를 생성해 대표 이미지로 저장했습니다.');
+        addAiImageCandidate(await generateAdminNewsImageCandidate(savedId));
+        setImageNotice('AI 이미지 후보를 생성했습니다. 비교한 뒤 대표 이미지를 선택해 주세요.');
       } else {
         navigate('/admin/news', { replace: true });
       }
     } catch (error) {
       setErrorMessage(
         (generateImage && savedId !== null
-          ? '뉴스 내용은 저장되었습니다. 이미지 생성 실패: '
+          ? '뉴스 내용은 저장되었습니다. 이미지 후보 생성 실패: '
           : '') +
           getErrorMessage(
             error,
             generateImage && savedId !== null
-              ? '뉴스는 저장했지만 AI 이미지를 생성하지 못했습니다. 다시 시도해 주세요.'
+              ? '뉴스는 저장했지만 AI 이미지 후보를 생성하지 못했습니다. 다시 시도해 주세요.'
               : isEditing
                 ? '뉴스를 수정하지 못했습니다.'
                 : '뉴스를 등록하지 못했습니다.',
@@ -461,9 +527,6 @@ export function AdminNewsFormPage() {
     } finally {
       setSubmitting(false);
       setGeneratingImage(false);
-      if (generateImage && savedId !== null && !isEditing) {
-        navigate(`/admin/news/${savedId}/edit`, { replace: true });
-      }
     }
   }
 
@@ -771,8 +834,8 @@ export function AdminNewsFormPage() {
               >
                 <strong id="ai-image-title">뉴스 내용으로 AI 이미지 생성</strong>
                 <p>
-                  제목·본문·카테고리·출처를 먼저 저장한 뒤 이미지를 생성합니다. 기존 대표 이미지는
-                  교체되며, 발행된 뉴스에도 바로 반영됩니다.
+                  제목·본문·카테고리·출처를 저장한 뒤 후보를 생성합니다. 원하는 후보를 선택하기
+                  전까지 기존 대표 이미지는 유지됩니다.
                 </p>
                 {newsStatus === 'DRAFT' || newsStatus === 'PUBLISHED' ? (
                   <button
@@ -781,12 +844,13 @@ export function AdminNewsFormPage() {
                     onClick={(event) => {
                       if (event.currentTarget.form) void saveNews(event.currentTarget.form, true);
                     }}
+                    disabled={submitting || generatingImage || selectingImage}
                   >
                     {generatingImage
-                      ? 'AI 이미지 생성 중…'
+                      ? 'AI 이미지 후보 생성 중…'
                       : submitting
                         ? '뉴스 저장 중…'
-                        : '저장하고 AI 이미지 생성'}
+                        : '저장하고 AI 이미지 후보 생성'}
                   </button>
                 ) : (
                   <p className="admin-field-hint">
@@ -795,8 +859,47 @@ export function AdminNewsFormPage() {
                 )}
                 {generatingImage ? (
                   <p className="admin-field-hint" role="status">
-                    이미지를 만들고 있습니다. 완료되면 미리보기에 표시됩니다.
+                    이미지 후보를 만들고 있습니다.
                   </p>
+                ) : null}
+                {aiImageCandidates.length > 0 ? (
+                  <div className="admin-ai-image-candidates" aria-label="AI 이미지 후보 목록">
+                    {aiImageCandidates.map((candidate, index) => (
+                      <div key={candidate.previewUrl}>
+                        <button
+                          className={`admin-image-candidate${
+                            selectedAiImageCandidate === candidate ? ' is-selected' : ''
+                          }`}
+                          type="button"
+                          aria-pressed={selectedAiImageCandidate === candidate}
+                          onClick={() => selectAiImageCandidate(candidate)}
+                        >
+                          <img src={candidate.previewUrl} alt={`AI 이미지 후보 ${index + 1}`} />
+                          <span>후보 {index + 1}</span>
+                        </button>
+                        <button
+                          className="admin-ai-image-candidate-remove"
+                          type="button"
+                          aria-label={`AI 이미지 후보 ${index + 1} 제거`}
+                          onClick={() => removeAiImageCandidate(candidate)}
+                        >
+                          제거
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+                {aiImageCandidates.length > 0 ? (
+                  <button
+                    className="admin-primary-button"
+                    type="button"
+                    disabled={
+                      selectedAiImageCandidate === null || selectingImage || generatingImage
+                    }
+                    onClick={() => void saveSelectedAiImage()}
+                  >
+                    {selectingImage ? '대표 이미지 저장 중…' : '선택한 후보를 대표 이미지로 저장'}
+                  </button>
                 ) : null}
               </section>
 

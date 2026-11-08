@@ -11,7 +11,6 @@ import {
 import {
   deleteAdminNews,
   generateAdminKoreanEconomicNewsDrafts,
-  generateAdminNewsImage,
   generateAdminUsEconomicNewsDrafts,
   getAdminNews,
   publishAdminNews,
@@ -114,7 +113,6 @@ export function AdminNewsPage() {
   const [publishingId, setPublishingId] = useState<number | null>(null);
   const [rejectingId, setRejectingId] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
-  const [generatingImageId, setGeneratingImageId] = useState<number | null>(null);
   const [generatingDraftRegion, setGeneratingDraftRegion] = useState<NewsGenerationRegion | null>(
     null,
   );
@@ -245,23 +243,6 @@ export function AdminNewsPage() {
       setErrorMessage(getErrorMessage(error, '뉴스를 거절하지 못했습니다.'));
     } finally {
       setRejectingId(null);
-    }
-  }
-
-  async function handleGenerateImage(item: AdminNewsListItemResponse) {
-    if (item.imageUrl && !window.confirm(`'${item.title}' 뉴스 이미지를 새 이미지로 교체할까요?`)) {
-      return;
-    }
-
-    setGeneratingImageId(item.id);
-    setErrorMessage(null);
-    try {
-      await generateAdminNewsImage(item.id);
-      setReloadKey((current) => current + 1);
-    } catch (error) {
-      setErrorMessage(getErrorMessage(error, '뉴스 이미지를 생성하지 못했습니다.'));
-    } finally {
-      setGeneratingImageId(null);
     }
   }
 
@@ -411,10 +392,7 @@ export function AdminNewsPage() {
               <tbody>
                 {items.map((item) => {
                   const isProcessing =
-                    publishingId === item.id ||
-                    rejectingId === item.id ||
-                    deletingId === item.id ||
-                    generatingImageId === item.id;
+                    publishingId === item.id || rejectingId === item.id || deletingId === item.id;
 
                   return (
                     <tr key={item.id}>
@@ -454,15 +432,9 @@ export function AdminNewsPage() {
                             <button
                               type="button"
                               disabled={isProcessing}
-                              onClick={() => handleGenerateImage(item)}
+                              onClick={() => navigate(`/admin/news/${item.id}/edit#news-image`)}
                             >
-                              {generatingImageId === item.id
-                                ? item.imageUrl
-                                  ? '이미지 재생성 중'
-                                  : '이미지 생성 중'
-                                : item.imageUrl
-                                  ? '이미지 재생성'
-                                  : '이미지 생성'}
+                              이미지 관리
                             </button>
                           ) : null}
                           {item.status === 'DRAFT' ? (
