@@ -13,6 +13,7 @@ import org.grit.daynomy.search.domain.ContentSearchSource;
 import org.grit.daynomy.search.domain.NewsSearchTerms;
 import org.grit.daynomy.search.dto.ContentSearchResponse;
 import org.grit.daynomy.search.repository.ContentSearchRepository;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
@@ -40,5 +41,24 @@ class ContentSearchServiceTest {
     assertThat(service.search(" 금리  ETF 금리 ", ContentSearchSource.YOUTUBE, 2, 12, sort))
         .isEqualTo(expected);
     then(repository).should().search(terms, ContentSearchSource.YOUTUBE, 2, 12, sort, fromDate);
+  }
+
+  @Test
+  void usesEmptyTermsForFeedRequest() {
+    ContentSearchResponse expected = new ContentSearchResponse(List.of(), 1, 8, 0, 0);
+    given(clock.instant()).willReturn(Instant.parse("2026-10-20T15:00:00Z"));
+    LocalDate fromDate = LocalDate.of(2026, 10, 15);
+    given(
+            repository.search(
+                new NewsSearchTerms(List.of()),
+                ContentSearchSource.ALL,
+                1,
+                8,
+                ContentSearchSort.LATEST,
+                fromDate))
+        .willReturn(expected);
+
+    assertThat(service.search(null, ContentSearchSource.ALL, 1, 8, ContentSearchSort.LATEST))
+        .isEqualTo(expected);
   }
 }

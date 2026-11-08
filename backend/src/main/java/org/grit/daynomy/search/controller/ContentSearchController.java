@@ -5,7 +5,6 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
@@ -33,6 +32,7 @@ public class ContentSearchController {
       description =
           "발행 기사, 인물의 글, 저장된 YouTube·Threads·X 자료의 제목과 기사 본문을 검색합니다. "
               + "공백·중복 단어·대소문자를 정규화하고 모든 단어가 일치해야 합니다. "
+              + "검색어를 생략하면 전체 소식을 조회하며, "
               + "출처별 필터와 최신순(LATEST, 기본값)·인기순(POPULAR) 페이지를 반환합니다. "
               + "인기순은 한국 날짜 기준 최근 7일의 열람·펼치기 1점, 원문 클릭 3점을 합산하며 "
               + "반응이 없는 결과도 포함합니다. 점수가 같으면 최신순 기준으로 정렬합니다. "
@@ -42,9 +42,8 @@ public class ContentSearchController {
               + "kind는 NEWS, PERSON_POST, ASSET_CONTENT 중 하나입니다.")
   @GetMapping
   public ContentSearchResponse search(
-      @Parameter(description = "검색어", example = "금리", required = true)
+      @Parameter(description = "검색어. 생략하면 전체 소식 조회", example = "금리")
           @RequestParam(name = "q", required = false)
-          @NotBlank(message = "검색어를 입력해주세요.")
           @Size(max = 100, message = "검색어는 100자 이하여야 합니다.")
           @Pattern(regexp = ".*[\\p{L}\\p{N}].*", message = "올바른 검색어를 입력해주세요.")
           String keyword,
