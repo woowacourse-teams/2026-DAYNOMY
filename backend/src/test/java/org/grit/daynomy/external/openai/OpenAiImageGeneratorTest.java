@@ -113,6 +113,20 @@ class OpenAiImageGeneratorTest {
   }
 
   @Test
+  @DisplayName("GPT Image 1.5에는 지원되는 기본 가로 크기를 전달한다")
+  void generateEconomicNewsImageUsesSupportedSizeForGptImage15() throws Exception {
+    OpenAiImageGenerator generator =
+        new OpenAiImageGenerator(
+            new OpenAiProperties("test-key", startServer(openAiImageResponse()), "gpt-image-1.5"),
+            org.springframework.web.client.RestClient.builder());
+
+    generator.generateEconomicNewsImage("금리 인상 전망", "시장 금리가 상승했다", Category.STOCK);
+
+    JsonNode request = OBJECT_MAPPER.readTree(requestBody);
+    assertThat(request.path("size").asText()).isEqualTo("1536x1024");
+  }
+
+  @Test
   @DisplayName("경제 뉴스 이미지 프롬프트가 실제 카메라의 자연스러운 선명도 차이를 요구한다")
   void economicNewsImagePromptUsesNaturalCameraRendering() throws Exception {
     OpenAiImageGenerator generator =

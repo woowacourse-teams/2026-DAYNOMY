@@ -23,6 +23,7 @@ public class OpenAiImageGenerator {
 
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
   private static final String ECONOMIC_NEWS_IMAGE_SIZE = "1280x720";
+  private static final String GPT_IMAGE_1_5_IMAGE_SIZE = "1536x1024";
   private static final String IMAGE_QUALITY = "low";
   private static final String IMAGE_FORMAT = "webp";
   private static final String IMAGE_PROMPT = OpenAiPromptLoader.load("prompts/image-generator.txt");
@@ -44,8 +45,12 @@ public class OpenAiImageGenerator {
   }
 
   public byte[] generateEconomicNewsImage(String title, String content, Category category) {
+    String imageSize =
+        openAiProperties.imageModel().startsWith("gpt-image-1.5")
+            ? GPT_IMAGE_1_5_IMAGE_SIZE
+            : ECONOMIC_NEWS_IMAGE_SIZE;
     return generateNewsImage(
-        title, economicNewsImagePrompt(title, content, category), ECONOMIC_NEWS_IMAGE_SIZE);
+        title, economicNewsImagePrompt(title, content, category), imageSize);
   }
 
   private byte[] generateNewsImage(String title, String prompt, String size) {
