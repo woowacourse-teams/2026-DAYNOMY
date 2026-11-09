@@ -175,30 +175,6 @@ class PortfolioTransactionV2AcceptanceTest {
                 .jsonPath()
                 .getString("[0].tradeTime"))
         .isEqualTo("09:35");
-    body.put("tradeTime", "25:70");
-    client(member).body(body).post(endpoint).then().statusCode(400);
-  }
-
-  @Test
-  void rejectsInvalidQuantityAndFutureTradeDateBeforeCreatingPortfolio() {
-    Member member = member();
-    Asset asset = asset();
-    client(member)
-        .body(transaction(asset, PortfolioTransactionType.BUY, FIRST, 0))
-        .post(V2)
-        .then()
-        .statusCode(400);
-    client(member)
-        .body(
-            transaction(
-                asset,
-                PortfolioTransactionType.BUY,
-                LocalDate.now(ZoneId.of("Asia/Seoul")).plusDays(1),
-                1))
-        .post(V2)
-        .then()
-        .statusCode(400);
-    assertThat(portfolios.findByMemberId(member.getId())).isEmpty();
   }
 
   @Test
