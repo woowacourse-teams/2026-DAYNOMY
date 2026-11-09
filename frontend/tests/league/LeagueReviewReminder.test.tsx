@@ -119,10 +119,12 @@ it('StrictMode의 중단된 재요청은 같은 요청 키를 사용하고 노�
   expect(calls).toHaveLength(2);
   expect(calls[0][0]).toBe(calls[1][0]);
   expect(calls[0][1]?.aborted).toBe(true);
-  expect(trackEvent).toHaveBeenCalledExactlyOnceWith('view_league_review_reminder', {
-    surface: 'review_coach',
-    entry_point: 'holdings',
-    result_count: 1,
+  await waitFor(() => {
+    expect(trackEvent).toHaveBeenCalledExactlyOnceWith('view_league_review_reminder', {
+      surface: 'review_coach',
+      entry_point: 'holdings',
+      result_count: 1,
+    });
   });
   expect(api.getReviewGuide).not.toHaveBeenCalled();
 });
