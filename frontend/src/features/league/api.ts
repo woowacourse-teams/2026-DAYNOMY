@@ -77,6 +77,7 @@ function optionalAggregation(value: unknown) {
       (value.baseDate === null || isDate(value.baseDate)) &&
       isNullableInstant(value.expectedAt) &&
       isNullableInstant(value.firstReturnExpectedAt) &&
+      (value.nextCollectionAt === undefined || isNullableInstant(value.nextCollectionAt)) &&
       typeof value.reason === 'string' &&
       typeof value.delayed === 'boolean')
   );

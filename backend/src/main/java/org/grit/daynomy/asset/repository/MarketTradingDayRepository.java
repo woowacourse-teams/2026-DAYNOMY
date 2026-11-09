@@ -53,7 +53,7 @@ public interface MarketTradingDayRepository extends JpaRepository<MarketTradingD
       value =
           """
       UPDATE market_trading_days
-      SET us_trading = TRUE, us_collected_at = :collectedAt, updated_at = :collectedAt
+      SET us_trading = TRUE, us_collected_at = COALESCE(us_collected_at, :collectedAt), updated_at = :collectedAt
       WHERE base_date IN (:dates)
       """,
       nativeQuery = true)

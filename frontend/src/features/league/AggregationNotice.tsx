@@ -14,9 +14,19 @@ const scheduleFormatter = new Intl.DateTimeFormat('ko-KR', {
   weekday: 'short',
   hour: 'numeric',
   minute: '2-digit',
-  hourCycle: 'h23',
+  hour12: true,
   timeZone: 'Asia/Seoul',
 });
+
+function formatSchedule(value: string) {
+  return scheduleFormatter
+    .formatToParts(new Date(value))
+    .map((part) => {
+      if (part.type !== 'dayPeriod') return part.value;
+      return part.value === 'AM' ? '오전' : part.value === 'PM' ? '오후' : part.value;
+    })
+    .join('');
+}
 
 const messages: Record<string, string> = {
   SNAPSHOT_PENDING: '기록 확인 중',
@@ -25,7 +35,7 @@ const messages: Record<string, string> = {
   PRICE_COLLECTION_DELAYED: '종가 제공 지연',
   CALCULATION_PENDING: '수익률 집계 중',
   COLLECTION_PAUSED: '자동 집계 중지',
-  CALENDAR_PENDING: '거래일 확인 중',
+  CALENDAR_PENDING: '거래일 일정 정보 누락',
   EXCHANGE_RATE_PENDING: '환율 수집 중',
   MISSING_PRICE: '종가 확인 중',
   NO_HOLDINGS: '보유 종목 없음',
@@ -36,10 +46,12 @@ export function AggregationNotice({
   aggregation,
   onRefresh,
   surface = 'ranking',
+  hasRankings = false,
 }: {
   aggregation: AggregationEstimate;
   onRefresh: () => void;
   surface?: 'ranking' | 'daily_history';
+  hasRankings?: boolean;
 }) {
   const titleId = useId();
   const notice = useRef<HTMLElement>(null);
@@ -86,9 +98,24 @@ export function AggregationNotice({
     }, delay);
     return () => window.clearTimeout(timer);
   }, [aggregation.expectedAt]);
-  const message = Object.hasOwn(messages, aggregation.reason)
-    ? messages[aggregation.reason]
-    : '집계 대기';
+  const message = aggregation.delayed
+    ? '집계 지연 중'
+    : Object.hasOwn(messages, aggregation.reason)
+      ? messages[aggregation.reason]
+      : '집계 대기';
+  const scheduledAt = aggregation.delayed
+    ? (aggregation.nextCollectionAt ?? aggregation.expectedAt)
+    : aggregation.expectedAt;
+  const scheduleLabel = aggregation.delayed
+    ? aggregation.nextCollectionAt
+      ? '다음 수집 예정'
+      : '다음 집계 예정'
+    : surface === 'ranking' &&
+        !hasRankings &&
+        scheduledAt &&
+        ['MARKET_CLOSE_PENDING', 'PRICE_COLLECTION_PENDING', 'CALCULATION_PENDING'].includes(reason)
+      ? '첫 순위 예상'
+      : '집계 예정';
 
   return (
     <aside ref={notice} className="league-aggregation" aria-labelledby={titleId}>
@@ -107,10 +134,12 @@ export function AggregationNotice({
             <path d="M12 7v5l3 2" />
           </svg>
           {message}
-          {aggregation.delayed && aggregation.reason !== 'PRICE_COLLECTION_DELAYED' ? (
-            <span className="league-status-badge">지연</span>
-          ) : null}
         </h3>
+        {reason === 'CALENDAR_PENDING' ? (
+          <span className="league-aggregation-date">
+            거래일 정보가 누락되어 예상 시각을 안내할 수 없어요. 일정이 복구되면 다시 안내할게요.
+          </span>
+        ) : null}
         {aggregation.reason === 'SNAPSHOT_PENDING' && aggregation.baseDate ? (
           <span className="league-aggregation-date">
             {dateFormatter.format(new Date(aggregation.baseDate))} 기록
@@ -120,12 +149,12 @@ export function AggregationNotice({
       <div className="league-aggregation-schedule">
         <dl>
           <div>
-            <dt>집계 예정</dt>
+            <dt>{scheduleLabel}</dt>
             <dd>
-              {aggregation.expectedAt ? (
-                <time dateTime={aggregation.expectedAt}>
-                  {scheduleFormatter.format(new Date(aggregation.expectedAt))}
-                </time>
+              {scheduledAt ? (
+                <time dateTime={scheduledAt}>{formatSchedule(scheduledAt)} 이후</time>
+              ) : reason === 'CALENDAR_PENDING' ? (
+                '예상 시각 확인 불가'
               ) : (
                 '일정 확인 중'
               )}
@@ -136,7 +165,7 @@ export function AggregationNotice({
               <dt>첫 변동 예상</dt>
               <dd>
                 <time dateTime={aggregation.firstReturnExpectedAt}>
-                  {scheduleFormatter.format(new Date(aggregation.firstReturnExpectedAt))}
+                  {formatSchedule(aggregation.firstReturnExpectedAt)}
                 </time>
               </dd>
             </div>
