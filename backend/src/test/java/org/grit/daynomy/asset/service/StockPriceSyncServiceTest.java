@@ -96,7 +96,8 @@ class StockPriceSyncServiceTest {
     given(stockPriceClient.getStockPrices(baseDate, StockMarket.KOSDAQ, 1, 1000))
         .willReturn(response(1, List.of(item(baseDate, "247540", "285000"))));
     given(etfPriceClient.getEtfPrices(baseDate, 1, 1000))
-        .willReturn(etfResponse(1, List.of(etfItem(baseDate, "069500", "KODEX 200", "53000"))));
+        .willReturn(
+            etfResponse(1, List.of(etfItem(baseDate, "0040S0", "HANARO 글로벌피지컬AI액티브", "21795"))));
     stubCompleteSnapshot(previousBaseDate);
     stubPersistenceResult();
 
@@ -129,7 +130,7 @@ class StockPriceSyncServiceTest {
             org.assertj.core.groups.Tuple.tuple(
                 "247540", AssetCategory.STOCK, new java.math.BigDecimal("285000")),
             org.assertj.core.groups.Tuple.tuple(
-                "069500", AssetCategory.ETF, new java.math.BigDecimal("53000")));
+                "0040S0", AssetCategory.ETF, new java.math.BigDecimal("21795")));
 
     ILoggingEvent completedLog = logFor(LogEvent.STOCK_PRICE_SYNC_COMPLETED);
     assertThat(completedLog.getLevel()).isEqualTo(Level.INFO);

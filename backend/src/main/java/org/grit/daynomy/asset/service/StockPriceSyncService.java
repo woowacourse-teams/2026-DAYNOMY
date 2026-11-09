@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
@@ -41,6 +42,7 @@ public class StockPriceSyncService {
   private static final DateTimeFormatter BASIC_DATE_FORMAT = DateTimeFormatter.BASIC_ISO_DATE;
   private static final int PAGE_SIZE = 1000;
   private static final Pattern STOCK_CODE = Pattern.compile("\\d{6}");
+  private static final Pattern ETF_CODE = Pattern.compile("[0-9A-Z]{6}");
 
   private final PublicDataStockPriceClient stockPriceClient;
   private final PublicDataEtfPriceClient etfPriceClient;
@@ -387,11 +389,12 @@ public class StockPriceSyncService {
 
   private Optional<StockPriceEntry> toEtfEntry(
       PublicDataEtfPriceItem item, LocalDate requestedDate) {
-    if (item == null
-        || isBlank(item.srtnCd())
-        || !STOCK_CODE.matcher(item.srtnCd().trim()).matches()
-        || isBlank(item.basDt())
-        || isBlank(item.clpr())) {
+    if (item == null || isBlank(item.srtnCd()) || isBlank(item.basDt()) || isBlank(item.clpr())) {
+      return Optional.empty();
+    }
+
+    String code = item.srtnCd().trim().toUpperCase(Locale.ROOT);
+    if (!ETF_CODE.matcher(code).matches()) {
       return Optional.empty();
     }
 
@@ -401,8 +404,7 @@ public class StockPriceSyncService {
       if (!requestedDate.equals(baseDate) || closePrice.signum() <= 0) {
         return Optional.empty();
       }
-      return Optional.of(
-          new StockPriceEntry(item.srtnCd().trim(), AssetCategory.ETF, baseDate, closePrice));
+      return Optional.of(new StockPriceEntry(code, AssetCategory.ETF, baseDate, closePrice));
     } catch (DateTimeParseException | NumberFormatException exception) {
       return Optional.empty();
     }
