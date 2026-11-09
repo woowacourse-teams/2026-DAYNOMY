@@ -68,7 +68,7 @@ tasks.withType<Test> {
     if (System.getenv("LEAGUE_BENCHMARK") == "true") maxHeapSize = "3g"
 }
 
-// CI jobs partition the existing test task; local builds and CD still run every test.
+// CI and development CD partition the existing test task; builds without the option run every test.
 val ciTestSuite = providers.gradleProperty("ciTestSuite").orElse("all")
 val heavyCiTests = listOf(
     "org.grit.daynomy.loadtest.Portfolio1000LoadtestToolTest",
