@@ -5,6 +5,7 @@ import type { ReactNode } from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AuthContext } from '../../src/auth/AuthContext';
+import { AdminNewsImageGenerationProvider } from '../../src/features/admin/AdminNewsImageGeneration';
 import { AdminNewsFormPage } from '../../src/features/admin/AdminNewsFormPage';
 import { AdminNewsPage } from '../../src/features/admin/AdminNewsPage';
 
@@ -49,7 +50,9 @@ function stubObjectUrls() {
 function renderAdmin(element: ReactNode) {
   return render(
     <AuthContext.Provider value={{ isLoggedIn: true, loading: false, role: 'ADMIN' }}>
-      <MemoryRouter>{element}</MemoryRouter>
+      <AdminNewsImageGenerationProvider>
+        <MemoryRouter>{element}</MemoryRouter>
+      </AdminNewsImageGenerationProvider>
     </AuthContext.Provider>,
   );
 }
@@ -57,11 +60,13 @@ function renderAdmin(element: ReactNode) {
 function renderAdminEdit(element: ReactNode) {
   return render(
     <AuthContext.Provider value={{ isLoggedIn: true, loading: false, role: 'ADMIN' }}>
-      <MemoryRouter initialEntries={['/admin/news/7/edit']}>
-        <Routes>
-          <Route path="/admin/news/:newsId/edit" element={element} />
-        </Routes>
-      </MemoryRouter>
+      <AdminNewsImageGenerationProvider>
+        <MemoryRouter initialEntries={['/admin/news/7/edit']}>
+          <Routes>
+            <Route path="/admin/news/:newsId/edit" element={element} />
+          </Routes>
+        </MemoryRouter>
+      </AdminNewsImageGenerationProvider>
     </AuthContext.Provider>,
   );
 }

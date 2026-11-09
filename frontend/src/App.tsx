@@ -35,6 +35,7 @@ import {
   AdminContentSourcesPage,
 } from './features/admin/AdminContentCollectionPage';
 import { AdminShell } from './features/admin/components/AdminShell';
+import { AdminNewsImageGenerationProvider } from './features/admin/AdminNewsImageGeneration';
 import { PeoplePage } from './features/people/PeoplePage';
 import { FeedbackWidget } from './features/feedback/FeedbackWidget';
 import { PmfSurveyPrompt } from './features/pmf-survey/PmfSurveyPrompt';
@@ -488,9 +489,11 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <ServiceDomainBoundary>
-          <AppContent />
-        </ServiceDomainBoundary>
+        <AdminNewsImageGenerationProvider>
+          <ServiceDomainBoundary>
+            <AppContent />
+          </ServiceDomainBoundary>
+        </AdminNewsImageGenerationProvider>
       </AuthProvider>
     </BrowserRouter>
   );
