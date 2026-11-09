@@ -241,6 +241,7 @@ test('집계 예상 시각은 시간대가 있는 날짜와 정상 상태만 허
   const aggregation = {
     baseDate: '2026-10-12',
     expectedAt: '2026-10-13T05:30:00Z',
+    nextCollectionAt: '2026-10-13T05:30:00Z',
     firstReturnExpectedAt: '2026-10-14T05:30:00Z',
     reason: 'PRICE_COLLECTION_PENDING',
     delayed: false,
@@ -262,6 +263,8 @@ test('집계 예상 시각은 시간대가 있는 날짜와 정상 상태만 허
     { ...aggregation, expectedAt: '2026-02-30T05:30:00Z' },
     { ...aggregation, expectedAt: '2026-10-13T14:30:00' },
     { ...aggregation, firstReturnExpectedAt: 'invalid' },
+    { ...aggregation, nextCollectionAt: '2026-11-10T14:30:00' },
+    { ...aggregation, nextCollectionAt: 'invalid' },
     { ...aggregation, baseDate: '2026-02-30' },
     { ...aggregation, delayed: 'false' },
   ]) {
