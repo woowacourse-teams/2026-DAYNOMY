@@ -224,6 +224,9 @@ exchange-rate:
     cron: ${EXCHANGE_RATE_SYNC_CRON:0 10 6 * * *}
 
 portfolio:
+  delayed-quotes:
+    enabled: ${PORTFOLIO_DELAYED_QUOTES_ENABLED:false}
+    max-age: ${PORTFOLIO_DELAYED_QUOTES_MAX_AGE:30m}
   analysis:
     model: ${PORTFOLIO_ANALYSIS_MODEL:gpt-5.4-mini}
     cache-ttl: ${PORTFOLIO_ANALYSIS_CACHE_TTL:30m}

@@ -2,6 +2,7 @@ package org.grit.daynomy.asset.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
@@ -96,7 +97,8 @@ class StockPriceSyncServiceTest {
     given(stockPriceClient.getStockPrices(baseDate, StockMarket.KOSDAQ, 1, 1000))
         .willReturn(response(1, List.of(item(baseDate, "247540", "285000"))));
     given(etfPriceClient.getEtfPrices(baseDate, 1, 1000))
-        .willReturn(etfResponse(1, List.of(etfItem(baseDate, "069500", "KODEX 200", "53000"))));
+        .willReturn(
+            etfResponse(1, List.of(etfItem(baseDate, "0040S0", "HANARO 글로벌피지컬AI액티브", "21795"))));
     stubCompleteSnapshot(previousBaseDate);
     stubPersistenceResult();
 
@@ -129,7 +131,7 @@ class StockPriceSyncServiceTest {
             org.assertj.core.groups.Tuple.tuple(
                 "247540", AssetCategory.STOCK, new java.math.BigDecimal("285000")),
             org.assertj.core.groups.Tuple.tuple(
-                "069500", AssetCategory.ETF, new java.math.BigDecimal("53000")));
+                "0040S0", AssetCategory.ETF, new java.math.BigDecimal("21795")));
 
     ILoggingEvent completedLog = logFor(LogEvent.STOCK_PRICE_SYNC_COMPLETED);
     assertThat(completedLog.getLevel()).isEqualTo(Level.INFO);
@@ -439,7 +441,13 @@ class StockPriceSyncServiceTest {
     stubCompleteSnapshot(from);
     stubCompleteSnapshot(from.plusDays(1));
     stubEmptyDay(to);
-    stubPersistenceResult();
+    given(persistenceService.backfillDomestic(any(LocalDate.class), anyList()))
+        .willAnswer(
+            invocation -> {
+              LocalDate date = invocation.getArgument(0);
+              List<?> entries = invocation.getArgument(1);
+              return new StockPriceSyncResult(date, entries.size(), entries.size(), 0, 0);
+            });
 
     StockPriceBackfillResult result = syncService.backfill(from, to);
 
@@ -447,11 +455,12 @@ class StockPriceSyncServiceTest {
     assertThat(result.createdCount()).isEqualTo(6);
     then(persistenceService)
         .should()
-        .synchronize(org.mockito.ArgumentMatchers.eq(from), org.mockito.ArgumentMatchers.anyList());
+        .backfillDomestic(
+            org.mockito.ArgumentMatchers.eq(from), org.mockito.ArgumentMatchers.anyList());
     then(syncMetrics).should().recordSuccess(org.mockito.ArgumentMatchers.any());
     var order = inOrder(persistenceService, eventPublisher);
-    order.verify(persistenceService).synchronize(eq(from), anyList());
-    order.verify(persistenceService).synchronize(eq(from.plusDays(1)), anyList());
+    order.verify(persistenceService).backfillDomestic(eq(from), anyList());
+    order.verify(persistenceService).backfillDomestic(eq(from.plusDays(1)), anyList());
     order
         .verify(eventPublisher)
         .publishEvent(new StockPriceSyncResult(from.plusDays(1), 3, 3, 0, 0, from));
@@ -464,9 +473,9 @@ class StockPriceSyncServiceTest {
     LocalDate second = first.plusDays(1);
     stubCompleteSnapshot(first);
     stubCompleteSnapshot(second);
-    given(persistenceService.synchronize(eq(first), anyList()))
+    given(persistenceService.backfillDomestic(eq(first), anyList()))
         .willReturn(new StockPriceSyncResult(first, 3, 3, 0, 0));
-    given(persistenceService.synchronize(eq(second), anyList()))
+    given(persistenceService.backfillDomestic(eq(second), anyList()))
         .willThrow(new IllegalStateException("database failure"));
 
     assertThatThrownBy(() -> syncService.backfill(first, second))

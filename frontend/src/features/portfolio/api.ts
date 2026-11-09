@@ -42,14 +42,34 @@ function isHoldingResult(value: unknown): value is PortfolioHoldingResult {
   if (!isRecord(value)) return false;
   const record = value;
   if (!isStock(value) || typeof record.priceAvailable !== 'boolean') return false;
+  const hasDelayedPrice = record.delayedPrice != null || record.delayedPriceAsOf != null;
+  if (
+    record.quoteRefreshPending !== undefined &&
+    (typeof record.quoteRefreshPending !== 'boolean' ||
+      (record.quoteRefreshPending && !hasDelayedPrice))
+  ) {
+    return false;
+  }
+  if (
+    hasDelayedPrice &&
+    (!record.priceAvailable ||
+      !hasNumber(record, 'delayedPrice') ||
+      typeof record.delayedPriceAsOf !== 'string' ||
+      !Number.isFinite(Date.parse(record.delayedPriceAsOf)))
+  ) {
+    return false;
+  }
   return (
     hasNumber(value, 'quantity') &&
     hasNumber(value, 'averagePurchasePrice') &&
     hasNumber(value, 'purchaseAmount') &&
     (record.priceAvailable
       ? typeof record.baseDate === 'string' &&
-        ['closePrice', 'evaluationAmount', 'profitLoss', 'returnRate', 'weight'].every((key) =>
-          hasNumber(value, key),
+        (hasDelayedPrice
+          ? hasNullableNumber(record, 'closePrice')
+          : hasNumber(record, 'closePrice')) &&
+        ['evaluationAmount', 'profitLoss', 'returnRate', 'weight'].every((key) =>
+          hasNumber(record, key),
         )
       : record.baseDate === null &&
         ['closePrice', 'evaluationAmount', 'profitLoss', 'returnRate', 'weight'].every(

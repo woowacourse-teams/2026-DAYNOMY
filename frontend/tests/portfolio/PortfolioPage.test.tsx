@@ -320,6 +320,46 @@ afterEach(() => {
 });
 
 describe('포트폴리오 화면', () => {
+  it.each([
+    [false, '지연 시세', '지연 시세 1종목 · 종가 0종목'],
+    [true, '갱신 대기', '지연 시세 0종목 · 종가 0종목 · 갱신 대기 1종목'],
+  ])(
+    '확정 종가가 없어도 기존 가격을 유지하고 상태를 표시한다 (%s)',
+    async (pending, label, summary) => {
+      savedHoldings = [calculation.holdings[0]];
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+          const url = String(input);
+          if (url.endsWith('/api/auth/csrf')) {
+            return jsonResponse({ token: 'token', headerName: 'X-CSRF-TOKEN' });
+          }
+          if (url.endsWith('/api/portfolio/calculate')) {
+            return jsonResponse({
+              ...calculation,
+              holdings: [
+                {
+                  ...calculation.holdings[0],
+                  closePrice: null,
+                  delayedPrice: 75000,
+                  delayedPriceAsOf: '2026-10-06T01:15:00Z',
+                  quoteRefreshPending: pending,
+                },
+              ],
+            });
+          }
+          return portfolioApiResponse(input, init) ?? jsonResponse({}, 404);
+        }),
+      );
+
+      const view = render(<PortfolioPage />);
+      const table = await view.findByRole('region', { name: /보유 자산 표/ });
+      expect(await within(table).findByText(`${label} · 10:15 KST 기준`)).toBeTruthy();
+      expect(within(table).getByText('75,000원')).toBeTruthy();
+      expect(view.getByText(summary)).toBeTruthy();
+    },
+  );
+
   it('사용 가이드의 진입점과 자동 안내를 화면에 표시하지 않는다', async () => {
     localStorage.removeItem('daynomy:portfolio-tour:v1');
     const view = render(<PortfolioPage isLoggedIn={false} />);

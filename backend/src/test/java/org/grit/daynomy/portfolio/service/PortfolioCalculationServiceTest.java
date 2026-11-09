@@ -13,6 +13,7 @@ import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.List;
@@ -66,6 +67,61 @@ class PortfolioCalculationServiceTest {
     logger.detachAppender(appender);
     logger.setLevel(originalLevel);
     appender.stop();
+  }
+
+  @Test
+  void dashboardMixesDelayedPricesAndConfirmedClosesWithoutMixingDailyReturns() {
+    LocalDate day = LocalDate.of(2026, 11, 9);
+    var samsung = asset(1L, "005930", "삼성전자", AssetCategory.STOCK, StockMarket.KOSPI);
+    var etf = asset(2L, "QQQ.US", "QQQ", AssetCategory.ETF, StockMarket.NASDAQ);
+    given(etf.getCurrency()).willReturn("USD");
+    var prior = day.minusDays(3);
+    given(stockDailyPriceRepository.findLatestTwoByAssetIds(List.of(1L, 2L)))
+        .willReturn(
+            List.of(
+                new StockDailyPrice(samsung, prior, new BigDecimal("80")),
+                new StockDailyPrice(etf, prior, new BigDecimal("100"))));
+    given(exchangeRates.ratesForDates(List.of(prior)))
+        .willReturn(Map.of(prior, new BigDecimal("1400")));
+    var asOf = Instant.parse("2026-11-09T01:30:00Z");
+    var quote =
+        new PortfolioDelayedQuoteService.ValuationQuote(
+            samsung, day, asOf, new BigDecimal("90"), new BigDecimal("90"), true);
+    var request =
+        new PortfolioCalculateRequest(
+            List.of(
+                new PortfolioHoldingRequest(1L, 2L, new BigDecimal("70")),
+                new PortfolioHoldingRequest(2L, 1L, new BigDecimal("130000"))));
+
+    var result = calculationService.calculateDashboard(request, () -> Map.of(1L, quote));
+
+    assertThat(result.totalEvaluationAmount()).isEqualByComparingTo("140180");
+    assertThat(result.dailyProfitLoss()).isNull();
+    assertThat(result.holdings().getFirst().delayedPrice()).isEqualByComparingTo("90");
+    assertThat(result.holdings().getFirst().closePrice()).isEqualByComparingTo("80");
+    assertThat(result.holdings().getFirst().delayedPriceAsOf()).isEqualTo(asOf);
+    assertThat(result.holdings().getFirst().quoteRefreshPending()).isTrue();
+    assertThat(result.holdings().getLast().delayedPriceAsOf()).isNull();
+  }
+
+  @Test
+  void dashboardPricesUsEtfEvenWhenItHasNoDailyClose() {
+    LocalDate day = LocalDate.of(2026, 11, 9);
+    var etf = asset(1L, "QQQ.US", "QQQ", AssetCategory.ETF, StockMarket.NASDAQ);
+    var asOf = Instant.parse("2026-11-09T15:00:00Z");
+    var quote =
+        new PortfolioDelayedQuoteService.ValuationQuote(
+            etf, day, asOf, new BigDecimal("100"), new BigDecimal("140000"), false);
+    var request =
+        new PortfolioCalculateRequest(
+            List.of(new PortfolioHoldingRequest(1L, 2L, new BigDecimal("130000"))));
+
+    var result = calculationService.calculateDashboard(request, () -> Map.of(1L, quote));
+
+    assertThat(result.totalEvaluationAmount()).isEqualByComparingTo("280000");
+    assertThat(result.holdings().getFirst().priceAvailable()).isTrue();
+    assertThat(result.holdings().getFirst().closePrice()).isNull();
+    assertThat(result.holdings().getFirst().delayedPrice()).isEqualByComparingTo("100");
   }
 
   @Test

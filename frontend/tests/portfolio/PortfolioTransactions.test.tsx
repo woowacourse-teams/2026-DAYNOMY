@@ -687,7 +687,7 @@ describe('거래 원장 화면', () => {
         .getAllByRole('cell')
         .slice(3)
         .map((cell) => cell.textContent),
-    ).toEqual(['-', '-', '-']);
+    ).toEqual(['가격 미확인', '-', '-']);
     expect(view.queryByText('시세 없음')).toBeNull();
     fireEvent.click(view.getByRole('button', { name: '삼성전자 보유 상세' }));
     const detail = view.getByRole('dialog', { name: '삼성전자 보유 상세' });
