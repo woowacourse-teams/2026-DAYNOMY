@@ -68,3 +68,7 @@ stock:
       enabled: false
       retry:
         delay: 0ms
+
+league:
+  auto-sync:
+    retry-cron: "-"
