@@ -79,6 +79,9 @@ export type PortfolioHoldingResult = PortfolioHoldingInput & {
   priceAvailable: boolean;
   baseDate: string | null;
   closePrice: number | null;
+  delayedPrice?: number | null;
+  delayedPriceAsOf?: string | null;
+  quoteRefreshPending?: boolean;
   purchaseAmount: number;
   evaluationAmount: number | null;
   profitLoss: number | null;
