@@ -49,8 +49,7 @@ public class OpenAiImageGenerator {
         openAiProperties.imageModel().startsWith("gpt-image-1.5")
             ? GPT_IMAGE_1_5_IMAGE_SIZE
             : ECONOMIC_NEWS_IMAGE_SIZE;
-    return generateNewsImage(
-        title, economicNewsImagePrompt(title, content, category), imageSize);
+    return generateNewsImage(title, economicNewsImagePrompt(title, content, category), imageSize);
   }
 
   private byte[] generateNewsImage(String title, String prompt, String size) {
