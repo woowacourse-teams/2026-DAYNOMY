@@ -3,6 +3,10 @@ package org.grit.daynomy.external.openai;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpServer;
@@ -10,15 +14,20 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.common.logging.LogEvent;
 import org.grit.daynomy.external.ExternalErrorCode;
 import org.grit.daynomy.news.domain.Category;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 
 class OpenAiImageGeneratorTest {
 
@@ -26,9 +35,24 @@ class OpenAiImageGeneratorTest {
 
   private HttpServer server;
   private String requestBody;
+  private final Logger logger = (Logger) LoggerFactory.getLogger(OpenAiImageGenerator.class);
+  private final ListAppender<ILoggingEvent> appender = new ListAppender<>();
+
+  private Level originalLevel;
+
+  @BeforeEach
+  void setUp() {
+    originalLevel = logger.getLevel();
+    logger.setLevel(Level.DEBUG);
+    appender.start();
+    logger.addAppender(appender);
+  }
 
   @AfterEach
   void tearDown() {
+    logger.detachAppender(appender);
+    logger.setLevel(originalLevel);
+    appender.stop();
     if (server != null) {
       server.stop(0);
     }
@@ -45,6 +69,8 @@ class OpenAiImageGeneratorTest {
     byte[] image = generator.generateEconomicNewsImage("제목", "본문", Category.STOCK);
 
     assertThat(image).isEqualTo("image".getBytes(StandardCharsets.UTF_8));
+    assertThat(keyValues(logEvent(LogEvent.AI_IMAGE_GENERATION_COMPLETED)))
+        .containsKey("durationMs");
   }
 
   @Test
@@ -122,6 +148,8 @@ class OpenAiImageGeneratorTest {
 
       assertImageGenerationFailed(
           () -> generator.generateEconomicNewsImage("제목", "본문", Category.STOCK));
+      assertThat(keyValues(logEvent(LogEvent.AI_IMAGE_GENERATION_FAILED)))
+          .containsKey("durationMs");
     } finally {
       mockServer.shutdown();
     }
@@ -245,6 +273,19 @@ class OpenAiImageGeneratorTest {
         .contains("bull or bear figures, floating currency symbols")
         .contains("Never render, copy, paraphrase, translate, or visualize any words, letters")
         .contains("Final check: remove all text-like marks and all unnecessary people");
+  }
+
+  private Map<String, Object> keyValues(ILoggingEvent loggingEvent) {
+    Map<String, Object> values = new HashMap<>();
+    loggingEvent.getKeyValuePairs().forEach(pair -> values.put(pair.key, pair.value));
+    return values;
+  }
+
+  private ILoggingEvent logEvent(LogEvent event) {
+    return appender.list.stream()
+        .filter(loggingEvent -> event.code().equals(keyValues(loggingEvent).get("event")))
+        .findFirst()
+        .orElseThrow();
   }
 
   private String openAiImageResponse() {

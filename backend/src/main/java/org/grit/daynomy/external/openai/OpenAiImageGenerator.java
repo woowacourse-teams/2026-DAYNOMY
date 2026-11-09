@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Base64;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.common.logging.LogEvent;
@@ -48,6 +49,7 @@ public class OpenAiImageGenerator {
   }
 
   private byte[] generateNewsImage(String title, String prompt, String size) {
+    long startedAt = System.nanoTime();
     try {
       log.atInfo()
           .addKeyValue("event", LogEvent.AI_IMAGE_GENERATION_REQUESTED.code())
@@ -72,6 +74,7 @@ public class OpenAiImageGenerator {
           .addKeyValue("api", "OpenAI")
           .addKeyValue("operation", "image-generation")
           .addKeyValue("title", title)
+          .addKeyValue("durationMs", elapsedMillis(startedAt))
           .log(LogEvent.AI_IMAGE_GENERATION_COMPLETED.message());
       return image;
     } catch (HttpStatusCodeException exception) {
@@ -81,6 +84,7 @@ public class OpenAiImageGenerator {
           .addKeyValue("operation", "image-generation")
           .addKeyValue("httpStatus", exception.getStatusCode().value())
           .addKeyValue("title", title)
+          .addKeyValue("durationMs", elapsedMillis(startedAt))
           .log(LogEvent.AI_IMAGE_GENERATION_FAILED.message());
       throw new BusinessException(ExternalErrorCode.AI_IMAGE_GENERATION_FAILED);
     } catch (RestClientException exception) {
@@ -90,6 +94,7 @@ public class OpenAiImageGenerator {
           .addKeyValue("operation", "image-generation")
           .addKeyValue("errorType", exception.getClass().getSimpleName())
           .addKeyValue("title", title)
+          .addKeyValue("durationMs", elapsedMillis(startedAt))
           .log(LogEvent.AI_IMAGE_GENERATION_FAILED.message());
       throw new BusinessException(ExternalErrorCode.AI_IMAGE_GENERATION_FAILED);
     } catch (IllegalArgumentException exception) {
@@ -99,6 +104,7 @@ public class OpenAiImageGenerator {
           .addKeyValue("operation", "image-generation")
           .addKeyValue("errorType", "InvalidBase64")
           .addKeyValue("title", title)
+          .addKeyValue("durationMs", elapsedMillis(startedAt))
           .log(LogEvent.AI_IMAGE_GENERATION_FAILED.message());
       throw new BusinessException(ExternalErrorCode.AI_IMAGE_GENERATION_FAILED);
     }
@@ -142,5 +148,9 @@ public class OpenAiImageGenerator {
 
   private int toMillis(java.time.Duration timeout) {
     return Math.toIntExact(timeout.toMillis());
+  }
+
+  private long elapsedMillis(long startedAt) {
+    return TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt);
   }
 }
