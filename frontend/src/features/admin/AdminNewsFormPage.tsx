@@ -13,13 +13,16 @@ import { ApiError } from '../../api/client';
 import { ADMIN_NEWS_CATEGORIES, CATEGORY_LABELS } from './constants';
 import {
   createAdminNews,
-  generateAdminNewsImageCandidate,
   getAdminNewsDetail,
   isSupportedNewsImage,
   searchWikimediaImages,
   selectAdminNewsImage,
   updateAdminNews,
 } from './api';
+import {
+  useAdminNewsImageGeneration,
+  type AdminNewsAiImageCandidate,
+} from './AdminNewsImageGenerationContext';
 import { searchStocks } from '../stocks/api';
 import type { StockSearchItem } from '../stocks/types';
 import type { AdminNewsFormValues, AdminNewsStatus, AdminWikimediaImageCandidate } from './types';
@@ -36,7 +39,6 @@ const initialValues: AdminNewsFormValues = {
 
 type FormErrors = Partial<Record<'title' | 'content' | 'category' | 'sources' | 'image', string>>;
 type SourceErrors = Array<Partial<Record<'name' | 'url', string>>>;
-type AiImageCandidate = { image: Blob; previewUrl: string };
 
 function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof ApiError || error instanceof Error ? error.message : fallback;
@@ -105,6 +107,7 @@ const NewsBodyPreview = memo(function NewsBodyPreview({
 
 export function AdminNewsFormPage() {
   const navigate = useNavigate();
+  const imageGeneration = useAdminNewsImageGeneration();
   const { newsId } = useParams();
   const editingId = newsId ? Number(newsId) : null;
   const isEditing = editingId !== null && Number.isInteger(editingId) && editingId > 0;
@@ -127,15 +130,12 @@ export function AdminNewsFormPage() {
   const [submitting, setSubmitting] = useState(false);
   const [bodyMode, setBodyMode] = useState<'write' | 'preview'>('write');
   const [imageMode, setImageMode] = useState<'upload' | 'search' | 'ai'>('upload');
-  const [generatingImage, setGeneratingImage] = useState(false);
   const [selectingImage, setSelectingImage] = useState(false);
-  const [aiImageCandidates, setAiImageCandidates] = useState<AiImageCandidate[]>([]);
-  const [selectedAiImageCandidate, setSelectedAiImageCandidate] = useState<AiImageCandidate | null>(
-    null,
-  );
+  const [selectedAiImageCandidate, setSelectedAiImageCandidate] =
+    useState<AdminNewsAiImageCandidate | null>(null);
   const [imageNotice, setImageNotice] = useState<string | null>(null);
   const [newsStatus, setNewsStatus] = useState<AdminNewsStatus>('DRAFT');
-  const persistedNewsId = useRef<number | null>(editingId);
+  const [persistedNewsId, setPersistedNewsId] = useState<number | null>(editingId);
   const [assetSearched, setAssetSearched] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [detailLoadError, setDetailLoadError] = useState<string | null>(null);
@@ -149,15 +149,11 @@ export function AdminNewsFormPage() {
   const imageSearchController = useRef<AbortController | null>(null);
   const assetSearchRequestId = useRef(0);
   const assetSearchController = useRef<AbortController | null>(null);
-  const aiImageCandidatesRef = useRef<AiImageCandidate[]>([]);
 
   useEffect(() => {
     return () => {
       imageSearchController.current?.abort();
       assetSearchController.current?.abort();
-      aiImageCandidatesRef.current.forEach((candidate) =>
-        URL.revokeObjectURL(candidate.previewUrl),
-      );
     };
   }, []);
 
@@ -178,7 +174,7 @@ export function AdminNewsFormPage() {
           imageSelection: null,
           assetIds: (news.relatedAssets ?? []).map((asset) => asset.assetId),
         };
-        persistedNewsId.current = news.id;
+        setPersistedNewsId(news.id);
         setNewsStatus(news.status);
         originalValues.current = loadedValues;
         setValues(loadedValues);
@@ -207,6 +203,33 @@ export function AdminNewsFormPage() {
     setImagePreview(previewUrl);
     return () => URL.revokeObjectURL(previewUrl);
   }, [image]);
+
+  const aiImageCandidates = useMemo(
+    () => (imageGeneration.newsId === persistedNewsId ? imageGeneration.candidates : []),
+    [imageGeneration.candidates, imageGeneration.newsId, persistedNewsId],
+  );
+  const generatingImage = imageGeneration.status === 'loading';
+  const isCurrentImageGeneration = imageGeneration.newsId === persistedNewsId;
+  const hasOtherAiImageCandidates =
+    imageGeneration.newsId !== null &&
+    imageGeneration.newsId !== persistedNewsId &&
+    imageGeneration.candidates.length > 0;
+  const visibleErrorMessage =
+    errorMessage ??
+    (isCurrentImageGeneration && imageGeneration.status === 'error'
+      ? `뉴스 내용은 저장되었습니다. 이미지 후보 생성 실패: ${imageGeneration.error}`
+      : null);
+  const visibleImageNotice =
+    imageNotice ??
+    (isCurrentImageGeneration && imageGeneration.status === 'success'
+      ? 'AI 이미지 후보를 생성했습니다. 비교한 뒤 대표 이미지를 선택해 주세요.'
+      : null);
+
+  useEffect(() => {
+    setSelectedAiImageCandidate((current) =>
+      current && aiImageCandidates.includes(current) ? current : (aiImageCandidates.at(-1) ?? null),
+    );
+  }, [aiImageCandidates]);
 
   const previewSource = useMemo(
     () =>
@@ -402,7 +425,7 @@ export function AdminNewsFormPage() {
     setErrors((current) => ({ ...current, image: undefined }));
   }
 
-  function selectAiImageCandidate(candidate: AiImageCandidate) {
+  function selectAiImageCandidate(candidate: AdminNewsAiImageCandidate) {
     setImage(null);
     setImageInputKey((current) => current + 1);
     setSelectedImageCandidate(null);
@@ -410,36 +433,17 @@ export function AdminNewsFormPage() {
     setValues((current) => ({ ...current, imageSelection: null }));
   }
 
-  function addAiImageCandidate(imageCandidate: Blob) {
-    const candidate = {
-      image: imageCandidate,
-      previewUrl: URL.createObjectURL(imageCandidate),
-    };
-    const candidates = [...aiImageCandidatesRef.current, candidate];
-    aiImageCandidatesRef.current = candidates;
-    setAiImageCandidates(candidates);
-    selectAiImageCandidate(candidate);
-  }
-
-  function removeAiImageCandidate(candidate: AiImageCandidate) {
-    URL.revokeObjectURL(candidate.previewUrl);
-    const candidates = aiImageCandidatesRef.current.filter((item) => item !== candidate);
-    aiImageCandidatesRef.current = candidates;
-    setAiImageCandidates(candidates);
-    if (selectedAiImageCandidate === candidate) {
-      setSelectedAiImageCandidate(candidates.at(-1) ?? null);
-    }
+  function removeAiImageCandidate(candidate: AdminNewsAiImageCandidate) {
+    imageGeneration.removeCandidate(candidate);
   }
 
   function clearAiImageCandidates() {
-    aiImageCandidatesRef.current.forEach((candidate) => URL.revokeObjectURL(candidate.previewUrl));
-    aiImageCandidatesRef.current = [];
-    setAiImageCandidates([]);
+    imageGeneration.clearCandidates();
     setSelectedAiImageCandidate(null);
   }
 
   async function saveSelectedAiImage() {
-    const newsId = persistedNewsId.current;
+    const newsId = persistedNewsId;
     if (selectingImage || newsId === null || selectedAiImageCandidate === null) return;
 
     setSelectingImage(true);
@@ -491,11 +495,11 @@ export function AdminNewsFormPage() {
         })),
       };
       const savedNews =
-        persistedNewsId.current !== null
-          ? await updateAdminNews(persistedNewsId.current, normalizedValues, image)
+        persistedNewsId !== null
+          ? await updateAdminNews(persistedNewsId, normalizedValues, image)
           : await createAdminNews(normalizedValues, image);
       savedId = savedNews.id;
-      persistedNewsId.current = savedId;
+      setPersistedNewsId(savedId);
       if (generateImage) {
         const savedValues = { ...normalizedValues, imageSelection: null };
         originalValues.current = savedValues;
@@ -504,9 +508,7 @@ export function AdminNewsFormPage() {
         setSelectedImageCandidate(null);
         setImageInputKey((current) => current + 1);
         setExistingImageUrl(savedNews.imageUrl);
-        setGeneratingImage(true);
-        addAiImageCandidate(await generateAdminNewsImageCandidate(savedId));
-        setImageNotice('AI 이미지 후보를 생성했습니다. 비교한 뒤 대표 이미지를 선택해 주세요.');
+        void imageGeneration.startGeneration(savedId);
       } else {
         navigate('/admin/news', { replace: true });
       }
@@ -526,7 +528,6 @@ export function AdminNewsFormPage() {
       );
     } finally {
       setSubmitting(false);
-      setGeneratingImage(false);
     }
   }
 
@@ -573,9 +574,9 @@ export function AdminNewsFormPage() {
         </div>
       </div>
 
-      {errorMessage ? (
+      {visibleErrorMessage ? (
         <section className="admin-alert" role="alert">
-          <strong>{errorMessage}</strong>
+          <strong>{visibleErrorMessage}</strong>
         </section>
       ) : null}
 
@@ -822,9 +823,9 @@ export function AdminNewsFormPage() {
                 {errors.image ? <small className="admin-field-error">{errors.image}</small> : null}
               </div>
 
-              {imageNotice ? (
+              {visibleImageNotice ? (
                 <p className="admin-field-hint" role="status">
-                  {imageNotice}
+                  {visibleImageNotice}
                 </p>
               ) : null}
               <section
@@ -844,20 +845,26 @@ export function AdminNewsFormPage() {
                     onClick={(event) => {
                       if (event.currentTarget.form) void saveNews(event.currentTarget.form, true);
                     }}
-                    disabled={submitting || generatingImage || selectingImage}
+                    disabled={
+                      submitting || generatingImage || selectingImage || hasOtherAiImageCandidates
+                    }
                   >
                     {generatingImage
-                      ? 'AI 이미지 후보 생성 중…'
-                      : submitting
-                        ? '뉴스 저장 중…'
-                        : '저장하고 AI 이미지 후보 생성'}
+                      ? isCurrentImageGeneration
+                        ? 'AI 이미지 후보 생성 중…'
+                        : '다른 뉴스 이미지 생성 중…'
+                      : hasOtherAiImageCandidates
+                        ? '다른 뉴스 후보 확인 필요'
+                        : submitting
+                          ? '뉴스 저장 중…'
+                          : '저장하고 AI 이미지 후보 생성'}
                   </button>
                 ) : (
                   <p className="admin-field-hint">
                     초안 또는 발행된 뉴스에서만 AI 이미지를 생성할 수 있습니다.
                   </p>
                 )}
-                {generatingImage ? (
+                {generatingImage && isCurrentImageGeneration ? (
                   <p className="admin-field-hint" role="status">
                     이미지 후보를 만들고 있습니다.
                   </p>
@@ -881,6 +888,7 @@ export function AdminNewsFormPage() {
                           className="admin-ai-image-candidate-remove"
                           type="button"
                           aria-label={`AI 이미지 후보 ${index + 1} 제거`}
+                          disabled={generatingImage}
                           onClick={() => removeAiImageCandidate(candidate)}
                         >
                           제거
