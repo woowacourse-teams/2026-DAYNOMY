@@ -44,13 +44,14 @@ function isDate(value: unknown): value is string {
 function optionalCollectionStatus(value: unknown) {
   return (
     value === undefined ||
-    [
-      'CALENDAR_PENDING',
-      'IN_PROGRESS',
-      'COLLECTION_PENDING',
-      'COMPLETE',
-      'NO_TRADING_DAYS',
-    ].includes(String(value))
+    (typeof value === 'string' &&
+      [
+        'CALENDAR_PENDING',
+        'IN_PROGRESS',
+        'COLLECTION_PENDING',
+        'COMPLETE',
+        'NO_TRADING_DAYS',
+      ].includes(value))
   );
 }
 
@@ -211,9 +212,8 @@ function isPublicInvestor(value: unknown): value is PublicInvestor {
         isNullableNumber(point.weeklyReturnRate) &&
         isNullableNumber(point.maxDrawdownRate) &&
         (point.status === undefined ||
-          ['CALCULATED', 'PENDING', 'EXCLUDED', 'NOT_PARTICIPATING'].includes(
-            String(point.status),
-          )) &&
+          (typeof point.status === 'string' &&
+            ['CALCULATED', 'PENDING', 'EXCLUDED', 'NOT_PARTICIPATING'].includes(point.status))) &&
         (point.confirmed === undefined || typeof point.confirmed === 'boolean') &&
         optionalCollectionStatus(point.collectionStatus) &&
         (point.weeklyRank === undefined ||
@@ -393,7 +393,8 @@ function isDailyHistory(value: unknown): value is DailyHistory {
       !isNullableNumber(day.dailyReturnRate) ||
       !isNullableNumber(day.cumulativeReturnRate) ||
       !(day.reason === null || typeof day.reason === 'string') ||
-      !['CALCULATED', 'PENDING', 'EXCLUDED', 'NOT_PARTICIPATING'].includes(String(day.status))
+      typeof day.status !== 'string' ||
+      !['CALCULATED', 'PENDING', 'EXCLUDED', 'NOT_PARTICIPATING'].includes(day.status)
     )
       return false;
     previousDate = day.baseDate;
@@ -584,7 +585,8 @@ function isReviewGuide(value: unknown): value is ReviewGuide {
   if (!isRecord(value) || !isRecord(value.questions) || !Array.isArray(value.evidence))
     return false;
   if (
-    !['FOUND', 'NO_EVIDENCE'].includes(String(value.retrievalStatus)) ||
+    typeof value.retrievalStatus !== 'string' ||
+    !['FOUND', 'NO_EVIDENCE'].includes(value.retrievalStatus) ||
     value.evidence.length > 5 ||
     (value.retrievalStatus === 'FOUND') !== value.evidence.length > 0
   )
