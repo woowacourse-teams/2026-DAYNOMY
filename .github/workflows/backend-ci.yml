@@ -20,9 +20,13 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  backend-ci:
-    name: Backend CI
+  backend-tests:
+    name: Backend tests (${{ matrix.suite }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [main, heavy]
 
     env:
       CI_DIAGNOSTICS: 'true'
@@ -53,6 +57,7 @@ jobs:
         run: chmod +x gradlew
 
       - name: Run Spotless Check
+        if: matrix.suite == 'main'
         env:
           JAVA_TOOL_OPTIONS: '-Xlog:gc*:file=${{ runner.temp }}/backend-ci-diagnostics/gc/gc-%p-%t.log:time,uptime,level,tags:filecount=2,filesize=5M'
         run: |
@@ -68,27 +73,47 @@ jobs:
           exit "$status"
 
       - name: Validate Market Calendar Tool
+        if: matrix.suite == 'main'
         run: python3 -m unittest discover -s scripts -p 'test_*.py'
 
       - name: Validate Loadtest Scenarios
+        if: matrix.suite == 'main'
         run: |
           node --experimental-vm-modules --test loadtest/tests/*.test.mjs ../loadtest/portfolio/tests/*.test.mjs
           python3 -m unittest discover -s ../loadtest/portfolio/tests -p 'test_*.py'
 
       - name: Validate Monitoring Rules
+        if: matrix.suite == 'main'
         working-directory: monitoring/prometheus
         run: |
           docker run --rm --entrypoint /bin/promtool -v "$PWD:/rules:ro" -w /rules prom/prometheus:v3.5.0 check rules rules/application.yml rules/infrastructure.yml rules/league.yml
           docker run --rm --entrypoint /bin/promtool -v "$PWD:/rules:ro" -w /rules prom/prometheus:v3.5.0 test rules tests/league.test.yml
 
-      - name: Run Tests and Build Project
+      - name: Run Main Tests and Build Project
+        if: matrix.suite == 'main'
         env:
           JAVA_TOOL_OPTIONS: '-Xlog:gc*:file=${{ runner.temp }}/backend-ci-diagnostics/gc/gc-%p-%t.log:time,uptime,level,tags:filecount=2,filesize=5M'
         run: |
           set -o pipefail
           status=0
           date -u '+%Y-%m-%dT%H:%M:%SZ' > "$CI_DIAGNOSTICS_DIR/build-start.txt"
-          ./gradlew clean build --profile --console=plain 2>&1 | tee "$CI_DIAGNOSTICS_DIR/build.log" || status=$?
+          ./gradlew clean build -PciTestSuite=main --profile --console=plain 2>&1 | tee "$CI_DIAGNOSTICS_DIR/build.log" || status=$?
+          date -u '+%Y-%m-%dT%H:%M:%SZ' > "$CI_DIAGNOSTICS_DIR/build-end.txt"
+          if [ -d build/reports/profile ]; then
+            mkdir -p "$CI_DIAGNOSTICS_DIR/profiles/build"
+            cp -R build/reports/profile/. "$CI_DIAGNOSTICS_DIR/profiles/build/"
+          fi
+          exit "$status"
+
+      - name: Run Heavy Preparation Tool Tests
+        if: matrix.suite == 'heavy'
+        env:
+          JAVA_TOOL_OPTIONS: '-Xlog:gc*:file=${{ runner.temp }}/backend-ci-diagnostics/gc/gc-%p-%t.log:time,uptime,level,tags:filecount=2,filesize=5M'
+        run: |
+          set -o pipefail
+          status=0
+          date -u '+%Y-%m-%dT%H:%M:%SZ' > "$CI_DIAGNOSTICS_DIR/build-start.txt"
+          ./gradlew test -PciTestSuite=heavy --profile --console=plain 2>&1 | tee "$CI_DIAGNOSTICS_DIR/build.log" || status=$?
           date -u '+%Y-%m-%dT%H:%M:%SZ' > "$CI_DIAGNOSTICS_DIR/build-end.txt"
           if [ -d build/reports/profile ]; then
             mkdir -p "$CI_DIAGNOSTICS_DIR/profiles/build"
@@ -104,7 +129,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: backend-test-results
+          name: backend-test-results-${{ matrix.suite }}
           path: backend/build/test-results/test/
           retention-days: 7
           if-no-files-found: warn
@@ -113,7 +138,18 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: backend-ci-diagnostics
+          name: backend-ci-diagnostics-${{ matrix.suite }}
           path: ${{ runner.temp }}/backend-ci-diagnostics/
           retention-days: 7
           if-no-files-found: warn
+
+  backend-ci:
+    name: Backend CI
+    if: ${{ always() }}
+    needs: backend-tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require Both Test Suites to Pass
+        env:
+          TEST_RESULT: ${{ needs.backend-tests.result }}
+        run: test "$TEST_RESULT" = "success"

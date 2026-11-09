@@ -120,6 +120,24 @@ class SavedPortfolioControllerTest {
   }
 
   @Test
+  void transactionRejectsMalformedTradeTime() throws Exception {
+    mockMvc
+        .perform(
+            post("/api/users/me/portfolio/transactions")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {"assetId":1,"type":"BUY","tradeDate":"2026-10-01","quantity":1,
+                     "unitPrice":100,"fee":0,"tax":0,"tradeTime":"25:70"}
+                    """))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+        .andExpect(jsonPath("$.errors[0].field").value("requestBody"));
+
+    then(savedPortfolioService).shouldHaveNoInteractions();
+  }
+
+  @Test
   void bulkHoldingValidationRejectsEmptyAndInvalidRows() throws Exception {
     for (String body :
         List.of(

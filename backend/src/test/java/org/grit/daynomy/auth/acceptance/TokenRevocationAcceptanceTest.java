@@ -27,6 +27,7 @@ import org.grit.daynomy.auth.token.JwtTokenProvider;
 import org.grit.daynomy.auth.token.TokenPair;
 import org.grit.daynomy.member.domain.Member;
 import org.grit.daynomy.member.repository.MemberRepository;
+import org.grit.daynomy.support.SharedDatabaseTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
@@ -42,28 +43,10 @@ import org.springframework.security.oauth2.jwt.JwtClaimsSet;
 import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
-import org.testcontainers.utility.DockerImageName;
 
-@Testcontainers
 @ActiveProfiles("test")
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-class TokenRevocationAcceptanceTest {
-  @Container
-  static final PostgreSQLContainer DB =
-      new PostgreSQLContainer(DockerImageName.parse("postgres:16-alpine"));
-
-  @DynamicPropertySource
-  static void database(DynamicPropertyRegistry properties) {
-    properties.add("spring.datasource.url", DB::getJdbcUrl);
-    properties.add("spring.datasource.username", DB::getUsername);
-    properties.add("spring.datasource.password", DB::getPassword);
-    properties.add("spring.datasource.driver-class-name", DB::getDriverClassName);
-  }
+class TokenRevocationAcceptanceTest extends SharedDatabaseTest {
 
   @LocalServerPort int port;
   @Autowired MemberRepository members;

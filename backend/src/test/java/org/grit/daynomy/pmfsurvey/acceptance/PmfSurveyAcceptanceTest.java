@@ -20,39 +20,24 @@ import org.grit.daynomy.asset.repository.AssetRepository;
 import org.grit.daynomy.auth.service.TokenService;
 import org.grit.daynomy.member.domain.Member;
 import org.grit.daynomy.member.repository.MemberRepository;
+import org.grit.daynomy.support.SharedDatabaseTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
 
 @ActiveProfiles("test")
-@Testcontainers
 @SpringBootTest(
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
     properties = "pmf-survey.active-id=42")
-class PmfSurveyAcceptanceTest {
+class PmfSurveyAcceptanceTest extends SharedDatabaseTest {
 
   private static final String CURRENT = "/api/pmf-surveys/current";
   private static final String RESPONSES = "/api/pmf-surveys/42/responses";
   private static final String SNOOZE = "/api/pmf-surveys/42/snooze";
   private static final String RESULTS = "/api/admin/pmf-surveys/42/results";
-
-  @Container static final PostgreSQLContainer DB = new PostgreSQLContainer("postgres:16-alpine");
-
-  @DynamicPropertySource
-  static void database(DynamicPropertyRegistry properties) {
-    properties.add("spring.datasource.url", DB::getJdbcUrl);
-    properties.add("spring.datasource.username", DB::getUsername);
-    properties.add("spring.datasource.password", DB::getPassword);
-    properties.add("spring.datasource.driver-class-name", DB::getDriverClassName);
-  }
 
   @LocalServerPort int port;
   @Autowired MemberRepository members;

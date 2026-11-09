@@ -29,6 +29,7 @@ import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
 import org.grit.daynomy.auth.repository.RefreshTokenRepository;
 import org.grit.daynomy.member.repository.MemberRepository;
+import org.grit.daynomy.support.SharedDatabaseTest;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -48,7 +49,7 @@ import org.springframework.test.context.ActiveProfiles;
 @ActiveProfiles("test")
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @Import(GoogleLoginAcceptanceTest.OAuthConfiguration.class)
-class GoogleLoginAcceptanceTest {
+class GoogleLoginAcceptanceTest extends SharedDatabaseTest {
   private static final MockWebServer GOOGLE = startGoogle();
   private static final RSAKey KEY = key();
   private static final AtomicReference<String> NONCE = new AtomicReference<>();
