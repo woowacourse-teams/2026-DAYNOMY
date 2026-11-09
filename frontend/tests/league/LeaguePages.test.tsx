@@ -323,7 +323,7 @@ describe('투자 리그 화면', () => {
       </AuthContext.Provider>,
     );
     await view.findByRole('heading', { name: '수익률 집계 중' });
-    expect(view.getByText(/12월 10일.*17:20/)).toBeTruthy();
+    expect(view.getByText(/12월 10일.*오후 5:20/)).toBeTruthy();
     expect(view.getByText('차분한초보')).toBeTruthy();
     fireEvent.click(view.getByRole('button', { name: '집계 현황 새로고침' }));
     await waitFor(() => expect(leagueApi.getRankings).toHaveBeenCalledTimes(2));
@@ -419,9 +419,9 @@ describe('투자 리그 화면', () => {
     );
     await view.findByText('잠정 순위');
     expect(view.queryByText(/집계된 종가 기준의 잠정 순위/)).toBeNull();
-    expect(view.getByText('집계 예정')).toBeTruthy();
-    expect(view.getByRole('heading', { name: '종가 제공 지연' })).toBeTruthy();
-    expect(view.container.querySelector('time')?.textContent).toContain('14:30');
+    expect(view.getByText('다음 집계 예정')).toBeTruthy();
+    expect(view.getByRole('heading', { name: '집계 지연 중' })).toBeTruthy();
+    expect(view.container.querySelector('time')?.textContent).toContain('오후 2:30');
     expect(
       vi.mocked(trackEvent).mock.calls.filter(([name]) => name === 'view_league'),
     ).toHaveLength(1);
@@ -1209,7 +1209,7 @@ describe('투자 리그 화면', () => {
 
   it.each([
     ['COLLECTION_PENDING', '종가 수집을 기다리고 있어요'],
-    ['CALENDAR_PENDING', '거래일 정보를 확인하고 있어요'],
+    ['CALENDAR_PENDING', '거래일 일정 정보가 누락됐어요'],
     ['NO_TRADING_DAYS', '이 주에는 거래일이 없어요'],
   ] as const)('빈 순위의 %s 상태를 구분하고 재조회할 수 있다', async (collectionStatus, title) => {
     vi.mocked(leagueApi.getRankings).mockResolvedValue({
@@ -1350,7 +1350,7 @@ describe('투자 리그 화면', () => {
     expect(within(week).getByText(point.label)).toBeTruthy();
     expect(within(week).getByText('12위')).toBeTruthy();
     expect(within(week).getByText('확정')).toBeTruthy();
-    expect(within(week).queryByText('거래일 확인 대기')).toBeNull();
+    expect(within(week).queryByText('거래일 정보 누락')).toBeNull();
     expect(within(week).queryByText('휴장 주')).toBeNull();
     fireEvent.click(week);
     await waitFor(() =>
@@ -1363,7 +1363,7 @@ describe('투자 리그 화면', () => {
   });
 
   it.each([
-    { collectionStatus: 'CALENDAR_PENDING' as const, label: '거래일 확인 대기' },
+    { collectionStatus: 'CALENDAR_PENDING' as const, label: '거래일 정보 누락' },
     { collectionStatus: 'NO_TRADING_DAYS' as const, label: '휴장 주' },
     { collectionStatus: 'COLLECTION_PENDING' as const, label: '집계 대기' },
   ])('계산된 주간 성과가 없으면 $label 상태를 유지한다', async (point) => {
@@ -1857,6 +1857,44 @@ describe('투자 리그 화면', () => {
       expect(leagueApi.getInvestorDetail).not.toHaveBeenCalled();
       expect(view.queryByRole('link', { name: '멤버십 알아보기' })).toBeNull();
       expect(view.queryByRole('heading', { name: '자산군 비중' })).toBeNull();
+    },
+  );
+});
+
+describe('리그 집계 안내와 기존 순위 유지', () => {
+  it.each(['CALENDAR_PENDING', 'PRICE_COLLECTION_DELAYED'])(
+    '%s에도 집계된 순위를 유지한다',
+    async (reason) => {
+      vi.mocked(leagueApi.getLeagueWeeks).mockResolvedValue([
+        { weekStart: ranking.weekStart, weekEnd: ranking.weekEnd, confirmed: false },
+      ]);
+      vi.mocked(leagueApi.getRankings).mockResolvedValue({
+        ...ranking,
+        confirmed: false,
+        aggregation: {
+          baseDate: ranking.weekStart,
+          expectedAt: reason === 'CALENDAR_PENDING' ? null : '2026-12-14T05:30:00Z',
+          firstReturnExpectedAt: null,
+          nextCollectionAt: reason === 'CALENDAR_PENDING' ? null : '2026-12-14T05:30:00Z',
+          reason,
+          delayed: reason === 'PRICE_COLLECTION_DELAYED',
+        },
+      });
+      const view = render(
+        <AuthContext.Provider value={{ isLoggedIn: false, loading: false, role: null }}>
+          <MemoryRouter>
+            <LeaguePage />
+          </MemoryRouter>
+        </AuthContext.Provider>,
+      );
+      expect(await view.findByText('차분한초보')).toBeTruthy();
+      expect(view.getByText('+2.50%')).toBeTruthy();
+      expect(view.queryByText('첫 순위 예상')).toBeNull();
+      expect(
+        view.getByRole('heading', {
+          name: reason === 'CALENDAR_PENDING' ? '거래일 일정 정보 누락' : '집계 지연 중',
+        }),
+      ).toBeTruthy();
     },
   );
 });

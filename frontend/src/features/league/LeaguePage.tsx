@@ -30,8 +30,9 @@ const emptyCollectionStates: Partial<
     description: '종가가 수집·집계되는 대로 순위가 반영됩니다.',
   },
   CALENDAR_PENDING: {
-    title: '거래일 정보를 확인하고 있어요',
-    description: '선택한 주차의 거래일이 확인되면 종가 수집과 순위 집계가 진행됩니다.',
+    title: '거래일 일정 정보가 누락됐어요',
+    description:
+      '예상 시각을 안내할 수 없어요. 거래일 정보가 복구되면 집계 일정을 다시 안내합니다.',
   },
   NO_TRADING_DAYS: {
     title: '이 주에는 거래일이 없어요',
@@ -366,7 +367,11 @@ export function LeaguePage() {
       </section>
 
       {!loading && !error && !ranking?.confirmed && ranking?.aggregation ? (
-        <AggregationNotice aggregation={ranking.aggregation} onRefresh={retryLoad} />
+        <AggregationNotice
+          aggregation={ranking.aggregation}
+          onRefresh={retryLoad}
+          hasRankings={ranking.totalCount > 0}
+        />
       ) : null}
 
       {loading ? (
