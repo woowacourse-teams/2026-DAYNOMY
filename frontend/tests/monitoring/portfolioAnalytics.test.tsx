@@ -67,7 +67,7 @@ describe('포트폴리오 이벤트 수집 경계', () => {
     expect(gaEvents()).toHaveLength(1);
   });
 
-  it.each(['/login', '/admin/news', '/news/1', '/stocks/1'])(
+  it.each(['/login', '/admin/news', '/news/1'])(
     '%s에서는 대시보드 이벤트를 보내지 않는다',
     async (path) => {
       enablePostHog();

@@ -3,11 +3,15 @@ package org.grit.daynomy.exchangerate.repository;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.Optional;
 import org.grit.daynomy.exchangerate.domain.UsdKrwRate;
 import org.springframework.data.jpa.repository.*;
 import org.springframework.transaction.annotation.Transactional;
 
 public interface UsdKrwRateRepository extends JpaRepository<UsdKrwRate, LocalDate> {
+  Optional<UsdKrwRate> findFirstByBaseDateBetweenOrderByBaseDateDescFetchedAtDesc(
+      LocalDate from, LocalDate through);
+
   @Modifying
   @Transactional
   @Query(

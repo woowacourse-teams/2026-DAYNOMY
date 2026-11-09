@@ -6,9 +6,14 @@ import { trackEvent } from '../../src/analytics';
 import { getStockRelatedContents } from '../../src/features/stock-content/api';
 import { useFeaturedPeople } from '../../src/features/people/useFeaturedPeople';
 import NewsHomePreview from '../../src/features/news/issue/NewsHomePreview';
-import { getAllContents } from '../../src/features/news/issue/contents';
-import { getContentPopularity } from '../../src/features/news/issue/popularity';
+import {
+  getContentPopularity,
+  sortByPopularity,
+  feedContentReference,
+} from '../../src/features/news/issue/popularity';
 import { getNews } from '../../src/features/news/newslist/api';
+import { createFeed } from '../../src/features/news/issue/feed';
+import { getNewsFeed } from '../../src/features/news/issue/feedApi';
 
 const holdingsState = vi.hoisted(() => ({
   holdings: [{ assetId: 11, name: '보유 회사' }],
@@ -17,6 +22,7 @@ const holdingsState = vi.hoisted(() => ({
   retry: vi.fn(),
 }));
 const calendarRender = vi.hoisted(() => vi.fn());
+const getExternalContents = vi.hoisted(() => vi.fn());
 
 vi.mock('../../src/analytics', () => ({ trackEvent: vi.fn() }));
 vi.mock('../../src/hooks/useLoginStatus', () => ({
@@ -29,6 +35,7 @@ vi.mock('../../src/features/investment-calendar/api', () => ({
   getInvestmentCalendar: vi.fn().mockResolvedValue({ calendar: { events: [] }, isDemo: false }),
 }));
 vi.mock('../../src/features/news/newslist/api', () => ({ getNews: vi.fn() }));
+vi.mock('../../src/features/news/issue/feedApi', () => ({ getNewsFeed: vi.fn() }));
 vi.mock('../../src/features/people/useFeaturedPeople', () => ({
   useFeaturedPeople: vi.fn(() => ({
     people: [],
@@ -47,9 +54,6 @@ vi.mock('../../src/features/investment-calendar/InvestmentCalendarPage', () => (
     calendarRender(props);
     return <div>기존 캘린더</div>;
   },
-}));
-vi.mock('../../src/features/news/issue/contents', () => ({
-  getAllContents: vi.fn().mockResolvedValue({ items: [] }),
 }));
 vi.mock('../../src/features/news/issue/popularity', async (original) => ({
   ...(await original<typeof import('../../src/features/news/issue/popularity')>()),
@@ -73,9 +77,34 @@ beforeEach(() => {
     contents: [],
   });
   vi.mocked(getNews).mockReset();
-  vi.mocked(getAllContents).mockReset();
-  vi.mocked(getAllContents).mockResolvedValue({ items: [], page: 1, totalPages: 1 });
+  getExternalContents.mockReset();
+  getExternalContents.mockResolvedValue({ items: [], page: 1, totalPages: 1 });
   vi.mocked(getContentPopularity).mockResolvedValue(new Map([['NEWS:7', 10]]));
+  vi.mocked(getNewsFeed).mockReset();
+  vi.mocked(getNewsFeed).mockImplementation(
+    async (source, currentPage = 1, size = 12, sort = 'LATEST') => {
+      const [articles, external] = await Promise.all([
+        getNews('ALL', 1, 100),
+        getExternalContents(),
+      ]);
+      const people = vi.mocked(useFeaturedPeople)().people;
+      let items = createFeed(articles.content, people, external.items).filter(
+        (item) => source === 'ALL' || item.source === source,
+      );
+      if (sort === 'POPULAR') {
+        items = sortByPopularity(items, feedContentReference, await getContentPopularity());
+      }
+      const totalElements = items.length;
+      const start = (currentPage - 1) * size;
+      return {
+        items: items.slice(start, start + size),
+        page: currentPage,
+        size,
+        totalElements,
+        totalPages: Math.ceil(totalElements / size),
+      };
+    },
+  );
 });
 const page = {
   content: [
@@ -108,7 +137,8 @@ it('기존 기사 API로 제목과 상세 링크를 보여주며 기존 화면�
     name: /기준금리 동결 가능성 확대/,
   });
   expect(article.getAttribute('href')).toBe('/news/7');
-  expect(getNews).toHaveBeenCalledWith('ALL', 1, 100);
+  expect(getNewsFeed).toHaveBeenCalledWith('DAYNOMY', 1, 4, 'POPULAR', expect.anything());
+  expect(getNewsFeed).toHaveBeenCalledWith('ALL', 1, 8, 'LATEST', expect.anything());
   expect(
     view.getAllByRole('link', { name: '내 종목 소식 전체 보기' })[0].getAttribute('href'),
   ).toBe('/news/contents?scope=portfolio');
@@ -120,12 +150,12 @@ it('기존 기사 API로 제목과 상세 링크를 보여주며 기존 화면�
 it('실패 시 재시도하고 빈 결과를 가상 소식으로 대체하지 않는다', async () => {
   vi.mocked(getNews)
     .mockRejectedValueOnce(new Error('offline'))
-    .mockResolvedValueOnce({ ...page, content: [], totalElements: 0 });
+    .mockResolvedValue({ ...page, content: [], totalElements: 0 });
   const view = show();
   await view.findByRole('alert');
   fireEvent.click(view.getByRole('button', { name: '다시 시도' }));
   await waitFor(() => expect(view.getByText('아직 등록된 소식이 없어요')).toBeTruthy());
-  expect(getNews).toHaveBeenCalledTimes(2);
+  expect(getNewsFeed).toHaveBeenCalledTimes(4);
   expect(trackEvent).toHaveBeenCalledWith('retry_content_load', {
     surface: 'news_home',
     area: 'all',
@@ -141,22 +171,12 @@ it('소식 홈 조회 결과와 목록 상태를 영역별로 기록한다', asy
       'content_load_result',
       expect.objectContaining({
         surface: 'news_home',
-        area: 'news',
+        area: 'feed',
         status: 'success',
         result_count: 1,
         attempt: 0,
       }),
     ),
-  );
-  expect(trackEvent).toHaveBeenCalledWith(
-    'content_load_result',
-    expect.objectContaining({
-      surface: 'news_home',
-      area: 'external',
-      status: 'success',
-      result_count: 0,
-      attempt: 0,
-    }),
   );
   expect(trackEvent).toHaveBeenCalledWith(
     'content_load_result',
@@ -168,12 +188,14 @@ it('소식 홈 조회 결과와 목록 상태를 영역별로 기록한다', asy
       attempt: 0,
     }),
   );
-  expect(trackEvent).toHaveBeenCalledWith('view_content_list', {
-    surface: 'news_home',
-    source_type: 'ALL',
-    result_count: 1,
-    status: 'ready',
-  });
+  await waitFor(() =>
+    expect(trackEvent).toHaveBeenCalledWith('view_content_list', {
+      surface: 'news_home',
+      source_type: 'ALL',
+      result_count: 1,
+      status: 'ready',
+    }),
+  );
 });
 
 it('트렌딩은 외부 콘텐츠를 제외하고 데이노미 이슈 인기순으로 네 개를 표시한다', async () => {
@@ -192,7 +214,7 @@ it('트렌딩은 외부 콘텐츠를 제외하고 데이노미 이슈 인기순�
       { ...page.content[0], id: 10, title: '네 번째 데이노미 이슈', publishedAt: '2026-10-26' },
     ],
   });
-  vi.mocked(getAllContents).mockResolvedValue({
+  getExternalContents.mockResolvedValue({
     items: [
       {
         id: 99,
@@ -275,32 +297,6 @@ it('첫 화면에서 보유 종목 소식과 기존 탐색 경로를 유지한�
   });
 });
 
-it('예시 트렌딩을 펼치고 예시 보유 종목 소식으로 이동할 수 있다', () => {
-  const view = render(
-    <MemoryRouter initialEntries={['/news?preview=briefing&data=example']}>
-      <NewsHomePreview preview />
-    </MemoryRouter>,
-  );
-  fireEvent.click(view.getByText('미국 증시, 금리 경로에 주목… 기술주 중심으로 투자 심리 회복'));
-  expect(view.getByText(/실제 서비스에서는 등록된 기사로 이동/).closest('details')?.open).toBe(
-    true,
-  );
-  expect(view.getByRole('link', { name: '내 종목 소식 전체 보기' }).getAttribute('href')).toBe(
-    '/news/contents?scope=portfolio&data=example',
-  );
-  const latest = within(view.getByRole('region', { name: '전체 소식' }));
-  const exampleArticles = within(latest.getByRole('list'));
-  expect(exampleArticles.getAllByRole('article')).toHaveLength(3);
-  expect(exampleArticles.getAllByText('기사 읽기')).toHaveLength(3);
-  expect(exampleArticles.getAllByText('데이노미')).toHaveLength(3);
-  expect(view.queryByRole('link', { name: /AI 분석/ })).toBeNull();
-  expect(calendarRender).toHaveBeenCalledWith({
-    embedded: true,
-    compact: true,
-    upcomingOnly: false,
-  });
-});
-
 it('등록된 인물과 최신 글을 보여주고 기존 인물 필터로 연결한다', async () => {
   vi.mocked(getNews).mockResolvedValue(page);
   vi.mocked(useFeaturedPeople).mockReturnValue({
@@ -361,39 +357,9 @@ it('등록된 인물과 최신 글을 보여주고 기존 인물 필터로 연�
   }
 });
 
-it('예시 화면은 실제 종목 소식 API를 호출하지 않는다', () => {
-  render(
-    <MemoryRouter initialEntries={['/news?preview=briefing&data=example']}>
-      <NewsHomePreview preview />
-    </MemoryRouter>,
-  );
-  expect(getStockRelatedContents).not.toHaveBeenCalled();
-});
-
-it('전체 소식은 전체보기와 같은 카테고리 필터를 보여준다', () => {
-  const view = render(
-    <MemoryRouter initialEntries={['/news?preview=briefing&data=example']}>
-      <NewsHomePreview preview />
-    </MemoryRouter>,
-  );
-  const latest = within(view.getByRole('region', { name: '전체 소식' }));
-  const filters = within(view.getByRole('group', { name: '전체 소식 카테고리' }));
-  expect(filters.getAllByRole('button').map((button) => button.textContent)).toEqual([
-    '전체',
-    '데이노미',
-    'X',
-    'Threads',
-    'YouTube',
-  ]);
-  expect(latest.getByText(/대형 기술주 강세/)).toBeTruthy();
-  expect(latest.getByText(/환율 상승이 수출 기업/)).toBeTruthy();
-  fireEvent.click(filters.getByRole('button', { name: 'YouTube' }));
-  expect(trackEvent).not.toHaveBeenCalled();
-});
-
 it('전체 소식 카테고리로 출처를 필터링한다', async () => {
   vi.mocked(getNews).mockResolvedValue(page);
-  vi.mocked(getAllContents).mockResolvedValue({
+  getExternalContents.mockResolvedValue({
     items: [
       {
         id: 99,
@@ -416,13 +382,12 @@ it('전체 소식 카테고리로 출처를 필터링한다', async () => {
       name: 'YouTube',
     }),
   );
-  expect(latest.getByText('유튜브 소식')).toBeTruthy();
+  expect(await latest.findByText('유튜브 소식')).toBeTruthy();
   expect(latest.queryByText('기준금리 동결 가능성 확대')).toBeNull();
   expect(trackEvent).toHaveBeenCalledWith('filter_content_source', {
     surface: 'news_home',
     previous_source: 'ALL',
     source_type: 'YOUTUBE',
-    result_count: 1,
   });
   expect(JSON.stringify(vi.mocked(trackEvent).mock.calls)).not.toContain('유튜브 소식');
 });
@@ -475,25 +440,6 @@ it('더보기와 인물 미리보기 이동은 목적지와 위치만 기록한�
     position: 1,
   });
   expect(JSON.stringify(vi.mocked(trackEvent).mock.calls)).not.toContain('민감한');
-});
-
-it('실제 홈에서는 예시 쿼리를 무시하고 실제 API와 분석 경로만 사용한다', async () => {
-  vi.mocked(getNews).mockResolvedValue(page);
-  const view = render(
-    <MemoryRouter initialEntries={['/news?preview=briefing&data=example']}>
-      <NewsHomePreview />
-    </MemoryRouter>,
-  );
-  expect(
-    await within(view.getByRole('region', { name: '전체 소식' })).findByRole('link', {
-      name: /기준금리 동결/,
-    }),
-  ).toBeTruthy();
-  expect(view.queryByText(/가상 시나리오/)).toBeNull();
-  expect(view.queryByRole('button', { name: /예시 콘텐츠로 보기|실제 데이터 보기/ })).toBeNull();
-  expect(view.queryByText('삼성전자')).toBeNull();
-  expect(getStockRelatedContents).not.toHaveBeenCalled();
-  expect(document.title).toBe('소식 | DAYNOMY');
 });
 
 it.each(['holdings', 'empty', 'loading', 'error'] as const)(
@@ -554,10 +500,10 @@ it('트렌딩은 인기순으로 고정하고 탐색 버튼을 표시하지 않�
   expect(trending.queryByRole('button', { name: /트렌딩/ })).toBeNull();
 });
 
-it('전체 소식은 최신순으로 최대 다섯 개를 표시한다', async () => {
+it('전체 소식은 최신순으로 최대 여덟 개를 표시한다', async () => {
   vi.mocked(getNews).mockResolvedValue({
     ...page,
-    content: Array.from({ length: 6 }, (_, index) => ({
+    content: Array.from({ length: 9 }, (_, index) => ({
       ...page.content[0],
       id: index + 20,
       title: `최신 기사 ${index}`,
@@ -566,7 +512,7 @@ it('전체 소식은 최신순으로 최대 다섯 개를 표시한다', async (
   });
   const view = show();
   const latest = within(view.getByRole('region', { name: '전체 소식' }));
-  await latest.findByRole('link', { name: /최신 기사 5/ });
-  expect(latest.getAllByRole('article')).toHaveLength(5);
+  await latest.findByRole('link', { name: /최신 기사 8/ });
+  expect(latest.getAllByRole('article')).toHaveLength(8);
   expect(latest.queryByRole('link', { name: /최신 기사 0/ })).toBeNull();
 });

@@ -5,8 +5,10 @@ import type { ReactNode } from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AuthContext } from '../../src/auth/AuthContext';
+import { AdminNewsImageGenerationProvider } from '../../src/features/admin/AdminNewsImageGeneration';
 import { AdminNewsFormPage } from '../../src/features/admin/AdminNewsFormPage';
 import { AdminNewsPage } from '../../src/features/admin/AdminNewsPage';
+import { AdminShell } from '../../src/features/admin/components/AdminShell';
 
 const listItem = {
   id: 1,
@@ -26,10 +28,32 @@ function jsonResponse(body: unknown, status = 200) {
   });
 }
 
+function webpResponse(value = 1) {
+  return new Response(new Uint8Array([value]), {
+    headers: { 'content-type': 'image/webp' },
+  });
+}
+
+function stubObjectUrls() {
+  let nextId = 0;
+  const createObjectURL = vi.fn(() => `blob:ai-candidate-${++nextId}`);
+  const revokeObjectURL = vi.fn();
+  vi.stubGlobal(
+    'URL',
+    class extends URL {
+      static createObjectURL = createObjectURL;
+      static revokeObjectURL = revokeObjectURL;
+    },
+  );
+  return { createObjectURL, revokeObjectURL };
+}
+
 function renderAdmin(element: ReactNode) {
   return render(
     <AuthContext.Provider value={{ isLoggedIn: true, loading: false, role: 'ADMIN' }}>
-      <MemoryRouter>{element}</MemoryRouter>
+      <AdminNewsImageGenerationProvider>
+        <MemoryRouter>{element}</MemoryRouter>
+      </AdminNewsImageGenerationProvider>
     </AuthContext.Provider>,
   );
 }
@@ -37,11 +61,13 @@ function renderAdmin(element: ReactNode) {
 function renderAdminEdit(element: ReactNode) {
   return render(
     <AuthContext.Provider value={{ isLoggedIn: true, loading: false, role: 'ADMIN' }}>
-      <MemoryRouter initialEntries={['/admin/news/7/edit']}>
-        <Routes>
-          <Route path="/admin/news/:newsId/edit" element={element} />
-        </Routes>
-      </MemoryRouter>
+      <AdminNewsImageGenerationProvider>
+        <MemoryRouter initialEntries={['/admin/news/7/edit']}>
+          <Routes>
+            <Route path="/admin/news/:newsId/edit" element={element} />
+          </Routes>
+        </MemoryRouter>
+      </AdminNewsImageGenerationProvider>
     </AuthContext.Provider>,
   );
 }
@@ -127,6 +153,78 @@ describe('관리자 뉴스 화면', () => {
     expect(await view.findByText('미국 뉴스 초안 생성이 완료되었습니다.')).toBeTruthy();
     expect(view.getByRole('status').textContent).toContain('3');
     expect(generatedUsNews).toBe(true);
+  });
+
+  it('키워드를 입력하면 데이노미 이슈 초안을 생성하고 목록을 새로 불러온다', async () => {
+    let requestBody: unknown;
+    let listRequestCount = 0;
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        if (url.endsWith('/api/auth/csrf')) {
+          return jsonResponse({ token: 'csrf-token', headerName: 'X-CSRF-TOKEN' });
+        }
+        if (url.endsWith('/api/admin/news/generate/economy/keyword')) {
+          requestBody = JSON.parse(String(init?.body));
+          return jsonResponse({ savedCount: 1 });
+        }
+        listRequestCount += 1;
+        return jsonResponse({
+          items: [listItem],
+          page: 1,
+          size: 15,
+          totalPages: 1,
+          totalElements: 1,
+          hasNext: false,
+        });
+      }),
+    );
+
+    const view = renderAdmin(<AdminNewsPage />);
+    fireEvent.change(await view.findByLabelText('이슈 키워드'), {
+      target: { value: '  미국 중간선거  ' },
+    });
+    fireEvent.click(view.getByRole('button', { name: '이슈 생성' }));
+
+    expect(
+      await view.findByText('‘미국 중간선거’ 키워드 데이노미 이슈 초안 생성이 완료되었습니다.'),
+    ).toBeTruthy();
+    expect(requestBody).toEqual({ keyword: '미국 중간선거' });
+    await waitFor(() => expect(listRequestCount).toBe(2));
+  });
+
+  it('두 글자 미만의 키워드는 API를 호출하지 않는다', async () => {
+    let generationRequestCount = 0;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.endsWith('/api/admin/news/generate/economy/keyword')) {
+          generationRequestCount += 1;
+        }
+        return jsonResponse({
+          items: [listItem],
+          page: 1,
+          size: 15,
+          totalPages: 1,
+          totalElements: 1,
+          hasNext: false,
+        });
+      }),
+    );
+
+    const view = renderAdmin(<AdminNewsPage />);
+    fireEvent.change(await view.findByLabelText('이슈 키워드'), { target: { value: '가' } });
+    const form = view.getByRole('button', { name: '이슈 생성' }).closest('form');
+    if (!form) throw new Error('키워드 생성 폼을 찾을 수 없습니다.');
+    fireEvent.submit(form);
+
+    expect((await view.findByRole('alert')).textContent).toContain(
+      '키워드는 2자 이상 입력해 주세요.',
+    );
+    expect(generationRequestCount).toBe(0);
   });
 
   it('뉴스 목록을 표시하고 상태 필터를 API 요청에 반영한다', async () => {
@@ -375,123 +473,35 @@ describe('관리자 뉴스 화면', () => {
     });
   });
 
-  it('이미지가 없는 초안에서 이미지를 생성한 뒤 목록을 갱신한다', async () => {
-    const calls: Array<{ url: string; method?: string }> = [];
-    let listRequestCount = 0;
-    const itemWithImage = { ...listItem, imageUrl: 'https://example.com/generated.webp' };
-
+  it('뉴스 목록의 이미지 관리는 후보를 비교할 수 있는 수정 화면으로 이동한다', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-        const url = String(input);
-        calls.push({ url, method: init?.method });
-
-        if (url.endsWith('/api/auth/csrf')) {
-          return jsonResponse({ token: 'csrf-token', headerName: 'X-CSRF-TOKEN' });
-        }
-
-        if (url.endsWith('/api/admin/news/1/generate-image')) {
-          return jsonResponse({
-            id: 1,
-            title: listItem.title,
-            content: '본문',
-            imageUrl: itemWithImage.imageUrl,
-            sources: listItem.sources,
-            category: listItem.category,
-            publishedAt: null,
-            status: 'DRAFT',
-          });
-        }
-
-        listRequestCount += 1;
-        return jsonResponse({
-          items: [listRequestCount === 1 ? listItem : itemWithImage],
+      vi.fn(async () =>
+        jsonResponse({
+          items: [listItem],
           page: 1,
           size: 15,
           totalPages: 1,
           totalElements: 1,
           hasNext: false,
-        });
-      }),
+        }),
+      ),
     );
 
-    const view = renderAdmin(<AdminNewsPage />);
-    fireEvent.click(await view.findByRole('button', { name: '이미지 생성' }));
-
-    await waitFor(() => {
-      expect(
-        calls.some(
-          ({ url, method }) =>
-            url.endsWith('/api/admin/news/1/generate-image') && method === 'POST',
-        ),
-      ).toBe(true);
-      expect(view.queryByRole('button', { name: '이미지 생성' })).toBeNull();
-    });
-  });
-
-  it('이미 발행된 뉴스의 기존 이미지를 확인 후 재생성한다', async () => {
-    const calls: Array<{ url: string; method?: string }> = [];
-    const publishedItem = {
-      ...listItem,
-      status: 'PUBLISHED',
-      publishedAt: '2026-09-06T10:00:00Z',
-      imageUrl: 'https://example.com/old.webp',
-    };
-    const updatedItem = { ...publishedItem, imageUrl: 'https://example.com/new.webp' };
-    let listRequestCount = 0;
-
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-        const url = String(input);
-        calls.push({ url, method: init?.method });
-
-        if (url.endsWith('/api/auth/csrf')) {
-          return jsonResponse({ token: 'csrf-token', headerName: 'X-CSRF-TOKEN' });
-        }
-
-        if (url.endsWith('/api/admin/news/1/generate-image')) {
-          return jsonResponse({
-            id: 1,
-            title: publishedItem.title,
-            content: '본문',
-            imageUrl: updatedItem.imageUrl,
-            sources: publishedItem.sources,
-            category: publishedItem.category,
-            publishedAt: publishedItem.publishedAt,
-            status: 'PUBLISHED',
-          });
-        }
-
-        listRequestCount += 1;
-        return jsonResponse({
-          items: [listRequestCount === 1 ? publishedItem : updatedItem],
-          page: 1,
-          size: 15,
-          totalPages: 1,
-          totalElements: 1,
-          hasNext: false,
-        });
-      }),
+    const view = render(
+      <AuthContext.Provider value={{ isLoggedIn: true, loading: false, role: 'ADMIN' }}>
+        <MemoryRouter initialEntries={['/admin/news']}>
+          <Routes>
+            <Route path="/admin/news" element={<AdminNewsPage />} />
+            <Route path="/admin/news/:newsId/edit" element={<p>뉴스 이미지 편집 화면</p>} />
+          </Routes>
+        </MemoryRouter>
+      </AuthContext.Provider>,
     );
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
 
-    const view = renderAdmin(<AdminNewsPage />);
-    fireEvent.click(await view.findByRole('button', { name: '이미지 재생성' }));
+    fireEvent.click(await view.findByRole('button', { name: '이미지 관리' }));
 
-    await waitFor(() => {
-      expect(confirm).toHaveBeenCalledWith(
-        `'${publishedItem.title}' 뉴스 이미지를 새 이미지로 교체할까요?`,
-      );
-      expect(
-        calls.some(
-          ({ url, method }) =>
-            url.endsWith('/api/admin/news/1/generate-image') && method === 'POST',
-        ),
-      ).toBe(true);
-      expect(listRequestCount).toBe(2);
-      expect(view.getByRole('button', { name: '이미지 재생성' })).toBeTruthy();
-    });
+    expect(await view.findByText('뉴스 이미지 편집 화면')).toBeTruthy();
   });
 
   it('뉴스의 액션 처리 중 같은 행의 다른 액션을 비활성화한다', async () => {
@@ -533,7 +543,7 @@ describe('관리자 뉴스 화면', () => {
     await waitFor(() => {
       expect(view.getByRole('button', { name: '발행 중' })).toHaveProperty('disabled', true);
       expect(view.getByRole('button', { name: '거절' })).toHaveProperty('disabled', true);
-      expect(view.getByRole('button', { name: '이미지 생성' })).toHaveProperty('disabled', true);
+      expect(view.getByRole('button', { name: '이미지 관리' })).toHaveProperty('disabled', true);
       expect(view.getByRole('button', { name: '수정' })).toHaveProperty('disabled', true);
       expect(view.getByRole('button', { name: '삭제' })).toHaveProperty('disabled', true);
       expect(view.getByRole('link', { name: listItem.title }).getAttribute('aria-disabled')).toBe(
@@ -614,96 +624,168 @@ describe('관리자 뉴스 화면', () => {
     });
   });
 
-  it('새 뉴스에서 저장 후 AI 생성에 실패해도 같은 뉴스로 재시도한다', async () => {
+  it('AI 이미지 후보를 여러 장 생성하고 선택한 한 장만 대표 이미지로 저장한다', async () => {
     const saved = {
       ...listItem,
       id: 7,
-      title: 'AI 생성용 뉴스',
       content: '뉴스 본문',
       relatedAssets: [],
     };
-    let generated = false;
-    let generationCalls = 0;
+    const { revokeObjectURL } = stubObjectUrls();
+    let candidateCalls = 0;
+    let resolveFirstCandidate: ((response: Response) => void) | undefined;
+    const firstCandidate = new Promise<Response>((resolve) => {
+      resolveFirstCandidate = resolve;
+    });
+    const selectedImages: Blob[] = [];
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const path = String(input);
       if (path.endsWith('/api/auth/csrf'))
         return jsonResponse({ token: 'token', headerName: 'X-CSRF-TOKEN' });
-      if (path.endsWith('/generate-image') && init?.method === 'POST') {
-        generationCalls++;
-        if (generationCalls === 1) return jsonResponse({ message: '생성 실패' }, 500);
-        generated = true;
+      if (path.endsWith('/image-candidates') && init?.method === 'POST') {
+        candidateCalls += 1;
+        return candidateCalls === 1 ? firstCandidate : webpResponse(2);
       }
-      return jsonResponse({ ...saved, imageUrl: generated ? 'https://example.com/ai.webp' : null });
+      if (path.endsWith('/api/admin/news/7/image') && init?.method === 'PUT') {
+        const selectedImage = (init.body as FormData).get('image');
+        if (selectedImage instanceof Blob) selectedImages.push(selectedImage);
+        return jsonResponse({ ...saved, imageUrl: 'https://example.com/selected.webp' });
+      }
+      return jsonResponse(saved);
     });
     vi.stubGlobal('fetch', fetchMock);
-    const view = render(
-      <MemoryRouter initialEntries={['/admin/news/new']}>
-        <Routes>
-          <Route path="/admin/news/new" element={<AdminNewsFormPage />} />
-          <Route path="/admin/news/:newsId/edit" element={<AdminNewsFormPage />} />
-        </Routes>
-      </MemoryRouter>,
-    );
-    fireEvent.change(view.getByPlaceholderText('뉴스 제목을 입력해 주세요'), {
-      target: { value: saved.title },
-    });
-    fireEvent.change(view.getByPlaceholderText('뉴스 본문을 입력해 주세요'), {
-      target: { value: saved.content },
-    });
-    fireEvent.change(view.getByRole('combobox'), { target: { value: 'STOCK' } });
-    fireEvent.change(view.getByLabelText('출처명'), { target: { value: 'DART' } });
-    fireEvent.change(view.getByLabelText('출처 URL'), {
-      target: { value: 'https://example.com/news/1' },
-    });
+    const view = renderAdminEdit(<AdminNewsFormPage />);
+    await view.findByDisplayValue('뉴스 본문');
     fireEvent.click(view.getByRole('button', { name: 'AI 생성' }));
-    fireEvent.click(view.getByRole('button', { name: '저장하고 AI 이미지 생성' }));
-    await view.findByRole('heading', { name: '뉴스 수정' });
-    expect(await view.findByRole('alert')).toHaveProperty(
-      'textContent',
-      expect.stringContaining('뉴스 내용은 저장되었습니다.'),
-    );
-    expect(view.getByDisplayValue(saved.title)).toBeTruthy();
-    fireEvent.click(view.getByRole('button', { name: '저장하고 AI 이미지 생성' }));
-    await waitFor(() =>
-      expect(view.getByAltText('뉴스 대표 이미지 미리보기').getAttribute('src')).toBe(
-        'https://example.com/ai.webp',
-      ),
-    );
-    expect(await view.findByText('AI 이미지를 생성해 대표 이미지로 저장했습니다.')).toBeTruthy();
-    expect(
-      fetchMock.mock.calls.filter(
-        ([path, init]) => String(path).endsWith('/api/admin/news') && init?.method === 'POST',
-      ),
-    ).toHaveLength(1);
-    expect(
-      fetchMock.mock.calls.filter(
-        ([path, init]) => String(path).endsWith('/api/admin/news/7') && init?.method === 'PUT',
-      ),
-    ).toHaveLength(1);
-    expect(generationCalls).toBe(2);
+    const generateButton = view.getByRole('button', {
+      name: '저장하고 AI 이미지 후보 생성',
+    });
+    fireEvent.click(generateButton);
+    await waitFor(() => expect(candidateCalls).toBe(1));
+    expect(generateButton).toHaveProperty('disabled', true);
+    fireEvent.click(generateButton);
+    expect(candidateCalls).toBe(1);
+
+    resolveFirstCandidate?.(webpResponse());
+    expect(await view.findByAltText('AI 이미지 후보 1')).toBeTruthy();
+    fireEvent.click(view.getByRole('button', { name: '저장하고 AI 이미지 후보 생성' }));
+    expect(await view.findByAltText('AI 이미지 후보 2')).toBeTruthy();
+
+    fireEvent.click(view.getByRole('button', { name: 'AI 이미지 후보 2 제거' }));
+    expect(view.queryByAltText('AI 이미지 후보 2')).toBeNull();
+    fireEvent.click(view.getByAltText('AI 이미지 후보 1').closest('button')!);
+    fireEvent.click(view.getByRole('button', { name: '선택한 후보를 대표 이미지로 저장' }));
+
+    expect(await view.findByText('선택한 AI 이미지를 대표 이미지로 저장했습니다.')).toBeTruthy();
+    expect(selectedImages).toHaveLength(1);
+    expect(selectedImages[0]?.type).toBe('image/webp');
+    expect(view.queryByLabelText('AI 이미지 후보 목록')).toBeNull();
+    expect(revokeObjectURL).toHaveBeenCalledTimes(2);
   });
 
-  it('AI 이미지 생성도 필수 입력을 검증하고 기존 이미지 교체는 확인한다', async () => {
-    const fetchMock = vi.fn(async () =>
-      jsonResponse({
-        ...listItem,
-        id: 7,
-        content: '본문',
-        imageUrl: 'https://example.com/current.webp',
+  it('AI 이미지 생성은 관리자 화면 이동 중에도 계속되고 편집 화면에서 후보를 복원한다', async () => {
+    const saved = { ...listItem, id: 7, content: '뉴스 본문', relatedAssets: [] };
+    const { revokeObjectURL } = stubObjectUrls();
+    let candidateCalls = 0;
+    let resolveCandidate: ((response: Response) => void) | undefined;
+    const candidateResponse = new Promise<Response>((resolve) => {
+      resolveCandidate = resolve;
+    });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const path = String(input);
+        if (path.endsWith('/api/auth/csrf')) {
+          return jsonResponse({ token: 'token', headerName: 'X-CSRF-TOKEN' });
+        }
+        if (path.endsWith('/image-candidates') && init?.method === 'POST') {
+          candidateCalls += 1;
+          return candidateResponse;
+        }
+        return jsonResponse(saved);
       }),
     );
+
+    const view = render(
+      <AuthContext.Provider value={{ isLoggedIn: true, loading: false, role: 'ADMIN' }}>
+        <MemoryRouter initialEntries={['/admin/news/7/edit']}>
+          <AdminNewsImageGenerationProvider>
+            <AdminShell>
+              <Routes>
+                <Route path="/admin/news/:newsId/edit" element={<AdminNewsFormPage />} />
+                <Route path="/admin/feedbacks" element={<main>피드백 작업 화면</main>} />
+              </Routes>
+            </AdminShell>
+          </AdminNewsImageGenerationProvider>
+        </MemoryRouter>
+      </AuthContext.Provider>,
+    );
+
+    await view.findByDisplayValue('뉴스 본문');
+    fireEvent.click(view.getByRole('button', { name: 'AI 생성' }));
+    fireEvent.click(view.getByRole('button', { name: '저장하고 AI 이미지 후보 생성' }));
+    await waitFor(() => expect(candidateCalls).toBe(1));
+
+    fireEvent.click(view.getByRole('link', { name: '피드백' }));
+    expect(await view.findByText('피드백 작업 화면')).toBeTruthy();
+    expect(view.getByRole('status').textContent).toContain('화면을 이동해도 계속 진행됩니다.');
+
+    resolveCandidate?.(webpResponse());
+    fireEvent.click(await view.findByRole('link', { name: '후보 확인' }));
+    await view.findByDisplayValue('뉴스 본문');
+    fireEvent.click(view.getByRole('button', { name: 'AI 생성' }));
+
+    expect(await view.findByAltText('AI 이미지 후보 1')).toBeTruthy();
+    expect(revokeObjectURL).not.toHaveBeenCalled();
+  });
+
+  it('AI 이미지 후보 추가 생성에 실패해도 기존 후보를 유지하고 이탈 시 URL을 정리한다', async () => {
+    const saved = { ...listItem, id: 7, content: '본문', relatedAssets: [] };
+    const { revokeObjectURL } = stubObjectUrls();
+    let candidateCalls = 0;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = String(input);
+      if (path.endsWith('/api/auth/csrf'))
+        return jsonResponse({ token: 'token', headerName: 'X-CSRF-TOKEN' });
+      if (path.endsWith('/image-candidates') && init?.method === 'POST') {
+        candidateCalls += 1;
+        return candidateCalls === 1
+          ? webpResponse()
+          : jsonResponse({ message: '후보 생성 실패' }, 500);
+      }
+      return jsonResponse(saved);
+    });
     vi.stubGlobal('fetch', fetchMock);
-    vi.stubGlobal('confirm', vi.fn().mockReturnValue(false));
     const view = renderAdminEdit(<AdminNewsFormPage />);
     await view.findByDisplayValue('본문');
     fireEvent.click(view.getByRole('button', { name: 'AI 생성' }));
-    fireEvent.click(view.getByRole('button', { name: '저장하고 AI 이미지 생성' }));
-    expect(window.confirm).toHaveBeenCalledOnce();
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    fireEvent.click(view.getByRole('button', { name: '저장하고 AI 이미지 후보 생성' }));
+    expect(await view.findByAltText('AI 이미지 후보 1')).toBeTruthy();
+    fireEvent.click(view.getByRole('button', { name: '저장하고 AI 이미지 후보 생성' }));
+
+    expect(await view.findByRole('alert')).toHaveProperty(
+      'textContent',
+      expect.stringContaining('후보 생성 실패'),
+    );
+    expect(view.getByAltText('AI 이미지 후보 1')).toBeTruthy();
+    expect(revokeObjectURL).not.toHaveBeenCalled();
+
+    view.unmount();
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:ai-candidate-1');
+  });
+
+  it('AI 이미지 후보 생성도 필수 입력을 검증한다', async () => {
+    const fetchMock = vi.fn(async () =>
+      jsonResponse({ ...listItem, id: 7, content: '본문', relatedAssets: [] }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const view = renderAdminEdit(<AdminNewsFormPage />);
+    await view.findByDisplayValue('본문');
+    fireEvent.click(view.getByRole('button', { name: 'AI 생성' }));
     fireEvent.change(view.getByPlaceholderText('뉴스 본문을 입력해 주세요'), {
       target: { value: '' },
     });
-    fireEvent.click(view.getByRole('button', { name: '저장하고 AI 이미지 생성' }));
+    fireEvent.click(view.getByRole('button', { name: '저장하고 AI 이미지 후보 생성' }));
     expect(await view.findByText('본문을 입력해 주세요.')).toBeTruthy();
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });

@@ -109,7 +109,7 @@ export async function installAccessibilityFixtures(page: Page) {
       }
       if (path === '/api/people') return json({ people: [] });
       if (path === '/api/contents') return json({ items: [], page: 1, totalPages: 0 });
-      if (path === '/api/news' || path === '/api/news/today') return json(newsPage);
+      if (path === '/api/news') return json(newsPage);
       if (path === '/api/news/7') return json(accessibilityArticle);
       if (path === '/api/news/7/keywords') return json({ keywords: [] });
       if (path === '/api/news/7/market-analysis')

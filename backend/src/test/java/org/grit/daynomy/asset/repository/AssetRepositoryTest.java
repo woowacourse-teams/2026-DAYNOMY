@@ -7,6 +7,7 @@ import java.util.Set;
 import org.grit.daynomy.asset.domain.Asset;
 import org.grit.daynomy.asset.domain.AssetCategory;
 import org.grit.daynomy.asset.domain.StockMarket;
+import org.grit.daynomy.support.SharedDatabaseTest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,33 +16,11 @@ import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabas
 import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
-import org.testcontainers.utility.DockerImageName;
 
-@Testcontainers
 @ActiveProfiles("test")
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-class AssetRepositoryTest {
-
-  @Container
-  static final PostgreSQLContainer POSTGRESQL =
-      new PostgreSQLContainer(DockerImageName.parse("postgres:16-alpine"))
-          .withDatabaseName("daynomy")
-          .withUsername("daynomy")
-          .withPassword("daynomy");
-
-  @DynamicPropertySource
-  static void configurePostgresql(DynamicPropertyRegistry registry) {
-    registry.add("spring.datasource.url", POSTGRESQL::getJdbcUrl);
-    registry.add("spring.datasource.username", POSTGRESQL::getUsername);
-    registry.add("spring.datasource.password", POSTGRESQL::getPassword);
-    registry.add("spring.datasource.driver-class-name", POSTGRESQL::getDriverClassName);
-  }
+class AssetRepositoryTest extends SharedDatabaseTest {
 
   @Autowired private TestEntityManager entityManager;
   @Autowired private AssetRepository assetRepository;

@@ -91,6 +91,19 @@ afterEach(() => {
 });
 
 describe('포트폴리오 분석 화면', () => {
+  it('상태가 배열인 응답은 분석 결과 대신 오류를 표시하고 재시도할 수 있다', async () => {
+    let invalid = true;
+    memberFetch(() => saved(invalid ? { status: ['READY'] } : {}));
+    const view = render(<PortfolioAnalysis assets={assets} isLoggedIn />);
+    expect((await view.findByRole('alert')).textContent).toContain(
+      '저장된 분석을 불러오지 못했어요',
+    );
+    expect(view.queryByText(analysisResponse.overallImpact)).toBeNull();
+    invalid = false;
+    fireEvent.click(view.getByRole('button', { name: '다시 시도' }));
+    expect(await view.findByText(analysisResponse.overallImpact)).toBeTruthy();
+  });
+
   it('하루 세 번 확인한 뒤 버튼을 막고 다시 들어와도 서버 횟수를 유지한다', async () => {
     let remaining = 3;
     const fetchMock = memberFetch((url, init) => {
@@ -1069,7 +1082,7 @@ const emptyTask = {
   failureCode: null,
   retryAllowed: false,
 };
-function stubTaskFetch(respond: (...args: any[]) => unknown) {
+function stubTaskFetch(respond: (input: RequestInfo | URL, init?: RequestInit) => unknown) {
   vi.stubGlobal(
     'fetch',
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {

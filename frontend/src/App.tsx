@@ -1,22 +1,6 @@
 import { lazy, Suspense, useEffect, useLayoutEffect, useState, type ReactNode } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import LoginPage from './features/pages/components/LoginPage';
 import NotFoundPage from './features/pages/components/NotFoundPage';
-import { InfoPage } from './features/pages/components/InfoPage';
-import { NewsDetailPage } from './features/news/newsdetail/NewsDetailPage';
-import { NewsListPage } from './features/news/newslist/NewsListPage';
-import { IssueHomePage } from './features/news/issue/IssueHomePage';
-import { RealEstateLoanRulePage } from './features/news/newslist/RealEstateLoanRulePage';
-import SearchPage from './features/search/SearchPage';
-import { PortfolioPage } from './features/portfolio/PortfolioPage';
-import { LeaguePage } from './features/league/LeaguePage';
-import { InvestorProfilePage } from './features/league/InvestorProfilePage';
-import { PublicationSettingsPage } from './features/league/PublicationSettingsPage';
-import { LeagueProfilePage } from './features/league/LeagueProfilePage';
-import { SharedPortfolioPage } from './features/league/SharedPortfolioPage';
-import { FollowingPage } from './features/league/FollowingPage';
-import { InvestmentReviewsPage } from './features/league/InvestmentReviewsPage';
-import { MyPage } from './features/account/MyPage';
 import { trackPageView } from './analytics';
 import { AuthProvider } from './auth/AuthProvider';
 import { safeReturnPath } from './auth/returnPath';
@@ -24,20 +8,8 @@ import { ServiceHeader } from './features/navigation/ServiceHeader';
 import { LeagueNavigation } from './features/league/LeagueNavigation';
 import { Footer } from './components/Footer';
 import { useAuth } from './hooks/useLoginStatus';
-import { AdminNewsFormPage } from './features/admin/AdminNewsFormPage';
-import { AdminNewsPage, AdminAccessDeniedPage } from './features/admin/AdminNewsPage';
-import { AdminStockContentsPage } from './features/admin/AdminStockContentsPage';
-import { AdminStockSyncPage } from './features/admin/AdminStockSyncPage';
-import { AdminPeoplePage } from './features/admin/AdminPeoplePage';
-import { AdminFeedbackPage } from './features/admin/AdminFeedbackPage';
-import {
-  AdminContentReviewsPage,
-  AdminContentSourcesPage,
-} from './features/admin/AdminContentCollectionPage';
 import { AdminShell } from './features/admin/components/AdminShell';
-import { PeoplePage } from './features/people/PeoplePage';
-import { StockContentPage } from './features/stock-content/StockContentPage';
-import { CardDesignPreviewPage } from './features/stock-content/CardDesignPreviewPage';
+import { AdminNewsImageGenerationProvider } from './features/admin/AdminNewsImageGeneration';
 import { FeedbackWidget } from './features/feedback/FeedbackWidget';
 import { PmfSurveyPrompt } from './features/pmf-survey/PmfSurveyPrompt';
 import { hasStartedService, rememberServiceStart } from './features/landing/startedService';
@@ -46,6 +18,117 @@ import { isAdminOnlyHostname, isUserHostname } from './serviceDomain';
 import { EmailSubscriptionPrompt } from './features/email-subscription/EmailSubscriptionPrompt';
 import './App.css';
 import './features/admin/admin.css';
+
+const NewsDetailPage = lazy(() =>
+  import('./features/news/newsdetail/NewsDetailPage').then((module) => ({
+    default: module.NewsDetailPage,
+  })),
+);
+const NewsListPage = lazy(() =>
+  import('./features/news/newslist/NewsListPage').then((module) => ({
+    default: module.NewsListPage,
+  })),
+);
+const IssueHomePage = lazy(() =>
+  import('./features/news/issue/IssueHomePage').then((module) => ({
+    default: module.IssueHomePage,
+  })),
+);
+const RealEstateLoanRulePage = lazy(() =>
+  import('./features/news/newslist/RealEstateLoanRulePage').then((module) => ({
+    default: module.RealEstateLoanRulePage,
+  })),
+);
+const PortfolioPage = lazy(() =>
+  import('./features/portfolio/PortfolioPage').then((module) => ({
+    default: module.PortfolioPage,
+  })),
+);
+const LeaguePage = lazy(() =>
+  import('./features/league/LeaguePage').then((module) => ({ default: module.LeaguePage })),
+);
+const InvestorProfilePage = lazy(() =>
+  import('./features/league/InvestorProfilePage').then((module) => ({
+    default: module.InvestorProfilePage,
+  })),
+);
+const PublicationSettingsPage = lazy(() =>
+  import('./features/league/PublicationSettingsPage').then((module) => ({
+    default: module.PublicationSettingsPage,
+  })),
+);
+const LeagueProfilePage = lazy(() =>
+  import('./features/league/LeagueProfilePage').then((module) => ({
+    default: module.LeagueProfilePage,
+  })),
+);
+const SharedPortfolioPage = lazy(() =>
+  import('./features/league/SharedPortfolioPage').then((module) => ({
+    default: module.SharedPortfolioPage,
+  })),
+);
+const FollowingPage = lazy(() =>
+  import('./features/league/FollowingPage').then((module) => ({ default: module.FollowingPage })),
+);
+const InvestmentReviewsPage = lazy(() =>
+  import('./features/league/InvestmentReviewsPage').then((module) => ({
+    default: module.InvestmentReviewsPage,
+  })),
+);
+const MyPage = lazy(() =>
+  import('./features/account/MyPage').then((module) => ({ default: module.MyPage })),
+);
+const AdminNewsFormPage = lazy(() =>
+  import('./features/admin/AdminNewsFormPage').then((module) => ({
+    default: module.AdminNewsFormPage,
+  })),
+);
+const AdminStockContentsPage = lazy(() =>
+  import('./features/admin/AdminStockContentsPage').then((module) => ({
+    default: module.AdminStockContentsPage,
+  })),
+);
+const AdminStockSyncPage = lazy(() =>
+  import('./features/admin/AdminStockSyncPage').then((module) => ({
+    default: module.AdminStockSyncPage,
+  })),
+);
+const AdminPeoplePage = lazy(() =>
+  import('./features/admin/AdminPeoplePage').then((module) => ({
+    default: module.AdminPeoplePage,
+  })),
+);
+const AdminFeedbackPage = lazy(() =>
+  import('./features/admin/AdminFeedbackPage').then((module) => ({
+    default: module.AdminFeedbackPage,
+  })),
+);
+const PeoplePage = lazy(() =>
+  import('./features/people/PeoplePage').then((module) => ({ default: module.PeoplePage })),
+);
+const InfoPage = lazy(() =>
+  import('./features/pages/components/InfoPage').then((module) => ({ default: module.InfoPage })),
+);
+const LoginPage = lazy(() => import('./features/pages/components/LoginPage'));
+const SearchPage = lazy(() => import('./features/search/SearchPage'));
+const AdminNewsPage = lazy(() =>
+  import('./features/admin/AdminNewsPage').then((module) => ({ default: module.AdminNewsPage })),
+);
+const AdminAccessDeniedPage = lazy(() =>
+  import('./features/admin/AdminNewsPage').then((module) => ({
+    default: module.AdminAccessDeniedPage,
+  })),
+);
+const AdminContentReviewsPage = lazy(() =>
+  import('./features/admin/AdminContentCollectionPage').then((module) => ({
+    default: module.AdminContentReviewsPage,
+  })),
+);
+const AdminContentSourcesPage = lazy(() =>
+  import('./features/admin/AdminContentCollectionPage').then((module) => ({
+    default: module.AdminContentSourcesPage,
+  })),
+);
 
 const LandingPage = lazy(() => import('./features/landing/LandingPage'));
 
@@ -138,7 +221,7 @@ function AuthenticatedRoute({ children }: { children: ReactNode }) {
   const location = useLocation();
 
   if (loading) {
-    return <main className="portfolio-page" aria-busy="true" />;
+    return <main className="route-loading" aria-busy="true" />;
   }
 
   if (!isLoggedIn) {
@@ -154,7 +237,7 @@ function PortfolioRoute() {
 
   if (loading) {
     return (
-      <main className="portfolio-page" aria-busy="true">
+      <main className="route-loading" aria-busy="true">
         <div className="portfolio-page-title">
           <h1>내 포트폴리오</h1>
         </div>
@@ -296,191 +379,199 @@ function AppContent() {
         {!awaitingWelcome && <AppHeader />}
         <LeagueNavigation />
         <div className="app-content">
-          <Routes>
-            <Route
-              path="/"
-              element={<HomeRoute hasStarted={hasStarted} onStart={startService} />}
-            />
-            <Route
-              path="/welcome"
-              element={
-                <Suspense fallback={<main aria-busy="true" aria-label="서비스 소개 불러오는 중" />}>
-                  <LandingPage onStart={startService} />
-                </Suspense>
-              }
-            />
+          <Suspense
+            fallback={
+              <main className="route-loading" role="status" aria-busy="true">
+                화면을 불러오는 중…
+              </main>
+            }
+          >
+            <Routes>
+              <Route
+                path="/"
+                element={<HomeRoute hasStarted={hasStarted} onStart={startService} />}
+              />
+              <Route
+                path="/welcome"
+                element={
+                  <Suspense
+                    fallback={<main aria-busy="true" aria-label="서비스 소개 불러오는 중" />}
+                  >
+                    <LandingPage onStart={startService} />
+                  </Suspense>
+                }
+              />
 
-            <Route path="/portfolio" element={<Navigate to="/" replace />} />
-            <Route path="/investment-calendar" element={<Navigate to="/news" replace />} />
-            <Route
-              path="/portfolio/records"
-              element={<Navigate to="/league/portfolio" replace />}
-            />
-            <Route path="/league" element={<LeaguePage />} />
-            <Route
-              path="/league/profile"
-              element={
-                <AuthenticatedRoute>
-                  <LeagueProfilePage />
-                </AuthenticatedRoute>
-              }
-            />
-            <Route
-              path="/league/portfolio"
-              element={
-                <AuthenticatedRoute>
-                  <SharedPortfolioPage />
-                </AuthenticatedRoute>
-              }
-            />
-            <Route
-              path="/portfolio/publication"
-              element={
-                <AuthenticatedRoute>
-                  <PublicationSettingsPage />
-                </AuthenticatedRoute>
-              }
-            />
-            <Route
-              path="/league/following"
-              element={
-                <AuthenticatedRoute>
-                  <FollowingPage />
-                </AuthenticatedRoute>
-              }
-            />
-            <Route
-              path="/league/reviews"
-              element={
-                <AuthenticatedRoute>
-                  <InvestmentReviewsPage />
-                </AuthenticatedRoute>
-              }
-            />
-            <Route path="/league/:publicId" element={<InvestorProfilePage />} />
-            <Route path="/membership" element={<Navigate to="/league" replace />} />
-            <Route
-              path="/mypage"
-              element={
-                <AuthenticatedRoute>
-                  <MyPage />
-                </AuthenticatedRoute>
-              }
-            />
-            <Route
-              path="/news"
-              element={
-                <Suspense fallback={<main aria-busy="true" aria-label="소식 불러오는 중" />}>
-                  <NewsHomeRoute />
-                </Suspense>
-              }
-            />
-            <Route path="/news/today" element={<NewsListPage />} />
-            <Route path="/news/contents" element={<IssueHomePage key="contents" fullFeed />} />
-            <Route path="/news/real-estate-loan-rule" element={<RealEstateLoanRulePage />} />
-            <Route path="/news/:newsId" element={<NewsDetailPage />} />
-            <Route path="/search" element={<SearchPage />} />
-            <Route path="/finance/*" element={<Navigate to="/" replace />} />
-            <Route path="/stocks" element={<Navigate to="/" replace />} />
-            <Route path="/stocks/:assetId/card-preview" element={<CardDesignPreviewPage />} />
-            <Route path="/stocks/:assetId" element={<StockContentPage />} />
-            <Route path="/people" element={<PeoplePage />} />
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/about" element={<InfoPage page="about" />} />
-            <Route path="/terms" element={<InfoPage page="terms" />} />
-            <Route path="/privacy" element={<InfoPage page="privacy" />} />
-            <Route path="/standard" element={<InfoPage page="standard" />} />
-            <Route
-              path="/admin"
-              element={
-                <AdminRoute>
-                  <Navigate to="/admin/news" replace />
-                </AdminRoute>
-              }
-            />
-            <Route
-              path="/admin/news"
-              element={
-                <AdminRoute>
-                  <AdminNewsPage />
-                </AdminRoute>
-              }
-            />
-            <Route
-              path="/admin/news/new"
-              element={
-                <AdminRoute>
-                  <AdminNewsFormPage />
-                </AdminRoute>
-              }
-            />
-            <Route
-              path="/admin/news/:newsId/edit"
-              element={
-                <AdminRoute>
-                  <AdminNewsFormPage />
-                </AdminRoute>
-              }
-            />
-            <Route
-              path="/admin/feedbacks"
-              element={
-                <AdminRoute>
-                  <AdminFeedbackPage />
-                </AdminRoute>
-              }
-            />
-            <Route
-              path="/admin/stocks"
-              element={
-                <AdminRoute>
-                  <AdminStockSyncPage />
-                </AdminRoute>
-              }
-            />
-            <Route
-              path="/admin/stock-contents"
-              element={
-                <AdminRoute>
-                  <AdminStockContentsPage />
-                </AdminRoute>
-              }
-            />
-            <Route
-              path="/admin/content-collection"
-              element={
-                <AdminRoute>
-                  <Navigate to="/admin/content-sources" replace />
-                </AdminRoute>
-              }
-            />
-            <Route
-              path="/admin/content-sources"
-              element={
-                <AdminRoute>
-                  <AdminContentSourcesPage />
-                </AdminRoute>
-              }
-            />
-            <Route
-              path="/admin/content-reviews"
-              element={
-                <AdminRoute>
-                  <AdminContentReviewsPage />
-                </AdminRoute>
-              }
-            />
-            <Route
-              path="/admin/people"
-              element={
-                <AdminRoute>
-                  <AdminPeoplePage />
-                </AdminRoute>
-              }
-            />
-            <Route path="/signup" element={<Navigate to="/login" replace />} />
-            <Route path="*" element={<NotFoundPage />} />
-          </Routes>
+              <Route path="/portfolio" element={<Navigate to="/" replace />} />
+              <Route path="/investment-calendar" element={<Navigate to="/news" replace />} />
+              <Route
+                path="/portfolio/records"
+                element={<Navigate to="/league/portfolio" replace />}
+              />
+              <Route path="/league" element={<LeaguePage />} />
+              <Route
+                path="/league/profile"
+                element={
+                  <AuthenticatedRoute>
+                    <LeagueProfilePage />
+                  </AuthenticatedRoute>
+                }
+              />
+              <Route
+                path="/league/portfolio"
+                element={
+                  <AuthenticatedRoute>
+                    <SharedPortfolioPage />
+                  </AuthenticatedRoute>
+                }
+              />
+              <Route
+                path="/portfolio/publication"
+                element={
+                  <AuthenticatedRoute>
+                    <PublicationSettingsPage />
+                  </AuthenticatedRoute>
+                }
+              />
+              <Route
+                path="/league/following"
+                element={
+                  <AuthenticatedRoute>
+                    <FollowingPage />
+                  </AuthenticatedRoute>
+                }
+              />
+              <Route
+                path="/league/reviews"
+                element={
+                  <AuthenticatedRoute>
+                    <InvestmentReviewsPage />
+                  </AuthenticatedRoute>
+                }
+              />
+              <Route path="/league/:publicId" element={<InvestorProfilePage />} />
+              <Route path="/membership" element={<Navigate to="/league" replace />} />
+              <Route
+                path="/mypage"
+                element={
+                  <AuthenticatedRoute>
+                    <MyPage />
+                  </AuthenticatedRoute>
+                }
+              />
+              <Route
+                path="/news"
+                element={
+                  <Suspense fallback={<main aria-busy="true" aria-label="소식 불러오는 중" />}>
+                    <NewsHomeRoute />
+                  </Suspense>
+                }
+              />
+              <Route path="/news/today" element={<NewsListPage />} />
+              <Route path="/news/contents" element={<IssueHomePage key="contents" fullFeed />} />
+              <Route path="/news/real-estate-loan-rule" element={<RealEstateLoanRulePage />} />
+              <Route path="/news/:newsId" element={<NewsDetailPage />} />
+              <Route path="/search" element={<SearchPage />} />
+              <Route path="/finance/*" element={<Navigate to="/" replace />} />
+              <Route path="/stocks" element={<Navigate to="/" replace />} />
+              <Route path="/people" element={<PeoplePage />} />
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/about" element={<InfoPage page="about" />} />
+              <Route path="/terms" element={<InfoPage page="terms" />} />
+              <Route path="/privacy" element={<InfoPage page="privacy" />} />
+              <Route path="/standard" element={<InfoPage page="standard" />} />
+              <Route
+                path="/admin"
+                element={
+                  <AdminRoute>
+                    <Navigate to="/admin/news" replace />
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="/admin/news"
+                element={
+                  <AdminRoute>
+                    <AdminNewsPage />
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="/admin/news/new"
+                element={
+                  <AdminRoute>
+                    <AdminNewsFormPage />
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="/admin/news/:newsId/edit"
+                element={
+                  <AdminRoute>
+                    <AdminNewsFormPage />
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="/admin/feedbacks"
+                element={
+                  <AdminRoute>
+                    <AdminFeedbackPage />
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="/admin/stocks"
+                element={
+                  <AdminRoute>
+                    <AdminStockSyncPage />
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="/admin/stock-contents"
+                element={
+                  <AdminRoute>
+                    <AdminStockContentsPage />
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="/admin/content-collection"
+                element={
+                  <AdminRoute>
+                    <Navigate to="/admin/content-sources" replace />
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="/admin/content-sources"
+                element={
+                  <AdminRoute>
+                    <AdminContentSourcesPage />
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="/admin/content-reviews"
+                element={
+                  <AdminRoute>
+                    <AdminContentReviewsPage />
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="/admin/people"
+                element={
+                  <AdminRoute>
+                    <AdminPeoplePage />
+                  </AdminRoute>
+                }
+              />
+              <Route path="/signup" element={<Navigate to="/login" replace />} />
+              <Route path="*" element={<NotFoundPage />} />
+            </Routes>
+          </Suspense>
         </div>
         {!awaitingWelcome && <AppFooter />}
       </div>
@@ -492,9 +583,11 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <ServiceDomainBoundary>
-          <AppContent />
-        </ServiceDomainBoundary>
+        <AdminNewsImageGenerationProvider>
+          <ServiceDomainBoundary>
+            <AppContent />
+          </ServiceDomainBoundary>
+        </AdminNewsImageGenerationProvider>
       </AuthProvider>
     </BrowserRouter>
   );

@@ -12,6 +12,7 @@ import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.common.logging.LogEvent;
 import org.grit.daynomy.external.ExternalErrorCode;
 import org.grit.daynomy.news.ai.GeneratedEconomicNews;
+import org.grit.daynomy.news.ai.NewsGenerationTopicResearch;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
@@ -48,7 +49,7 @@ public class OpenAiNewsWriter {
             .build();
   }
 
-  public List<GeneratedEconomicNews> write(List<EconomicNewsResearch> research) {
+  public List<GeneratedEconomicNews> write(List<NewsGenerationTopicResearch> research) {
     log.atInfo()
         .addKeyValue("event", LogEvent.AI_NEWS_GENERATION_REQUESTED.code())
         .addKeyValue("api", "OpenAI")
@@ -58,7 +59,7 @@ public class OpenAiNewsWriter {
         .log(LogEvent.AI_NEWS_GENERATION_REQUESTED.message());
 
     List<GeneratedEconomicNews> generatedNews = new ArrayList<>();
-    List<EconomicNewsResearch> pendingResearch = research;
+    List<NewsGenerationTopicResearch> pendingResearch = research;
     List<Integer> pendingIndexes = new ArrayList<>();
     for (int index = 0; index < research.size(); index++) {
       generatedNews.add(null);
@@ -136,7 +137,7 @@ public class OpenAiNewsWriter {
   }
 
   private String requestContent(
-      List<EconomicNewsResearch> research, int attempt, String validationFailureReason) {
+      List<NewsGenerationTopicResearch> research, int attempt, String validationFailureReason) {
     String instruction = PROMPT + "\n\n조사 자료 묶음:\n" + researchJson(research);
     if (attempt > 1) {
       instruction += RETRY_INSTRUCTION + "\n이전 검증 결과: " + validationFailureReason;
@@ -160,7 +161,7 @@ public class OpenAiNewsWriter {
         .body(String.class);
   }
 
-  private String researchJson(List<EconomicNewsResearch> research) {
+  private String researchJson(List<NewsGenerationTopicResearch> research) {
     try {
       List<Map<String, Object>> articles =
           research.stream()
@@ -216,7 +217,7 @@ public class OpenAiNewsWriter {
             List.of("articles")));
   }
 
-  private ParsedWriting parseContents(String response, List<EconomicNewsResearch> research) {
+  private ParsedWriting parseContents(String response, List<NewsGenerationTopicResearch> research) {
     try {
       JsonNode responseJson = OBJECT_MAPPER.readTree(response);
       JsonNode articles = OBJECT_MAPPER.readTree(extractOutputText(responseJson)).path("articles");
@@ -229,12 +230,13 @@ public class OpenAiNewsWriter {
       List<ValidationFailure> failures = new ArrayList<>();
       for (int index = 0; index < articles.size(); index++) {
         String content = articles.get(index).path("content").asText().strip();
-        EconomicNewsResearch item = research.get(index);
+        NewsGenerationTopicResearch item = research.get(index);
         try {
           validateContent(content);
           generatedNews.put(
               index,
-              new GeneratedEconomicNews(item.title(), content, item.category(), item.sources()));
+              new GeneratedEconomicNews(
+                  item.topicKey(), item.title(), content, item.category(), item.sources()));
         } catch (IllegalArgumentException exception) {
           failures.add(new ValidationFailure(index, item, exception.getMessage()));
         }
@@ -310,7 +312,8 @@ public class OpenAiNewsWriter {
   private record ParsedWriting(
       Map<Integer, GeneratedEconomicNews> generatedNews, List<ValidationFailure> failures) {}
 
-  private record ValidationFailure(int index, EconomicNewsResearch research, String reason) {}
+  private record ValidationFailure(
+      int index, NewsGenerationTopicResearch research, String reason) {}
 
   private static final class InvalidWritingException extends RuntimeException {
 

@@ -58,31 +58,6 @@
   }
 }
 
-.portfolio-example-notice {
-  margin: 0 0 24px;
-  padding: 12px 16px;
-  background: #f3f5f8;
-  color: #526075;
-  font-size: 13px;
-  line-height: 1.6;
-}
-
-.portfolio-example-reading {
-  max-width: 68ch;
-  padding: 8px 0;
-  color: #293548;
-  font-size: 15px;
-  line-height: 1.85;
-}
-
-.portfolio-example-reading p + p {
-  margin-top: 16px;
-}
-.portfolio-example-reading .portfolio-example-caption {
-  color: #596579;
-  font-size: 12px;
-}
-
 .portfolio-reading-next {
   margin: 24px 0 8px;
 }

@@ -224,7 +224,8 @@ public final class LeagueDto {
       Instant expectedAt,
       Instant firstReturnExpectedAt,
       String reason,
-      boolean delayed) {}
+      boolean delayed,
+      Instant nextCollectionAt) {}
 
   public record AllocationResponse(BigDecimal stockWeight, BigDecimal etfWeight) {}
 

@@ -45,7 +45,6 @@ public class SecurityConfig {
       "/api/portfolio/analysis/tasks",
       "/api/portfolio/analysis/tasks/*",
       "/api/news",
-      "/api/news/today",
       "/api/news/*",
       "/api/news/*/keywords",
       "/api/news/*/market-analysis",

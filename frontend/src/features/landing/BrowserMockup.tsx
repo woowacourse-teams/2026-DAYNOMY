@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { LandingIcon } from './LandingIcon';
-import overview from '../../assets/landing/overview.png';
+import overview from '../../assets/landing/overview.webp';
 import news from '../../assets/landing/news.png';
 import sources from '../../assets/landing/sources.png';
 import league from '../../assets/landing/league.png';

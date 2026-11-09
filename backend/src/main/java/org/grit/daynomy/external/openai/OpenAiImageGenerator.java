@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Base64;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.common.logging.LogEvent;
@@ -21,8 +22,8 @@ import org.springframework.web.client.RestClientException;
 public class OpenAiImageGenerator {
 
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
-  private static final String IMAGE_SIZE = "1024x1024";
-  private static final String ECONOMIC_NEWS_IMAGE_SIZE = "1536x1024";
+  private static final String ECONOMIC_NEWS_IMAGE_SIZE = "1280x720";
+  private static final String GPT_IMAGE_1_5_IMAGE_SIZE = "1536x1024";
   private static final String IMAGE_QUALITY = "low";
   private static final String IMAGE_FORMAT = "webp";
   private static final String IMAGE_PROMPT = OpenAiPromptLoader.load("prompts/image-generator.txt");
@@ -43,16 +44,16 @@ public class OpenAiImageGenerator {
             .build();
   }
 
-  public byte[] generateNewsImage(String title) {
-    return generateNewsImage(title, imagePrompt(title), IMAGE_SIZE);
-  }
-
   public byte[] generateEconomicNewsImage(String title, String content, Category category) {
-    return generateNewsImage(
-        title, economicNewsImagePrompt(title, content, category), ECONOMIC_NEWS_IMAGE_SIZE);
+    String imageSize =
+        openAiProperties.imageModel().startsWith("gpt-image-1.5")
+            ? GPT_IMAGE_1_5_IMAGE_SIZE
+            : ECONOMIC_NEWS_IMAGE_SIZE;
+    return generateNewsImage(title, economicNewsImagePrompt(title, content, category), imageSize);
   }
 
   private byte[] generateNewsImage(String title, String prompt, String size) {
+    long startedAt = System.nanoTime();
     try {
       log.atInfo()
           .addKeyValue("event", LogEvent.AI_IMAGE_GENERATION_REQUESTED.code())
@@ -77,6 +78,7 @@ public class OpenAiImageGenerator {
           .addKeyValue("api", "OpenAI")
           .addKeyValue("operation", "image-generation")
           .addKeyValue("title", title)
+          .addKeyValue("durationMs", elapsedMillis(startedAt))
           .log(LogEvent.AI_IMAGE_GENERATION_COMPLETED.message());
       return image;
     } catch (HttpStatusCodeException exception) {
@@ -86,6 +88,7 @@ public class OpenAiImageGenerator {
           .addKeyValue("operation", "image-generation")
           .addKeyValue("httpStatus", exception.getStatusCode().value())
           .addKeyValue("title", title)
+          .addKeyValue("durationMs", elapsedMillis(startedAt))
           .log(LogEvent.AI_IMAGE_GENERATION_FAILED.message());
       throw new BusinessException(ExternalErrorCode.AI_IMAGE_GENERATION_FAILED);
     } catch (RestClientException exception) {
@@ -95,6 +98,7 @@ public class OpenAiImageGenerator {
           .addKeyValue("operation", "image-generation")
           .addKeyValue("errorType", exception.getClass().getSimpleName())
           .addKeyValue("title", title)
+          .addKeyValue("durationMs", elapsedMillis(startedAt))
           .log(LogEvent.AI_IMAGE_GENERATION_FAILED.message());
       throw new BusinessException(ExternalErrorCode.AI_IMAGE_GENERATION_FAILED);
     } catch (IllegalArgumentException exception) {
@@ -104,6 +108,7 @@ public class OpenAiImageGenerator {
           .addKeyValue("operation", "image-generation")
           .addKeyValue("errorType", "InvalidBase64")
           .addKeyValue("title", title)
+          .addKeyValue("durationMs", elapsedMillis(startedAt))
           .log(LogEvent.AI_IMAGE_GENERATION_FAILED.message());
       throw new BusinessException(ExternalErrorCode.AI_IMAGE_GENERATION_FAILED);
     }
@@ -123,10 +128,6 @@ public class OpenAiImageGenerator {
         IMAGE_QUALITY,
         "output_format",
         IMAGE_FORMAT);
-  }
-
-  private String imagePrompt(String title) {
-    return IMAGE_PROMPT.formatted("GENERAL_FINANCE", title, "");
   }
 
   private String economicNewsImagePrompt(String title, String content, Category category) {
@@ -151,5 +152,9 @@ public class OpenAiImageGenerator {
 
   private int toMillis(java.time.Duration timeout) {
     return Math.toIntExact(timeout.toMillis());
+  }
+
+  private long elapsedMillis(long startedAt) {
+    return TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt);
   }
 }

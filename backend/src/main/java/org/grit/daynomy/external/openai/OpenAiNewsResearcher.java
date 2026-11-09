@@ -33,10 +33,12 @@ public class OpenAiNewsResearcher {
   private static final int RECENT_DAYS = 3;
   private static final String PROMPT = OpenAiPromptLoader.load("prompts/news-researcher.txt");
   private static final String US_PROMPT = OpenAiPromptLoader.load("prompts/us-news-researcher.txt");
+  private static final String KEYWORD_PROMPT =
+      OpenAiPromptLoader.load("prompts/keyword-news-researcher.txt");
   private static final String RETRY_INSTRUCTION =
       """
 
-이전 조사 결과가 최신성, 독립 출처, 날짜 또는 기사 수 검증에 실패했다. 처음부터 다시 검색하라. 최근 3일 이내의 사건만 선택하고, 한국 출처를 우선하며, 이슈마다 독립된 출처를 2개 이상 확인하라. 본문이나 시장 분석은 작성하지 말고 검증된 facts만 반환하라.
+이전 조사 결과가 최신성, 독립 출처, 날짜 또는 기사 수 검증에 실패했다. 처음부터 다시 검색하라. 최근 3일 이내의 사건만 선택하고, 기본 4개 중 최소 3개는 한국 주식시장 전체, 주요 지수 또는 여러 기업·산업에 영향을 줄 수 있는 이슈로 선정하라. 한국과 주요국의 선거·권력구도, 예산·세제·산업 정책·금융 규제, 주요 경제지표, 무역 갈등·지정학적 충돌을 우선하고, 개별 기업의 단순 공시·계약·실적은 제외하되 영향이 큰 사건만 최대 1개 포함하라. 한국 출처를 우선하며, 이슈마다 독립된 출처를 2개 이상 확인하라. 본문이나 시장 분석은 작성하지 말고 검증된 facts만 반환하라.
 """;
 
   private final OpenAiProperties openAiProperties;
@@ -56,20 +58,50 @@ public class OpenAiNewsResearcher {
   }
 
   public List<EconomicNewsResearch> researchEconomicNews() {
-    return researchEconomicNews(PROMPT, "economic-news-research", RETRY_INSTRUCTION);
+    return researchEconomicNews(
+        PROMPT.formatted(LocalDate.now(ZoneId.of("Asia/Seoul"))),
+        "economic-news-research",
+        RETRY_INSTRUCTION,
+        MIN_ARTICLE_COUNT,
+        MAX_ARTICLE_COUNT);
   }
 
   public List<EconomicNewsResearch> researchUsEconomicNews() {
     String retryInstruction =
         """
 
-        이전 조사 결과가 최신성, 독립 출처, 날짜 또는 기사 수 검증에 실패했다. 처음부터 다시 검색하라. 최근 3일 이내의 미국 주식시장 전체, 주요 지수, 여러 기업 또는 산업에 영향을 줄 수 있는 사건을 우선 선택하되, 한 기업의 주가에 직접적이고 구체적인 영향을 줄 수 있는 중요한 계약·규제·소송·제품·공급망 사건도 포함하라. 단순 공시나 평범한 계약이라는 이유만으로 제외하지 말고 계약 규모, 상대방, 사업상 의미 또는 확인된 시장 반응을 근거로 판단하라. 일반적인 개별 기업 실적 발표나 영향이 불분명한 계약은 제외하라. 미국 공식기관 또는 신뢰할 수 있는 미국 현지 언론의 독립 출처를 이슈마다 2곳 이상 확인하라. 본문이나 시장 분석은 작성하지 말고 검증된 facts만 반환하라.
+        이전 조사 결과가 최신성, 독립 출처, 날짜 또는 기사 수 검증에 실패했다. 처음부터 다시 검색하라. 최근 3일 이내의 사건만 선택하고, 기본 4개 중 최소 3개는 미국 주식시장 전체, 주요 지수 또는 여러 기업·산업에 영향을 줄 수 있는 이슈로 선정하라. 연방 선거와 대통령·의회 권력구도, 예산·세제·정부 셧다운·부채한도, 통화정책·주요 경제지표, 무역 갈등·지정학적 충돌을 우선하고, 개별 기업의 단순 공시·계약·실적은 제외하되 영향이 큰 사건만 최대 1개 포함하라. 미국 공식기관 또는 신뢰할 수 있는 미국 현지 언론의 독립 출처를 이슈마다 2곳 이상 확인하라. 본문이나 시장 분석은 작성하지 말고 검증된 facts만 반환하라.
         """;
-    return researchEconomicNews(US_PROMPT, "us-economic-news-research", retryInstruction);
+    return researchEconomicNews(
+        US_PROMPT.formatted(LocalDate.now(ZoneId.of("Asia/Seoul"))),
+        "us-economic-news-research",
+        retryInstruction,
+        MIN_ARTICLE_COUNT,
+        MAX_ARTICLE_COUNT);
+  }
+
+  public EconomicNewsResearch researchEconomicNews(String keyword) {
+    String escapedKeyword = keyword.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+    String retryInstruction =
+        """
+
+        이전 조사 결과가 키워드 관련성, 최신성, 독립 출처 또는 날짜 검증에 실패했다. 입력 키워드와 직접 관련된 최근 3일 이내 사건 하나를 처음부터 다시 검색하고, 독립된 출처를 2곳 이상 확인해 검증된 facts만 반환하라.
+        """;
+    return researchEconomicNews(
+            KEYWORD_PROMPT.formatted(LocalDate.now(ZoneId.of("Asia/Seoul")), escapedKeyword),
+            "keyword-economic-news-research",
+            retryInstruction,
+            1,
+            1)
+        .getFirst();
   }
 
   private List<EconomicNewsResearch> researchEconomicNews(
-      String prompt, String operation, String retryInstruction) {
+      String instruction,
+      String operation,
+      String retryInstruction,
+      int minimumArticleCount,
+      int maximumArticleCount) {
     log.atInfo()
         .addKeyValue("event", LogEvent.AI_NEWS_GENERATION_REQUESTED.code())
         .addKeyValue("api", "OpenAI")
@@ -80,7 +112,15 @@ public class OpenAiNewsResearcher {
     for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       try {
         List<EconomicNewsResearch> result =
-            parseResearch(requestResearch(prompt, retryInstruction, attempt));
+            parseResearch(
+                requestResearch(
+                    instruction,
+                    retryInstruction,
+                    attempt,
+                    minimumArticleCount,
+                    maximumArticleCount),
+                minimumArticleCount,
+                maximumArticleCount);
         log.atInfo()
             .addKeyValue("event", LogEvent.AI_NEWS_GENERATION_COMPLETED.code())
             .addKeyValue("api", "OpenAI")
@@ -130,21 +170,28 @@ public class OpenAiNewsResearcher {
     throw new BusinessException(ExternalErrorCode.AI_NEWS_GENERATION_FAILED);
   }
 
-  private String requestResearch(String prompt, String retryInstruction, int attempt) {
-    String instruction =
-        prompt.formatted(LocalDate.now(ZoneId.of("Asia/Seoul")))
-            + (attempt == 1 ? "" : retryInstruction);
+  private String requestResearch(
+      String instruction,
+      String retryInstruction,
+      int attempt,
+      int minimumArticleCount,
+      int maximumArticleCount) {
     return restClient
         .post()
         .uri("/responses")
         .header("Authorization", "Bearer " + openAiProperties.apiKey())
         .contentType(MediaType.APPLICATION_JSON)
-        .body(requestBody(instruction))
+        .body(
+            requestBody(
+                instruction + (attempt == 1 ? "" : retryInstruction),
+                minimumArticleCount,
+                maximumArticleCount))
         .retrieve()
         .body(String.class);
   }
 
-  private Map<String, Object> requestBody(String instruction) {
+  private Map<String, Object> requestBody(
+      String instruction, int minimumArticleCount, int maximumArticleCount) {
     return Map.of(
         "model",
         openAiProperties.economyNewsModel(),
@@ -157,10 +204,10 @@ public class OpenAiNewsResearcher {
         "input",
         instruction,
         "text",
-        Map.of("format", responseFormat()));
+        Map.of("format", responseFormat(minimumArticleCount, maximumArticleCount)));
   }
 
-  private Map<String, Object> responseFormat() {
+  private Map<String, Object> responseFormat(int minimumArticleCount, int maximumArticleCount) {
     return Map.of(
         "type",
         "json_schema",
@@ -181,9 +228,9 @@ public class OpenAiNewsResearcher {
                     "type",
                     "array",
                     "minItems",
-                    MIN_ARTICLE_COUNT,
+                    minimumArticleCount,
                     "maxItems",
-                    MAX_ARTICLE_COUNT,
+                    maximumArticleCount,
                     "items",
                     Map.of(
                         "type",
@@ -218,14 +265,15 @@ public class OpenAiNewsResearcher {
             List.of("articles")));
   }
 
-  private List<EconomicNewsResearch> parseResearch(String response) {
+  private List<EconomicNewsResearch> parseResearch(
+      String response, int minimumArticleCount, int maximumArticleCount) {
     try {
       JsonNode responseJson = OBJECT_MAPPER.readTree(response);
       JsonNode articles = OBJECT_MAPPER.readTree(extractOutputText(responseJson)).path("articles");
       if (!articles.isArray()
-          || articles.size() < MIN_ARTICLE_COUNT
-          || articles.size() > MAX_ARTICLE_COUNT) {
-        throw new IllegalArgumentException("Expected four or five economic news research items.");
+          || articles.size() < minimumArticleCount
+          || articles.size() > maximumArticleCount) {
+        throw new IllegalArgumentException("Unexpected economic news research item count.");
       }
 
       Map<String, NewsSourceInfo> availableSources = new LinkedHashMap<>();

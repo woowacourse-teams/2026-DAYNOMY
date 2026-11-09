@@ -2,6 +2,7 @@ package org.grit.daynomy.portfolio.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import org.grit.daynomy.asset.domain.AssetCategory;
 import org.grit.daynomy.asset.domain.StockMarket;
@@ -12,21 +13,27 @@ public record PortfolioHoldingResponse(
     @Schema(description = "종목명", example = "삼성전자") String name,
     @Schema(description = "자산 분류", example = "STOCK") AssetCategory category,
     @Schema(description = "상장 시장", example = "KOSPI") StockMarket market,
-    @Schema(description = "종가와 필요한 환율이 있어 평가 가능한지 여부", example = "true") boolean priceAvailable,
-    @Schema(description = "사용한 종가 기준일. 평가 불가하면 null", example = "2026-10-22", nullable = true)
+    @Schema(description = "가격과 필요한 환율이 있어 평가 가능한지 여부", example = "true") boolean priceAvailable,
+    @Schema(
+            description = "평가에 사용한 가격의 현지 기준일. 평가 불가하면 null",
+            example = "2026-10-22",
+            nullable = true)
         LocalDate baseDate,
     @Schema(description = "보유 수량(주)", example = "10") long quantity,
     @Schema(description = "원화(KRW) 기준 주당 평균 매입가", example = "70000.00")
         BigDecimal averagePurchasePrice,
     @Schema(
-            description = "종목 통화(currency) 기준 종가. 국내 KRW, 미국 USD. 평가 불가하면 null",
+            description = "종목 통화 기준 최근 확정 종가. 가격이 없거나 평가 불가하면 null",
             example = "75000.00",
             nullable = true)
         BigDecimal closePrice,
+    @Schema(description = "평가에 사용한 종목 통화 기준 장중 지연 시세", nullable = true) BigDecimal delayedPrice,
+    @Schema(description = "평가에 사용한 장중 지연 시세의 기준 시각", nullable = true) Instant delayedPriceAsOf,
+    @Schema(description = "유효 시간이 지나 마지막 장중 시세로 평가 중인지 여부") boolean quoteRefreshPending,
     @Schema(description = "매입금액(KRW). 보유 수량 × 평균 매입가", example = "700000.00")
         BigDecimal purchaseAmount,
     @Schema(
-            description = "평가금액(KRW). 미국 종목은 종가 기준일의 환율로 환산. 평가 불가하면 null",
+            description = "평가금액(KRW). 미국 지연 시세는 저장된 최근 환율로 환산. 평가 불가하면 null",
             example = "750000.00",
             nullable = true)
         BigDecimal evaluationAmount,

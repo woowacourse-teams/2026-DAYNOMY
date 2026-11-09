@@ -60,15 +60,18 @@ class StockMasterSyncServiceTest {
     given(etfPriceClient.getEtfPrices(baseDate, 1, 1000))
         .willReturn(
             etfResponse(
-                1, List.of(etfItem(baseDate, "069500", "KODEX 200", "KR7069500007", "53000"))));
+                2,
+                List.of(
+                    etfItem(baseDate, "A069500", "KODEX 200", "KR7069500007", "53000"),
+                    etfItem(baseDate, "0040S0", "HANARO 글로벌피지컬AI액티브", "KR70040S0004", "21795"))));
     given(
             persistenceService.synchronize(
                 org.mockito.ArgumentMatchers.eq(baseDate), org.mockito.ArgumentMatchers.anyList()))
-        .willReturn(new StockSyncResult(baseDate, 3, 3, 0, 0));
+        .willReturn(new StockSyncResult(baseDate, 4, 4, 0, 0));
 
     StockSyncResult result = syncService.synchronize(today);
 
-    assertThat(result.syncedCount()).isEqualTo(3);
+    assertThat(result.syncedCount()).isEqualTo(4);
     @SuppressWarnings("unchecked")
     ArgumentCaptor<List<StockMasterEntry>> entriesCaptor = ArgumentCaptor.forClass(List.class);
     then(persistenceService)
@@ -87,7 +90,13 @@ class StockMasterSyncServiceTest {
             org.assertj.core.groups.Tuple.tuple(
                 "000660", "SK하이닉스", AssetCategory.STOCK, StockMarket.KOSPI, "KR7000660001"),
             org.assertj.core.groups.Tuple.tuple(
-                "069500", "KODEX 200", AssetCategory.ETF, StockMarket.KOSPI, "KR7069500007"));
+                "069500", "KODEX 200", AssetCategory.ETF, StockMarket.KOSPI, "KR7069500007"),
+            org.assertj.core.groups.Tuple.tuple(
+                "0040S0",
+                "HANARO 글로벌피지컬AI액티브",
+                AssetCategory.ETF,
+                StockMarket.KOSPI,
+                "KR70040S0004"));
   }
 
   @Test

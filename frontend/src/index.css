@@ -73,15 +73,13 @@ button {
     .issue-profile-links a,
     .issue-video-link,
     .issue-row-title,
-    .issue-story-empty a,
     .admin-back-link,
     .admin-secondary-button,
     .loan-back-button,
     .portfolio-registration-choice button,
     .portfolio-news-open,
     .portfolio-news-more,
-    .article-card,
-    .card-preview-action
+    .article-card
   ) {
   text-decoration: none;
 }

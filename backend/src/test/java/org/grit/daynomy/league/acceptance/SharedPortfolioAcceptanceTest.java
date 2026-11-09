@@ -42,6 +42,7 @@ import org.grit.daynomy.portfolio.dto.PortfolioTransactionRequest;
 import org.grit.daynomy.portfolio.repository.PortfolioHoldingHistoryRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioHoldingRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioRepository;
+import org.grit.daynomy.support.SharedDatabaseTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -50,28 +51,10 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
-import org.testcontainers.utility.DockerImageName;
 
-@Testcontainers
 @ActiveProfiles("test")
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-class SharedPortfolioAcceptanceTest {
-  @Container
-  static final PostgreSQLContainer POSTGRESQL =
-      new PostgreSQLContainer(DockerImageName.parse("postgres:16-alpine"));
-
-  @DynamicPropertySource
-  static void database(DynamicPropertyRegistry registry) {
-    registry.add("spring.datasource.url", POSTGRESQL::getJdbcUrl);
-    registry.add("spring.datasource.username", POSTGRESQL::getUsername);
-    registry.add("spring.datasource.password", POSTGRESQL::getPassword);
-    registry.add("spring.datasource.driver-class-name", POSTGRESQL::getDriverClassName);
-  }
+class SharedPortfolioAcceptanceTest extends SharedDatabaseTest {
 
   @LocalServerPort private int port;
   @Autowired private MemberRepository members;

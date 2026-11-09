@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import daynomyLogo from '../../../assets/daynomy-logo.png';
+import { useAdminNewsImageGeneration } from '../AdminNewsImageGenerationContext';
 
 const sections = [
   { path: '/admin/news', label: '뉴스 관리', icon: 'M4 4h16v16H4z M8 8h8 M8 12h8 M8 16h4' },
@@ -34,7 +35,16 @@ const sections = [
 
 export function AdminShell({ children }: { children: ReactNode }) {
   const { pathname } = useLocation();
+  const imageGeneration = useAdminNewsImageGeneration();
   const current = sections.find(({ path }) => pathname === path || pathname.startsWith(`${path}/`));
+  const imageGenerationMessage =
+    imageGeneration.status === 'loading'
+      ? 'AI 이미지 후보를 생성하고 있습니다. 화면을 이동해도 계속 진행됩니다.'
+      : imageGeneration.status === 'success'
+        ? 'AI 이미지 후보가 준비되었습니다.'
+        : imageGeneration.status === 'error'
+          ? `AI 이미지 후보 생성 실패: ${imageGeneration.error}`
+          : null;
   return (
     <div className="admin-app">
       <a className="admin-skip-link" href="#admin-workspace">
@@ -75,6 +85,17 @@ export function AdminShell({ children }: { children: ReactNode }) {
           <span aria-hidden="true">/</span>
           <strong>{current?.label ?? '접근 권한'}</strong>
         </div>
+        {imageGenerationMessage && imageGeneration.newsId !== null ? (
+          <div
+            className={`admin-image-generation-notice is-${imageGeneration.status}`}
+            role={imageGeneration.status === 'error' ? 'alert' : 'status'}
+          >
+            <span>{imageGenerationMessage}</span>
+            <Link to={`/admin/news/${imageGeneration.newsId}/edit#news-image`}>
+              {imageGeneration.status === 'success' ? '후보 확인' : '뉴스 편집 열기'}
+            </Link>
+          </div>
+        ) : null}
         {children}
       </div>
     </div>

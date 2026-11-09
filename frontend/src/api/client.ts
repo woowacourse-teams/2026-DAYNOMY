@@ -57,19 +57,7 @@ export async function request<T>(
   init: RequestInit = {},
   retryOnUnauthorized = true,
 ): Promise<T> {
-  const response = await fetch(getApiUrl(path), {
-    ...init,
-    credentials: 'include',
-  });
-
-  if (response.status === 401 && retryOnUnauthorized) {
-    await refreshAccessToken();
-    return request<T>(path, init, false);
-  }
-
-  if (!response.ok) {
-    throw await parseError(response);
-  }
+  const response = await requestResponse(path, init, retryOnUnauthorized);
 
   if (response.status === 204) {
     return undefined as T;
@@ -78,11 +66,38 @@ export async function request<T>(
   return response.json() as Promise<T>;
 }
 
+async function requestResponse(path: string, init: RequestInit, retryOnUnauthorized: boolean) {
+  const response = await fetch(getApiUrl(path), {
+    ...init,
+    credentials: 'include',
+  });
+
+  if (response.status === 401 && retryOnUnauthorized) {
+    await refreshAccessToken();
+    return requestResponse(path, init, false);
+  }
+
+  if (!response.ok) {
+    throw await parseError(response);
+  }
+
+  return response;
+}
+
+export async function requestBlobWithCsrf(path: string, init: RequestInit): Promise<Blob> {
+  const response = await requestResponse(path, await withCsrf(init), true);
+  return response.blob();
+}
+
 export async function requestWithCsrf<T>(
   path: string,
   init: RequestInit,
   retryOnUnauthorized = true,
 ): Promise<T> {
+  return request<T>(path, await withCsrf(init), retryOnUnauthorized);
+}
+
+async function withCsrf(init: RequestInit): Promise<RequestInit> {
   const csrfToken = await request<unknown>('/api/auth/csrf', {}, false);
   if (
     !isRecord(csrfToken) ||
@@ -96,5 +111,5 @@ export async function requestWithCsrf<T>(
   const headers = new Headers(init.headers);
   headers.set(csrfToken.headerName, csrfToken.token);
 
-  return request<T>(path, { ...init, headers }, retryOnUnauthorized);
+  return { ...init, headers };
 }

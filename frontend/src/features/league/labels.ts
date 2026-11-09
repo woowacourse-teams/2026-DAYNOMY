@@ -39,7 +39,7 @@ export function formatRate(value: number | null | undefined, signed = true) {
 }
 
 export const collectionLabels: Record<CollectionStatus, string> = {
-  CALENDAR_PENDING: '거래일 확인 대기',
+  CALENDAR_PENDING: '거래일 정보 누락',
   IN_PROGRESS: '집계 중',
   COLLECTION_PENDING: '종가 수집 대기',
   COMPLETE: '종가 수집 완료',

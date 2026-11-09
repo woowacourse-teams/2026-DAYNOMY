@@ -68,6 +68,21 @@ tasks.withType<Test> {
     if (System.getenv("LEAGUE_BENCHMARK") == "true") maxHeapSize = "3g"
 }
 
+// CI and development CD partition the existing test task; builds without the option run every test.
+val ciTestSuite = providers.gradleProperty("ciTestSuite").orElse("all")
+val heavyCiTests = listOf(
+    "org.grit.daynomy.loadtest.Portfolio1000LoadtestToolTest",
+    "org.grit.daynomy.league.acceptance.LeagueRankingsLoadtestSeedTest",
+)
+tasks.named<Test>("test") {
+    when (val suite = ciTestSuite.get()) {
+        "all" -> Unit
+        "main" -> filter { heavyCiTests.forEach { excludeTestsMatching(it) } }
+        "heavy" -> filter { heavyCiTests.forEach { includeTestsMatching(it) } }
+        else -> throw GradleException("Unknown ciTestSuite: $suite (expected all, main, or heavy)")
+    }
+}
+
 // Manual dev load-test preparation only; no Spring server or schedulers are started.
 tasks.register<JavaExec>("portfolioLoadtest") {
     dependsOn(tasks.testClasses)

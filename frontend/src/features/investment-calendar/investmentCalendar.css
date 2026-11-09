@@ -518,6 +518,12 @@
   gap: 5px;
 }
 
+.investment-calendar-page .investment-calendar-month-control button:disabled,
+.investment-calendar-page .investment-calendar-briefing-month button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
 .investment-calendar-month-control strong {
   min-width: 91px;
   text-align: center;

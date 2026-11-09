@@ -18,7 +18,7 @@ const dayFormatter = new Intl.DateTimeFormat('ko-KR', {
 function statusLabel(day: DailyReturnPoint) {
   if (day.reason === 'MARKET_CLOSED') return '휴장';
   if (day.reason === 'FUTURE_DATE') return '예정';
-  if (day.reason === 'CALENDAR_PENDING') return '거래일 확인 중';
+  if (day.reason === 'CALENDAR_PENDING') return '거래일 정보 누락';
   if (day.reason === 'EXCHANGE_RATE_PENDING') return '환율 수집 대기';
   if (day.status === 'CALCULATED' && day.cumulativeReturnRate === null) return '누적 집계 대기';
   if (day.status === 'CALCULATED')

@@ -1,7 +1,7 @@
 {
   "name": "frontend",
   "private": true,
-  "version": "2.0.6",
+  "version": "2.0.7",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -15,7 +15,7 @@
     "test": "npm run test:unit && npm run test:server && npm run test:ui",
     "test:unit": "node --import tsx --test \"tests/**/*.test.ts\"",
     "test:server": "node --test tests/server/*.test.mjs",
-    "test:ui": "vitest run --exclude 'tests/**/*.test.ts' --exclude 'tests/server/*.test.mjs'",
+    "test:ui": "vitest run --maxWorkers=2 --exclude 'tests/**/*.test.ts' --exclude 'tests/server/*.test.mjs'",
     "test:e2e": "playwright test",
     "preview": "vite preview"
   },

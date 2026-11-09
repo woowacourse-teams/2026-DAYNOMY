@@ -8,34 +8,19 @@ import java.util.*;
 import org.grit.daynomy.asset.domain.*;
 import org.grit.daynomy.content.domain.*;
 import org.grit.daynomy.emailsubscription.domain.*;
+import org.grit.daynomy.support.SharedDatabaseTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.junit.jupiter.*;
-import org.testcontainers.postgresql.PostgreSQLContainer;
-import org.testcontainers.utility.DockerImageName;
 
-@Testcontainers
 @ActiveProfiles("test")
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-class EmailDeliveryRepositoryTest {
-  @Container
-  static final PostgreSQLContainer POSTGRESQL =
-      new PostgreSQLContainer(DockerImageName.parse("postgres:16-alpine"));
-
-  @DynamicPropertySource
-  static void db(DynamicPropertyRegistry r) {
-    r.add("spring.datasource.url", POSTGRESQL::getJdbcUrl);
-    r.add("spring.datasource.username", POSTGRESQL::getUsername);
-    r.add("spring.datasource.password", POSTGRESQL::getPassword);
-    r.add("spring.datasource.driver-class-name", POSTGRESQL::getDriverClassName);
-  }
+class EmailDeliveryRepositoryTest extends SharedDatabaseTest {
 
   @Autowired TestEntityManager em;
   @Autowired EmailDeliveryRepository deliveries;
