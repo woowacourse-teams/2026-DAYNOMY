@@ -433,6 +433,31 @@ class LeagueAggregationServiceTest {
   }
 
   @Test
+  void repeatedUsCollectionDoesNotResetCalculationDelay() {
+    for (var day : calendar) day.reviseUsTrading(day.isTrading());
+    var day = calendar.getFirst();
+    day.usCollected(at(monday.plusDays(1), 16, 0));
+    var profile = profile(monday.minusWeeks(1));
+    Instant firstCalculation = at(monday.plusDays(1), 17, 20);
+
+    assertThat(service.ranking(monday, monday, firstCalculation, true, false).delayed()).isFalse();
+    assertThat(
+            service.ranking(monday, monday, firstCalculation.plusSeconds(1), true, false).delayed())
+        .isTrue();
+
+    Instant retry = at(monday.plusDays(2), 7, 0);
+    day.usCollected(retry);
+    var ranking = service.ranking(monday, monday, retry, true, false);
+    var investor = service.estimate(monday, profile, Map.of(), retry, true, false);
+
+    assertThat(ranking.reason()).isEqualTo("CALCULATION_PENDING");
+    assertThat(ranking.delayed()).isTrue();
+    assertThat(ranking.expectedAt()).isEqualTo(at(monday.plusDays(2), 17, 20));
+    assertThat(investor.reason()).isEqualTo("CALCULATION_PENDING");
+    assertThat(investor.delayed()).isTrue();
+  }
+
+  @Test
   void usRetryReportsCollectionSeparatelyFromCalculation() {
     for (var day : calendar) day.reviseUsTrading(day.isTrading());
     var result = service.ranking(monday, null, at(monday.plusDays(1), 18, 0), true, false);

@@ -64,7 +64,8 @@ public class MarketTradingDay extends BaseEntity {
   public void usCollected(Instant collectedAt) {
     if (collectedAt.isBefore(usClosesAt())) return;
     usTrading = true;
-    usCollectedAt = collectedAt;
+    // 다른 종목의 재수집으로 집계 대기 시작 시각이 밀리지 않도록 최초 완료 시각을 유지한다.
+    if (usCollectedAt == null) usCollectedAt = collectedAt;
   }
 
   public boolean leagueCollectionAvailable() {
