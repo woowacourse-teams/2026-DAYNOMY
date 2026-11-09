@@ -2,6 +2,16 @@
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "plugins": ["react", "typescript", "oxc"],
   "rules": {
+    "typescript/no-explicit-any": "error",
+    "typescript/ban-ts-comment": [
+      "error",
+      {
+        "ts-ignore": true,
+        "ts-nocheck": true,
+        "ts-expect-error": "allow-with-description",
+        "minimumDescriptionLength": 10
+      }
+    ],
     "react/rules-of-hooks": "error",
     "react/only-export-components": ["warn", { "allowConstantExport": true }]
   }
