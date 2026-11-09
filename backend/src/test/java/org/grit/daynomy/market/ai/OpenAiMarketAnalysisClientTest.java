@@ -11,6 +11,8 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
+import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.market.exception.MarketErrorCode;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -99,10 +101,10 @@ class OpenAiMarketAnalysisClientTest {
         "mixedTone",
         "heading",
         "list",
-        "newline",
         "threeSentences",
         "fakeEvidence",
-        "missingEvidence"
+        "missingEvidence",
+        "blankUnicodeEvidence"
       })
   @DisplayName("길이·문체·형식·근거가 올바르지 않은 분석을 거부한다")
   void rejectsInvalidAnalysis(String failure) throws Exception {
@@ -116,14 +118,28 @@ class OpenAiMarketAnalysisClientTest {
       case "mixedTone" -> analysis.put("risk", "물가가 올랐습니다. 추이를 확인하세요.");
       case "heading" -> analysis.put("risk", "**물가 위험**에 주의하세요.");
       case "list" -> analysis.put("risk", "- 물가 재상승에 주의하세요.");
-      case "newline" -> analysis.put("risk", "물가가 올랐어요.\n추이를 확인하세요.");
       case "threeSentences" -> analysis.put("risk", "물가가 올랐어요. 금리가 내렸어요. 추이를 확인하세요.");
       case "fakeEvidence" -> analysis.put("riskEvidence", "물가가 10% 상승했다.");
       case "missingEvidence" -> analysis.remove("watchPointEvidence");
+      case "blankUnicodeEvidence" -> analysis.put("riskEvidence", "\u00a0\u2003");
       default -> throw new AssertionError(failure);
     }
     respond(analysis);
-    assertThatThrownBy(() -> client.analyze(CONTENT)).isInstanceOf(IllegalStateException.class);
+    respond(analysis);
+    MarketErrorCode expected =
+        switch (failure) {
+          case "blank", "missing", "number" -> MarketErrorCode.MARKET_ANALYSIS_EMPTY_TEXT;
+          case "long" -> MarketErrorCode.MARKET_ANALYSIS_TEXT_TOO_LONG;
+          case "formal", "mixedTone" -> MarketErrorCode.MARKET_ANALYSIS_INVALID_TONE;
+          case "heading", "list", "threeSentences" ->
+              MarketErrorCode.MARKET_ANALYSIS_INVALID_FORMAT;
+          default -> MarketErrorCode.MARKET_ANALYSIS_INVALID_EVIDENCE;
+        };
+    assertThatThrownBy(() -> client.analyze(CONTENT))
+        .isInstanceOf(BusinessException.class)
+        .extracting(error -> ((BusinessException) error).errorCode())
+        .isEqualTo(expected);
+    assertThat(server.getRequestCount()).isEqualTo(2);
   }
 
   @Test
@@ -150,8 +166,9 @@ class OpenAiMarketAnalysisClientTest {
     var analysis = validAnalysis();
     analysis.put("risk", risk);
     respond(analysis);
+    respond(analysis);
     assertThatThrownBy(() -> client.analyze(CONTENT + " 금리는 3.5%다."))
-        .isInstanceOf(IllegalStateException.class);
+        .isInstanceOf(BusinessException.class);
   }
 
   @ParameterizedTest
@@ -168,7 +185,11 @@ class OpenAiMarketAnalysisClientTest {
       var analysis = validAnalysis();
       analysis.put(field, fact + "인지 확인하세요.");
       respond(analysis);
-      assertThatThrownBy(() -> client.analyze(content)).isInstanceOf(IllegalStateException.class);
+      respond(analysis);
+      assertThatThrownBy(() -> client.analyze(content))
+          .isInstanceOf(BusinessException.class)
+          .extracting(error -> ((BusinessException) error).errorCode())
+          .isEqualTo(MarketErrorCode.MARKET_ANALYSIS_UNSUPPORTED_FACT);
     }
   }
 
@@ -224,7 +245,11 @@ class OpenAiMarketAnalysisClientTest {
   @DisplayName("손상된 JSON은 분석으로 제공하지 않는다")
   void rejectsMalformedOutput() throws Exception {
     respondText("not-json");
-    assertThatThrownBy(() -> client.analyze(CONTENT)).isInstanceOf(IllegalStateException.class);
+    respondText("not-json");
+    assertThatThrownBy(() -> client.analyze(CONTENT))
+        .isInstanceOf(BusinessException.class)
+        .extracting(error -> ((BusinessException) error).errorCode())
+        .isEqualTo(MarketErrorCode.MARKET_ANALYSIS_INVALID_JSON);
   }
 
   @Test
@@ -243,6 +268,48 @@ class OpenAiMarketAnalysisClientTest {
         .isInstanceOf(org.springframework.web.client.RestClientException.class)
         .hasRootCauseInstanceOf(java.net.SocketTimeoutException.class);
     assertThat(server.getRequestCount()).isEqualTo(1);
+  }
+
+  @Test
+  @DisplayName("줄바꿈과 연속 공백은 근거와 분석의 의미를 유지하며 정규화한다")
+  void normalizesWhitespaceInEvidenceAndAnalysis() throws Exception {
+    var analysis = validAnalysis();
+    analysis.put("risk", "물가가 올랐어요.\n추이를 확인하세요.");
+    analysis.put("riskEvidence", "물가  재상승\n가능성은 남아 있다.");
+    respond(analysis);
+    assertThat(client.analyze(CONTENT).getRisk()).isEqualTo("물가가 올랐어요. 추이를 확인하세요.");
+    assertThat(server.getRequestCount()).isEqualTo(1);
+  }
+
+  @Test
+  @DisplayName("검증 실패 조건을 전달해 한 번 재생성하고 성공한 분석만 반환한다")
+  void regeneratesOnceWithValidationFeedback() throws Exception {
+    var invalid = validAnalysis();
+    invalid.put("riskEvidence", "본문에 없는 근거");
+    respond(invalid);
+    respond(validAnalysis());
+    assertThat(client.analyze(CONTENT).getRisk()).isEqualTo(RISK);
+    assertThat(server.getRequestCount()).isEqualTo(2);
+    server.takeRequest(1, TimeUnit.SECONDS);
+    var retry = server.takeRequest(1, TimeUnit.SECONDS);
+    var body = mapper.readTree(retry.getBody().readUtf8());
+    assertThat(body.at("/input/1/content").asText()).isEqualTo(CONTENT);
+    assertThat(body.at("/input/2/content").asText()).contains("근거", "다시 생성");
+    assertThat(body.toString()).doesNotContain("본문에 없는 근거");
+  }
+
+  @Test
+  @DisplayName("재생성도 형식 검증에 실패하면 구체적인 업무 오류를 반환한다")
+  void reportsFinalValidationReason() throws Exception {
+    var invalid = validAnalysis();
+    invalid.put("watchPoint", "확인했어요. 발표됐어요. 다시 확인하세요.");
+    respond(invalid);
+    respond(invalid);
+    assertThatThrownBy(() -> client.analyze(CONTENT))
+        .isInstanceOf(BusinessException.class)
+        .extracting(error -> ((BusinessException) error).errorCode())
+        .isEqualTo(MarketErrorCode.MARKET_ANALYSIS_INVALID_FORMAT);
+    assertThat(server.getRequestCount()).isEqualTo(2);
   }
 
   private Map<String, Object> validAnalysis() {

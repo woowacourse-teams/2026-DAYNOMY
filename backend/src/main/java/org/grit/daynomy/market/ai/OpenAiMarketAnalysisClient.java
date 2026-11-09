@@ -3,6 +3,7 @@ package org.grit.daynomy.market.ai;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -11,8 +12,10 @@ import java.util.regex.MatchResult;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
+import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.common.logging.LogEvent;
 import org.grit.daynomy.market.domain.analysis.NewsMarketAnalysis;
+import org.grit.daynomy.market.exception.MarketErrorCode;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -93,24 +96,44 @@ public class OpenAiMarketAnalysisClient implements MarketAnalysisAiClient {
         .log(LogEvent.MARKET_ANALYSIS_REQUESTED.message());
 
     try {
-      String response =
-          restClient
-              .post()
-              .uri("/responses")
-              .contentType(MediaType.APPLICATION_JSON)
-              .headers(headers -> headers.setBearerAuth(apiKey))
-              .body(createRequest(newsContent))
-              .retrieve()
-              .body(String.class);
-
-      NewsMarketAnalysis result = parseMarketAnalysis(response, newsContent);
-      log.atInfo()
-          .addKeyValue("event", LogEvent.MARKET_ANALYSIS_COMPLETED.code())
-          .addKeyValue("api", "OpenAI")
-          .addKeyValue("operation", "market-analysis")
-          .addKeyValue("durationMs", elapsedMillis(startedAt))
-          .log(LogEvent.MARKET_ANALYSIS_COMPLETED.message());
-      return result;
+      MarketErrorCode correction = null;
+      for (int attempt = 1; attempt <= 2; attempt++) {
+        String response =
+            restClient
+                .post()
+                .uri("/responses")
+                .contentType(MediaType.APPLICATION_JSON)
+                .headers(headers -> headers.setBearerAuth(apiKey))
+                .body(createRequest(newsContent, correction))
+                .retrieve()
+                .body(String.class);
+        try {
+          NewsMarketAnalysis result = parseMarketAnalysis(response, newsContent);
+          log.atInfo()
+              .addKeyValue("event", LogEvent.MARKET_ANALYSIS_COMPLETED.code())
+              .addKeyValue("api", "OpenAI")
+              .addKeyValue("operation", "market-analysis")
+              .addKeyValue("attempt", attempt)
+              .addKeyValue("durationMs", elapsedMillis(startedAt))
+              .log(LogEvent.MARKET_ANALYSIS_COMPLETED.message());
+          return result;
+        } catch (InvalidAnalysisException exception) {
+          correction = exception.errorCode;
+          log.atWarn()
+              .addKeyValue("event", LogEvent.MARKET_ANALYSIS_FAILED.code())
+              .addKeyValue("api", "OpenAI")
+              .addKeyValue("operation", "market-analysis")
+              .addKeyValue("attempt", attempt)
+              .addKeyValue("errorType", "InvalidAiResponse")
+              .addKeyValue("validationReason", correction.code())
+              .addKeyValue("durationMs", elapsedMillis(startedAt))
+              .log(LogEvent.MARKET_ANALYSIS_FAILED.message());
+          if (attempt == 2) {
+            throw new BusinessException(correction);
+          }
+        }
+      }
+      throw new IllegalStateException("Market analysis attempts exhausted.");
     } catch (HttpStatusCodeException exception) {
       log.atWarn()
           .addKeyValue("event", LogEvent.MARKET_ANALYSIS_FAILED.code())
@@ -123,9 +146,6 @@ public class OpenAiMarketAnalysisClient implements MarketAnalysisAiClient {
       throw exception;
     } catch (RestClientException exception) {
       logMarketAnalysisFailure(startedAt, exception.getClass().getSimpleName());
-      throw exception;
-    } catch (IllegalStateException | IllegalArgumentException exception) {
-      logMarketAnalysisFailure(startedAt, "InvalidAiResponse");
       throw exception;
     }
   }
@@ -144,17 +164,27 @@ public class OpenAiMarketAnalysisClient implements MarketAnalysisAiClient {
     return TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt);
   }
 
-  private Map<String, Object> createRequest(String newsContent) {
+  private Map<String, Object> createRequest(String newsContent, MarketErrorCode correction) {
     return Map.of(
         "model", model,
-        "input", createInput(newsContent),
+        "input", createInput(newsContent, correction),
         "text", createTextFormat());
   }
 
-  private List<Map<String, Object>> createInput(String newsContent) {
-    return List.of(
-        Map.of("role", "developer", "content", MARKET_ANALYSIS_PROMPT),
-        Map.of("role", "user", "content", newsContent));
+  private List<Map<String, Object>> createInput(String newsContent, MarketErrorCode correction) {
+    List<Map<String, Object>> input = new ArrayList<>();
+    input.add(Map.of("role", "developer", "content", MARKET_ANALYSIS_PROMPT));
+    input.add(Map.of("role", "user", "content", newsContent));
+    if (correction != null) {
+      input.add(
+          Map.of(
+              "role",
+              "developer",
+              "content",
+              "이전 생성 결과가 다음 검증 조건을 위반했어요. 해당 조건을 지키고 기사 본문을 기준으로 분석 전체를 다시 생성하세요: "
+                  + correction.message()));
+    }
+    return input;
   }
 
   private Map<String, Object> createTextFormat() {
@@ -197,6 +227,9 @@ public class OpenAiMarketAnalysisClient implements MarketAnalysisAiClient {
     String outputText = extractOutputText(response);
     try {
       JsonNode root = objectMapper.readTree(outputText);
+      if (root == null || !root.isObject()) {
+        throw invalid(MarketErrorCode.MARKET_ANALYSIS_INVALID_JSON);
+      }
       validateEvidence(root, "riskEvidence", newsContent);
       validateEvidence(root, "watchPointEvidence", newsContent);
       String risk = requiredText(root, "risk");
@@ -204,19 +237,17 @@ public class OpenAiMarketAnalysisClient implements MarketAnalysisAiClient {
       Set<String> sourceFacts = numericFacts(newsContent);
       if (!sourceFacts.containsAll(numericFacts(risk))
           || !sourceFacts.containsAll(numericFacts(watchPoint))) {
-        throw new IllegalStateException(
-            "OpenAI market analysis contains unsupported numbers or dates.");
+        throw invalid(MarketErrorCode.MARKET_ANALYSIS_UNSUPPORTED_FACT);
       }
       return new NewsMarketAnalysis(risk, watchPoint);
     } catch (JsonProcessingException exception) {
-      throw new IllegalStateException(
-          "Failed to parse OpenAI market analysis response.", exception);
+      throw invalid(MarketErrorCode.MARKET_ANALYSIS_INVALID_JSON);
     }
   }
 
   private String requiredText(JsonNode root, String fieldName) {
     JsonNode field = root.path(fieldName);
-    String value = field.asText().strip();
+    String value = normalizeWhitespace(field.asText());
     // 생성된 설명에만 적용한다. 원문 근거·URL에는 적용하지 않는다.
     value = value.replaceAll("[;；]+\\s*", ". ").replaceAll("\\.[ ]*\\.", ".").strip();
     value = value.replaceAll("요[!?]", "요.");
@@ -224,32 +255,23 @@ public class OpenAiMarketAnalysisClient implements MarketAnalysisAiClient {
       value += ".";
     }
     if (!field.isTextual() || value.isBlank()) {
-      throw new IllegalStateException(
-          "OpenAI market analysis response must contain " + fieldName + ".");
+      throw invalid(MarketErrorCode.MARKET_ANALYSIS_EMPTY_TEXT);
     }
     if (value.codePointCount(0, value.length()) > MAX_ANALYSIS_TEXT_LENGTH) {
-      throw new IllegalStateException(
-          "OpenAI market analysis response must contain "
-              + fieldName
-              + " within "
-              + MAX_ANALYSIS_TEXT_LENGTH
-              + " characters.");
+      throw invalid(MarketErrorCode.MARKET_ANALYSIS_TEXT_TOO_LONG);
     }
     String[] sentences = value.split("(?<=[가-힣][.!?])\\s*");
-    if (value.contains("\n")
-        || value.contains("\r")
-        || value.contains("**")
+    if (value.contains("**")
         || value.contains("#")
         || value.contains("`")
         || value.matches("^(?:[-*•]|[0-9]+[.)])\\s.*")
         || value.matches("^(?:위험|확인할 지표|risk|watchPoint)\\s*[:：].*")
         || sentences.length > 2) {
-      throw new IllegalStateException("OpenAI market analysis must contain only short plain text.");
+      throw invalid(MarketErrorCode.MARKET_ANALYSIS_INVALID_FORMAT);
     }
     for (String sentence : sentences) {
       if (!sentence.matches(".*요[.!?]?")) {
-        throw new IllegalStateException(
-            "OpenAI market analysis must use polite conversational Korean.");
+        throw invalid(MarketErrorCode.MARKET_ANALYSIS_INVALID_TONE);
       }
     }
     return value;
@@ -267,18 +289,24 @@ public class OpenAiMarketAnalysisClient implements MarketAnalysisAiClient {
   private void validateEvidence(JsonNode root, String fieldName, String newsContent) {
     JsonNode evidence = root.path(fieldName);
     if (!evidence.isTextual()
-        || evidence.asText().isBlank()
-        || !newsContent.contains(evidence.asText().strip())) {
-      throw new IllegalStateException(
-          "OpenAI market analysis evidence must exist in the news content.");
+        || normalizeWhitespace(evidence.asText()).isBlank()
+        || !normalizeWhitespace(newsContent).contains(normalizeWhitespace(evidence.asText()))) {
+      throw invalid(MarketErrorCode.MARKET_ANALYSIS_INVALID_EVIDENCE);
     }
   }
 
   private String extractOutputText(String response) {
     try {
-      JsonNode output = objectMapper.readTree(response).path("output");
+      if (response == null || response.isBlank()) {
+        throw invalid(MarketErrorCode.MARKET_ANALYSIS_INVALID_JSON);
+      }
+      JsonNode root = objectMapper.readTree(response);
+      if (root == null) {
+        throw invalid(MarketErrorCode.MARKET_ANALYSIS_INVALID_JSON);
+      }
+      JsonNode output = root.path("output");
       if (!output.isArray()) {
-        throw new IllegalStateException("OpenAI response must contain output array.");
+        throw invalid(MarketErrorCode.MARKET_ANALYSIS_INVALID_JSON);
       }
 
       for (JsonNode item : output) {
@@ -294,9 +322,26 @@ public class OpenAiMarketAnalysisClient implements MarketAnalysisAiClient {
         }
       }
     } catch (JsonProcessingException exception) {
-      throw new IllegalStateException("Failed to parse OpenAI response.", exception);
+      throw invalid(MarketErrorCode.MARKET_ANALYSIS_INVALID_JSON);
     }
 
-    throw new IllegalStateException("OpenAI response does not contain output_text.");
+    throw invalid(MarketErrorCode.MARKET_ANALYSIS_INVALID_JSON);
+  }
+
+  private String normalizeWhitespace(String value) {
+    return value.replaceAll("[\\s\\p{Z}]+", " ").strip();
+  }
+
+  private InvalidAnalysisException invalid(MarketErrorCode errorCode) {
+    return new InvalidAnalysisException(errorCode);
+  }
+
+  private static class InvalidAnalysisException extends IllegalStateException {
+    private final MarketErrorCode errorCode;
+
+    private InvalidAnalysisException(MarketErrorCode errorCode) {
+      super(errorCode.code());
+      this.errorCode = errorCode;
+    }
   }
 }
