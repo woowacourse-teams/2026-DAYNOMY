@@ -9,6 +9,7 @@ import { feedDate, type FeedItem } from './feed';
 import { getNewsFeed } from './feedApi';
 import { IssueFeed } from './IssueFeed';
 import { feedProperties, trackLoadResult, useContentImpression, useContentView } from './analytics';
+import './issue.css';
 import './newsHomePreview.css';
 
 const latestSources = [
