@@ -21,7 +21,7 @@ import org.springframework.web.client.RestClientException;
 public class OpenAiImageGenerator {
 
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
-  private static final String ECONOMIC_NEWS_IMAGE_SIZE = "1536x1024";
+  private static final String ECONOMIC_NEWS_IMAGE_SIZE = "1280x720";
   private static final String IMAGE_QUALITY = "low";
   private static final String IMAGE_FORMAT = "webp";
   private static final String IMAGE_PROMPT = OpenAiPromptLoader.load("prompts/image-generator.txt");

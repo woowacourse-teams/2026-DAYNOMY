@@ -81,7 +81,7 @@ class OpenAiImageGeneratorTest {
     JsonNode request = OBJECT_MAPPER.readTree(requestBody);
     assertThat(request.path("model").asText()).isEqualTo("gpt-image-2.5-flare");
     assertThat(request.path("quality").asText()).isEqualTo("low");
-    assertThat(request.path("size").asText()).isEqualTo("1536x1024");
+    assertThat(request.path("size").asText()).isEqualTo("1280x720");
     assertThat(request.path("output_format").asText()).isEqualTo("webp");
     assertThat(request.path("n").asInt()).isOne();
   }
