@@ -123,7 +123,16 @@ public class PortfolioDelayedQuoteService {
 
   @Scheduled(cron = "0 */5 * * * *", zone = "UTC")
   public void refresh() {
-    for (Market market : Market.values()) refreshMarket(market);
+    for (Market market : Market.values()) {
+      try {
+        refreshMarket(market);
+      } catch (RuntimeException exception) {
+        log.warn(
+            "Delayed quote refresh failed for {} ({})",
+            market,
+            exception.getClass().getSimpleName());
+      }
+    }
   }
 
   private void refreshMarket(Market market) {

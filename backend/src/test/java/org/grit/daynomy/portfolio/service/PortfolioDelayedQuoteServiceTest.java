@@ -6,6 +6,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Duration;
@@ -24,6 +27,7 @@ import org.grit.daynomy.external.krx.KrxCalendarClient;
 import org.grit.daynomy.portfolio.repository.PortfolioDelayedQuoteRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioDelayedQuoteRepository.CachedQuote;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 import org.springframework.test.util.ReflectionTestUtils;
 
 class PortfolioDelayedQuoteServiceTest {
@@ -32,6 +36,7 @@ class PortfolioDelayedQuoteServiceTest {
   private final PortfolioDelayedQuoteRepository quotes =
       mock(PortfolioDelayedQuoteRepository.class);
   private final EodhdClient client = mock(EodhdClient.class);
+  private final KrxCalendarClient calendar = mock(KrxCalendarClient.class);
 
   @Test
   void retainsOldSameDayQuoteAndMarksItPendingButRejectsFutureQuotes() {
@@ -91,6 +96,33 @@ class PortfolioDelayedQuoteServiceTest {
   }
 
   @Test
+  void refreshContinuesWithUsWhenKrFailsAndLogsOnlyMarketAndExceptionType() {
+    Instant now = Instant.parse("2026-11-09T15:00:00Z");
+    var service = service(now, Duration.ofMinutes(30));
+    when(calendar.holidays(2026)).thenThrow(new IllegalStateException("sensitive request details"));
+    Logger logger = (Logger) LoggerFactory.getLogger(PortfolioDelayedQuoteService.class);
+    ListAppender<ILoggingEvent> appender = new ListAppender<>();
+    appender.start();
+    logger.addAppender(appender);
+    try {
+      service.refresh();
+
+      verify(quotes).reserve("US", now, now, 600, 50_000, 22_800);
+      assertThat(appender.list)
+          .singleElement()
+          .satisfies(
+              event -> {
+                assertThat(event.getFormattedMessage())
+                    .isEqualTo("Delayed quote refresh failed for KR (IllegalStateException)");
+                assertThat(event.getThrowableProxy()).isNull();
+              });
+    } finally {
+      logger.detachAppender(appender);
+      appender.stop();
+    }
+  }
+
+  @Test
   void providerDailyLimitStopsFurtherRequests() {
     Instant now = Instant.parse("2026-11-09T15:00:00Z");
     when(quotes.reserve("US", now, now, 600, 50_000, 22_800)).thenReturn(List.of("SPY.US"));
@@ -110,7 +142,6 @@ class PortfolioDelayedQuoteServiceTest {
   }
 
   private PortfolioDelayedQuoteService service(Instant now, Duration maxAge) {
-    var calendar = mock(KrxCalendarClient.class);
     when(calendar.holidays(2026)).thenReturn(java.util.Set.of());
     return new PortfolioDelayedQuoteService(
         assets,
