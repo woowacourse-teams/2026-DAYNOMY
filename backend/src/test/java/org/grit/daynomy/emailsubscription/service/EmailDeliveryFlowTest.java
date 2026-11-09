@@ -22,6 +22,7 @@ import org.grit.daynomy.member.repository.MemberRepository;
 import org.grit.daynomy.portfolio.ai.PortfolioAnalysisAiClient;
 import org.grit.daynomy.portfolio.domain.*;
 import org.grit.daynomy.portfolio.repository.*;
+import org.grit.daynomy.support.SharedDatabaseTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -30,23 +31,13 @@ import org.springframework.test.context.*;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.testcontainers.junit.jupiter.*;
-import org.testcontainers.postgresql.PostgreSQLContainer;
-import org.testcontainers.utility.DockerImageName;
 
-@Testcontainers
 @ActiveProfiles("test")
 @SpringBootTest
-class EmailDeliveryFlowTest {
-  @Container
-  static final PostgreSQLContainer POSTGRESQL =
-      new PostgreSQLContainer(DockerImageName.parse("postgres:16-alpine"));
+class EmailDeliveryFlowTest extends SharedDatabaseTest {
 
   @DynamicPropertySource
   static void db(DynamicPropertyRegistry r) {
-    r.add("spring.datasource.url", POSTGRESQL::getJdbcUrl);
-    r.add("spring.datasource.username", POSTGRESQL::getUsername);
-    r.add("spring.datasource.password", POSTGRESQL::getPassword);
-    r.add("spring.datasource.driver-class-name", POSTGRESQL::getDriverClassName);
     r.add("email.delivery.unsubscribe-secret", () -> "test-only-secret-at-least-32-bytes");
     r.add("email.delivery.public-base-url", () -> "http://localhost:8080");
   }

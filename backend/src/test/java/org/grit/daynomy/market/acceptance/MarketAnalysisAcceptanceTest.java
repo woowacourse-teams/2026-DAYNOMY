@@ -9,6 +9,7 @@ import org.grit.daynomy.market.domain.analysis.NewsMarketAnalysis;
 import org.grit.daynomy.market.repository.NewsMarketAnalysisRepository;
 import org.grit.daynomy.news.domain.*;
 import org.grit.daynomy.news.repository.NewsRepository;
+import org.grit.daynomy.support.SharedDatabaseTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -17,7 +18,7 @@ import org.springframework.test.context.ActiveProfiles;
 
 @ActiveProfiles("test")
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-class MarketAnalysisAcceptanceTest {
+class MarketAnalysisAcceptanceTest extends SharedDatabaseTest {
   @LocalServerPort int port;
   @Autowired NewsRepository news;
   @Autowired NewsMarketAnalysisRepository analyses;

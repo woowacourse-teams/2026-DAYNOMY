@@ -6,6 +6,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 import org.grit.daynomy.investmentcalendar.domain.*;
+import org.grit.daynomy.support.SharedDatabaseTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
@@ -15,7 +16,7 @@ import org.springframework.test.context.ActiveProfiles;
 @ActiveProfiles("test")
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-class InvestmentEventRepositoryTest {
+class InvestmentEventRepositoryTest extends SharedDatabaseTest {
   @Autowired InvestmentEventRepository events;
   private static final Instant FROM = Instant.parse("2026-09-30T15:00:00Z");
   private static final Instant TO = Instant.parse("2026-10-31T15:00:00Z");

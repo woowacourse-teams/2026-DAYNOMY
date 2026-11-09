@@ -19,6 +19,7 @@ import org.grit.daynomy.emailsubscription.service.EmailUnsubscribeService;
 import org.grit.daynomy.member.domain.Member;
 import org.grit.daynomy.member.domain.MemberRole;
 import org.grit.daynomy.member.repository.MemberRepository;
+import org.grit.daynomy.support.SharedDatabaseTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -26,28 +27,15 @@ import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
-import org.testcontainers.utility.DockerImageName;
 
-@Testcontainers
 @ActiveProfiles("test")
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-class EmailSubscriptionAcceptanceTest {
+class EmailSubscriptionAcceptanceTest extends SharedDatabaseTest {
 
   private static final String PATH = "/api/users/me/email-subscription";
 
-  @Container
-  static final PostgreSQLContainer POSTGRESQL =
-      new PostgreSQLContainer(DockerImageName.parse("postgres:16-alpine"));
-
   @DynamicPropertySource
   static void database(DynamicPropertyRegistry registry) {
-    registry.add("spring.datasource.url", POSTGRESQL::getJdbcUrl);
-    registry.add("spring.datasource.username", POSTGRESQL::getUsername);
-    registry.add("spring.datasource.password", POSTGRESQL::getPassword);
-    registry.add("spring.datasource.driver-class-name", POSTGRESQL::getDriverClassName);
     registry.add("email.delivery.unsubscribe-secret", () -> "test-only-secret-at-least-32-bytes");
     registry.add("email.delivery.public-base-url", () -> "http://localhost:8080");
   }

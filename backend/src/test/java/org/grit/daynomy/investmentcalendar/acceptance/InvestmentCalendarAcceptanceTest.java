@@ -17,6 +17,7 @@ import org.grit.daynomy.member.domain.Member;
 import org.grit.daynomy.member.repository.MemberRepository;
 import org.grit.daynomy.portfolio.domain.*;
 import org.grit.daynomy.portfolio.repository.*;
+import org.grit.daynomy.support.SharedDatabaseTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -25,7 +26,7 @@ import org.springframework.test.context.ActiveProfiles;
 
 @ActiveProfiles("test")
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-class InvestmentCalendarAcceptanceTest {
+class InvestmentCalendarAcceptanceTest extends SharedDatabaseTest {
   @LocalServerPort int port;
   @Autowired MemberRepository members;
   @Autowired TokenService tokens;
