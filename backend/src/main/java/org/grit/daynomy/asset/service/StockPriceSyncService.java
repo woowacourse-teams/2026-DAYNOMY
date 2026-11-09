@@ -209,7 +209,7 @@ public class StockPriceSyncService {
           continue;
         }
         StockPriceSyncResult result =
-            persistenceService.synchronize(date, snapshot.get().entries());
+            persistenceService.backfillDomestic(date, snapshot.get().entries());
         synchronizedDates++;
         if (earliest == null) earliest = date;
         received += result.receivedCount();

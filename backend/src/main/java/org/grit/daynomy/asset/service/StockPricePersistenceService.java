@@ -31,22 +31,28 @@ public class StockPricePersistenceService {
 
   @Transactional
   public StockPriceSyncResult synchronize(LocalDate baseDate, List<StockPriceEntry> entries) {
-    return synchronizeMarkets(baseDate, entries, StockMarket.domesticMarkets(), true);
+    return synchronizeMarkets(baseDate, entries, StockMarket.domesticMarkets(), true, false);
+  }
+
+  @Transactional
+  public StockPriceSyncResult backfillDomestic(LocalDate baseDate, List<StockPriceEntry> entries) {
+    return synchronizeMarkets(baseDate, entries, StockMarket.domesticMarkets(), true, true);
   }
 
   @Transactional
   public StockPriceSyncResult synchronizeUs(LocalDate baseDate, List<StockPriceEntry> entries) {
-    return synchronizeMarkets(baseDate, entries, StockMarket.usMarkets(), false);
+    return synchronizeMarkets(baseDate, entries, StockMarket.usMarkets(), false, false);
   }
 
   private StockPriceSyncResult synchronizeMarkets(
       LocalDate baseDate,
       List<StockPriceEntry> entries,
       Set<StockMarket> markets,
-      boolean markDomesticCalendar) {
-    Map<AssetKey, Asset> listedAssetsByKey =
+      boolean markDomesticCalendar,
+      boolean includeDelisted) {
+    Map<AssetKey, Asset> assetsByKey =
         assetRepository.findAllByCategoryIn(SUPPORTED_CATEGORIES).stream()
-            .filter(Asset::isListed)
+            .filter(asset -> includeDelisted || asset.isListed())
             .filter(
                 asset ->
                     asset.getMarket() == null
@@ -67,7 +73,7 @@ public class StockPricePersistenceService {
     List<StockDailyPrice> pricesToSave = new ArrayList<>();
 
     for (StockPriceEntry entry : entries) {
-      Asset asset = listedAssetsByKey.get(new AssetKey(entry.category(), entry.assetCode()));
+      Asset asset = assetsByKey.get(new AssetKey(entry.category(), entry.assetCode()));
       if (asset == null) {
         skippedCount++;
         continue;

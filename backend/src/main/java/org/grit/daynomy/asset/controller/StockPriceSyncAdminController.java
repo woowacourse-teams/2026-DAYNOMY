@@ -30,7 +30,9 @@ public class StockPriceSyncAdminController {
     return ResponseEntity.ok(StockPriceSyncResponse.from(stockPriceSyncService.synchronize()));
   }
 
-  @Operation(summary = "국내 주식·ETF 종가 백필", description = "지정한 31일 이내 기간의 거래일 종가를 동기화합니다.")
+  @Operation(
+      summary = "국내 주식·ETF 종가 백필",
+      description = "지정한 31일 이내 기간의 거래일 종가를 동기화합니다. 등록된 상장폐지 종목의 과거 종가도 포함합니다.")
   @PostMapping("/backfill")
   public ResponseEntity<StockPriceBackfillResponse> backfill(
       @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
