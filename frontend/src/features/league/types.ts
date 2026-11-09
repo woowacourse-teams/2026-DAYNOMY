@@ -61,6 +61,7 @@ export type AggregationEstimate = {
   baseDate: string | null;
   expectedAt: string | null;
   firstReturnExpectedAt: string | null;
+  nextCollectionAt?: string | null;
   reason: string;
   delayed: boolean;
 };

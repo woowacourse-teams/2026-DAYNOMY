@@ -27,7 +27,7 @@ const IMPACT_DIRECTIONS = new Set<PortfolioImpactDirection>(['POSITIVE', 'NEGATI
 const IMPACT_LEVELS = new Set<PortfolioImpactLevel>(['HIGH', 'MEDIUM', 'LOW']);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function hasNumber(value: Record<string, unknown>, key: string) {
@@ -134,7 +134,8 @@ function isPortfolioCalculation(value: unknown): value is PortfolioCalculation {
   return (
     isRecord(value) &&
     (value.baseDate === null || typeof value.baseDate === 'string') &&
-    ['COMPLETE', 'MIXED_DATES', 'PARTIAL'].includes(String(value.pricingStatus)) &&
+    typeof value.pricingStatus === 'string' &&
+    ['COMPLETE', 'MIXED_DATES', 'PARTIAL'].includes(value.pricingStatus) &&
     Number.isInteger(value.pricedHoldingCount) &&
     Number.isInteger(value.unpricedHoldingCount) &&
     hasNumber(value, 'totalPurchaseAmount') &&
@@ -203,7 +204,8 @@ export function isPortfolioAnalysisResponse(value: unknown): value is PortfolioA
             isRecord(asset) && typeof asset.assetName === 'string' && hasNumber(asset, 'weight'),
         ))) &&
     (value.coverage === undefined ||
-      ['COMPLETE', 'PARTIAL', 'INSUFFICIENT'].includes(String(value.coverage))) &&
+      (typeof value.coverage === 'string' &&
+        ['COMPLETE', 'PARTIAL', 'INSUFFICIENT'].includes(value.coverage))) &&
     (value.analyzedWeight === undefined || hasNumber(value, 'analyzedWeight')) &&
     hasNumber(value, 'positiveImpactScore') &&
     hasNumber(value, 'negativeImpactScore') &&
@@ -455,10 +457,12 @@ function isGuestAnalysisTask(value: unknown): value is GuestPortfolioAnalysisTas
   return (
     isRecord(value) &&
     (value.taskId === null || typeof value.taskId === 'string') &&
-    ['EMPTY', 'PROCESSING', 'READY', 'FAILED'].includes(String(value.status)) &&
+    typeof value.status === 'string' &&
+    ['EMPTY', 'PROCESSING', 'READY', 'FAILED'].includes(value.status) &&
     (value.analysis === null || isPortfolioAnalysisResponse(value.analysis)) &&
     (value.summaryStatus === null ||
-      ['PENDING', 'READY', 'FAILED'].includes(String(value.summaryStatus))) &&
+      (typeof value.summaryStatus === 'string' &&
+        ['PENDING', 'READY', 'FAILED'].includes(value.summaryStatus))) &&
     (value.failureCode === null || typeof value.failureCode === 'string') &&
     typeof value.retryAllowed === 'boolean'
   );
@@ -507,7 +511,8 @@ function isHistory(value: unknown): value is PortfolioHoldingHistory {
     Number.isSafeInteger(value.assetId) &&
     typeof value.assetCode === 'string' &&
     typeof value.name === 'string' &&
-    HISTORY_TYPES.has(String(value.changeType)) &&
+    typeof value.changeType === 'string' &&
+    HISTORY_TYPES.has(value.changeType) &&
     hasNumber(value, 'quantity') &&
     hasNumber(value, 'averagePurchasePrice') &&
     typeof value.effectiveDate === 'string' &&
@@ -586,12 +591,15 @@ function isSavedPortfolioAnalysis(value: unknown): value is SavedPortfolioAnalys
         Number.isFinite(Date.parse(value.refreshResetAt)))) &&
     (value.summaryStatus === undefined ||
       value.summaryStatus === null ||
-      ['PENDING', 'READY', 'FAILED'].includes(String(value.summaryStatus))) &&
+      (typeof value.summaryStatus === 'string' &&
+        ['PENDING', 'READY', 'FAILED'].includes(value.summaryStatus))) &&
+    typeof value.status === 'string' &&
     ['EMPTY', 'READY', 'PORTFOLIO_CHANGED', 'PROCESSING', 'RECHECK_REQUIRED', 'FAILED'].includes(
-      String(value.status),
+      value.status,
     ) &&
     (value.lastCheckOutcome === null ||
-      ['UPDATED', 'UNCHANGED', 'UNCONFIRMED'].includes(String(value.lastCheckOutcome))) &&
+      (typeof value.lastCheckOutcome === 'string' &&
+        ['UPDATED', 'UNCHANGED', 'UNCONFIRMED'].includes(value.lastCheckOutcome))) &&
     (value.analysisId === null || Number.isSafeInteger(value.analysisId)) &&
     typeof value.matchesCurrentPortfolio === 'boolean' &&
     ['lastSucceededAt', 'lastFailedAt', 'failureCode', 'changeReason'].every(

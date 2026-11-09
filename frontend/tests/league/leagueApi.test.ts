@@ -241,6 +241,7 @@ test('집계 예상 시각은 시간대가 있는 날짜와 정상 상태만 허
   const aggregation = {
     baseDate: '2026-10-12',
     expectedAt: '2026-10-13T05:30:00Z',
+    nextCollectionAt: '2026-10-13T05:30:00Z',
     firstReturnExpectedAt: '2026-10-14T05:30:00Z',
     reason: 'PRICE_COLLECTION_PENDING',
     delayed: false,
@@ -262,6 +263,8 @@ test('집계 예상 시각은 시간대가 있는 날짜와 정상 상태만 허
     { ...aggregation, expectedAt: '2026-02-30T05:30:00Z' },
     { ...aggregation, expectedAt: '2026-10-13T14:30:00' },
     { ...aggregation, firstReturnExpectedAt: 'invalid' },
+    { ...aggregation, nextCollectionAt: '2026-11-10T14:30:00' },
+    { ...aggregation, nextCollectionAt: 'invalid' },
     { ...aggregation, baseDate: '2026-02-30' },
     { ...aggregation, delayed: 'false' },
   ]) {
@@ -614,6 +617,44 @@ test('AI 복기 질문은 CSRF로 요청하고 거래·성과·질문 형식을 
           },
         });
   await assert.rejects(getReviewGuide(7), /응답 형식/);
+});
+
+test('AI 복기 검색 상태는 정상 문자열을 유지하고 배열·누락·null·미등록 값을 거부한다', async () => {
+  const originalFetch = globalThis.fetch;
+  const guide = {
+    transactionId: 7,
+    retrievalStatus: 'NO_EVIDENCE',
+    evidence: [],
+    basis: null,
+    questions: {
+      actualResult: { text: '결과는 무엇인가요?', evidenceIds: [] },
+      differenceFromExpectation: { text: '기대와 무엇이 달랐나요?', evidenceIds: [] },
+      nextAction: { text: '다음에는 무엇을 확인할까요?', evidenceIds: [] },
+    },
+  };
+  try {
+    for (const retrievalStatus of [
+      'NO_EVIDENCE',
+      ['NO_EVIDENCE'],
+      ['FOUND'],
+      null,
+      undefined,
+      0,
+      'UNKNOWN',
+    ]) {
+      globalThis.fetch = async (input) =>
+        String(input) === '/api/auth/csrf'
+          ? jsonResponse({ headerName: 'X-XSRF-TOKEN', token: 'csrf-token' })
+          : jsonResponse({ ...guide, retrievalStatus });
+      if (retrievalStatus === 'NO_EVIDENCE') {
+        assert.deepEqual(await getReviewGuide(7), guide);
+      } else {
+        await assert.rejects(getReviewGuide(7), /응답 형식/);
+      }
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test('복기 알림과 미루기는 CSRF를 사용하고 서버 일정과 요청 키를 검증한다', async () => {

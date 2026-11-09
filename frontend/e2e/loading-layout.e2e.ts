@@ -86,6 +86,9 @@ for (const viewport of [
       }
 
       await page.goto(surface === 'news' ? '/news/7' : '/news/contents?scope=portfolio&asset=1');
+      await expect(
+        page.locator(surface === 'news' ? '.news-page' : '.portfolio-contents-page'),
+      ).toBeVisible();
       const status = page.getByRole('status');
       await expect(status).toContainText('불러오는 중');
       await page.evaluate(() => document.fonts.ready);
