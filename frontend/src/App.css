@@ -21,3 +21,8 @@
 .app-content > .portfolio-contents-page {
   min-height: 100svh;
 }
+.route-loading {
+  min-height: 100svh;
+  padding: 64px var(--page-side-padding);
+  color: var(--text-muted);
+}
