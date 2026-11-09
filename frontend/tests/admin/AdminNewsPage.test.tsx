@@ -8,6 +8,7 @@ import { AuthContext } from '../../src/auth/AuthContext';
 import { AdminNewsImageGenerationProvider } from '../../src/features/admin/AdminNewsImageGeneration';
 import { AdminNewsFormPage } from '../../src/features/admin/AdminNewsFormPage';
 import { AdminNewsPage } from '../../src/features/admin/AdminNewsPage';
+import { AdminShell } from '../../src/features/admin/components/AdminShell';
 
 const listItem = {
   id: 1,
@@ -680,6 +681,62 @@ describe('관리자 뉴스 화면', () => {
     expect(selectedImages[0]?.type).toBe('image/webp');
     expect(view.queryByLabelText('AI 이미지 후보 목록')).toBeNull();
     expect(revokeObjectURL).toHaveBeenCalledTimes(2);
+  });
+
+  it('AI 이미지 생성은 관리자 화면 이동 중에도 계속되고 편집 화면에서 후보를 복원한다', async () => {
+    const saved = { ...listItem, id: 7, content: '뉴스 본문', relatedAssets: [] };
+    const { revokeObjectURL } = stubObjectUrls();
+    let candidateCalls = 0;
+    let resolveCandidate: ((response: Response) => void) | undefined;
+    const candidateResponse = new Promise<Response>((resolve) => {
+      resolveCandidate = resolve;
+    });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const path = String(input);
+        if (path.endsWith('/api/auth/csrf')) {
+          return jsonResponse({ token: 'token', headerName: 'X-CSRF-TOKEN' });
+        }
+        if (path.endsWith('/image-candidates') && init?.method === 'POST') {
+          candidateCalls += 1;
+          return candidateResponse;
+        }
+        return jsonResponse(saved);
+      }),
+    );
+
+    const view = render(
+      <AuthContext.Provider value={{ isLoggedIn: true, loading: false, role: 'ADMIN' }}>
+        <MemoryRouter initialEntries={['/admin/news/7/edit']}>
+          <AdminNewsImageGenerationProvider>
+            <AdminShell>
+              <Routes>
+                <Route path="/admin/news/:newsId/edit" element={<AdminNewsFormPage />} />
+                <Route path="/admin/feedbacks" element={<main>피드백 작업 화면</main>} />
+              </Routes>
+            </AdminShell>
+          </AdminNewsImageGenerationProvider>
+        </MemoryRouter>
+      </AuthContext.Provider>,
+    );
+
+    await view.findByDisplayValue('뉴스 본문');
+    fireEvent.click(view.getByRole('button', { name: 'AI 생성' }));
+    fireEvent.click(view.getByRole('button', { name: '저장하고 AI 이미지 후보 생성' }));
+    await waitFor(() => expect(candidateCalls).toBe(1));
+
+    fireEvent.click(view.getByRole('link', { name: '피드백' }));
+    expect(await view.findByText('피드백 작업 화면')).toBeTruthy();
+    expect(view.getByRole('status').textContent).toContain('화면을 이동해도 계속 진행됩니다.');
+
+    resolveCandidate?.(webpResponse());
+    fireEvent.click(await view.findByRole('link', { name: '후보 확인' }));
+    await view.findByDisplayValue('뉴스 본문');
+    fireEvent.click(view.getByRole('button', { name: 'AI 생성' }));
+
+    expect(await view.findByAltText('AI 이미지 후보 1')).toBeTruthy();
+    expect(revokeObjectURL).not.toHaveBeenCalled();
   });
 
   it('AI 이미지 후보 추가 생성에 실패해도 기존 후보를 유지하고 이탈 시 URL을 정리한다', async () => {

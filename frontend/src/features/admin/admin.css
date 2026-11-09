@@ -2780,6 +2780,29 @@
   color: #202b3d;
   font-weight: 600;
 }
+.admin-image-generation-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 40px;
+  color: #24436f;
+  background: #edf4ff;
+  font-size: 13px;
+}
+.admin-image-generation-notice.is-success {
+  color: #185b40;
+  background: #edf8f3;
+}
+.admin-image-generation-notice.is-error {
+  color: #8b2c2c;
+  background: #fff1f1;
+}
+.admin-image-generation-notice a {
+  flex-shrink: 0;
+  color: inherit;
+  font-weight: 700;
+}
 .admin-service-link {
   display: flex;
   justify-content: space-between;
@@ -2934,6 +2957,9 @@
   .admin-topbar {
     padding-inline: 24px;
   }
+  .admin-image-generation-notice {
+    padding-inline: 24px;
+  }
   .admin-news-form {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -3002,6 +3028,10 @@
   .admin-content {
     width: calc(100% - 32px);
     padding-top: 28px;
+  }
+  .admin-image-generation-notice {
+    align-items: flex-start;
+    padding-inline: 16px;
   }
   .admin-page-heading,
   .admin-form-heading {
