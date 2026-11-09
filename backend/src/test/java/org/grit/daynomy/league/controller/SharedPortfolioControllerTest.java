@@ -97,17 +97,18 @@ class SharedPortfolioControllerTest {
 
   @ParameterizedTest
   @CsvSource({
-    "assetId,0",
-    "quantity,0",
-    "quantity,1000000001",
-    "averagePurchasePrice,0",
-    "averagePurchasePrice,1000000001",
-    "averagePurchasePrice,1.001"
+    "assetId,0,2,100",
+    "quantity,12,0,100",
+    "quantity,12,1000000001,100",
+    "averagePurchasePrice,12,2,0",
+    "averagePurchasePrice,12,2,1000000001",
+    "averagePurchasePrice,12,2,1.001"
   })
-  void validatesNestedHoldingInputs(String field, String value) throws Exception {
+  void validatesNestedHoldingInputs(String field, String assetId, String quantity, String price)
+      throws Exception {
     String body =
-        "{\"overwriteExisting\":false,\"holdings\":[{\"assetId\":12,\"quantity\":2,\"averagePurchasePrice\":100}]}";
-    body = body.replaceAll("\"" + field + "\":\\d+", "\"" + field + "\":" + value);
+        "{\"overwriteExisting\":false,\"holdings\":[{\"assetId\":%s,\"quantity\":%s,\"averagePurchasePrice\":%s}]}"
+            .formatted(assetId, quantity, price);
     mvc.perform(post(PATH + "/import").contentType(MediaType.APPLICATION_JSON).content(body))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))

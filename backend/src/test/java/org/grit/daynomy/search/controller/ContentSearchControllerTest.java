@@ -72,6 +72,7 @@ class ContentSearchControllerTest {
     then(service).should().search("금리", ContentSearchSource.ALL, 1, 12, ContentSearchSort.POPULAR);
   }
 
+  /** 검색어 파라미터 자체가 없는 요청과 값이 유효하지 않은 요청을 모두 HTTP 경계에서 차단한다. */
   @ParameterizedTest
   @NullAndEmptySource
   @ValueSource(strings = {"  ", "!%_"})

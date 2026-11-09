@@ -136,6 +136,7 @@ class LeagueControllerTest {
         .andExpect(jsonPath("$.holdings").isEmpty());
   }
 
+  /** 공개 조회에서도 로그인 여부에 맞는 열람자 식별자를 전달해 접근 판단에 사용할 수 있어야 한다. */
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
   void investorPassesOptionalViewer(boolean authenticated) throws Exception {
