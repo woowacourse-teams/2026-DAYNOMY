@@ -48,9 +48,7 @@ public class UsMarketCalendarSyncService {
     try {
       calendar = client.annualHolidays();
     } catch (RuntimeException exception) {
-      log.warn(
-          "US market calendar sync failed: source=NYSE, errorType={}",
-          exception.getClass().getSimpleName());
+      // 클라이언트가 원인 유형을 기록하므로 같은 실패를 중복 기록하지 않는다.
       return;
     }
     int year = LocalDate.now(ZoneId.of("Asia/Seoul")).getYear();

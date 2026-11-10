@@ -10,6 +10,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
+import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.external.ExternalErrorCode;
 import org.jsoup.Jsoup;
@@ -18,6 +19,7 @@ import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
+@Slf4j
 @Component
 public class NyseCalendarClient {
   private static final String PAGE = "/trade/hours-calendars";
@@ -106,6 +108,7 @@ public class NyseCalendarClient {
       calendar.replaceAll((year, dates) -> Set.copyOf(dates));
       return Map.copyOf(calendar);
     } catch (RuntimeException exception) {
+      log.warn("NYSE calendar fetch failed: errorType={}", exception.getClass().getSimpleName());
       throw new BusinessException(ExternalErrorCode.NYSE_CALENDAR_REQUEST_FAILED);
     }
   }

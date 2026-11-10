@@ -2,6 +2,9 @@ package org.grit.daynomy.external.nyse;
 
 import static org.assertj.core.api.Assertions.*;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.LocalDate;
@@ -16,13 +19,18 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.slf4j.LoggerFactory;
 
 class NyseCalendarClientTest {
   private MockWebServer server;
   private NyseCalendarClient client;
+  private final Logger logger = (Logger) LoggerFactory.getLogger(NyseCalendarClient.class);
+  private final ListAppender<ILoggingEvent> appender = new ListAppender<>();
 
   @BeforeEach
   void setUp() throws Exception {
+    appender.start();
+    logger.addAppender(appender);
     server = new MockWebServer();
     server.start();
     client =
@@ -34,6 +42,8 @@ class NyseCalendarClientTest {
 
   @AfterEach
   void tearDown() throws Exception {
+    logger.detachAppender(appender);
+    appender.stop();
     server.shutdown();
   }
 
@@ -123,6 +133,11 @@ class NyseCalendarClientTest {
         .isInstanceOf(BusinessException.class)
         .hasMessageNotContaining("private-provider-message")
         .hasCause(null);
+    assertThat(appender.list)
+        .singleElement()
+        .satisfies(
+            event ->
+                assertThat(event.getFormattedMessage()).contains("errorType=ServiceUnavailable"));
     client =
         new NyseCalendarClient(
             new NyseCalendarProperties(
@@ -130,6 +145,32 @@ class NyseCalendarClientTest {
             org.springframework.web.client.RestClient.builder());
     server.enqueue(new MockResponse().setBody("late").setBodyDelay(1, TimeUnit.SECONDS));
     assertThatThrownBy(client::annualHolidays).isInstanceOf(BusinessException.class);
+    assertThat(appender.list)
+        .hasSize(2)
+        .allSatisfy(
+            event -> {
+              assertThat(event.getFormattedMessage()).doesNotContain("private-provider-message");
+              assertThat(event.getThrowableProxy()).isNull();
+            });
+    assertThat(appender.list.getLast().getFormattedMessage())
+        .contains("errorType=RestClientException");
+  }
+
+  @Test
+  void logsValidationFailureTypeWithoutTheProviderBody() {
+    server.enqueue(new MockResponse().setBody("<html>private-provider-message</html>"));
+
+    assertThatThrownBy(client::annualHolidays).isInstanceOf(BusinessException.class).hasCause(null);
+
+    assertThat(appender.list)
+        .singleElement()
+        .satisfies(
+            event -> {
+              assertThat(event.getFormattedMessage())
+                  .contains("errorType=IllegalArgumentException")
+                  .doesNotContain("private-provider-message");
+              assertThat(event.getThrowableProxy()).isNull();
+            });
   }
 
   private static String fixture() throws Exception {
