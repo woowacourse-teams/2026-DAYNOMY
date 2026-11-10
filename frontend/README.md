@@ -206,7 +206,7 @@ Google Analytics 4와 PostHog로 주요 사용자 흐름을 측정합니다. 검
 
 GitHub Actions가 브랜치에 맞는 Vite mode로 빌드하고 배포합니다. 프론트 컨테이너를 교체한 뒤 상태를 확인하고 Nginx 연결을 전환합니다.
 
-현재 릴리스 준비 버전은 **v2.0.7**입니다. 포함된 변경은 [변경 이력](CHANGELOG.md#v207), 백엔드 의존성과 배포 검증은 [릴리스 절차](RELEASING.md#v207-반영-순서)를 확인합니다.
+현재 릴리스 준비 버전은 **v2.0.8**입니다. 포함된 변경은 [변경 이력](CHANGELOG.md#v208), 백엔드 의존성과 배포 검증은 [릴리스 절차](RELEASING.md#v208-반영-순서)를 확인합니다.
 
 버전, Git tag와 롤백을 포함한 상세 절차는 [RELEASING.md](./RELEASING.md)를 확인해 주세요. 버전별 변경 사항은 [CHANGELOG.md](./CHANGELOG.md)에서 관리합니다.
 
