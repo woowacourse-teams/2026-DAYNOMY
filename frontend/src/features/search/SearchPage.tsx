@@ -11,8 +11,16 @@ import {
   type ContentSearchSort,
 } from './response';
 import '../news/issue/issue.css';
+import '../../components/ContentState.css';
 
 const PAGE_SIZE = 12;
+const sourceLabels = {
+  ALL: '전체',
+  DAYNOMY: 'DAYNOMY Issue',
+  X: 'X',
+  THREADS: 'Threads',
+  YOUTUBE: 'YouTube',
+};
 
 function getSource(params: URLSearchParams): ContentSearchSource {
   const source = params.get('source');
@@ -168,12 +176,19 @@ function SearchPage() {
             </p>
           )}
           {!loading && error && (
-            <p className="issue-state" role="alert">
-              {error}{' '}
-              <button type="button" onClick={() => setAttempt((value) => value + 1)}>
-                다시 시도
+            <div className="content-state" role="alert">
+              <span className="content-state-icon" aria-hidden="true">
+                ↻
+              </span>
+              <h3>검색 결과를 불러오지 못했어요</h3>
+              <button
+                className="content-state-action"
+                type="button"
+                onClick={() => setAttempt((value) => value + 1)}
+              >
+                다시 검색하기 <span aria-hidden="true">↻</span>
               </button>
-            </p>
+            </div>
           )}
           {!loading && !error && items.length > 0 && (
             <>
@@ -189,9 +204,53 @@ function SearchPage() {
             </>
           )}
           {!loading && !error && items.length === 0 && (
-            <p className="issue-state" role="status">
-              검색된 소식이 없습니다.
-            </p>
+            <div className="content-state">
+              <h3 role="status">
+                {source === 'ALL'
+                  ? '검색된 소식이 없어요'
+                  : `${sourceLabels[source]}에서 찾은 소식이 없어요`}
+              </h3>
+              {source === 'ALL' ? (
+                <form
+                  key={keyword}
+                  className="content-state-search"
+                  aria-label="검색어 수정"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    const query = String(new FormData(event.currentTarget).get('q') ?? '').trim();
+                    if (!query) return;
+                    const next = new URLSearchParams(params);
+                    next.set('q', query);
+                    next.set('page', '1');
+                    setParams(next);
+                    if (query === keyword && page === 1) setAttempt((value) => value + 1);
+                  }}
+                >
+                  <div>
+                    <input
+                      name="q"
+                      maxLength={100}
+                      aria-label="검색어"
+                      aria-describedby="search-empty-hint"
+                      defaultValue={keyword}
+                      required
+                    />
+                    <button type="submit" aria-label="수정한 검색어로 검색">
+                      ↵
+                    </button>
+                  </div>
+                  <p id="search-empty-hint">종목명이나 짧은 키워드로 검색해 보세요.</p>
+                </form>
+              ) : (
+                <button
+                  className="content-state-action"
+                  type="button"
+                  onClick={() => changeSource('ALL')}
+                >
+                  전체 출처에서 찾기 <span aria-hidden="true">→</span>
+                </button>
+              )}
+            </div>
           )}
         </section>
       )}
