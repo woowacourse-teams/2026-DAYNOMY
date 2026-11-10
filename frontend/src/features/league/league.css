@@ -1390,3 +1390,28 @@ body:has(.league-metrics-dialog[open]) {
 .league-week-navigation > span {
   text-align: center;
 }
+.league-collection-notice {
+  margin-top: 20px;
+  padding: 18px 22px;
+  border: 1px solid #e4e8ef;
+  border-radius: 8px;
+  background: #f7f8fa;
+  font-size: 14px;
+}
+.league-collection-notice p {
+  margin: 8px 0 0;
+  color: #6b6b6b;
+  font-size: 13px;
+}
+.league-empty-weeks {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px 24px;
+}
+.league-empty-weeks p {
+  flex-basis: 100%;
+  margin: 0;
+  color: #6b6b6b;
+  font-size: 12px;
+}

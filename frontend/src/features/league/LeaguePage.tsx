@@ -17,23 +17,13 @@ import { LeagueWeekNavigation } from './LeagueWeekNavigation';
 import { IssuePagination } from '../news/issue/IssuePagination';
 import '../news/issue/issue.css';
 import './league.css';
+import '../../components/ContentState.css';
 import { useLeaguePageHeading } from './useLeaguePageHeading';
 
-const emptyCollectionStates: Partial<
-  Record<CollectionStatus, { title: string; description: string }>
-> = {
-  COLLECTION_PENDING: {
-    title: '종가 수집을 기다리고 있어요',
-    description: '종가가 수집·집계되는 대로 순위가 반영됩니다.',
-  },
-  CALENDAR_PENDING: {
-    title: '거래일 정보를 확인하고 있어요',
-    description: '선택한 주차의 거래일이 확인되면 종가 수집과 순위 집계가 진행됩니다.',
-  },
-  NO_TRADING_DAYS: {
-    title: '이 주에는 거래일이 없어요',
-    description: '거래일이 있는 주에 성과를 집계합니다.',
-  },
+const collectionTitles: Partial<Record<CollectionStatus, string>> = {
+  COLLECTION_PENDING: '종가 수집을 기다리고 있어요',
+  CALENDAR_PENDING: '거래일 정보를 확인하고 있어요',
+  IN_PROGRESS: '첫 집계를 기다리고 있어요',
 };
 
 export function LeaguePage() {
@@ -57,6 +47,16 @@ export function LeaguePage() {
   const changingPage = useRef(false);
   const viewed = useRef(false);
 
+  function changeWeek(value: string) {
+    setWeekStart(value);
+    setPage(0);
+    const index = weeks.findIndex((week) => week.weekStart === value);
+    trackLeagueEvent('change_league_week', {
+      relative_week: -index,
+      week_state: weeks[index]?.confirmed ? 'confirmed' : 'in_progress',
+    });
+  }
+
   function retryLoad() {
     trackLeagueEvent('league_action', { surface: 'ranking', action: 'retry', status: 'clicked' });
     setRetry((value) => value + 1);
@@ -68,8 +68,12 @@ export function LeaguePage() {
       changingPage.current = false;
     }
   }, [loading, heading]);
-  const emptyCollectionState = emptyCollectionStates[ranking?.collectionStatus ?? 'IN_PROGRESS'];
   const isCurrentWeek = !weekStart || weekStart === weeks[0]?.weekStart;
+  const collectionTitle = ranking?.collectionStatus
+    ? collectionTitles[ranking.collectionStatus]
+    : isCurrentWeek && !ranking?.confirmed
+      ? '이번 주 첫 집계를 기다리고 있어요'
+      : undefined;
   const participationPath = isLoggedIn
     ? leagueEnabled
       ? '/league/portfolio'
@@ -243,19 +247,7 @@ export function LeaguePage() {
         </div>
       </header>
       <section className="league-controls" aria-label="리그 조회 조건">
-        <LeagueWeekNavigation
-          weeks={weeks}
-          selected={weekStart}
-          onChange={(value) => {
-            setWeekStart(value);
-            setPage(0);
-            const index = weeks.findIndex((week) => week.weekStart === value);
-            trackLeagueEvent('change_league_week', {
-              relative_week: -index,
-              week_state: weeks[index]?.confirmed ? 'confirmed' : 'in_progress',
-            });
-          }}
-        />
+        <LeagueWeekNavigation weeks={weeks} selected={weekStart} onChange={changeWeek} />
         {!loading && !error && ranking && (ranking.asOfDate || ranking.rankings.length > 0) ? (
           <div className="league-ranking-meta">
             {ranking.asOfDate ? <span>{ranking.asOfDate} 종가 기준</span> : null}
@@ -291,42 +283,64 @@ export function LeaguePage() {
         </p>
       ) : null}
       {weekError ? (
-        <div className="league-state" role="alert">
-          <p>{weekError}</p>
-          <button type="button" onClick={retryLoad}>
+        <div className="content-state" role="alert">
+          <h3>조회 주차를 불러오지 못했어요</h3>
+          <button className="content-state-action" type="button" onClick={retryLoad}>
             주차 다시 불러오기
           </button>
         </div>
       ) : null}
       {!loading && error ? (
-        <div className="league-state" role="alert">
-          <p>{error}</p>
-          <button type="button" onClick={retryLoad}>
-            다시 시도
+        <div className="content-state" role="alert">
+          <h3>순위를 불러오지 못했어요</h3>
+          <button className="content-state-action" type="button" onClick={retryLoad}>
+            다시 불러오기
           </button>
         </div>
       ) : null}
       {!loading && !error && ranking?.rankings.length === 0 ? (
-        <section
-          className="league-empty league-ranking-empty"
-          role="status"
-          aria-label="순위 조회 결과"
-        >
-          <strong>
-            {emptyCollectionState?.title ?? '아직 이 주차에 집계된 투자자가 없습니다'}
-          </strong>
-          <p>
-            {emptyCollectionState?.description ??
-              (isCurrentWeek
-                ? '종가 수집과 참여자 집계가 끝나면 순위를 확인할 수 있어요.'
-                : '이 주차에 표시할 순위가 없어요. 다른 주차를 선택해 보세요.')}
-          </p>
-          {ranking.collectionStatus === 'NO_TRADING_DAYS' ? null : emptyCollectionState ? (
-            <button type="button" onClick={retryLoad}>
-              순위 다시 확인
-            </button>
+        <>
+          {collectionTitle ? (
+            <aside className="league-collection-notice" aria-label="집계 상태">
+              <strong>{collectionTitle}</strong>
+              <p>
+                {ranking.collectionStatus === 'CALENDAR_PENDING'
+                  ? '거래일 확인 후 집계가 진행돼요.'
+                  : '종가는 다음 영업일 오후 2시 이후 제공되며, 수집·집계 후 반영돼요.'}
+              </p>
+              <button className="content-state-action" type="button" onClick={retryLoad}>
+                순위 다시 확인
+              </button>
+            </aside>
           ) : null}
-        </section>
+          <section className="content-state" aria-label="순위 조회 결과" role="status">
+            <h3>
+              {ranking.collectionStatus === 'NO_TRADING_DAYS'
+                ? '이 주에는 거래일이 없어요'
+                : collectionTitle
+                  ? '첫 집계 후 순위가 표시돼요'
+                  : '이 주차에는 집계된 투자자가 없어요'}
+            </h3>
+            {weeks.some((week) => week.weekStart !== weekStart) ? (
+              <div className="league-empty-weeks" aria-label="다른 주차 둘러보기">
+                <p>다른 주차 둘러보기</p>
+                {weeks
+                  .filter((week) => week.weekStart !== weekStart)
+                  .map((week) => (
+                    <button
+                      className="content-state-action"
+                      type="button"
+                      key={week.weekStart}
+                      onClick={() => changeWeek(week.weekStart)}
+                    >
+                      {week.weekStart.slice(5)} ~ {week.weekEnd.slice(5)}{' '}
+                      <span aria-hidden="true">→</span>
+                    </button>
+                  ))}
+              </div>
+            ) : null}
+          </section>
+        </>
       ) : null}
 
       {!loading && !error && ranking && ranking.rankings.length > 0 ? (

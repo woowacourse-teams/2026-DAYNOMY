@@ -882,7 +882,7 @@ describe('투자 리그 화면', () => {
       </AuthContext.Provider>,
     );
     await view.findByText(title);
-    expect(view.queryByText('아직 이 주차에 집계된 투자자가 없습니다')).toBeNull();
+    expect(view.queryByText('이 주차에는 집계된 투자자가 없어요')).toBeNull();
     expect(view.queryByRole('link', { name: '참여 시작하기' })).toBeNull();
     if (collectionStatus === 'NO_TRADING_DAYS') {
       expect(view.queryByRole('button', { name: '순위 다시 확인' })).toBeNull();
@@ -896,6 +896,71 @@ describe('투자 리그 화면', () => {
       fireEvent.click(view.getByRole('button', { name: '순위 다시 확인' }));
       expect(await view.findByText('이 주에는 거래일이 없어요')).toBeTruthy();
     }
+  });
+
+  it('집계 완료 0명은 대기로 표시하지 않고 다른 주차를 바로 조회한다', async () => {
+    vi.mocked(leagueApi.getRankings).mockResolvedValue({
+      ...ranking,
+      confirmed: false,
+      collectionStatus: 'COMPLETE',
+      rankings: [],
+      totalCount: 0,
+    });
+    const view = render(
+      <AuthContext.Provider value={{ isLoggedIn: false, loading: false, role: null }}>
+        <MemoryRouter>
+          <LeaguePage />
+        </MemoryRouter>
+      </AuthContext.Provider>,
+    );
+    await view.findByText('이 주차에는 집계된 투자자가 없어요');
+    expect(view.queryByLabelText('집계 상태')).toBeNull();
+    fireEvent.click(view.getByRole('button', { name: '11-30 ~ 12-06' }));
+    await waitFor(() =>
+      expect(leagueApi.getRankings).toHaveBeenLastCalledWith(
+        'WEEKLY_RETURN',
+        '2026-11-30',
+        expect.any(AbortSignal),
+        0,
+      ),
+    );
+    expect(view.getByRole('button', { name: '이전 주차' })).toHaveProperty('disabled', true);
+    fireEvent.click(view.getByRole('button', { name: '다음 주차' }));
+    await waitFor(() =>
+      expect(leagueApi.getRankings).toHaveBeenLastCalledWith(
+        'WEEKLY_RETURN',
+        '2026-12-07',
+        expect.any(AbortSignal),
+        0,
+      ),
+    );
+    expect(view.getByRole('button', { name: '다음 주차' })).toHaveProperty('disabled', true);
+  });
+
+  it('순위 조회 오류를 빈 결과와 구분하고 선택한 주차로 재시도한다', async () => {
+    vi.mocked(leagueApi.getRankings)
+      .mockResolvedValueOnce(ranking)
+      .mockRejectedValueOnce(new Error('network'))
+      .mockResolvedValue(ranking);
+    const view = render(
+      <AuthContext.Provider value={{ isLoggedIn: false, loading: false, role: null }}>
+        <MemoryRouter>
+          <LeaguePage />
+        </MemoryRouter>
+      </AuthContext.Provider>,
+    );
+    await view.findByText('차분한초보');
+    fireEvent.click(view.getByRole('button', { name: '이전 주차' }));
+    await view.findByText('순위를 불러오지 못했어요');
+    expect(view.queryByRole('status', { name: '순위 조회 결과' })).toBeNull();
+    fireEvent.click(view.getByRole('button', { name: '다시 불러오기' }));
+    await view.findByText('차분한초보');
+    expect(leagueApi.getRankings).toHaveBeenLastCalledWith(
+      'WEEKLY_RETURN',
+      '2026-11-30',
+      expect.any(AbortSignal),
+      0,
+    );
   });
 
   it.each([
@@ -941,7 +1006,7 @@ describe('투자 리그 화면', () => {
       expect(view.queryByText('내 종목 준비하기')).toBeNull();
       if (!isLoggedIn) expect(leagueApi.getMyInvestorProfile).not.toHaveBeenCalled();
       fireEvent.click(view.getByRole('button', { name: '이전 주차' }));
-      await view.findByText('이 주차에 표시할 순위가 없어요. 다른 주차를 선택해 보세요.');
+      await view.findByText('이 주차에는 집계된 투자자가 없어요');
       expect(view.getAllByRole('link', { name: label })).toHaveLength(1);
     },
   );
