@@ -339,25 +339,30 @@ public class LeagueService {
       rankingCalendarDays.set(
           tradingDayRepository.findAllByBaseDateBetweenOrderByBaseDate(
               calendarFrom, week.plusDays(6)));
-      Map<LocalDate, List<RankedProfile>> byDate = new LinkedHashMap<>();
-      calendar(week, week.plusDays(6)).stream()
-          .filter(day -> leagueRelevantTrading(day) && leagueFullyCollected(day))
-          .filter(day -> !leagueClose(day).isAfter(Instant.now()))
-          .map(MarketTradingDay::getBaseDate)
-          .sorted(Comparator.reverseOrder())
-          .forEach(date -> byDate.put(date, new ArrayList<>()));
-      if (byDate.isEmpty()) return new RankingSnapshot(List.of(), List.of(), null);
-      for (int from = 0; from < profiles.size(); from += RANKING_BATCH_SIZE) {
-        collectRankingMetrics(
-            profiles.subList(from, Math.min(from + RANKING_BATCH_SIZE, profiles.size())),
-            week,
-            byDate);
-      }
-      List<RankedProfile> candidates = byDate.values().iterator().next();
-      // 최신 날짜가 아직 계산 전이면 이전 완료 결과를 유지한다. 개별 누락자는 새 순위에서 제외한다.
-      for (var entry : byDate.entrySet()) {
-        List<RankedProfile> ranked = rankedProfiles(entry.getValue(), week, type);
-        if (!ranked.isEmpty()) return new RankingSnapshot(candidates, ranked, entry.getKey());
+      List<RankedProfile> candidates = List.of();
+      // 공통 수집 완료일을 우선하고, 순위가 없으면 같은 주의 부분 집계 결과를 보여준다.
+      for (boolean fullyCollected : List.of(true, false)) {
+        Map<LocalDate, List<RankedProfile>> byDate = new LinkedHashMap<>();
+        calendar(week, week.plusDays(6)).stream()
+            .filter(
+                day -> leagueRelevantTrading(day) && leagueFullyCollected(day) == fullyCollected)
+            .filter(day -> !leagueClose(day).isAfter(Instant.now()))
+            .map(MarketTradingDay::getBaseDate)
+            .sorted(Comparator.reverseOrder())
+            .forEach(date -> byDate.put(date, new ArrayList<>()));
+        if (byDate.isEmpty()) continue;
+        for (int from = 0; from < profiles.size(); from += RANKING_BATCH_SIZE) {
+          collectRankingMetrics(
+              profiles.subList(from, Math.min(from + RANKING_BATCH_SIZE, profiles.size())),
+              week,
+              byDate);
+        }
+        if (candidates.isEmpty()) candidates = byDate.values().iterator().next();
+        // 같은 기준일까지 계산 가능한 참가자만 비교하고, 날짜가 다른 점수를 섞지 않는다.
+        for (var entry : byDate.entrySet()) {
+          List<RankedProfile> ranked = rankedProfiles(entry.getValue(), week, type);
+          if (!ranked.isEmpty()) return new RankingSnapshot(candidates, ranked, entry.getKey());
+        }
       }
       return new RankingSnapshot(candidates, List.of(), null);
     } finally {
