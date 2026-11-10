@@ -12,7 +12,9 @@ export function LeagueWeekNavigation({
   if (weeks.length <= 1) {
     return (
       <span className="league-week-period">
-        이번 주{weeks[0] ? ` · ${weeks[0].weekStart.slice(5)} ~ ${weeks[0].weekEnd.slice(5)}` : ''}
+        {weeks[0]
+          ? `이번 주 · ${weeks[0].weekStart.slice(5).replace('-', '/')} ~ ${weeks[0].weekEnd.slice(5).replace('-', '/')}`
+          : '이번 주'}
       </span>
     );
   }
@@ -32,8 +34,8 @@ export function LeagueWeekNavigation({
         <span aria-hidden="true">‹</span>
       </button>
       <span aria-live="polite">
-        {['이번 주', '지난주', '지지난주'][index]} · {week.weekStart.slice(5)} ~{' '}
-        {week.weekEnd.slice(5)}
+        {['이번 주', '지난주', '지지난주'][index]} · {week.weekStart.slice(5).replace('-', '/')} ~{' '}
+        {week.weekEnd.slice(5).replace('-', '/')}
       </span>
       <button
         type="button"
