@@ -26,6 +26,7 @@ import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.external.ExternalErrorCode;
 import org.grit.daynomy.external.eodhd.EodhdClient;
 import org.grit.daynomy.external.krx.KrxCalendarClient;
+import org.grit.daynomy.external.nyse.NyseCalendarClient;
 import org.grit.daynomy.investmentcalendar.external.InvestmentCalendarHistoricalPriceClient;
 import org.grit.daynomy.investmentcalendar.external.InvestmentCalendarHistoricalPriceClient.HistoricalPrice;
 import org.grit.daynomy.portfolio.domain.PortfolioHoldingHistory;
@@ -53,6 +54,7 @@ public class PortfolioPriceHistoryService {
   private final InvestmentCalendarHistoricalPriceClient domesticClient;
   private final EodhdClient usClient;
   private final KrxCalendarClient krxCalendarClient;
+  private final NyseCalendarClient nyseCalendarClient;
   private final PortfolioSnapshotTransactionService snapshotService;
   private final ThreadPoolTaskExecutor portfolioPriceHistoryTaskExecutor;
   private final PlatformTransactionManager transactionManager;
@@ -387,8 +389,27 @@ public class PortfolioPriceHistoryService {
             .toList();
     if (weekdays.isEmpty()) return List.of();
     if (asset.getMarket() != null && asset.getMarket().isUs()) {
-      Set<LocalDate> holidays = usClient.getUsMarketHolidays(from, to);
-      return weekdays.stream().filter(date -> !holidays.contains(date)).toList();
+      Map<LocalDate, Boolean> known = new HashMap<>();
+      tradingDayRepository
+          .findAllByBaseDateBetweenOrderByBaseDate(from, to)
+          .forEach(
+              day -> {
+                if (day.getUsTrading() != null) known.put(day.getBaseDate(), day.getUsTrading());
+              });
+      Map<Integer, Set<LocalDate>> holidays =
+          weekdays.stream().allMatch(known::containsKey)
+              ? Map.of()
+              : nyseCalendarClient.annualHolidays();
+      return weekdays.stream()
+          .filter(
+              date -> {
+                if (known.containsKey(date)) return known.get(date);
+                Set<LocalDate> year = holidays.get(date.getYear());
+                if (year == null)
+                  throw new BusinessException(ExternalErrorCode.NYSE_CALENDAR_REQUEST_FAILED);
+                return !year.contains(date);
+              })
+          .toList();
     }
     Map<LocalDate, Boolean> calendar = new HashMap<>();
     for (MarketTradingDay day :

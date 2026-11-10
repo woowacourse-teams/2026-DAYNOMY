@@ -9,6 +9,7 @@ import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import org.grit.daynomy.asset.domain.Asset;
@@ -19,6 +20,7 @@ import org.grit.daynomy.asset.repository.MarketTradingDayRepository;
 import org.grit.daynomy.asset.repository.StockDailyPriceRepository;
 import org.grit.daynomy.external.eodhd.EodhdClient;
 import org.grit.daynomy.external.eodhd.dto.EodhdDailyPrice;
+import org.grit.daynomy.external.nyse.NyseCalendarClient;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -38,6 +40,7 @@ class LeagueUsPricePreparationTest {
   @Mock private StockDailyPriceRepository storedPrices;
   @Mock private MarketTradingDayRepository days;
   @Mock private EodhdClient usClient;
+  @Mock private NyseCalendarClient nyseCalendarClient;
   @Mock private PlatformTransactionManager transactions;
   @InjectMocks private PortfolioPriceHistoryService prices;
 
@@ -49,7 +52,7 @@ class LeagueUsPricePreparationTest {
     ReflectionTestUtils.setField(asset, "id", 7L);
     given(assets.findAllById(List.of(7L))).willReturn(List.of(asset));
     given(assets.findById(7L)).willReturn(Optional.of(asset));
-    given(usClient.getUsMarketHolidays(from, from)).willReturn(Set.of());
+    given(nyseCalendarClient.annualHolidays()).willReturn(Map.of(from.getYear(), Set.of()));
     given(usClient.getHistoricalPrices("AAPL", from, from))
         .willReturn(List.of(new EodhdDailyPrice("AAPL", "US", from, new BigDecimal("100"))));
     given(transactions.getTransaction(any(TransactionDefinition.class)))
@@ -63,5 +66,50 @@ class LeagueUsPricePreparationTest {
     verify(storedPrices).saveAll(any());
     verify(days).markUsCollectedDates(eq(List.of(from)), any(Instant.class));
     assertThat(asset.hasPriceHistory(from, from)).isTrue();
+  }
+
+  @Test
+  void reusesKnownUsCalendarEvenWhenTheYearIsNoLongerPublished() {
+    LocalDate from = LocalDate.of(2025, 11, 3);
+    Asset asset =
+        Asset.listedSecurity("Apple", AssetCategory.STOCK, "AAPL", StockMarket.NASDAQ, null, from);
+    ReflectionTestUtils.setField(asset, "id", 7L);
+    var day = new org.grit.daynomy.asset.domain.MarketTradingDay(from, true);
+    day.reviseUsTrading(true);
+    given(days.findAllByBaseDateBetweenOrderByBaseDate(from, from)).willReturn(List.of(day));
+    given(assets.findAllById(List.of(7L))).willReturn(List.of(asset));
+    given(assets.findById(7L)).willReturn(Optional.of(asset));
+    given(usClient.getHistoricalPrices("AAPL", from, from))
+        .willReturn(List.of(new EodhdDailyPrice("AAPL", "US", from, new BigDecimal("100"))));
+    given(transactions.getTransaction(any(TransactionDefinition.class)))
+        .willReturn(new SimpleTransactionStatus());
+
+    prices.prepareLeagueUsPrices(List.of(7L), from, from);
+    ArgumentCaptor<Runnable> job = ArgumentCaptor.forClass(Runnable.class);
+    verify(historyExecutor).execute(job.capture());
+    job.getValue().run();
+
+    verifyNoInteractions(nyseCalendarClient);
+    assertThat(asset.hasPriceHistory(from, from)).isTrue();
+  }
+
+  @Test
+  void leavesPricesUncollectedWhenAnUnknownCalendarYearIsNotPublished() {
+    LocalDate from = LocalDate.of(2025, 11, 3);
+    Asset asset =
+        Asset.listedSecurity("Apple", AssetCategory.STOCK, "AAPL", StockMarket.NASDAQ, null, from);
+    ReflectionTestUtils.setField(asset, "id", 7L);
+    given(assets.findAllById(List.of(7L))).willReturn(List.of(asset));
+    given(assets.findById(7L)).willReturn(Optional.of(asset));
+    given(nyseCalendarClient.annualHolidays())
+        .willReturn(Map.of(2026, Set.of(LocalDate.of(2026, 1, 1))));
+
+    prices.prepareLeagueUsPrices(List.of(7L), from, from);
+    ArgumentCaptor<Runnable> job = ArgumentCaptor.forClass(Runnable.class);
+    verify(historyExecutor).execute(job.capture());
+    job.getValue().run();
+
+    verifyNoInteractions(usClient, storedPrices, transactions);
+    assertThat(asset.hasPriceHistory(from, from)).isFalse();
   }
 }

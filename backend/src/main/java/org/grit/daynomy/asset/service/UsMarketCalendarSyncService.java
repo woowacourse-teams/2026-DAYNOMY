@@ -5,13 +5,14 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.asset.domain.MarketTradingDay;
 import org.grit.daynomy.asset.repository.MarketTradingDayRepository;
-import org.grit.daynomy.external.eodhd.EodhdClient;
+import org.grit.daynomy.external.nyse.NyseCalendarClient;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.ApplicationEventPublisher;
@@ -26,7 +27,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 @RequiredArgsConstructor
 @ConditionalOnProperty(name = "stock.us.calendar.sync.enabled", havingValue = "true")
 public class UsMarketCalendarSyncService {
-  private final EodhdClient client;
+  private final NyseCalendarClient client;
   private final MarketTradingDayRepository days;
   private final PlatformTransactionManager transactionManager;
   private final ApplicationEventPublisher events;
@@ -43,13 +44,27 @@ public class UsMarketCalendarSyncService {
 
   @Scheduled(cron = "${stock.us.calendar.sync.cron:0 0 8,18 * * *}", zone = "Asia/Seoul")
   public synchronized void synchronize() {
+    Map<Integer, Set<LocalDate>> calendar;
+    try {
+      calendar = client.annualHolidays();
+    } catch (RuntimeException exception) {
+      log.warn(
+          "US market calendar sync failed: source=NYSE, errorType={}",
+          exception.getClass().getSimpleName());
+      return;
+    }
     int year = LocalDate.now(ZoneId.of("Asia/Seoul")).getYear();
     int changed = 0;
     for (int target = year - 1; target <= year + 1; target++) {
       try {
         LocalDate first = LocalDate.of(target, 1, 1);
         LocalDate last = LocalDate.of(target, 12, 31);
-        Set<LocalDate> holidays = client.getUsMarketHolidays(first, last);
+        Set<LocalDate> holidays = calendar.get(target);
+        // shortcut: 공개 표에 없는 과거 연도는 보존하며, 과거 복구가 필요하면 공식 자료를 추가한다.
+        if (holidays == null) {
+          log.warn("US market calendar year not published: source=NYSE, year={}", target);
+          continue;
+        }
         if (holidays.isEmpty()) {
           throw new IllegalStateException("US market holiday calendar is empty");
         }
