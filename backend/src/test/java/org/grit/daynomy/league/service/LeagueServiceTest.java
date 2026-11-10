@@ -1354,6 +1354,7 @@ class LeagueServiceTest {
     given(holdingRepository.findActiveUsLeagueMemberIds()).willReturn(List.of(4L));
     given(holdingRepository.findActiveDomesticLeagueMemberIds()).willReturn(List.of(2L, 7L));
     var usReady = new java.util.concurrent.atomic.AtomicBoolean(false);
+    var mondayUsReady = new java.util.concurrent.atomic.AtomicBoolean(false);
     given(tradingDayRepository.findAllByBaseDateBetweenOrderByBaseDate(any(), any()))
         .willAnswer(
             call -> {
@@ -1367,7 +1368,7 @@ class LeagueServiceTest {
                         day.reviseUsTrading(trading);
                         if (date.equals(week) || date.equals(week.plusDays(1))) {
                           day.collected(day.closesAt().plusSeconds(1));
-                          if (date.equals(week) || usReady.get())
+                          if ((date.equals(week) && mondayUsReady.get()) || usReady.get())
                             day.usCollected(day.usClosesAt().plusSeconds(1));
                         }
                         return day;
@@ -1393,6 +1394,18 @@ class LeagueServiceTest {
     given(returnRepository.findLatestByPortfolioIdAndBaseDateBetween(3L, week, week.plusDays(6)))
         .willReturn(domesticReturns);
 
+    var provisional = service.rankings(null, week, LeagueTypes.LeagueType.WEEKLY_RETURN, 0, 20);
+    assertThat(provisional.asOfDate()).isEqualTo(week.plusDays(1));
+    assertThat(provisional.confirmed()).isFalse();
+    assertThat(provisional.rankings())
+        .extracting(row -> row.weeklyReturnRate())
+        .containsExactly(new BigDecimal("5.06"));
+    assertThat(provisional.rankings())
+        .extracting(row -> row.publicId())
+        .doesNotContain(profiles.get(1).getPublicId(), profiles.get(2).getPublicId());
+
+    mondayUsReady.set(true);
+    rankingCache.invalidateAfterCommit();
     var monday = service.rankings(null, week, LeagueTypes.LeagueType.WEEKLY_RETURN, 0, 20);
     assertThat(monday.asOfDate()).isEqualTo(week);
     assertThat(monday.rankings())
@@ -1414,6 +1427,71 @@ class LeagueServiceTest {
     assertThat(tuesday.rankings())
         .extracting(row -> row.publicId())
         .doesNotContain(profiles.get(2).getPublicId());
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  void retainsEarlierPartialResultsWhileACollectedDateIsNotCalculated(boolean eligible) {
+    var seoul = ZoneId.of("Asia/Seoul");
+    var week = LocalDate.now(seoul).with(DayOfWeek.MONDAY).minusWeeks(1);
+    var portfolio = dailyProfile(week.minusDays(3));
+    var profile = profileRepository.findByPublicIdAndProfilePublicTrue("investor-1").orElseThrow();
+    given(holdingRepository.findActiveUsLeagueMemberIds()).willReturn(List.of(4L));
+    given(holdingRepository.findActiveDomesticLeagueMemberIds()).willReturn(List.of(2L));
+    given(tradingDayRepository.findAllByBaseDateBetweenOrderByBaseDate(any(), any()))
+        .willAnswer(
+            call -> {
+              LocalDate from = call.getArgument(0);
+              LocalDate to = call.getArgument(1);
+              return from.datesUntil(to.plusDays(1))
+                  .map(
+                      date -> {
+                        boolean trading = date.getDayOfWeek().getValue() < 6;
+                        var day = new MarketTradingDay(date, trading);
+                        day.reviseUsTrading(trading);
+                        if (date.equals(week) || date.equals(week.plusDays(1)))
+                          day.collected(day.closesAt().plusSeconds(1));
+                        if (date.equals(week.plusDays(1)))
+                          day.usCollected(day.usClosesAt().plusSeconds(1));
+                        return day;
+                      })
+                  .toList();
+            });
+    var monday = dailyReturn(portfolio, week, "2");
+    if (!eligible) monday.exclude("PRICE_COLLECTION_PENDING", Instant.now());
+    rankingInputs(List.of(profile), List.of(portfolio), Map.of(3L, List.of(monday)));
+    given(returnRepository.findLatestByPortfolioIdAndBaseDateBetween(3L, week, week.plusDays(6)))
+        .willReturn(List.of(monday));
+    var aggregation =
+        new org.grit.daynomy.league.dto.LeagueDto.AggregationResponse(
+            eligible ? week.plusDays(1) : week,
+            Instant.now().plusSeconds(3600),
+            null,
+            "CALCULATION_PENDING",
+            false,
+            null);
+    given(aggregationService.ranking(week, eligible ? week.plusDays(1) : week, true, true))
+        .willReturn(aggregation);
+
+    var result = service.rankings(null, week, LeagueTypes.LeagueType.WEEKLY_RETURN, 0, 20);
+
+    var personal = service.dailyHistory("investor-1", week);
+    assertThat(personal.days().getFirst().status())
+        .isEqualTo(
+            eligible
+                ? LeagueTypes.DailyReturnStatus.CALCULATED
+                : LeagueTypes.DailyReturnStatus.EXCLUDED);
+    assertThat(result.confirmed()).isFalse();
+    assertThat(result.aggregation()).isSameAs(aggregation);
+    if (eligible) {
+      assertThat(result.asOfDate()).isEqualTo(week);
+      assertThat(result.rankings())
+          .singleElement()
+          .satisfies(entry -> assertThat(entry.weeklyReturnRate()).isEqualByComparingTo("2"));
+    } else {
+      assertThat(result.asOfDate()).isNull();
+      assertThat(result.rankings()).isEmpty();
+    }
   }
 
   private void rankingInputs(

@@ -1,8 +1,10 @@
 package org.grit.daynomy.league.service;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -40,6 +42,28 @@ class LeagueReturnSchedulerTest {
                       new String[0],
                       mock(ConfigurableApplicationContext.class),
                       Duration.ZERO));
+              verifyNoInteractions(service);
+              ArgumentCaptor<Runnable> calculation = ArgumentCaptor.forClass(Runnable.class);
+              verify(taskScheduler).schedule(calculation.capture(), any(Instant.class));
+              calculation.getValue().run();
+              verify(service).recalculate();
+              context.getBean(LeagueReturnScheduler.class).calculateReturns();
+              verify(service).recalculatePending();
+            });
+  }
+
+  @Test
+  void calendarChangeQueuesFullRecalculationWithoutBlockingPublisher() {
+    LeagueReturnService service = mock(LeagueReturnService.class);
+    TaskScheduler taskScheduler = mock(TaskScheduler.class);
+    new ApplicationContextRunner()
+        .withUserConfiguration(LeagueReturnScheduler.class)
+        .withBean(LeagueReturnService.class, () -> service)
+        .withBean(TaskScheduler.class, () -> taskScheduler)
+        .withPropertyValues("league.calculation.enabled=true")
+        .run(
+            context -> {
+              context.publishEvent(new MarketCalendarSyncResult(1));
               verifyNoInteractions(service);
               ArgumentCaptor<Runnable> calculation = ArgumentCaptor.forClass(Runnable.class);
               verify(taskScheduler).schedule(calculation.capture(), any(Instant.class));
@@ -106,14 +130,23 @@ class LeagueReturnSchedulerTest {
   @Test
   void failedCalendarRecalculationIsRetriedByScheduledRun() {
     LeagueReturnService service = mock(LeagueReturnService.class);
-    doThrow(new IllegalStateException("calendar failure")).doReturn(1).when(service).recalculate();
-    var scheduler = new LeagueReturnScheduler(service, mock(TaskScheduler.class));
+    doReturn(1)
+        .doThrow(new IllegalStateException("calendar failure"))
+        .doReturn(1)
+        .when(service)
+        .recalculate();
+    TaskScheduler taskScheduler = mock(TaskScheduler.class);
+    var scheduler = new LeagueReturnScheduler(service, taskScheduler);
+    scheduler.calculateReturns();
 
     scheduler.recalculateAfterCalendarSync();
+    ArgumentCaptor<Runnable> calculation = ArgumentCaptor.forClass(Runnable.class);
+    verify(taskScheduler).schedule(calculation.capture(), any(Instant.class));
+    calculation.getValue().run();
     scheduler.calculateReturns();
     scheduler.calculateReturns();
 
-    verify(service, times(2)).recalculate();
+    verify(service, times(3)).recalculate();
     verify(service).recalculatePending();
   }
 
@@ -121,10 +154,11 @@ class LeagueReturnSchedulerTest {
   @ValueSource(booleans = {false, true})
   void committedPricesTriggerAggregationOnlyWhenLeagueCalculationIsEnabled(boolean enabled) {
     LeagueReturnService service = mock(LeagueReturnService.class);
+    TaskScheduler taskScheduler = mock(TaskScheduler.class);
     new ApplicationContextRunner()
         .withUserConfiguration(LeagueReturnScheduler.class)
         .withBean(LeagueReturnService.class, () -> service)
-        .withBean(TaskScheduler.class, () -> mock(TaskScheduler.class))
+        .withBean(TaskScheduler.class, () -> taskScheduler)
         .withPropertyValues("league.calculation.enabled=" + enabled)
         .run(
             context -> {
@@ -132,8 +166,12 @@ class LeagueReturnSchedulerTest {
               context.publishEvent(new MarketCalendarSyncResult(1));
               if (enabled) {
                 verify(service).recalculateFrom(any(LocalDate.class));
+                verify(service, never()).recalculate();
+                ArgumentCaptor<Runnable> calculation = ArgumentCaptor.forClass(Runnable.class);
+                verify(taskScheduler).schedule(calculation.capture(), any(Instant.class));
+                calculation.getValue().run();
                 verify(service).recalculate();
-              } else verifyNoInteractions(service);
+              } else verifyNoInteractions(service, taskScheduler);
             });
   }
 }
