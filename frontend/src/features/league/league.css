@@ -1374,3 +1374,19 @@ body:has(.league-metrics-dialog[open]) {
   font-size: 14px;
   font-weight: 400;
 }
+
+.league-week-navigation {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  max-width: 100%;
+  font-size: 14px;
+}
+.league-week-navigation button {
+  min-width: 44px;
+  min-height: 44px;
+  font-size: 26px;
+}
+.league-week-navigation > span {
+  text-align: center;
+}
