@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../../hooks/useLoginStatus';
 import { trackEvent } from '../../../analytics';
 import { usePortfolioHoldings } from '../../portfolio/hooks/usePortfolioHoldings';
+import type { PortfolioHoldingInput } from '../../portfolio/types';
 import { getStockRelatedContents } from '../../stock-content/api';
 import {
   STOCK_CONTENT_SOURCE_LABELS,
@@ -23,6 +24,8 @@ import {
 import xMark from '../../../assets/platform-x.svg';
 import threadsMark from '../../../assets/platform-threads.svg';
 import './issue.css';
+import './portfolioContentsNext.css';
+import { PortfolioReadingNext } from './PortfolioReadingNext';
 
 const sources = [
   ['ALL', '전체'],
@@ -33,11 +36,76 @@ const sources = [
   ['OTHER', '기타'],
 ] as const;
 
+function CompanySidebar({
+  holdings,
+  selectedAsset,
+  loading,
+  error,
+  onSelect,
+}: {
+  holdings: Pick<PortfolioHoldingInput, 'assetId' | 'name'>[];
+  selectedAsset: string;
+  loading: boolean;
+  error: string;
+  onSelect: (assetId: string) => void;
+}) {
+  const [search, setSearch] = useState('');
+  const matchingHoldings = holdings.filter((holding) =>
+    holding.name.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()),
+  );
+  return (
+    <aside className="portfolio-company-sidebar" aria-label="보유 회사 탐색">
+      <Link className="issue-back" to="/">
+        ← 포트폴리오
+      </Link>
+      <label className="sr-only" htmlFor="portfolio-company-search">
+        보유 종목 검색
+      </label>
+      <div className="portfolio-company-search">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="10.5" cy="10.5" r="6.5" />
+          <path d="m16 16 5 5" />
+        </svg>
+        <input
+          id="portfolio-company-search"
+          type="search"
+          placeholder="종목 검색"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          disabled={loading || !!error}
+        />
+      </div>
+      <nav className="portfolio-content-companies" aria-label="보유 회사 선택">
+        <button aria-pressed={selectedAsset === 'ALL'} onClick={() => onSelect('ALL')}>
+          전체 보유 종목
+        </button>
+        {matchingHoldings.map((holding) => (
+          <button
+            key={holding.assetId}
+            aria-pressed={selectedAsset === String(holding.assetId)}
+            onClick={() => onSelect(String(holding.assetId))}
+          >
+            <span className="portfolio-company-avatar" aria-hidden="true">
+              {holding.name.slice(0, 1)}
+            </span>
+            <span>{holding.name}</span>
+          </button>
+        ))}
+        {!loading && !error && search.trim() && !matchingHoldings.length && (
+          <p className="portfolio-company-empty" role="status">
+            검색한 보유 종목이 없습니다.
+          </p>
+        )}
+      </nav>
+    </aside>
+  );
+}
+
 export function PortfolioContentsPage() {
   const { isLoggedIn, loading } = useAuth();
   if (loading)
     return (
-      <main className="issue-page">
+      <main className="issue-page portfolio-contents-page">
         <p role="status">보유 종목을 불러오는 중입니다.</p>
       </main>
     );
@@ -46,8 +114,23 @@ export function PortfolioContentsPage() {
 
 function PortfolioContents({ isLoggedIn }: { isLoggedIn: boolean }) {
   const portfolio = usePortfolioHoldings(isLoggedIn);
+  return <PortfolioContentsView portfolio={portfolio} />;
+}
+
+function PortfolioContentsView({
+  portfolio,
+}: {
+  portfolio: {
+    holdings: { assetId: number; name: string }[];
+    loading: boolean;
+    error: string;
+    retry: () => void;
+  };
+}) {
   const [params, setParams] = useSearchParams();
   const selectedAsset = params.get('asset') ?? 'ALL';
+  const requestedContent = params.get('open');
+  const revealedContent = useRef<string | null>(null);
   const requestedSource = params.get('source') ?? 'ALL';
   const source = sources.some(([value]) => value === requestedSource) ? requestedSource : 'ALL';
   const page = Math.max(1, Number.parseInt(params.get('page') ?? '1', 10) || 1);
@@ -57,18 +140,21 @@ function PortfolioContents({ isLoggedIn }: { isLoggedIn: boolean }) {
   const [failedIds, setFailedIds] = useState<number[]>([]);
   const [attempt, setAttempt] = useState(0);
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [companySearch, setCompanySearch] = useState('');
   const [popularity, setPopularity] = useState<PopularityScores>(new Map());
   const [popularityLoading, setPopularityLoading] = useState(false);
   const [popularityError, setPopularityError] = useState('');
-  const assetKey = JSON.stringify(
-    [
-      ...new Set(
-        portfolio.holdings
-          .filter((item) => selectedAsset === 'ALL' || String(item.assetId) === selectedAsset)
-          .map((item) => item.assetId),
+  const assetKey = useMemo(
+    () =>
+      JSON.stringify(
+        [
+          ...new Set(
+            portfolio.holdings
+              .filter((item) => selectedAsset === 'ALL' || String(item.assetId) === selectedAsset)
+              .map((item) => item.assetId),
+          ),
+        ].sort((a, b) => a - b),
       ),
-    ].sort((a, b) => a - b),
+    [portfolio.holdings, selectedAsset],
   );
 
   useEffect(() => {
@@ -144,6 +230,7 @@ function PortfolioContents({ isLoggedIn }: { isLoggedIn: boolean }) {
 
   function filter(key: 'asset' | 'source' | 'page' | 'sort', value: string) {
     const next = new URLSearchParams(params);
+    next.delete('open');
     if (key === 'sort' && value === 'latest') next.delete('sort');
     else next.set(key, value);
     if (key !== 'page') next.delete('page');
@@ -156,38 +243,62 @@ function PortfolioContents({ isLoggedIn }: { isLoggedIn: boolean }) {
   );
   const validSelection = selectedAsset === 'ALL' || !!selectedHolding;
   const loading = portfolio.loading || (!portfolio.error && loadedKey !== assetKey);
-  const unique = new Map<string, StockRelatedContent & { companies: string[] }>();
-  if (!loading && !portfolio.error) {
-    for (const response of responses) {
-      if (selectedAsset !== 'ALL' && String(response.assetId) !== selectedAsset) continue;
-      for (const item of response.contents) {
-        if (source !== 'ALL' && item.sourceType !== source) continue;
-        const existing = unique.get(item.url);
-        if (existing) {
-          if (
-            (Date.parse(item.publishedDate ?? '') || 0) >
-            (Date.parse(existing.publishedDate ?? '') || 0)
-          )
-            existing.publishedDate = item.publishedDate;
-          if ((Date.parse(item.createdAt ?? '') || 0) > (Date.parse(existing.createdAt ?? '') || 0))
-            existing.createdAt = item.createdAt;
-          if (!existing.companies.includes(response.assetName))
-            existing.companies.push(response.assetName);
-        } else unique.set(item.url, { ...item, companies: [response.assetName] });
+  const latestItems = useMemo(() => {
+    const unique = new Map<string, StockRelatedContent & { companies: string[] }>();
+    if (!loading && !portfolio.error) {
+      for (const response of responses) {
+        if (selectedAsset !== 'ALL' && String(response.assetId) !== selectedAsset) continue;
+        for (const item of response.contents) {
+          if (source !== 'ALL' && item.sourceType !== source) continue;
+          const existing = unique.get(item.url);
+          if (existing) {
+            if (
+              (Date.parse(item.publishedDate ?? '') || 0) >
+              (Date.parse(existing.publishedDate ?? '') || 0)
+            )
+              existing.publishedDate = item.publishedDate;
+            if (
+              (Date.parse(item.createdAt ?? '') || 0) > (Date.parse(existing.createdAt ?? '') || 0)
+            )
+              existing.createdAt = item.createdAt;
+            if (!existing.companies.includes(response.assetName))
+              existing.companies.push(response.assetName);
+          } else unique.set(item.url, { ...item, companies: [response.assetName] });
+        }
       }
     }
-  }
-  const latestItems = [...unique.values()].sort(
-    (a, b) =>
-      (Date.parse(b.publishedDate ?? b.createdAt ?? '') || 0) -
-        (Date.parse(a.publishedDate ?? a.createdAt ?? '') || 0) || b.id - a.id,
+    return [...unique.values()].sort(
+      (a, b) =>
+        (Date.parse(b.publishedDate ?? b.createdAt ?? '') || 0) -
+          (Date.parse(a.publishedDate ?? a.createdAt ?? '') || 0) || b.id - a.id,
+    );
+  }, [loading, portfolio.error, responses, selectedAsset, source]);
+  const items = useMemo(
+    () =>
+      sort === 'popular'
+        ? sortByPopularity(latestItems, stockContentReference, popularity)
+        : latestItems,
+    [latestItems, sort, popularity],
   );
-  const items =
-    sort === 'popular'
-      ? sortByPopularity(latestItems, stockContentReference, popularity)
-      : latestItems;
   const totalPages = Math.max(1, Math.ceil(items.length / 12));
-  const currentPage = Math.min(page, totalPages);
+  const requestedIndex = items.findIndex((item) => String(item.id) === requestedContent);
+  const requestedItem = requestedIndex >= 0 ? items[requestedIndex] : undefined;
+  const requestedKey = requestedItem ? `${requestedItem.assetId}-${requestedItem.id}` : null;
+  const currentPage =
+    requestedIndex >= 0 ? Math.floor(requestedIndex / 12) + 1 : Math.min(page, totalPages);
+  useEffect(() => {
+    if (!requestedContent) revealedContent.current = null;
+    if (!requestedKey || loading || popularityLoading || revealedContent.current === requestedKey)
+      return;
+    revealedContent.current = requestedKey;
+    setExpanded(requestedKey);
+    const frame = requestAnimationFrame(() => {
+      const trigger = document.getElementById(`portfolio-trigger-${requestedKey}`);
+      trigger?.scrollIntoView?.({ block: 'start' });
+      trigger?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [requestedKey, requestedContent, loading, popularityLoading]);
   const selectionFailed =
     selectedAsset === 'ALL'
       ? failedIds.length > 0
@@ -219,60 +330,16 @@ function PortfolioContents({ isLoggedIn }: { isLoggedIn: boolean }) {
         : 'no_linked_content',
   });
 
-  const matchingHoldings = portfolio.holdings.filter((holding) =>
-    holding.name.toLocaleLowerCase().includes(companySearch.trim().toLocaleLowerCase()),
-  );
-
   return (
     <main className="issue-page portfolio-contents-page">
       <div className="portfolio-contents-layout">
-        <aside className="portfolio-company-sidebar" aria-label="보유 회사 탐색">
-          <Link className="issue-back" to="/">
-            ← 포트폴리오
-          </Link>
-          <label className="sr-only" htmlFor="portfolio-company-search">
-            보유 종목 검색
-          </label>
-          <div className="portfolio-company-search">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <circle cx="10.5" cy="10.5" r="6.5" />
-              <path d="m16 16 5 5" />
-            </svg>
-            <input
-              id="portfolio-company-search"
-              type="search"
-              placeholder="종목 검색"
-              value={companySearch}
-              onChange={(event) => setCompanySearch(event.target.value)}
-              disabled={portfolio.loading || !!portfolio.error}
-            />
-          </div>
-          <nav className="portfolio-content-companies" aria-label="보유 회사 선택">
-            <button aria-pressed={selectedAsset === 'ALL'} onClick={() => filter('asset', 'ALL')}>
-              전체 보유 종목
-            </button>
-            {matchingHoldings.map((holding) => (
-              <button
-                key={holding.assetId}
-                aria-pressed={selectedAsset === String(holding.assetId)}
-                onClick={() => filter('asset', String(holding.assetId))}
-              >
-                <span className="portfolio-company-avatar" aria-hidden="true">
-                  {holding.name.slice(0, 1)}
-                </span>
-                <span>{holding.name}</span>
-              </button>
-            ))}
-            {!portfolio.loading &&
-              !portfolio.error &&
-              companySearch.trim() &&
-              !matchingHoldings.length && (
-                <p className="portfolio-company-empty" role="status">
-                  검색한 보유 종목이 없습니다.
-                </p>
-              )}
-          </nav>
-        </aside>
+        <CompanySidebar
+          holdings={portfolio.holdings}
+          selectedAsset={selectedAsset}
+          loading={portfolio.loading}
+          error={portfolio.error}
+          onSelect={(assetId) => filter('asset', assetId)}
+        />
         <section className="portfolio-company-content" aria-labelledby="portfolio-content-title">
           <header className="portfolio-content-heading">
             <div>
@@ -294,56 +361,57 @@ function PortfolioContents({ isLoggedIn }: { isLoggedIn: boolean }) {
               </svg>
             </Link>
           </header>
-          {!portfolio.loading &&
-            !portfolio.error &&
-            portfolio.holdings.length > 0 &&
-            validSelection && (
-              <div className="portfolio-content-toolbar">
-                <div className="issue-source-filters" role="group" aria-label="콘텐츠 출처">
-                  {sources.map(([value, label]) => (
-                    <button
-                      key={value}
-                      type="button"
-                      aria-pressed={source === value}
-                      onClick={() => {
-                        if (value === source) return;
-                        trackEvent('filter_content_source', {
-                          surface: 'portfolio_contents',
-                          previous_source: sourceType,
-                          source_type: value === 'INTERNAL_NEWS' ? 'DAYNOMY' : value,
-                          result_count: new Set(
-                            responses.flatMap((response) =>
-                              response.contents
-                                .filter((item) => value === 'ALL' || item.sourceType === value)
-                                .map((item) => item.url),
-                            ),
-                          ).size,
-                        });
-                        filter('source', value);
-                      }}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-                <div className="issue-sort-options" role="group" aria-label="콘텐츠 정렬">
+          {(portfolio.loading ||
+            (!portfolio.error && portfolio.holdings.length > 0 && validSelection)) && (
+            <div className="portfolio-content-toolbar">
+              <div className="issue-source-filters" role="group" aria-label="콘텐츠 출처">
+                {sources.map(([value, label]) => (
                   <button
+                    key={value}
                     type="button"
-                    aria-pressed={sort === 'latest'}
-                    onClick={() => filter('sort', 'latest')}
+                    disabled={portfolio.loading}
+                    aria-pressed={source === value}
+                    onClick={() => {
+                      if (value === source) return;
+                      trackEvent('filter_content_source', {
+                        surface: 'portfolio_contents',
+                        previous_source: sourceType,
+                        source_type: value === 'INTERNAL_NEWS' ? 'DAYNOMY' : value,
+                        result_count: new Set(
+                          responses.flatMap((response) =>
+                            response.contents
+                              .filter((item) => value === 'ALL' || item.sourceType === value)
+                              .map((item) => item.url),
+                          ),
+                        ).size,
+                      });
+                      filter('source', value);
+                    }}
                   >
-                    최신순
+                    {label}
                   </button>
-                  <button
-                    type="button"
-                    aria-pressed={sort === 'popular'}
-                    onClick={() => filter('sort', 'popular')}
-                  >
-                    인기순
-                  </button>
-                </div>
+                ))}
               </div>
-            )}
+              <div className="issue-sort-options" role="group" aria-label="콘텐츠 정렬">
+                <button
+                  type="button"
+                  disabled={portfolio.loading}
+                  aria-pressed={sort === 'latest'}
+                  onClick={() => filter('sort', 'latest')}
+                >
+                  최신순
+                </button>
+                <button
+                  type="button"
+                  disabled={portfolio.loading}
+                  aria-pressed={sort === 'popular'}
+                  onClick={() => filter('sort', 'popular')}
+                >
+                  인기순
+                </button>
+              </div>
+            </div>
+          )}
           {loading || popularityLoading ? (
             <p className="issue-state" role="status">
               보유 종목 소식을 불러오는 중입니다.
@@ -394,10 +462,7 @@ function PortfolioContents({ isLoggedIn }: { isLoggedIn: boolean }) {
                 </p>
               )}
               {!portfolio.holdings.length ? (
-                <p className="issue-state">
-                  보유 종목을 등록하면 관련 소식을 볼 수 있습니다.{' '}
-                  <Link to="/">포트폴리오로 이동</Link>
-                </p>
+                <p className="issue-state">보유 종목을 등록하면 관련 소식을 볼 수 있습니다. </p>
               ) : !items.length && !selectionFailed ? (
                 <p className="issue-state">선택한 조건에 연결된 소식이 없습니다.</p>
               ) : null}
@@ -500,7 +565,11 @@ function PortfolioContents({ isLoggedIn }: { isLoggedIn: boolean }) {
                               );
                             }}
                             className="issue-row-title"
-                            href={item.url}
+                            href={
+                              item.sourceType === 'INTERNAL_NEWS'
+                                ? portfolioNewsUrl(item.url)
+                                : item.url
+                            }
                             target={item.sourceType === 'INTERNAL_NEWS' ? undefined : '_blank'}
                             rel="noreferrer"
                           >
@@ -567,6 +636,7 @@ function PortfolioContents({ isLoggedIn }: { isLoggedIn: boolean }) {
                                     )
                                   )}
                                 </div>
+                                <PortfolioReadingNext />
                                 <button
                                   className="issue-inline-close"
                                   onClick={() => {
@@ -585,7 +655,7 @@ function PortfolioContents({ isLoggedIn }: { isLoggedIn: boolean }) {
                   );
                 })}
               </ul>
-              {items.length > 0 && (
+              {totalPages > 1 && (
                 <IssuePagination
                   page={currentPage}
                   totalPages={totalPages}
@@ -596,10 +666,25 @@ function PortfolioContents({ isLoggedIn }: { isLoggedIn: boolean }) {
                   }}
                 />
               )}
+              {!portfolio.holdings.length && (
+                <section className="portfolio-contents-next" aria-labelledby="portfolio-next-title">
+                  <div>
+                    <h2 id="portfolio-next-title">내 포트폴리오부터 시작해 보세요</h2>
+                    <p>보유 종목을 등록하면 관련 소식과 포트폴리오 분석을 이용할 수 있어요.</p>
+                  </div>
+                  <Link to="/">포트폴리오로 이동</Link>
+                </section>
+              )}
             </>
           )}
         </section>
       </div>
     </main>
   );
+}
+
+function portfolioNewsUrl(url: string) {
+  const target = new URL(url, window.location.origin);
+  target.searchParams.set('from', 'portfolio');
+  return target.href;
 }

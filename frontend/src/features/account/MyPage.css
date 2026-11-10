@@ -200,6 +200,32 @@
   flex-wrap: wrap;
   gap: 16px;
 }
+.mypage-email {
+  padding-bottom: 32px;
+}
+.mypage-email-information {
+  min-width: 0;
+}
+.mypage-email-information dl {
+  margin: 12px 0 0;
+}
+.mypage-email-information dt {
+  color: var(--mypage-muted);
+  font-size: 13px;
+  font-weight: 400;
+}
+.mypage-email-information dd {
+  margin-top: 4px;
+}
+.mypage .mypage-email-subscribe {
+  border-color: var(--button-action);
+  color: #fff;
+  background: var(--button-action);
+}
+.mypage .mypage-email-subscribe:hover:not(:disabled) {
+  border-color: var(--button-action-hover);
+  background: var(--button-action-hover);
+}
 .mypage-session-row {
   padding-bottom: 24px;
 }

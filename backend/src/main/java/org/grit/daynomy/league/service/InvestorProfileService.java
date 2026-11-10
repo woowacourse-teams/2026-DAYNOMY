@@ -35,6 +35,10 @@ public class InvestorProfileService {
   private final SharedPortfolioRepository portfolioRepository;
   private final SharedHoldingRepository holdingRepository;
   private final InvestmentDecisionRepository decisionRepository;
+  private final LeagueEnrollmentService enrollmentService;
+  private final LeagueReturnService returnService;
+  private final LeagueRankingCache rankingCache;
+  private final LeagueAutoSyncService autoSyncService;
 
   @Transactional(readOnly = true)
   public ProfileResponse getMine(Long memberId) {
@@ -60,6 +64,7 @@ public class InvestorProfileService {
         displayName, request.bio(), request.experienceLevel(), request.riskProfile());
     boolean created = profile.getId() == null;
     InvestorProfile saved = profileRepository.save(profile);
+    rankingCache.invalidateAfterCommit();
     TransactionLog.afterCommit(
         LogEvent.LEAGUE_PROFILE_SAVED,
         log.atInfo()
@@ -82,6 +87,7 @@ public class InvestorProfileService {
             .findByMemberIdForUpdate(memberId)
             .orElseThrow(() -> new BusinessException(LeagueErrorCode.PROFILE_REQUIRED));
     if (request.leagueEnabled()) {
+      autoSyncService.reconcile(memberId);
       var portfolio =
           portfolioRepository
               .findByMemberId(memberId)
@@ -91,7 +97,8 @@ public class InvestorProfileService {
       Map<Long, String> reasons =
           InvestmentDecision.latestReasons(
               decisionRepository.findAllByPortfolioMemberIdOrderByTradedOnDescIdDesc(memberId));
-      if (holdings.stream().anyMatch(holding -> holding.reasonFrom(reasons).isBlank())) {
+      if (holdings.stream()
+          .anyMatch(holding -> !holding.isHidden() && holding.reasonFrom(reasons).isBlank())) {
         throw new BusinessException(LeagueErrorCode.HOLDING_REASON_REQUIRED);
       }
     }
@@ -105,11 +112,16 @@ public class InvestorProfileService {
         request.allocationPublic(),
         request.detailPublic(),
         Instant.now());
+    if (!previousLeagueEnabled && profile.isLeagueEnabled()) {
+      enrollmentService.includeCurrentWeek(profile);
+      returnService.calculateCurrentWeek(profile);
+    }
     boolean changed =
         previousProfilePublic != profile.isProfilePublic()
             || previousLeagueEnabled != profile.isLeagueEnabled()
             || previousAllocationPublic != profile.isAllocationPublic()
             || previousDetailPublic != profile.isDetailPublic();
+    if (changed) rankingCache.invalidateAfterCommit();
     TransactionLog.afterCommit(
         LogEvent.LEAGUE_PUBLICATION_CHANGED,
         (changed ? log.atInfo() : log.atDebug())

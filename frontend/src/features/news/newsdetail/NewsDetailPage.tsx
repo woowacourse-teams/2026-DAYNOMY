@@ -1,6 +1,7 @@
+import { PortfolioReadingNext } from '../issue/PortfolioReadingNext';
 import { trackLoadResult, useContentImpression } from '../issue/analytics';
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import defaultNewsImage from '../../../assets/default-news-real-estate.webp';
 import { getCategoryLabel } from '../newslist/types.ts';
 import { getNewsDetail } from './api.ts';
@@ -134,14 +135,13 @@ function DetailAnalysisSections({
 }
 
 export function NewsDetailPage() {
+  const [params] = useSearchParams();
   const newsId = getNewsIdFromUrl();
   const navigate = useNavigate();
   const [payload, setPayload] = useState<NewsDetailPayload>();
   const [error, setError] = useState('');
   const headingRef = useRef<HTMLHeadingElement>(null);
-  const goBack = () => {
-    navigate('/news');
-  };
+  const goBack = () => navigate('/news');
 
   useEffect(() => {
     let ignore = false;
@@ -261,6 +261,7 @@ export function NewsDetailPage() {
           </div>
         </section>
 
+        {params.get('from') === 'portfolio' && <PortfolioReadingNext />}
         <div className="analysis-area">
           <div className="analysis-content">
             <DetailAnalysisSections key={newsId} newsId={newsId} marketAnalysis={marketAnalysis} />

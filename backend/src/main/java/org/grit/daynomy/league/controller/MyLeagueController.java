@@ -2,6 +2,8 @@ package org.grit.daynomy.league.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -14,10 +16,16 @@ import org.grit.daynomy.league.dto.LeagueDto.FollowSummaryListResponse;
 import org.grit.daynomy.league.dto.LeagueDto.ProfileRequest;
 import org.grit.daynomy.league.dto.LeagueDto.ProfileResponse;
 import org.grit.daynomy.league.dto.LeagueDto.PublicationRequest;
+import org.grit.daynomy.league.dto.LeagueDto.ReviewGuideResponse;
+import org.grit.daynomy.league.dto.LeagueDto.ReviewReminderRequest;
+import org.grit.daynomy.league.dto.LeagueDto.ReviewReminderResponse;
+import org.grit.daynomy.league.dto.LeagueDto.ReviewReminderSnoozeResponse;
 import org.grit.daynomy.league.dto.LeagueDto.ReviewRequest;
 import org.grit.daynomy.league.dto.LeagueDto.ReviewResponse;
 import org.grit.daynomy.league.service.InvestmentDecisionService;
 import org.grit.daynomy.league.service.InvestorProfileService;
+import org.grit.daynomy.league.service.LeagueReviewGuideService;
+import org.grit.daynomy.league.service.LeagueReviewReminderService;
 import org.grit.daynomy.league.service.LeagueService;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
@@ -41,8 +49,12 @@ public class MyLeagueController {
   private final InvestorProfileService profileService;
   private final InvestmentDecisionService decisionService;
   private final LeagueService leagueService;
+  private final LeagueReviewGuideService reviewGuideService;
+  private final LeagueReviewReminderService reminderService;
 
   @Operation(summary = "내 공개 투자자 프로필 조회")
+  @ApiResponse(responseCode = "200", description = "내 공개 투자자 프로필 조회 성공")
+  @ApiResponse(responseCode = "204", description = "아직 생성한 프로필 없음", content = @Content)
   @GetMapping("/investor-profile")
   public ResponseEntity<ProfileResponse> profile(
       @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember member) {
@@ -77,7 +89,38 @@ public class MyLeagueController {
         .body(decisionService.getMine(member.memberId()));
   }
 
+  @Operation(summary = "7일 간격 복기 알림 수신 (계정 단위 중복 방지)")
+  @PostMapping("/league/review-reminder/claim")
+  public ResponseEntity<ReviewReminderResponse> claimReminder(
+      @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember member,
+      @Valid @RequestBody ReviewReminderRequest request) {
+    return ResponseEntity.ok()
+        .cacheControl(CacheControl.noStore())
+        .body(reminderService.claim(member.memberId(), request.requestKey()));
+  }
+
+  @Operation(summary = "복기 알림을 7일 뒤로 미루기")
+  @PostMapping("/league/review-reminder/snooze")
+  public ResponseEntity<ReviewReminderSnoozeResponse> snoozeReminder(
+      @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember member,
+      @Valid @RequestBody ReviewReminderRequest request) {
+    return ResponseEntity.ok()
+        .cacheControl(CacheControl.noStore())
+        .body(reminderService.snooze(member.memberId(), request.requestKey()));
+  }
+
+  @Operation(summary = "내 투자 판단의 AI 복기 질문 생성")
+  @PostMapping("/portfolio/decisions/{transactionId}/review-guide")
+  public ResponseEntity<ReviewGuideResponse> reviewGuide(
+      @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember member,
+      @PathVariable Long transactionId) {
+    return ResponseEntity.ok()
+        .cacheControl(CacheControl.noStore())
+        .body(reviewGuideService.generate(member.memberId(), transactionId));
+  }
+
   @Operation(summary = "투자 판단 복기 추가")
+  @ApiResponse(responseCode = "201", description = "복기 생성 성공")
   @PostMapping("/portfolio/decisions/{transactionId}/reviews")
   public ResponseEntity<ReviewResponse> addReview(
       @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember member,
@@ -101,6 +144,7 @@ public class MyLeagueController {
   }
 
   @Operation(summary = "보유 자산의 판단 기록 (수량 변경 없음)")
+  @ApiResponse(responseCode = "201", description = "판단 기록 생성 또는 동일 요청 키의 기존 기록 반환")
   @PostMapping("/portfolio/decisions")
   public ResponseEntity<DecisionResponse> recordDecision(
       @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember member,
@@ -122,6 +166,7 @@ public class MyLeagueController {
   }
 
   @Operation(summary = "공개 투자자 팔로우")
+  @ApiResponse(responseCode = "204", description = "팔로우 완료", content = @Content)
   @PostMapping("/league/follows/{publicId}")
   public ResponseEntity<Void> follow(
       @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember member,
@@ -131,6 +176,7 @@ public class MyLeagueController {
   }
 
   @Operation(summary = "공개 투자자 팔로우 해제")
+  @ApiResponse(responseCode = "204", description = "팔로우 해제 완료", content = @Content)
   @DeleteMapping("/league/follows/{publicId}")
   public ResponseEntity<Void> unfollow(
       @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember member,

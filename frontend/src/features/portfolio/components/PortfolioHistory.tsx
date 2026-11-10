@@ -225,7 +225,6 @@ export function PortfolioHistory({
                   <span className="portfolio-history-amount-heading">
                     <strong>{native(gross)}</strong>
                     <span className="portfolio-history-edit-hint">
-                      수정
                       <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
                         <path d="m6 4 4 4-4 4" />
                       </svg>
@@ -251,6 +250,8 @@ export function PortfolioHistory({
                 className="portfolio-history-row portfolio-history-edit"
                 key={item.historyId}
                 aria-haspopup="dialog"
+                aria-label={`${item.effectiveDate.replaceAll('-', '.')} ${item.changeType === 'BUY' ? '매수' : '매도'} ${item.name} 거래 수정`}
+                title="거래 수정"
                 onClick={() => onEdit(item)}
               >
                 {content}

@@ -1,44 +1,75 @@
 import { Link } from 'react-router-dom';
 import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import { LandingIcon } from './LandingIcon';
+import { GuideMockup } from './GuideMockup';
+import { BrowserMockup } from './BrowserMockup';
+import { WelcomeGuide } from './WelcomeGuide';
+import { WelcomeDetails } from './WelcomeDetails';
 import './landing.css';
-import { ProductMockup } from './ProductMockup';
+import './ProductMockup.css';
+import './welcomeShowcase.css';
 
-const topics = ['금리', '환율', '산업 동향', '기업 실적', '경제 정책'];
-const assets = [
-  '포트폴리오',
-  '보유 종목',
-  '거래 기록',
-  '오늘의 소식',
-  '통합 검색',
-  '리그 준비 중',
-  '투자 기록',
-  '시장 분석',
-];
-const menuItems = [
-  { label: '내 포트폴리오', href: '#portfolio' },
-  { label: '소식', href: '#news' },
-  { label: '리그', href: '#league' },
-  { label: '이용 안내', href: '#guide' },
-  { label: 'DAYNOMY 시작하기', href: '/' },
-];
+const steps = [
+  { id: 'portfolio', label: '내 포트폴리오', screen: 'overview', title: '내 자산에서 시작해요.' },
+  { id: 'news', label: '관련 소식', screen: 'news', title: '내가 보유한 종목의 뉴스만 모아봐요.' },
+  {
+    id: 'analysis',
+    label: 'AI 분석 · 근거',
+    screen: 'analysis',
+    title: 'AI 분석과 판단의 근거를 함께 확인해요.',
+  },
+  { id: 'league', label: '투자 리그', screen: 'league', title: '다른 투자자의 기록도 살펴봐요.' },
+] as const;
+const scrollStep = 180;
+
 export default function LandingPage({ onStart }: { onStart: () => void }) {
+  const stageRef = useRef<HTMLDivElement>(null);
+  const progressRef = useRef<HTMLSpanElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [reducedMotion, setReducedMotion] = useState(
+    () => window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+  );
+  const [introPhase, setIntroPhase] = useState<
+    'hidden' | 'reveal' | 'economy' | 'combine' | 'seam' | 'open' | 'done' | 'skipped'
+  >(reducedMotion ? 'skipped' : 'hidden');
+  const introDone = introPhase === 'done' || introPhase === 'skipped';
+  const [step, setStep] = useState(0);
+  const stepRef = useRef(0);
+  const previousStep = useRef(0);
+
+  function chooseStep(index: number) {
+    const root = rootRef.current;
+    root?.scrollTo({
+      top: index * scrollStep,
+      behavior: reducedMotion ? 'instant' : 'smooth',
+    });
+  }
+  function handleScroll() {
+    const root = rootRef.current;
+    if (!root) return;
+    root.style.scrollSnapType =
+      root.scrollTop >= (steps.length - 1) * scrollStep ? 'none' : 'y mandatory';
+    const position = Math.max(0, Math.min(steps.length - 1, root.scrollTop / scrollStep));
+    if (progressRef.current)
+      progressRef.current.style.transform = `scaleX(${position / (steps.length - 1)})`;
+    const next = Math.round(position);
+    if (next !== stepRef.current) {
+      stepRef.current = next;
+      setStep(next);
+    }
+  }
+  function showGuide() {
+    if (rootRef.current) rootRef.current.style.scrollSnapType = 'none';
+    const heading = document.getElementById('guide-title');
+    document.getElementById('guide')?.scrollIntoView({ behavior: 'instant', block: 'start' });
+    heading?.focus({ preventScroll: true });
+  }
   function handleStart(event: MouseEvent<HTMLAnchorElement>) {
     if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
       return;
     event.preventDefault();
     onStart();
   }
-  const menuRef = useRef<HTMLDialogElement>(null);
-  const [reducedMotion, setReducedMotion] = useState(
-    () => window.matchMedia('(prefers-reduced-motion: reduce)').matches,
-  );
-  const [motionPaused, setMotionPaused] = useState(false);
-  const [introPhase, setIntroPhase] = useState<
-    'hidden' | 'reveal' | 'economy' | 'combine' | 'seam' | 'open' | 'done' | 'skipped'
-  >(reducedMotion ? 'skipped' : 'hidden');
-  const introDone = introPhase === 'done' || introPhase === 'skipped';
-  const paused = reducedMotion || motionPaused;
 
   useEffect(() => {
     const previousTitle = document.title;
@@ -56,9 +87,10 @@ export default function LandingPage({ onStart }: { onStart: () => void }) {
   }, []);
 
   useEffect(() => {
-    if (introDone) return;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+    const root = rootRef.current;
+    if (introDone || !root) return;
+    const previousOverflow = root.style.overflow;
+    root.style.overflow = 'hidden';
     const timers = [
       window.setTimeout(() => setIntroPhase('reveal'), 250),
       window.setTimeout(() => setIntroPhase('economy'), 1050),
@@ -69,18 +101,103 @@ export default function LandingPage({ onStart }: { onStart: () => void }) {
     ];
     return () => {
       timers.forEach(window.clearTimeout);
-      document.body.style.overflow = previousOverflow;
+      root.style.overflow = previousOverflow;
     };
   }, [introDone]);
 
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root || !introDone) return;
+    let lastWheelAt = -Infinity;
+    let lastDirection = 0;
+    let capturedGesture = false;
+    const handleWheel = (event: WheelEvent) => {
+      if (event.ctrlKey || !event.deltaY || Math.abs(event.deltaX) > Math.abs(event.deltaY)) return;
+      const now = performance.now();
+      const direction = Math.sign(event.deltaY);
+      const continuingGesture = now - lastWheelAt < 220 && direction === lastDirection;
+      lastWheelAt = now;
+      lastDirection = direction;
+      // Trackpad momentum belongs to the same step, including when it reaches the last scene.
+      if (continuingGesture && capturedGesture) {
+        event.preventDefault();
+        return;
+      }
+      const end = (steps.length - 1) * scrollStep;
+      capturedGesture =
+        root.scrollTop <= end + 1 &&
+        !(root.scrollTop >= end - 1 && direction > 0) &&
+        !(root.scrollTop <= 0 && direction < 0);
+      if (!capturedGesture) return;
+      event.preventDefault();
+      const next = Math.max(0, Math.min(steps.length - 1, stepRef.current + direction));
+      root.scrollTo({ top: next * scrollStep, behavior: reducedMotion ? 'instant' : 'smooth' });
+    };
+    root.addEventListener('wheel', handleWheel, { passive: false });
+    return () => root.removeEventListener('wheel', handleWheel);
+  }, [introDone, reducedMotion]);
+
+  useEffect(() => {
+    const root = rootRef.current;
+    const stage = stageRef.current;
+    if (!root || !stage) return;
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.target === root) {
+          if (root.scrollTop <= (steps.length - 1) * scrollStep)
+            root.scrollTo({ top: stepRef.current * scrollStep, behavior: 'instant' });
+        } else {
+          const { width, height } = entry.contentRect;
+          const deviceWidth = Math.max(0, Math.min(330, width - 32, ((height - 34) * 390) / 844));
+          stage.style.setProperty('--film-device-width', `${deviceWidth}px`);
+        }
+      }
+    });
+    observer.observe(root);
+    observer.observe(stage);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const direction = step >= previousStep.current ? 1 : -1;
+    previousStep.current = step;
+    if (reducedMotion || !introDone) return;
+    const sceneAnimations = Array.from(
+      rootRef.current?.querySelectorAll('.film-browser-screen, .film-step-copy') ?? [],
+    ).map((element) =>
+      element.animate(
+        [
+          { opacity: 0, transform: `translateY(${direction * 24}px)` },
+          { opacity: 1, transform: 'translateY(0)' },
+        ],
+        { duration: 650, easing: 'cubic-bezier(.2,.7,.2,1)' },
+      ),
+    );
+    const mobile = stageRef.current?.querySelector('.film-mobile-preview');
+    const mobileAnimation = mobile?.animate(
+      [
+        { transform: 'translateY(14px)', opacity: 0.6 },
+        { transform: 'translateY(0)', opacity: 1 },
+      ],
+      { duration: 700, easing: 'cubic-bezier(.2,.7,.2,1)' },
+    );
+    return () => {
+      mobileAnimation?.cancel();
+      sceneAnimations.forEach((item) => item.cancel());
+    };
+  }, [step, reducedMotion, introDone]);
+
+  const current = steps[step];
   return (
     <div
-      className="landing-page page-shell"
-      data-motion-paused={paused}
+      ref={rootRef}
+      className="landing-page page-shell welcome-film"
+      data-scene={current.id}
+      data-motion-paused={introDone}
       data-intro-skipped={introPhase === 'skipped'}
+      onScroll={handleScroll}
       onFocusCapture={(event) => {
-        if (!introDone && !(event.target instanceof Element && event.target.closest('.intro-skip')))
-          setIntroPhase('skipped');
+        if (!introDone && !event.target.closest('.intro-skip')) setIntroPhase('skipped');
       }}
     >
       <a
@@ -88,7 +205,7 @@ export default function LandingPage({ onStart }: { onStart: () => void }) {
         href="#landing-main"
         onClick={(event) => {
           event.preventDefault();
-          document.getElementById('landing-main')?.focus();
+          document.getElementById('landing-main')?.focus({ preventScroll: true });
         }}
       >
         본문 바로가기
@@ -98,395 +215,201 @@ export default function LandingPage({ onStart }: { onStart: () => void }) {
           className="intro-skip"
           onClick={() => {
             setIntroPhase('skipped');
-            document.getElementById('landing-main')?.focus();
+            document.getElementById('landing-main')?.focus({ preventScroll: true });
           }}
         >
           인트로 건너뛰기
         </button>
       )}
+      {!introDone && (
+        <div className={`brand-intro phase-${introPhase}`} aria-hidden="true">
+          <div className="floating-copy float-one">
+            <span>DAILY INSIGHT</span>
+          </div>
+          <div className="floating-copy float-two">
+            <span>MARKET CONTEXT</span>
+          </div>
+          <div className="floating-copy float-three">
+            <span>PERSONAL IMPACT</span>
+          </div>
+          <div
+            className="combine-stage"
+            aria-label="DAY ECONOMY에서 ECO가 사라지며 DAYNOMY로 결합됩니다"
+          >
+            <div className="day-word">
+              {'DAY'.split('').map((l, i) => (
+                <span className="intro-letter-mask" key={i}>
+                  <i style={{ transitionDelay: `${i * 70}ms` }}>{l}</i>
+                </span>
+              ))}
+            </div>
+            <div className="economy-word">
+              <div className="eco-part">
+                {'ECO'.split('').map((l, i) => (
+                  <span className="intro-letter-mask" key={i}>
+                    <i style={{ transitionDelay: `${i * 70}ms` }}>{l}</i>
+                  </span>
+                ))}
+              </div>
+              <div className="nomy-part">
+                {'NOMY'.split('').map((l, i) => (
+                  <span className="intro-letter-mask" key={i}>
+                    <i style={{ transitionDelay: `${210 + i * 70}ms` }}>{l}</i>
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div className="seam" />
+          <div className="curtain curtain-top">
+            <span className="curtain-word">
+              {'DAYNOMY'.split('').map((letter, index) => (
+                <i key={index}>{letter}</i>
+              ))}
+            </span>
+          </div>
+          <div className="curtain curtain-bottom">
+            <span className="curtain-word">
+              {'DAYNOMY'.split('').map((letter, index) => (
+                <i key={index}>{letter}</i>
+              ))}
+            </span>
+          </div>
+        </div>
+      )}
       <header className="navbar">
         <div className="nav-inner">
-          <a className="wordmark" href="#home" aria-label="DAYNOMY 홈">
+          <a
+            className="wordmark"
+            href="#home"
+            aria-label="DAYNOMY 홈"
+            onClick={(event) => {
+              event.preventDefault();
+              chooseStep(0);
+            }}
+          >
             DAYNOMY
           </a>
-          <div className="landing-nav-actions">
-            <button
-              className="motion-toggle"
-              aria-pressed={paused}
-              aria-describedby="motion-help"
-              disabled={reducedMotion}
-              onClick={() => {
-                setMotionPaused((value) => !value);
-                setIntroPhase('skipped');
-              }}
-            >
-              모션 정지
-            </button>
-            <span id="motion-help" className="landing-sr-only">
-              {reducedMotion
-                ? '기기의 동작 줄이기 설정에 따라 애니메이션이 정지되어 있습니다.'
-                : '자동으로 움직이는 화면을 정지하거나 다시 재생합니다.'}
-            </span>
-            <button
-              className="menu-pill"
-              onClick={() => menuRef.current?.showModal()}
-              aria-label="메뉴 열기"
-              aria-haspopup="dialog"
-            >
-              메뉴 <LandingIcon name="ChevronUp" size={16} />
-            </button>
-          </div>
         </div>
       </header>
-
-      <dialog className="drawer" ref={menuRef} aria-label="전체 메뉴">
-        <div className="drawer-top">
-          <span className="wordmark">DAYNOMY</span>
-          <button
-            className="close-pill"
-            onClick={() => menuRef.current?.close()}
-            aria-label="메뉴 닫기"
+      <main
+        id="landing-main"
+        tabIndex={-1}
+        onKeyDown={(event) => {
+          if (
+            event.target !== event.currentTarget ||
+            (rootRef.current?.scrollTop ?? 0) > (steps.length - 1) * scrollStep
+          )
+            return;
+          const direction =
+            event.key === 'PageDown' || event.key === 'ArrowDown'
+              ? 1
+              : event.key === 'PageUp' || event.key === 'ArrowUp'
+                ? -1
+                : 0;
+          if (!direction) return;
+          event.preventDefault();
+          if (step === steps.length - 1 && direction > 0) showGuide();
+          else chooseStep(Math.max(0, Math.min(steps.length - 1, step + direction)));
+        }}
+      >
+        <div
+          className="film-scroll-track"
+          style={{
+            height: `calc(var(--welcome-height) - var(--welcome-nav-height) + ${(steps.length - 1) * scrollStep}px)`,
+          }}
+        >
+          <div
+            className="film-scroll-stops"
+            aria-hidden="true"
+            style={{ gridTemplateRows: `repeat(${steps.length - 1}, ${scrollStep}px) 1fr` }}
           >
-            닫기 <LandingIcon name="X" size={16} />
-          </button>
-        </div>
-        <nav className="drawer-links" aria-label="전체 메뉴">
-          {menuItems.map((item, index) => (
-            <a
-              key={item.label}
-              href={item.href}
-              onClick={(event) => {
-                menuRef.current?.close();
-                if (item.href === '/') handleStart(event);
-              }}
-            >
-              <span aria-hidden="true">0{index + 1}</span>
-              {item.label}
-              <LandingIcon name="ArrowUpRight" />
-            </a>
-          ))}
-        </nav>
-        <div className="drawer-footer">
-          <span>매일의 경제를 더 선명하게</span>
-          <span>© 2026 DAYNOMY</span>
-        </div>
-      </dialog>
-
-      <main id="landing-main" tabIndex={-1}>
-        <section
-          className={`hero restored-hero ${introDone ? 'hero-enter' : 'hero-waiting'}`}
-          id="home"
-        >
-          <div className="side-lines side-lines-left" aria-hidden="true">
-            {Array.from({ length: 20 }, (_, i) => (
-              <i key={i} style={{ width: `${60 + i * 10}px`, animationDelay: `${i * 0.25}s` }} />
+            {steps.map((item) => (
+              <div key={item.id} />
             ))}
           </div>
-          <div className="side-lines side-lines-right" aria-hidden="true">
-            {Array.from({ length: 20 }, (_, i) => (
-              <i key={i} style={{ width: `${60 + i * 10}px`, animationDelay: `${i * 0.25}s` }} />
-            ))}
-          </div>
-          <div className="top-lines" aria-hidden="true">
-            {Array.from({ length: 15 }, (_, i) => (
-              <i key={i} style={{ height: `${48 + i * 9}px`, animationDelay: `${i * 0.25}s` }} />
-            ))}
-          </div>
-          <div className="hero-content">
-            <div className="topic-ticker">
-              <ul className="ticker-track" aria-label="분석 대상 경제 이슈" role="list">
-                {[...topics, ...topics, ...topics, ...topics].map((topic, i) => (
-                  <li key={`${topic}-${i}`} aria-hidden={i >= topics.length ? true : undefined}>
-                    {topic}
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <h1>
-              <span className="hero-message">
-                매일의 경제 이슈를,
-                <br />내 포트폴리오와 연결하세요.
-              </span>
-              <span className="hero-brand-mask">
-                <span className="hero-brand">DAYNOMY</span>
-              </span>
-            </h1>
-            <p className="hero-subtitle">
-              내 포트폴리오를 살펴보고, 오늘의 소식을 읽고,
-              <br className="wide-only" /> 앞으로 열릴 투자 리그까지 만나보세요.
-            </p>
-            <div className="cta-row">
-              <a className="primary-cta" href="/" onClick={handleStart}>
-                DAYNOMY 시작하기 <LandingIcon name="ArrowUpRight" size={18} />
-              </a>
-              <a className="secondary-cta" href="#product">
-                서비스 둘러보기 <LandingIcon name="ChevronDown" size={16} />
-              </a>
-            </div>
-          </div>
-          <div className="progressive-blur" />
-
-          {!introDone && (
-            <div className={`brand-intro phase-${introPhase}`} aria-hidden="true">
-              <div className="floating-copy float-one">
-                <span>DAILY INSIGHT</span>
+          <div className="film-shell">
+            <section className="hero restored-hero welcome-hero hero-enter" id="home">
+              <div className="hero-content">
+                <span className="film-kicker">DAYNOMY AI</span>
+                <h1>
+                  <span className="hero-message">
+                    내 투자에 미칠 영향,
+                    <br />
+                    <span className="film-accent">AI로 한눈에.</span>
+                  </span>
+                </h1>
+                <p className="film-platform-copy">
+                  웹에서 넓게 관리하고,
+                  <br />
+                  모바일에서도 간편하게 확인하세요.
+                </p>
+                <p className="film-step-copy" role="status" key={current.id}>
+                  <span>
+                    {String(step + 1).padStart(2, '0')} / {String(steps.length).padStart(2, '0')}
+                  </span>
+                  {current.title}
+                </p>
               </div>
-              <div className="floating-copy float-two">
-                <span>MARKET CONTEXT</span>
-              </div>
-              <div className="floating-copy float-three">
-                <span>PERSONAL IMPACT</span>
-              </div>
-              <div
-                className="combine-stage"
-                aria-label="DAY ECONOMY에서 ECO가 사라지며 DAYNOMY로 결합됩니다"
-              >
-                <div className="day-word">
-                  {'DAY'.split('').map((l, i) => (
-                    <span className="intro-letter-mask" key={i}>
-                      <i style={{ transitionDelay: `${i * 70}ms` }}>{l}</i>
-                    </span>
-                  ))}
-                </div>
-                <div className="economy-word">
-                  <div className="eco-part">
-                    {'ECO'.split('').map((l, i) => (
-                      <span className="intro-letter-mask" key={i}>
-                        <i style={{ transitionDelay: `${i * 70}ms` }}>{l}</i>
-                      </span>
-                    ))}
-                  </div>
-                  <div className="nomy-part">
-                    {'NOMY'.split('').map((l, i) => (
-                      <span className="intro-letter-mask" key={i}>
-                        <i style={{ transitionDelay: `${210 + i * 70}ms` }}>{l}</i>
-                      </span>
-                    ))}
+              <div className="film-stage" ref={stageRef} aria-label="DAYNOMY 서비스 소개">
+                <BrowserMockup screen={current.screen} animate={introDone && !reducedMotion} />
+                <div className="film-device">
+                  <div className="film-mobile-preview">
+                    <p className="film-mobile-label">
+                      모바일에서도
+                      <br />
+                      간편하게 확인해요
+                    </p>
+                    <GuideMockup screen={current.screen} label={`${current.label} 소개용 목업`} />
                   </div>
                 </div>
+                <p className="film-example-note">소개용 예시 · 투자 참고 자료</p>
               </div>
-              <div className="seam" />
-              <div className="curtain curtain-top">
-                <span className="curtain-word">
-                  {'DAYNOMY'.split('').map((letter, index) => (
-                    <i key={index}>{letter}</i>
+              <div className="cta-row film-actions">
+                <a className="primary-cta" href="/" onClick={handleStart}>
+                  웹에서 시작하기 <LandingIcon name="ArrowUpRight" size={18} />
+                </a>
+                <button
+                  className="secondary-cta film-scroll-hint"
+                  type="button"
+                  aria-label={step === steps.length - 1 ? '사용법 살펴보기' : '다음 소개 장면으로'}
+                  onClick={() => (step === steps.length - 1 ? showGuide() : chooseStep(step + 1))}
+                >
+                  {step === steps.length - 1 ? '사용법 살펴보기' : '스크롤해서 살펴보기'}{' '}
+                  <span aria-hidden="true">↓</span>
+                </button>
+              </div>
+              <div className="film-controls">
+                <div className="film-steps" role="group" aria-label="소개 장면 선택">
+                  {steps.map((item, index) => (
+                    <button
+                      type="button"
+                      key={item.id}
+                      aria-current={step === index ? 'step' : undefined}
+                      onClick={() => chooseStep(index)}
+                    >
+                      <span>{String(index + 1).padStart(2, '0')}</span>
+                      {item.label}
+                    </button>
                   ))}
-                </span>
+                </div>
+                <div className="film-progress" aria-hidden="true">
+                  <span ref={progressRef} />
+                </div>
               </div>
-              <div className="curtain curtain-bottom">
-                <span className="curtain-word">
-                  {'DAYNOMY'.split('').map((letter, index) => (
-                    <i key={index}>{letter}</i>
-                  ))}
-                </span>
-              </div>
-            </div>
-          )}
-        </section>
-
-        <section className="asset-strip" aria-label="DAYNOMY 주요 기능">
-          <p>
-            내 자산을 이해하는 데 필요한
-            <br />
-            정보를 한곳에서
-          </p>
-          <div className="asset-marquee">
-            <ul className="asset-track" aria-label="주요 기능 목록" role="list">
-              {[...assets, ...assets, ...assets].map((asset, i) => (
-                <li key={`${asset}-${i}`} aria-hidden={i >= assets.length ? true : undefined}>
-                  {asset}
-                  <i aria-hidden="true" />
-                </li>
-              ))}
-            </ul>
+            </section>
           </div>
-        </section>
-
-        <section className="service-overview" id="product" aria-labelledby="product-title">
-          <span className="story-kicker">하나의 흐름으로 만나는 경제</span>
-          <h2 id="product-title">
-            내 자산에서 시작해,
-            <br />
-            세상의 소식과 사람들의 생각까지.
-          </h2>
-          <p>DAYNOMY에서 매일의 경제를 나에게 가까운 순서로 살펴보세요.</p>
-          <ol className="service-flow" aria-label="서비스 소개 순서" role="list">
-            <li>01 내 포트폴리오</li>
-            <li>02 소식</li>
-            <li>03 리그 준비 중</li>
-          </ol>
-        </section>
-
-        <section
-          className="feature-section portfolio-story"
-          id="portfolio"
-          aria-labelledby="portfolio-title"
-        >
-          <div className="feature-inner">
-            <div className="feature-copy">
-              <span className="feature-number">01 / 내 포트폴리오</span>
-              <h2 id="portfolio-title">
-                흩어진 자산을 모으면,
-                <br />
-                <span>내 투자가 보입니다.</span>
-              </h2>
-              <p>
-                국내 주식과 ETF의 보유·거래 내역을 기록하고, 평가금액과 손익, 자산 비중을 한곳에서
-                확인해요.
-              </p>
-              <p className="feature-detail">보유 종목과 관련된 소식도 함께 살펴볼 수 있어요.</p>
-              <a className="feature-link" href="/" onClick={handleStart}>
-                내 포트폴리오 살펴보기 <LandingIcon name="ArrowUpRight" size={18} />
-              </a>
-            </div>
-            <div className="feature-visual">
-              <ProductMockup device="iphone" screen="portfolio" />
-            </div>
-          </div>
-        </section>
-
-        <section className="news-story" id="news" aria-labelledby="news-title">
-          <div className="news-inner">
-            <div className="feature-copy">
-              <span className="feature-number">02 / 소식</span>
-              <h2 id="news-title">
-                오늘의 소식에서,
-                <br />
-                <span>내가 궁금한 맥락까지.</span>
-              </h2>
-              <p>
-                주요 경제 이슈를 카테고리별로 읽고, 뉴스의 키워드와 시장 분석으로 흐름을 더 깊이
-                살펴보세요.
-              </p>
-              <p className="feature-detail">
-                궁금한 기업이나 주제는 통합 검색으로 찾아볼 수 있어요.
-              </p>
-              <Link className="feature-link" to="/news">
-                소식 살펴보기 <LandingIcon name="ArrowUpRight" size={18} />
-              </Link>
-            </div>
-            <ProductMockup device="macbook" screen="news" />
-          </div>
-        </section>
-
-        <section
-          className="feature-section league-story"
-          id="league"
-          aria-labelledby="league-title"
-        >
-          <div className="feature-inner">
-            <div className="feature-copy">
-              <span className="feature-number">03 / 리그</span>
-              <h2 id="league-title">
-                나의 투자 기록이,
-                <br />
-                <span>다른 생각과 만날 때.</span>
-              </h2>
-              <p>
-                투자자의 성과와 기록을 함께 보며 생각을 나눌 수 있는 리그를 준비하고 있어요. 보유
-                이유와 투자 판단이 쌓이는 공간을 기대해 주세요.
-              </p>
-              <Link className="feature-link" to="/league">
-                리그 준비 화면 보기 <LandingIcon name="ArrowUpRight" size={18} />
-              </Link>
-            </div>
-            <div className="feature-visual">
-              <ProductMockup device="iphone" screen="league" />
-            </div>
-          </div>
-        </section>
-
-        <section className="usage-guide" id="guide" aria-labelledby="guide-title">
-          <div>
-            <span className="story-kicker">시작하기 전에</span>
-            <h2 id="guide-title">
-              궁금한 점을
-              <br />
-              먼저 확인하세요.
-            </h2>
-          </div>
-          <div className="guide-questions">
-            <details>
-              <summary>
-                어떤 자산을 등록할 수 있나요?
-                <LandingIcon name="ChevronDown" size={18} />
-              </summary>
-              <p>
-                국내 상장 주식과 ETF를 검색해 보유 수량과 평균 매입가를 입력할 수 있어요. 평가금액과
-                자산 비중은 서비스가 제공하는 최근 종가를 기준으로 계산합니다.
-              </p>
-            </details>
-            <details>
-              <summary>
-                어떤 경제 이슈를 볼 수 있나요?
-                <LandingIcon name="ChevronDown" size={18} />
-              </summary>
-              <p>
-                주식·부동산·ETF 카테고리의 최신 이슈를 읽을 수 있어요. 뉴스 상세에서 본문과 경제
-                용어, 시장 분석을 함께 확인하고 검색으로 관심 있는 이슈를 찾아보세요.
-              </p>
-            </details>
-            <details>
-              <summary>
-                회원가입 없이 이용할 수 있나요?
-                <LandingIcon name="ChevronDown" size={18} />
-              </summary>
-              <p>
-                로그인 없이 소식과 임시 포트폴리오를 이용할 수 있어요. 비회원의 보유 정보와 거래
-                기록은 현재 브라우저 탭에 임시 보관됩니다. 기록을 계정에 저장하려면 로그인이
-                필요해요. 리그는 현재 준비 중입니다.
-              </p>
-            </details>
-            <details>
-              <summary>
-                리그는 언제 이용할 수 있나요?
-                <LandingIcon name="ChevronDown" size={18} />
-              </summary>
-              <p>
-                현재 운영 서비스에서는 리그를 준비 중입니다. 공개 일정과 이용 방법은 서비스의 리그
-                화면에서 안내할 예정이에요.
-              </p>
-            </details>
-            <details>
-              <summary>
-                모바일에서도 사용할 수 있나요?
-                <LandingIcon name="ChevronDown" size={18} />
-              </summary>
-              <p>
-                네. 모바일 브라우저에서 DAYNOMY에 접속해 이용할 수 있어요. 별도의 앱 설치 없이
-                시작하세요.
-              </p>
-            </details>
-          </div>
-        </section>
-        <section className="closing-cta">
-          <span>매일의 경제를 더 선명하게</span>
-          <h2>
-            오늘의 이슈가
-            <br />내 자산의 이야기가 되는 곳.
-          </h2>
-          <a className="primary-cta" href="/" onClick={handleStart}>
-            DAYNOMY 시작하기 <LandingIcon name="ArrowUpRight" size={18} />
-          </a>
-        </section>
+        </div>
+        <WelcomeGuide />
+        <WelcomeDetails onStart={handleStart} />
       </main>
-      <footer className="landing-footer" id="contact">
-        <div>
-          <a className="wordmark" href="#home">
-            DAYNOMY
-          </a>
-          <p>경제 이슈와 내 포트폴리오를 한곳에서.</p>
-        </div>
+      <footer className="landing-footer film-footer">
+        <small>© 2026 DAYNOMY</small>
         <nav aria-label="서비스 안내">
-          <Link to="/about">서비스 소개</Link>
           <Link to="/terms">이용약관</Link>
           <Link to="/privacy">개인정보처리방침</Link>
           <a href="mailto:paperchoigo@gmail.com">문의하기</a>
         </nav>
-        <p className="footer-notice">
-          뉴스·시세·AI 분석은 정보 확인을 위한 참고 자료이며 투자 결과를 보장하지 않습니다.
-        </p>
-        <small>© 2026 DAYNOMY</small>
       </footer>
     </div>
   );

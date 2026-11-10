@@ -2,7 +2,9 @@ package org.grit.daynomy.auth.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -15,13 +17,16 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.HexFormat;
 import java.util.Optional;
+import java.util.UUID;
 import org.grit.daynomy.auth.domain.RefreshToken;
 import org.grit.daynomy.auth.repository.RefreshTokenRepository;
+import org.grit.daynomy.auth.repository.RevokedAuthSessionRepository;
 import org.grit.daynomy.auth.token.InvalidTokenException;
 import org.grit.daynomy.auth.token.JwtTokenProvider;
 import org.grit.daynomy.auth.token.TokenPair;
 import org.grit.daynomy.member.domain.Member;
 import org.grit.daynomy.member.domain.MemberRole;
+import org.grit.daynomy.member.domain.MemberStatus;
 import org.grit.daynomy.member.repository.MemberRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -39,6 +44,7 @@ class TokenServiceTest {
   @Mock private RefreshTokenRepository refreshTokenRepository;
 
   @Mock private MemberRepository memberRepository;
+  @Mock private RevokedAuthSessionRepository revokedSessions;
 
   @InjectMocks private TokenService tokenService;
 
@@ -48,7 +54,8 @@ class TokenServiceTest {
     Member member = createActiveMember(1L);
     TokenPair tokenPair = createTokenPair();
     given(memberRepository.findById(1L)).willReturn(Optional.of(member));
-    given(jwtTokenProvider.createTokenPair(1L, MemberRole.USER)).willReturn(tokenPair);
+    given(jwtTokenProvider.createTokenPair(eq(1L), eq(MemberRole.USER), any(UUID.class)))
+        .willReturn(tokenPair);
 
     TokenPair result = tokenService.issue(1L);
 
@@ -91,11 +98,14 @@ class TokenServiceTest {
     RefreshToken savedToken =
         RefreshToken.create(member, sha256(rawRefreshToken), Instant.parse("2999-08-24T00:00:00Z"));
     TokenPair newTokenPair = createTokenPair();
+    UUID sessionId = UUID.randomUUID();
     given(jwtTokenProvider.parseRefreshToken(rawRefreshToken)).willReturn(jwt);
     given(refreshTokenRepository.findByTokenHash(sha256(rawRefreshToken)))
         .willReturn(Optional.of(savedToken));
     given(jwtTokenProvider.getMemberId(jwt)).willReturn(1L);
-    given(jwtTokenProvider.createTokenPair(1L, MemberRole.USER)).willReturn(newTokenPair);
+    given(jwtTokenProvider.getSessionId(jwt)).willReturn(sessionId);
+    given(jwtTokenProvider.createTokenPair(1L, MemberRole.USER, sessionId))
+        .willReturn(newTokenPair);
 
     TokenPair result = tokenService.reissue(rawRefreshToken);
 
@@ -150,18 +160,90 @@ class TokenServiceTest {
   @Test
   @DisplayName("Refresh Token이 없으면 로그아웃 시 저장소에 접근하지 않는다")
   void logoutDoesNothingWhenRefreshTokenIsMissing() {
-    tokenService.logout(null);
-    tokenService.logout(" ");
+    tokenService.logout(null, null);
+    tokenService.logout(" ", " ");
 
-    verifyNoInteractions(refreshTokenRepository);
+    verifyNoInteractions(refreshTokenRepository, revokedSessions);
   }
 
   @Test
   @DisplayName("로그아웃하면 Refresh Token의 해시로 저장된 토큰을 삭제한다")
   void logoutDeletesRefreshTokenByHash() {
-    tokenService.logout("saved-refresh-token");
+    Jwt jwt = mock(Jwt.class);
+    UUID sessionId = UUID.randomUUID();
+    Member member = mock(Member.class);
+    given(member.getId()).willReturn(1L);
+    given(jwtTokenProvider.parseRefreshToken("saved-refresh-token")).willReturn(jwt);
+    given(jwtTokenProvider.getMemberId(jwt)).willReturn(1L);
+    given(jwtTokenProvider.getSessionId(jwt)).willReturn(sessionId);
+    given(refreshTokenRepository.findByTokenHash(sha256("saved-refresh-token")))
+        .willReturn(
+            Optional.of(
+                RefreshToken.create(
+                    member, sha256("saved-refresh-token"), Instant.parse("2999-01-01T00:00:00Z"))));
+    tokenService.logout(null, "saved-refresh-token");
 
     verify(refreshTokenRepository).deleteByTokenHash(sha256("saved-refresh-token"));
+    verify(revokedSessions).revoke(sessionId);
+  }
+
+  @Test
+  void authenticateUsesCurrentDatabaseRoleInsteadOfTheTokenRole() {
+    Jwt jwt = mock(Jwt.class);
+    UUID sessionId = UUID.randomUUID();
+    Member member = mock(Member.class);
+    given(member.getId()).willReturn(1L);
+    given(member.getRole()).willReturn(MemberRole.USER);
+    given(jwtTokenProvider.parseAccessToken("old-admin-access")).willReturn(jwt);
+    given(jwtTokenProvider.getSessionId(jwt)).willReturn(sessionId);
+    given(jwtTokenProvider.getMemberId(jwt)).willReturn(1L);
+    given(memberRepository.findByIdAndStatus(1L, MemberStatus.ACTIVE))
+        .willReturn(Optional.of(member));
+
+    var authenticated = tokenService.authenticate("old-admin-access");
+
+    assertThat(authenticated.memberId()).isEqualTo(1L);
+    assertThat(authenticated.role()).isEqualTo(MemberRole.USER);
+    verify(jwtTokenProvider, never()).getRole(jwt);
+  }
+
+  @Test
+  void revokedAccessSessionIsRejectedBeforeLoadingTheMember() {
+    Jwt jwt = mock(Jwt.class);
+    UUID sessionId = UUID.randomUUID();
+    given(jwtTokenProvider.parseAccessToken("revoked-access")).willReturn(jwt);
+    given(jwtTokenProvider.getSessionId(jwt)).willReturn(sessionId);
+    given(revokedSessions.existsById(sessionId)).willReturn(true);
+
+    assertThatThrownBy(() -> tokenService.authenticate("revoked-access"))
+        .isInstanceOf(InvalidTokenException.class);
+    verifyNoInteractions(memberRepository);
+  }
+
+  @Test
+  void accessOnlyLogoutRevokesTheSessionWithoutARefreshCookie() {
+    Jwt jwt = mock(Jwt.class);
+    UUID sessionId = UUID.randomUUID();
+    given(jwtTokenProvider.parseAccessToken("access-only")).willReturn(jwt);
+    given(jwtTokenProvider.getSessionId(jwt)).willReturn(sessionId);
+
+    tokenService.logout("access-only", null);
+
+    verify(revokedSessions).revoke(sessionId);
+    verifyNoInteractions(refreshTokenRepository);
+  }
+
+  @Test
+  void invalidCookiesDoNotPreventLogoutOrCreateRevocations() {
+    given(jwtTokenProvider.parseAccessToken("invalid-access"))
+        .willThrow(new InvalidTokenException());
+    given(jwtTokenProvider.parseRefreshToken("invalid-refresh"))
+        .willThrow(new InvalidTokenException());
+
+    tokenService.logout("invalid-access", "invalid-refresh");
+
+    verifyNoInteractions(revokedSessions);
+    verify(refreshTokenRepository).deleteByTokenHash(sha256("invalid-refresh"));
   }
 
   private Member createActiveMember(Long memberId) {

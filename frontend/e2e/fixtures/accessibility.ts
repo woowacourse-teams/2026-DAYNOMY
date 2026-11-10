@@ -12,7 +12,6 @@ export const accessibilityArticle = {
 };
 
 export async function installAccessibilityFixtures(page: Page) {
-  let authenticated = false;
   let oauthAttempts = 0;
   const stock = {
     assetId: 1,
@@ -43,17 +42,25 @@ export async function installAccessibilityFixtures(page: Page) {
       const json = (data: unknown) => route.fulfill({ json: data });
       if (path === '/api/auth/csrf')
         return json({ token: 'accessibility-fixture', headerName: 'X-CSRF-TOKEN' });
-      if (path === '/api/users/me')
+      if (path === '/api/users/me') {
+        const headers = await route.request().allHeaders();
+        const authenticated = (headers.cookie ?? '')
+          .split(';')
+          .some((cookie) => cookie.trim() === 'accessibility-auth=1');
         return authenticated
           ? json({ id: 1, nickname: '검증용 회원', email: 'test@example.invalid', role: 'USER' })
           : route.fulfill({ status: 401 });
+      }
       if (path === '/api/auth/google') {
         oauthAttempts += 1;
-        authenticated = oauthAttempts > 1;
+        const authenticated = oauthAttempts > 1;
         return route.fulfill({
           status: 302,
           headers: {
             location: `${new URL(page.url()).origin}${authenticated ? '/' : '/login?error=oauth'}`,
+            ...(authenticated
+              ? { 'set-cookie': 'accessibility-auth=1; Path=/; HttpOnly; SameSite=Lax' }
+              : {}),
           },
         });
       }
@@ -102,7 +109,7 @@ export async function installAccessibilityFixtures(page: Page) {
       }
       if (path === '/api/people') return json({ people: [] });
       if (path === '/api/contents') return json({ items: [], page: 1, totalPages: 0 });
-      if (path === '/api/news' || path === '/api/news/today') return json(newsPage);
+      if (path === '/api/news') return json(newsPage);
       if (path === '/api/news/7') return json(accessibilityArticle);
       if (path === '/api/news/7/keywords') return json({ keywords: [] });
       if (path === '/api/news/7/market-analysis')

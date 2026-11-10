@@ -13,6 +13,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.transaction.PlatformTransactionManager;
 
 @Configuration
 public class PortfolioAnalysisV1Config {
@@ -24,6 +25,7 @@ public class PortfolioAnalysisV1Config {
       PortfolioAnalysisEvidenceRepository evidence,
       PortfolioAnalysisCheckRepository checks,
       PortfolioCalculationServiceV1 calculation,
+      PlatformTransactionManager transactionManager,
       @Value("${ai.openai.model:gpt-5-mini}") String model) {
     return new SavedPortfolioAnalysisTransactionService(
         portfolios,
@@ -32,6 +34,7 @@ public class PortfolioAnalysisV1Config {
         evidence,
         checks,
         calculation,
+        transactionManager,
         model,
         "portfolio-v7-batch-price-v1");
   }

@@ -100,4 +100,19 @@ class MarketCalendarSyncServiceTest {
     service.synchronize(LocalDate.of(2026, 10, 11));
     verifyNoInteractions(repository, transactionManager, events);
   }
+
+  @Test
+  void nextSyncRecoversAfterAnEmptyHolidayResponseWithoutReplacingExistingDataOnFailure() {
+    when(client.publishedYears()).thenReturn(Set.of(2026));
+    when(client.holidays(2026))
+        .thenThrow(new IllegalStateException("empty response"))
+        .thenReturn(Set.of(LocalDate.of(2026, 1, 1)));
+    var today = LocalDate.of(2026, 11, 9);
+    service.synchronize(today);
+    verifyNoInteractions(repository, transactionManager, events);
+    service.synchronize(today);
+    verify(repository).saveAll(added.capture());
+    assertThat(added.getValue()).hasSize(365);
+    verify(events).publishEvent(new MarketCalendarSyncResult(365));
+  }
 }

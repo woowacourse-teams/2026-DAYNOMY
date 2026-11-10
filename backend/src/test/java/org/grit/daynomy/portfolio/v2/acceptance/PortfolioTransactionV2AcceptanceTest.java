@@ -7,6 +7,7 @@ import io.restassured.specification.RequestSpecification;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -33,40 +34,23 @@ import org.grit.daynomy.portfolio.repository.PortfolioHoldingHistoryRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioHoldingRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioRepository;
 import org.grit.daynomy.portfolio.service.PortfolioSnapshotTransactionService;
+import org.grit.daynomy.support.SharedDatabaseTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
-import org.testcontainers.utility.DockerImageName;
 
-@Testcontainers
 @ActiveProfiles("test")
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-class PortfolioTransactionV2AcceptanceTest {
+class PortfolioTransactionV2AcceptanceTest extends SharedDatabaseTest {
   private static final String V1 = "/api/users/me/portfolio/transactions";
   private static final String V2 = "/api/v2/users/me/portfolio/transactions";
   private static final LocalDate FIRST = LocalDate.now(ZoneId.of("Asia/Seoul")).minusDays(45);
   private static final LocalDate LAST = FIRST.plusDays(40);
-
-  @Container
-  static final PostgreSQLContainer POSTGRESQL =
-      new PostgreSQLContainer(DockerImageName.parse("postgres:16-alpine"));
-
-  @DynamicPropertySource
-  static void database(DynamicPropertyRegistry registry) {
-    registry.add("spring.datasource.url", POSTGRESQL::getJdbcUrl);
-    registry.add("spring.datasource.username", POSTGRESQL::getUsername);
-    registry.add("spring.datasource.password", POSTGRESQL::getPassword);
-    registry.add("spring.datasource.driver-class-name", POSTGRESQL::getDriverClassName);
-  }
 
   @LocalServerPort private int port;
   @Autowired private MemberRepository members;
@@ -133,26 +117,46 @@ class PortfolioTransactionV2AcceptanceTest {
         .statusCode(403);
   }
 
-  @Test
-  void rejectsInvalidQuantityAndFutureTradeDateBeforeCreatingPortfolio() {
+  @ParameterizedTest
+  @ValueSource(strings = {V1, V2})
+  void recordsTradeTimeAndPreservesItWhenEditingWithTheExistingForm(String endpoint) {
     Member member = member();
     Asset asset = asset();
-    client(member)
-        .body(transaction(asset, PortfolioTransactionType.BUY, FIRST, 0))
-        .post(V2)
-        .then()
-        .statusCode(400);
-    client(member)
-        .body(
-            transaction(
-                asset,
-                PortfolioTransactionType.BUY,
-                LocalDate.now(ZoneId.of("Asia/Seoul")).plusDays(1),
-                1))
-        .post(V2)
-        .then()
-        .statusCode(400);
-    assertThat(portfolios.findByMemberId(member.getId())).isEmpty();
+    priceRange(asset);
+    var body = new HashMap<>(transaction(asset, PortfolioTransactionType.BUY, FIRST, 1));
+    body.put("tradeTime", "09:35");
+    long id =
+        client(member)
+            .body(body)
+            .post(endpoint)
+            .then()
+            .statusCode(201)
+            .extract()
+            .jsonPath()
+            .getLong("transactionId");
+    String historyUrl = "/api/users/me/portfolio/histories?from=" + FIRST + "&to=" + LAST;
+    assertThat(
+            client(member)
+                .get(historyUrl)
+                .then()
+                .statusCode(200)
+                .extract()
+                .jsonPath()
+                .getString("[0].tradeTime"))
+        .isEqualTo("09:35");
+    var update = new HashMap<>(body);
+    update.remove("tradeTime");
+    update.put("quantity", 2);
+    client(member).body(update).patch(V1 + "/" + id).then().statusCode(200);
+    assertThat(
+            client(member)
+                .get(historyUrl)
+                .then()
+                .statusCode(200)
+                .extract()
+                .jsonPath()
+                .getString("[0].tradeTime"))
+        .isEqualTo("09:35");
   }
 
   @Test

@@ -12,6 +12,7 @@ import org.grit.daynomy.member.domain.Member;
 import org.grit.daynomy.portfolio.domain.Portfolio;
 import org.grit.daynomy.portfolio.domain.PortfolioHoldingChangeType;
 import org.grit.daynomy.portfolio.domain.PortfolioHoldingHistory;
+import org.grit.daynomy.support.SharedDatabaseTest;
 import org.hibernate.Hibernate;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,29 +20,11 @@ import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
-import org.testcontainers.utility.DockerImageName;
 
-@Testcontainers
 @ActiveProfiles("test")
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-class PortfolioHoldingHistoryV2RepositoryTest {
-  @Container
-  static final PostgreSQLContainer POSTGRESQL =
-      new PostgreSQLContainer(DockerImageName.parse("postgres:16-alpine"));
-
-  @DynamicPropertySource
-  static void database(DynamicPropertyRegistry registry) {
-    registry.add("spring.datasource.url", POSTGRESQL::getJdbcUrl);
-    registry.add("spring.datasource.username", POSTGRESQL::getUsername);
-    registry.add("spring.datasource.password", POSTGRESQL::getPassword);
-    registry.add("spring.datasource.driver-class-name", POSTGRESQL::getDriverClassName);
-  }
+class PortfolioHoldingHistoryV2RepositoryTest extends SharedDatabaseTest {
 
   @Autowired private TestEntityManager em;
   @Autowired private PortfolioHoldingHistoryRepository histories;
@@ -72,6 +55,9 @@ class PortfolioHoldingHistoryV2RepositoryTest {
     List<Long> expected = List.of(first.getId(), tie.getId(), later.getId());
     em.clear();
     var result = histories.findOrderedWithAssetsByPortfolioId(portfolioId);
+    assertThat(histories.findFirstEffectiveDateByPortfolioId(portfolioId))
+        .contains(LocalDate.of(2026, 9, 1));
+    assertThat(histories.findFirstEffectiveDateByPortfolioId(Long.MAX_VALUE)).isEmpty();
     assertThat(result)
         .extracting(PortfolioHoldingHistory::getId)
         .containsExactlyElementsOf(expected);

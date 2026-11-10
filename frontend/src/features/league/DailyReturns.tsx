@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { getDailyHistory, getLeagueWeeks } from './api';
 import { leagueErrorType, trackLeagueEvent } from './analytics';
 import { recentLeagueWeeks } from './weeks';
 import { ReturnLine } from './ReturnLine';
 import { LeagueWeekNavigation } from './LeagueWeekNavigation';
+import { AggregationNotice } from './AggregationNotice';
 import { formatRate, collectionLabels } from './labels';
 import type { DailyHistory, DailyReturnPoint, LeagueWeek } from './types';
 
@@ -15,10 +16,15 @@ const dayFormatter = new Intl.DateTimeFormat('ko-KR', {
 });
 
 function statusLabel(day: DailyReturnPoint) {
+  if (day.reason === 'MARKET_CLOSED') return '휴장';
+  if (day.reason === 'FUTURE_DATE') return '예정';
+  if (day.reason === 'CALENDAR_PENDING') return '거래일 정보 누락';
+  if (day.reason === 'EXCHANGE_RATE_PENDING') return '환율 수집 대기';
+  if (day.status === 'CALCULATED' && day.cumulativeReturnRate === null) return '누적 집계 대기';
   if (day.status === 'CALCULATED')
-    return day.reason === 'TRACKING_BASELINE' ? '성과 시작 종가 · 0%' : '집계 완료';
+    return day.reason === 'TRACKING_BASELINE' ? '기준일' : '집계 완료';
   if (day.status === 'NOT_PARTICIPATING') return '참여 전 / 미참여';
-  if (day.status === 'PENDING') return '집계 대기';
+  if (day.reason === 'SNAPSHOT_PENDING') return '보유 데이터 대기';
   switch (day.reason) {
     case 'MISSING_PRICE':
       return '종가 누락 · 집계 대기';
@@ -29,7 +35,7 @@ function statusLabel(day: DailyReturnPoint) {
     case 'UNSUPPORTED_ASSET':
       return '지원하지 않는 자산';
     default:
-      return '집계 제외';
+      return day.status === 'PENDING' ? '집계 대기' : '집계 제외';
   }
 }
 
@@ -37,36 +43,42 @@ function rateClass(rate: number | null) {
   return rate === null || rate === 0 ? '' : rate > 0 ? 'positive' : 'negative';
 }
 
-export function DailyReturns({
+export const DailyReturns = memo(function DailyReturns({
   publicId,
   weekStart,
   onWeekChange,
+  onRefresh,
 }: {
   publicId: string;
   weekStart: string;
   onWeekChange: (weekStart: string) => void;
+  onRefresh?: () => void;
 }) {
   const [history, setHistory] = useState<DailyHistory | null>(null);
   const [weeks, setWeeks] = useState<LeagueWeek[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [retry, setRetry] = useState(0);
+  const section = useRef<HTMLElement>(null);
   function retryLoad() {
     trackLeagueEvent('league_action', {
       surface: 'daily_history',
       action: 'retry',
       status: 'clicked',
     });
-    setRetry((value) => value + 1);
+    if (onRefresh) onRefresh();
+    else setRetry((value) => value + 1);
   }
 
   useEffect(() => {
     function refreshWhenVisible() {
-      if (document.visibilityState === 'visible') setRetry((value) => value + 1);
+      if (document.visibilityState !== 'visible' || section.current?.closest('[hidden]')) return;
+      if (onRefresh) onRefresh();
+      else setRetry((value) => value + 1);
     }
     document.addEventListener('visibilitychange', refreshWhenVisible);
     return () => document.removeEventListener('visibilitychange', refreshWhenVisible);
-  }, []);
+  }, [onRefresh]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -90,6 +102,21 @@ export function DailyReturns({
             result_count: value.days.length,
             confirmed: value.confirmed,
             collection_status: value.collectionStatus,
+            has_result: value.weeklyReturnRate !== null,
+            pending_day_count: value.days.filter(
+              (day) =>
+                day.reason !== 'FUTURE_DATE' &&
+                (day.status === 'PENDING' || day.status === 'EXCLUDED'),
+            ).length,
+            closed_day_count: value.days.filter((day) => day.reason === 'MARKET_CLOSED').length,
+            baseline_only:
+              value.days.some((day) => day.reason === 'TRACKING_BASELINE') &&
+              !value.days.some(
+                (day) =>
+                  day.status === 'CALCULATED' &&
+                  day.reason !== 'TRACKING_BASELINE' &&
+                  day.reason !== 'MARKET_CLOSED',
+              ),
           });
         }
       })
@@ -118,7 +145,7 @@ export function DailyReturns({
       ? participatingDays.length === 0
         ? '이 주에는 참여 기록이 없어요.'
         : pendingClose
-          ? `${dayFormatter.format(new Date(pendingClose.baseDate))} 종가 수집 대기 · 다음 영업일 오후 2시 이후 제공됩니다.`
+          ? `${dayFormatter.format(new Date(pendingClose.baseDate))} 종가 수집 대기 · 데이터가 준비되면 반영돼요.`
           : [...new Set(participatingDays.map(statusLabel))].join(', ')
       : history?.collectionStatus
         ? collectionLabels[history.collectionStatus]
@@ -126,11 +153,12 @@ export function DailyReturns({
 
   return (
     <section
+      ref={section}
       className="league-history-card league-daily-history"
       aria-labelledby="daily-history-title"
     >
       <header>
-        <h2 id="daily-history-title">일별 수익률</h2>
+        <h2 id="daily-history-title">누적 수익률</h2>
         <LeagueWeekNavigation
           weeks={weeks}
           selected={weeks.some((week) => week.weekStart === weekStart) ? weekStart : ''}
@@ -156,21 +184,35 @@ export function DailyReturns({
         </div>
       ) : history ? (
         <>
+          {history.aggregation ? (
+            <AggregationNotice
+              surface="daily_history"
+              aggregation={history.aggregation}
+              onRefresh={retryLoad}
+            />
+          ) : null}
           {!hasReturns ? (
-            <div className="league-daily-empty">
-              <p>아직 집계된 수익률이 없어요.</p>
-              <small>{emptyDetail}</small>
-              {participatingDays.length > 0 ? (
-                <button type="button" onClick={retryLoad}>
-                  일별 기록 다시 확인
-                </button>
-              ) : null}
-            </div>
+            history.aggregation ? null : (
+              <div className="league-daily-empty">
+                <p>아직 집계된 수익률이 없어요.</p>
+                <small>{emptyDetail}</small>
+                {participatingDays.length > 0 ? (
+                  <button type="button" onClick={retryLoad}>
+                    일별 기록 다시 확인
+                  </button>
+                ) : null}
+              </div>
+            )
           ) : (
             <>
               {history.asOfDate ? (
                 <p className="league-daily-summary">
-                  {history.asOfDate} 종가 기준 · {history.confirmed ? '순위 확정' : '잠정 수익률'}
+                  <span
+                    className={`league-status-badge${history.confirmed ? ' is-confirmed' : ''}`}
+                  >
+                    {history.confirmed ? '확정' : '잠정'}
+                  </span>
+                  <span>{history.asOfDate} 종가 기준</span>
                 </p>
               ) : null}
               <div className="league-history-scroll">
@@ -183,16 +225,23 @@ export function DailyReturns({
                     minWidth: `${days.length * 72}px`,
                   }}
                 >
-                  <ReturnLine rates={days.map((day) => day.dailyReturnRate)} />
+                  <ReturnLine rates={days.map((day) => day.cumulativeReturnRate)} />
                   {days.map((day) => (
                     <div
                       role="group"
                       key={day.baseDate}
-                      aria-label={`${dayFormatter.format(new Date(day.baseDate))} 하루 수익률 ${day.dailyReturnRate === null ? statusLabel(day) : formatRate(day.dailyReturnRate)}`}
+                      title={
+                        day.dailyReturnRate === null
+                          ? statusLabel(day)
+                          : `하루 ${formatRate(day.dailyReturnRate)}`
+                      }
+                      aria-label={`${dayFormatter.format(new Date(day.baseDate))} 하루 수익률 ${day.dailyReturnRate === null ? statusLabel(day) : formatRate(day.dailyReturnRate)} · 누적 수익률 ${day.cumulativeReturnRate === null ? statusLabel(day) : formatRate(day.cumulativeReturnRate)}`}
                     >
                       <span className="league-week-label">
-                        <strong className={rateClass(day.dailyReturnRate)}>
-                          {day.dailyReturnRate === null ? '—' : formatRate(day.dailyReturnRate)}
+                        <strong className={rateClass(day.cumulativeReturnRate)}>
+                          {day.cumulativeReturnRate === null
+                            ? '—'
+                            : formatRate(day.cumulativeReturnRate)}
                         </strong>
                         <span className="league-week-meta">{statusLabel(day)}</span>
                       </span>
@@ -202,10 +251,17 @@ export function DailyReturns({
                   ))}
                 </div>
               </div>
+              <details className="league-calculation-guide">
+                <summary>집계 기준</summary>
+                <p>
+                  휴장일은 누적 수익률을 유지하고, 누락된 데이터는 집계를 기다려요. 미국 금요일
+                  성과는 토요일 종가 수집 후 반영돼요.
+                </p>
+              </details>
             </>
           )}
         </>
       ) : null}
     </section>
   );
-}
+});

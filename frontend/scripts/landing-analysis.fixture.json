@@ -1,0 +1,58 @@
+{
+  "totalAssetCount": 2,
+  "analyzedAssetCount": 2,
+  "overallDirection": "POSITIVE",
+  "overallScore": 51,
+  "positiveImpactScore": 60,
+  "negativeImpactScore": 9,
+  "analyzedAt": "2026-10-05T08:00:00Z",
+  "overallImpact": "반도체 업황 개선 기대가 포트폴리오에 긍정적으로 작용할 수 있어요.",
+  "impacts": [
+    {
+      "assetName": "삼성전자",
+      "weight": 60,
+      "direction": "POSITIVE",
+      "impactLevel": "HIGH",
+      "issueSummary": "반도체 수요가 증가했어요.",
+      "expectedReaction": "실적 개선 기대가 주가에 긍정적으로 반영될 수 있어요.",
+      "outlook": "수요 회복 흐름을 확인해야 해요.",
+      "reason": "보유 비중이 높아 포트폴리오에 미치는 영향도 커요.",
+      "evidenceSentence": "반도체 수요가 전년보다 증가했어요.",
+      "sources": [
+        {
+          "title": "반도체 산업 동향",
+          "url": "https://example.com/semiconductor"
+        }
+      ],
+      "rank": 1
+    },
+    {
+      "assetName": "SK하이닉스",
+      "weight": 40,
+      "direction": "NEGATIVE",
+      "impactLevel": "LOW",
+      "issueSummary": "메모리 가격 변동성이 커졌어요.",
+      "expectedReaction": "단기 주가 변동성이 커질 수 있어요.",
+      "outlook": "가격 안정 여부를 지켜봐야 해요.",
+      "reason": "부정 영향은 예상되지만 영향 수준은 낮아요.",
+      "evidenceSentence": "메모리 현물 가격 변동성이 확대됐어요.",
+      "sources": [
+        {
+          "title": "메모리 시장 동향",
+          "url": "https://example.com/memory"
+        }
+      ],
+      "rank": 2
+    }
+  ],
+  "sources": [
+    {
+      "title": "반도체 산업 동향",
+      "url": "https://example.com/semiconductor"
+    },
+    {
+      "title": "메모리 시장 동향",
+      "url": "https://example.com/memory"
+    }
+  ]
+}

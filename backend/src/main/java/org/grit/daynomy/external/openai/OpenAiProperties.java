@@ -10,7 +10,9 @@ public record OpenAiProperties(
     String baseUrl,
     String imageModel,
     String economyNewsModel,
+    String topicDedupModel,
     String socialSearchModel,
+    String xOembedUrl,
     Duration connectTimeout,
     Duration readTimeout) {
 
@@ -23,7 +25,9 @@ public record OpenAiProperties(
         baseUrl,
         imageModel,
         "gpt-5.5",
+        "gpt-6.1-terra",
         "gpt-5-mini",
+        "https://publish.x.com/oembed",
         Duration.ofSeconds(3),
         Duration.ofSeconds(120));
   }
@@ -35,6 +39,56 @@ public record OpenAiProperties(
       String economyNewsModel,
       Duration connectTimeout,
       Duration readTimeout) {
-    this(apiKey, baseUrl, imageModel, economyNewsModel, "gpt-5-mini", connectTimeout, readTimeout);
+    this(
+        apiKey,
+        baseUrl,
+        imageModel,
+        economyNewsModel,
+        "gpt-6.1-terra",
+        "gpt-5-mini",
+        "https://publish.x.com/oembed",
+        connectTimeout,
+        readTimeout);
+  }
+
+  public OpenAiProperties(
+      String apiKey,
+      String baseUrl,
+      String imageModel,
+      String economyNewsModel,
+      String socialSearchModel,
+      Duration connectTimeout,
+      Duration readTimeout) {
+    this(
+        apiKey,
+        baseUrl,
+        imageModel,
+        economyNewsModel,
+        "gpt-6.1-terra",
+        socialSearchModel,
+        "https://publish.x.com/oembed",
+        connectTimeout,
+        readTimeout);
+  }
+
+  public OpenAiProperties(
+      String apiKey,
+      String baseUrl,
+      String imageModel,
+      String economyNewsModel,
+      String socialSearchModel,
+      String xOembedUrl,
+      Duration connectTimeout,
+      Duration readTimeout) {
+    this(
+        apiKey,
+        baseUrl,
+        imageModel,
+        economyNewsModel,
+        "gpt-6.1-terra",
+        socialSearchModel,
+        xOembedUrl,
+        connectTimeout,
+        readTimeout);
   }
 }

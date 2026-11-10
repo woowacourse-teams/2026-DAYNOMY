@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Duration;
+import java.util.concurrent.TimeUnit;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
@@ -76,6 +77,28 @@ class WikimediaImageClientTest {
   }
 
   @Test
+  void searchConvertsHttpError() {
+    server.enqueue(new MockResponse().setResponseCode(503));
+
+    assertWikimediaRequestFailed(() -> newClient().search("Seoul"));
+  }
+
+  @Test
+  void searchConvertsTimeout() {
+    server.enqueue(
+        new MockResponse().setHeadersDelay(500, TimeUnit.MILLISECONDS).setBody(searchResponse()));
+
+    assertWikimediaRequestFailed(() -> newClient(Duration.ofMillis(100)).search("Seoul"));
+  }
+
+  @Test
+  void searchConvertsMalformedResponse() {
+    server.enqueue(new MockResponse().setBody("not-json"));
+
+    assertWikimediaRequestFailed(() -> newClient().search("Seoul"));
+  }
+
+  @Test
   void downloadRejectsImageLargerThan5MiB() {
     server.enqueue(
         new MockResponse().setHeader("Content-Type", "application/json").setBody(searchResponse()));
@@ -97,13 +120,24 @@ class WikimediaImageClientTest {
   }
 
   private WikimediaImageClient newClient() {
+    return newClient(Duration.ofSeconds(1));
+  }
+
+  private WikimediaImageClient newClient(Duration readTimeout) {
     return new WikimediaImageClient(
         new WikimediaProperties(
-            server.url("/").toString(),
-            "daynomy-test/1.0",
-            Duration.ofSeconds(1),
-            Duration.ofSeconds(1)),
+            server.url("/").toString(), "daynomy-test/1.0", Duration.ofSeconds(1), readTimeout),
         org.springframework.web.client.RestClient.builder());
+  }
+
+  private void assertWikimediaRequestFailed(
+      org.assertj.core.api.ThrowableAssert.ThrowingCallable call) {
+    assertThatThrownBy(call)
+        .isInstanceOfSatisfying(
+            BusinessException.class,
+            exception ->
+                assertThat(exception.errorCode())
+                    .isEqualTo(ExternalErrorCode.WIKIMEDIA_IMAGE_REQUEST_FAILED));
   }
 
   private String searchResponse() {

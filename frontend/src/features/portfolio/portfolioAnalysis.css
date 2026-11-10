@@ -241,6 +241,7 @@
 
 .portfolio-analysis-preview {
   width: 100%;
+  padding-top: 12px;
 }
 
 .portfolio-analysis-layout.portfolio-preview-layout {
@@ -271,7 +272,7 @@
 .portfolio-preview-blur {
   grid-column: 2;
   grid-row: 2;
-  margin-top: 16px;
+  margin-top: 24px;
   word-break: keep-all;
   overflow-wrap: anywhere;
   filter: blur(2px);
@@ -299,6 +300,30 @@
   min-height: var(--button-height);
   padding-inline: 20px;
   font-size: 16px;
+}
+
+.portfolio-page .portfolio-preview-action .portfolio-analysis-add-button {
+  justify-content: center;
+}
+
+.has-inline-action .portfolio-preview-layout {
+  grid-template-rows: min-content auto 1fr;
+}
+
+.has-inline-action .portfolio-preview-layout .portfolio-analysis-overview {
+  grid-row: 1 / 4;
+}
+
+.has-inline-action .portfolio-preview-blur p:last-child {
+  margin-bottom: 0;
+}
+
+.portfolio-preview-action.is-inline {
+  grid-column: 2;
+  grid-row: 3;
+  justify-content: flex-end;
+  margin: 12px 0 0;
+  padding-top: 0;
 }
 
 .portfolio-preview-layout .portfolio-analysis-overview {
@@ -357,6 +382,19 @@
 
   .portfolio-preview-action {
     margin-left: 0;
+  }
+
+  .has-inline-action .portfolio-preview-layout {
+    grid-template-rows: auto auto auto auto;
+  }
+
+  .has-inline-action .portfolio-preview-layout .portfolio-analysis-overview {
+    grid-row: 1;
+  }
+
+  .portfolio-preview-action.is-inline {
+    grid-column: 1;
+    grid-row: 4;
   }
 }
 
@@ -890,7 +928,7 @@ button.portfolio-asset-row:focus-visible {
 }
 
 .portfolio-evidence-sources a:hover {
-  background: #262626;
+  text-decoration: underline;
 }
 
 .portfolio-evidence-sources a svg {

@@ -10,26 +10,22 @@ import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
 import org.grit.daynomy.news.domain.NewsSourceInfo;
 import org.grit.daynomy.news.repository.NewsRepository;
-import org.junit.jupiter.api.BeforeEach;
+import org.grit.daynomy.support.SharedDatabaseTest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
+import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.test.context.ActiveProfiles;
 
 @ActiveProfiles("test")
-@SpringBootTest
-class NewsKeywordRepositoryTest {
+@DataJpaTest
+@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
+class NewsKeywordRepositoryTest extends SharedDatabaseTest {
 
   @Autowired private NewsRepository newsRepository;
 
   @Autowired private NewsKeywordRepository newsKeywordRepository;
-
-  @BeforeEach
-  void setUp() {
-    newsKeywordRepository.deleteAll();
-    newsRepository.deleteAll();
-  }
 
   @Test
   @DisplayName("뉴스 ID로 키워드를 ID 오름차순 조회한다")

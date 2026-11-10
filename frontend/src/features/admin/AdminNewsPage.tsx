@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ApiError } from '../../api/client';
 import { formatDate } from '../news/newslist/utils';
@@ -11,8 +10,8 @@ import {
 } from './constants';
 import {
   deleteAdminNews,
+  generateAdminEconomicNewsDraftByKeyword,
   generateAdminKoreanEconomicNewsDrafts,
-  generateAdminNewsImage,
   generateAdminUsEconomicNewsDrafts,
   getAdminNews,
   publishAdminNews,
@@ -26,6 +25,7 @@ import type {
 import './admin.css';
 
 type NewsGenerationRegion = 'korea' | 'us';
+type NewsGenerationTarget = NewsGenerationRegion | 'keyword';
 
 function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof ApiError || error instanceof Error ? error.message : fallback;
@@ -65,6 +65,43 @@ function AdminAccessDeniedPage() {
 
 export { AdminAccessDeniedPage };
 
+function NewsSearch({ onSearch }: { onSearch: (keyword: string) => void }) {
+  const [searchInput, setSearchInput] = useState('');
+  return (
+    <form
+      className="admin-search-form"
+      onSubmit={(event) => {
+        event.preventDefault();
+        onSearch(searchInput.trim());
+      }}
+    >
+      <label>
+        <span>뉴스 검색</span>
+        <input
+          type="search"
+          value={searchInput}
+          onChange={(event) => setSearchInput(event.target.value)}
+          placeholder="제목·본문 검색"
+          maxLength={100}
+        />
+      </label>
+      <button type="submit" className="admin-primary-button">
+        검색
+      </button>
+      <button
+        type="button"
+        className="admin-secondary-button"
+        onClick={() => {
+          setSearchInput('');
+          onSearch('');
+        }}
+      >
+        초기화
+      </button>
+    </form>
+  );
+}
+
 export function AdminNewsPage() {
   const navigate = useNavigate();
   const [items, setItems] = useState<AdminNewsListItemResponse[]>([]);
@@ -73,22 +110,23 @@ export function AdminNewsPage() {
   const [totalElements, setTotalElements] = useState(0);
   const [status, setStatus] = useState<AdminNewsFilterStatus>('ALL');
   const [category, setCategory] = useState<AdminNewsFilterCategory>('ALL');
-  const [searchInput, setSearchInput] = useState('');
   const [keyword, setKeyword] = useState('');
+  const [issueKeyword, setIssueKeyword] = useState('');
   const [loading, setLoading] = useState(true);
   const [publishingId, setPublishingId] = useState<number | null>(null);
   const [rejectingId, setRejectingId] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
-  const [generatingImageId, setGeneratingImageId] = useState<number | null>(null);
-  const [generatingDraftRegion, setGeneratingDraftRegion] = useState<NewsGenerationRegion | null>(
+  const [generatingDraftTarget, setGeneratingDraftTarget] = useState<NewsGenerationTarget | null>(
     null,
   );
   const [generatedDraftResult, setGeneratedDraftResult] = useState<{
-    region: NewsGenerationRegion;
+    target: NewsGenerationTarget;
+    keyword?: string;
     savedCount: number;
   } | null>(null);
   const [generationError, setGenerationError] = useState<{
-    region: NewsGenerationRegion;
+    target: NewsGenerationTarget;
+    keyword?: string;
     message: string;
   } | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -130,15 +168,8 @@ export function AdminNewsPage() {
   const paginationPages = useMemo(() => getPaginationPages(page, totalPages), [page, totalPages]);
   const hasSearchConditions = Boolean(keyword) || status !== 'ALL' || category !== 'ALL';
 
-  function handleSearch(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setKeyword(searchInput.trim());
-    setPage(1);
-  }
-
-  function clearSearch() {
-    setSearchInput('');
-    setKeyword('');
+  function handleSearch(nextKeyword: string) {
+    setKeyword(nextKeyword);
     setPage(1);
   }
 
@@ -153,7 +184,7 @@ export function AdminNewsPage() {
   }
 
   async function handleGenerateDrafts(region: NewsGenerationRegion) {
-    setGeneratingDraftRegion(region);
+    setGeneratingDraftTarget(region);
     setGeneratedDraftResult(null);
     setGenerationError(null);
 
@@ -162,16 +193,50 @@ export function AdminNewsPage() {
         region === 'korea'
           ? await generateAdminKoreanEconomicNewsDrafts()
           : await generateAdminUsEconomicNewsDrafts();
-      setGeneratedDraftResult({ region, savedCount: response.savedCount });
+      setGeneratedDraftResult({ target: region, savedCount: response.savedCount });
       setReloadKey((current) => current + 1);
     } catch (error) {
       const country = region === 'korea' ? '한국' : '미국';
       setGenerationError({
-        region,
+        target: region,
         message: getErrorMessage(error, `${country} 뉴스 초안을 생성하지 못했습니다.`),
       });
     } finally {
-      setGeneratingDraftRegion(null);
+      setGeneratingDraftTarget(null);
+    }
+  }
+
+  async function handleGenerateDraftByKeyword(keywordInput = issueKeyword) {
+    const nextKeyword = keywordInput.trim();
+    if (nextKeyword.length < 2) {
+      setGenerationError({
+        target: 'keyword',
+        keyword: nextKeyword,
+        message: '키워드는 2자 이상 입력해 주세요.',
+      });
+      return;
+    }
+
+    setGeneratingDraftTarget('keyword');
+    setGeneratedDraftResult(null);
+    setGenerationError(null);
+
+    try {
+      const response = await generateAdminEconomicNewsDraftByKeyword(nextKeyword);
+      setGeneratedDraftResult({
+        target: 'keyword',
+        keyword: nextKeyword,
+        savedCount: response.savedCount,
+      });
+      setReloadKey((current) => current + 1);
+    } catch (error) {
+      setGenerationError({
+        target: 'keyword',
+        keyword: nextKeyword,
+        message: getErrorMessage(error, '키워드 기반 데이노미 이슈 초안을 생성하지 못했습니다.'),
+      });
+    } finally {
+      setGeneratingDraftTarget(null);
     }
   }
 
@@ -220,23 +285,6 @@ export function AdminNewsPage() {
     }
   }
 
-  async function handleGenerateImage(item: AdminNewsListItemResponse) {
-    if (item.imageUrl && !window.confirm(`'${item.title}' 뉴스 이미지를 새 이미지로 교체할까요?`)) {
-      return;
-    }
-
-    setGeneratingImageId(item.id);
-    setErrorMessage(null);
-    try {
-      await generateAdminNewsImage(item.id);
-      setReloadKey((current) => current + 1);
-    } catch (error) {
-      setErrorMessage(getErrorMessage(error, '뉴스 이미지를 생성하지 못했습니다.'));
-    } finally {
-      setGeneratingImageId(null);
-    }
-  }
-
   return (
     <main className="admin-content">
       <div className="admin-page-heading">
@@ -258,27 +306,63 @@ export function AdminNewsPage() {
           <button
             type="button"
             className="admin-secondary-button"
-            disabled={generatingDraftRegion !== null}
+            disabled={generatingDraftTarget !== null}
             onClick={() => void handleGenerateDrafts('korea')}
           >
-            {generatingDraftRegion === 'korea' ? '한국 뉴스 생성 중…' : '한국 뉴스 지금 생성'}
+            {generatingDraftTarget === 'korea' ? '한국 뉴스 생성 중…' : '한국 뉴스 지금 생성'}
           </button>
           <button
             type="button"
             className="admin-secondary-button"
-            disabled={generatingDraftRegion !== null}
+            disabled={generatingDraftTarget !== null}
             onClick={() => void handleGenerateDrafts('us')}
           >
-            {generatingDraftRegion === 'us' ? '미국 뉴스 생성 중…' : '미국 뉴스 지금 생성'}
+            {generatingDraftTarget === 'us' ? '미국 뉴스 생성 중…' : '미국 뉴스 지금 생성'}
           </button>
         </div>
+      </section>
+
+      <section className="admin-action-panel" aria-labelledby="keyword-news-generation-title">
+        <div>
+          <h2 id="keyword-news-generation-title">키워드로 데이노미 이슈 생성</h2>
+          <p>입력한 키워드의 최신 자료를 조사해 뉴스 초안 한 건을 생성합니다.</p>
+        </div>
+        <form
+          className="admin-keyword-generation-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void handleGenerateDraftByKeyword();
+          }}
+        >
+          <label className="admin-field">
+            <span>이슈 키워드</span>
+            <input
+              type="text"
+              value={issueKeyword}
+              onChange={(event) => setIssueKeyword(event.target.value)}
+              placeholder="예: 미국 중간선거"
+              minLength={2}
+              maxLength={100}
+              required
+              disabled={generatingDraftTarget !== null}
+            />
+          </label>
+          <button
+            type="submit"
+            className="admin-primary-button"
+            disabled={generatingDraftTarget !== null}
+          >
+            {generatingDraftTarget === 'keyword' ? '이슈 생성 중…' : '이슈 생성'}
+          </button>
+        </form>
       </section>
 
       {generatedDraftResult ? (
         <section className="admin-success-panel" role="status" aria-live="polite">
           <strong>
-            {generatedDraftResult.region === 'korea' ? '한국' : '미국'} 뉴스 초안 생성이
-            완료되었습니다.
+            {generatedDraftResult.target === 'keyword'
+              ? `‘${generatedDraftResult.keyword}’ 키워드 데이노미 이슈 초안 생성이 완료되었습니다.`
+              : `${generatedDraftResult.target === 'korea' ? '한국' : '미국'} 뉴스 초안 생성이 완료되었습니다.`}
           </strong>
           <p>
             저장된 초안 수 <span>{generatedDraftResult.savedCount.toLocaleString('ko-KR')}</span>건
@@ -291,8 +375,12 @@ export function AdminNewsPage() {
           <strong>{generationError.message}</strong>
           <button
             type="button"
-            onClick={() => void handleGenerateDrafts(generationError.region)}
-            disabled={generatingDraftRegion !== null}
+            onClick={() =>
+              generationError.target === 'keyword'
+                ? void handleGenerateDraftByKeyword(generationError.keyword)
+                : void handleGenerateDrafts(generationError.target)
+            }
+            disabled={generatingDraftTarget !== null}
           >
             다시 시도
           </button>
@@ -300,24 +388,7 @@ export function AdminNewsPage() {
       ) : null}
 
       <section className="admin-toolbar" aria-label="뉴스 목록 필터">
-        <form className="admin-search-form" onSubmit={handleSearch}>
-          <label>
-            <span>뉴스 검색</span>
-            <input
-              type="search"
-              value={searchInput}
-              onChange={(event) => setSearchInput(event.target.value)}
-              placeholder="제목·본문 검색"
-              maxLength={100}
-            />
-          </label>
-          <button type="submit" className="admin-primary-button">
-            검색
-          </button>
-          <button type="button" className="admin-secondary-button" onClick={clearSearch}>
-            초기화
-          </button>
-        </form>
+        <NewsSearch onSearch={handleSearch} />
         <label>
           <span>상태</span>
           <select
@@ -400,10 +471,7 @@ export function AdminNewsPage() {
               <tbody>
                 {items.map((item) => {
                   const isProcessing =
-                    publishingId === item.id ||
-                    rejectingId === item.id ||
-                    deletingId === item.id ||
-                    generatingImageId === item.id;
+                    publishingId === item.id || rejectingId === item.id || deletingId === item.id;
 
                   return (
                     <tr key={item.id}>
@@ -443,15 +511,9 @@ export function AdminNewsPage() {
                             <button
                               type="button"
                               disabled={isProcessing}
-                              onClick={() => handleGenerateImage(item)}
+                              onClick={() => navigate(`/admin/news/${item.id}/edit#news-image`)}
                             >
-                              {generatingImageId === item.id
-                                ? item.imageUrl
-                                  ? '이미지 재생성 중'
-                                  : '이미지 생성 중'
-                                : item.imageUrl
-                                  ? '이미지 재생성'
-                                  : '이미지 생성'}
+                              이미지 관리
                             </button>
                           ) : null}
                           {item.status === 'DRAFT' ? (

@@ -2,6 +2,7 @@ package org.grit.daynomy.portfolio.service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.EnumMap;
@@ -12,6 +13,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongFunction;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -31,6 +33,7 @@ import org.grit.daynomy.portfolio.dto.PortfolioHoldingResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioMarketAllocationResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioPricingStatus;
 import org.grit.daynomy.portfolio.exception.PortfolioErrorCode;
+import org.grit.daynomy.portfolio.service.PortfolioDelayedQuoteService.ValuationQuote;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -52,6 +55,21 @@ public class PortfolioCalculationService {
   private final PlatformTransactionManager transactionManager;
 
   public PortfolioCalculationResponse calculate(PortfolioCalculateRequest request) {
+    return calculate(request, preparePrices(request));
+  }
+
+  public PortfolioCalculationResponse calculateDashboard(
+      PortfolioCalculateRequest request, Supplier<Map<Long, ValuationQuote>> quoteLookup) {
+    PreparedPrices prices = preparePrices(request);
+    return calculateWithPrices(
+        request,
+        id -> prices.byAsset().getOrDefault(id, List.of()),
+        prices.rates(),
+        quoteLookup.get(),
+        prices.startedAt());
+  }
+
+  PreparedPrices preparePrices(PortfolioCalculateRequest request) {
     validateNoDuplicateAssets(request.holdings());
     long startedAt = System.nanoTime();
     var read = new TransactionTemplate(transactionManager);
@@ -77,14 +95,27 @@ public class PortfolioCalculationService {
             .toList();
     var rates =
         dates.isEmpty() ? Map.<LocalDate, BigDecimal>of() : exchangeRates.ratesForDates(dates);
-    return calculateWithPrices(
-        request, id -> pricesByAsset.getOrDefault(id, List.of()), rates, startedAt);
+    return new PreparedPrices(pricesByAsset, rates, startedAt);
   }
+
+  PortfolioCalculationResponse calculate(PortfolioCalculateRequest request, PreparedPrices prices) {
+    validateNoDuplicateAssets(request.holdings());
+    return calculateWithPrices(
+        request,
+        id -> prices.byAsset().getOrDefault(id, List.of()),
+        prices.rates(),
+        Map.of(),
+        prices.startedAt());
+  }
+
+  record PreparedPrices(
+      Map<Long, List<StockDailyPrice>> byAsset, Map<LocalDate, BigDecimal> rates, long startedAt) {}
 
   private PortfolioCalculationResponse calculateWithPrices(
       PortfolioCalculateRequest request,
       LongFunction<List<StockDailyPrice>> pricesForAsset,
       Map<LocalDate, BigDecimal> rates,
+      Map<Long, ValuationQuote> quotes,
       long startedAt) {
     log.atDebug()
         .addKeyValue("event", LogEvent.PORTFOLIO_CALCULATION_STARTED.code())
@@ -100,10 +131,18 @@ public class PortfolioCalculationService {
     Set<LocalDate> previousPriceDates = new HashSet<>();
     boolean allHoldingsHavePreviousPrice = true;
     int unpricedHoldingCount = 0;
+    int delayedHoldingCount = 0;
+    boolean anyRefreshPending = false;
 
     for (PortfolioHoldingRequest holding : request.holdings()) {
       List<StockDailyPrice> prices = pricesForAsset.apply(holding.assetId());
-      BigDecimal krwPrice = prices.isEmpty() ? null : convertedPrice(prices.getFirst(), rates);
+      StockDailyPrice close = prices.isEmpty() ? null : prices.getFirst();
+      ValuationQuote quote = quotes.get(holding.assetId());
+      if (quote != null && close != null && !close.getBaseDate().isBefore(quote.date())) {
+        quote = null;
+      }
+      BigDecimal krwPrice =
+          quote != null ? quote.krwPrice() : close == null ? null : convertedPrice(close, rates);
       if (krwPrice == null) {
         Asset asset =
             prices.isEmpty()
@@ -119,18 +158,24 @@ public class PortfolioCalculationService {
         allHoldingsHavePreviousPrice = false;
         continue;
       }
-      StockDailyPrice price = prices.getFirst();
-      CalculatedHolding calculated = calculateHolding(holding, price, krwPrice);
+      CalculatedHolding calculated = calculateHolding(holding, close, quote, krwPrice);
       calculatedHoldings.add(calculated);
       totalPurchaseAmount = totalPurchaseAmount.add(calculated.purchaseAmount());
       totalEvaluationAmount = totalEvaluationAmount.add(calculated.evaluationAmount());
-      baseDate = earlierDate(baseDate, price.getBaseDate());
-      currentPriceDates.add(price.getBaseDate());
+      baseDate = earlierDate(baseDate, calculated.baseDate());
+      currentPriceDates.add(calculated.baseDate());
 
-      if (prices.size() < 2 || !prices.get(1).getBaseDate().isBefore(price.getBaseDate())) {
+      StockDailyPrice previousPrice;
+      if (quote != null) {
+        delayedHoldingCount++;
+        anyRefreshPending |= quote.refreshPending();
+        previousPrice = close;
+      } else {
+        previousPrice = prices.size() < 2 ? null : prices.get(1);
+      }
+      if (previousPrice == null || !previousPrice.getBaseDate().isBefore(calculated.baseDate())) {
         allHoldingsHavePreviousPrice = false;
       } else {
-        StockDailyPrice previousPrice = prices.get(1);
         BigDecimal previousKrw = convertedPrice(previousPrice, rates);
         if (previousKrw == null) {
           allHoldingsHavePreviousPrice = false;
@@ -152,6 +197,8 @@ public class PortfolioCalculationService {
     BigDecimal dailyReturnRate = null;
     boolean canCalculateDailyPerformance =
         pricesComplete
+            && !anyRefreshPending
+            && (delayedHoldingCount == 0 || delayedHoldingCount == calculatedHoldings.size())
             && allHoldingsHavePreviousPrice
             && currentPriceDates.size() == 1
             && previousPriceDates.size() == 1;
@@ -221,6 +268,9 @@ public class PortfolioCalculationService {
         holding.quantity(),
         money(holding.averagePurchasePrice()),
         null,
+        null,
+        null,
+        false,
         purchaseAmount,
         null,
         null,
@@ -228,17 +278,23 @@ public class PortfolioCalculationService {
   }
 
   private CalculatedHolding calculateHolding(
-      PortfolioHoldingRequest holding, StockDailyPrice price, BigDecimal krwPrice) {
+      PortfolioHoldingRequest holding,
+      StockDailyPrice close,
+      ValuationQuote quote,
+      BigDecimal krwPrice) {
     BigDecimal quantity = BigDecimal.valueOf(holding.quantity());
     BigDecimal purchaseAmount = money(holding.averagePurchasePrice().multiply(quantity));
     BigDecimal evaluationAmount = money(krwPrice.multiply(quantity));
     BigDecimal profitLoss = money(evaluationAmount.subtract(purchaseAmount));
     return new CalculatedHolding(
-        price.getAsset(),
-        price.getBaseDate(),
+        quote == null ? close.getAsset() : quote.asset(),
+        quote == null ? close.getBaseDate() : quote.date(),
         holding.quantity(),
         money(holding.averagePurchasePrice()),
-        price.getClosePrice(),
+        close == null ? null : close.getClosePrice(),
+        quote == null ? null : quote.price(),
+        quote == null ? null : quote.asOf(),
+        quote != null && quote.refreshPending(),
         purchaseAmount,
         evaluationAmount,
         profitLoss,
@@ -253,14 +309,17 @@ public class PortfolioCalculationService {
                 new PortfolioHoldingResponse(
                     holding.asset().getId(),
                     holding.asset().getAssetCode(),
-                    holding.asset().getName(),
+                    holding.asset().getDisplayName(),
                     holding.asset().getCategory(),
                     holding.asset().getMarket(),
-                    holding.closePrice() != null,
+                    holding.evaluationAmount() != null,
                     holding.baseDate(),
                     holding.quantity(),
                     holding.averagePurchasePrice(),
                     holding.closePrice(),
+                    holding.delayedPrice(),
+                    holding.delayedPriceAsOf(),
+                    holding.quoteRefreshPending(),
                     holding.purchaseAmount(),
                     holding.evaluationAmount(),
                     holding.profitLoss(),
@@ -327,6 +386,9 @@ public class PortfolioCalculationService {
       long quantity,
       BigDecimal averagePurchasePrice,
       BigDecimal closePrice,
+      BigDecimal delayedPrice,
+      Instant delayedPriceAsOf,
+      boolean quoteRefreshPending,
       BigDecimal purchaseAmount,
       BigDecimal evaluationAmount,
       BigDecimal profitLoss,

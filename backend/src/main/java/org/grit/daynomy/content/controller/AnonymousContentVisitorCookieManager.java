@@ -34,8 +34,12 @@ public class AnonymousContentVisitorCookieManager {
     this.secure = secure;
   }
 
+  public UUID get(HttpServletRequest request) {
+    return verifiedVisitorId(findCookie(request));
+  }
+
   public UUID getOrCreate(HttpServletRequest request, HttpServletResponse response) {
-    UUID visitorId = verifiedVisitorId(findCookie(request));
+    UUID visitorId = get(request);
     if (visitorId != null) {
       return visitorId;
     }

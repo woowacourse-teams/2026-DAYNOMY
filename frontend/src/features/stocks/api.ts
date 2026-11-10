@@ -2,8 +2,9 @@ import { request } from '../../api/client';
 import type { StockPrice, StockSearchItem } from './types';
 
 export function isStockMarket(value: unknown): value is import('./types').StockMarket {
-  return ['KOSPI', 'KOSDAQ', 'NASDAQ', 'NYSE', 'NYSE_ARCA', 'NYSE_AMERICAN', 'BATS'].includes(
-    String(value),
+  return (
+    typeof value === 'string' &&
+    ['KOSPI', 'KOSDAQ', 'NASDAQ', 'NYSE', 'NYSE_ARCA', 'NYSE_AMERICAN', 'BATS'].includes(value)
   );
 }
 

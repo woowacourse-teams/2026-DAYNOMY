@@ -1,6 +1,8 @@
 package org.grit.daynomy.portfolio.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -11,7 +13,10 @@ import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.common.response.ErrorResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioCalculateRequest;
 import org.grit.daynomy.portfolio.dto.PortfolioCalculationResponse;
+import org.grit.daynomy.portfolio.dto.PortfolioHoldingRequest;
 import org.grit.daynomy.portfolio.service.PortfolioCalculationService;
+import org.grit.daynomy.portfolio.service.PortfolioDelayedQuoteService;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -24,25 +29,71 @@ import org.springframework.web.bind.annotation.RestController;
 public class PortfolioController {
 
   private final PortfolioCalculationService portfolioCalculationService;
+  private final ObjectProvider<PortfolioDelayedQuoteService> delayedQuotes;
 
-  @Operation(summary = "포트폴리오 계산", description = "최근 종가를 기준으로 포트폴리오 평가 결과와 차트용 비중을 계산합니다.")
+  @Operation(
+      summary = "포트폴리오 계산",
+      description =
+          "로그인 없이 이용할 수 있습니다. 전달한 1~50개 보유자산을 평가합니다. 지연 시세 기능이 활성화되면 당일 정규장 시세를 우선 사용합니다. 받아둔 당일 시세가 유효 시간을 지나면 갱신 대기로 표시하고, 받은 시세가 없으면 최근 확정 종가를 사용합니다. 평균 매입가는 원화로 입력하고, 미국 장중 가격은 저장된 최근 환율로 원화 환산합니다. 평가에 필요한 가격·환율이 없는 종목도 HTTP 200의 PARTIAL 결과에 포함하며 해당 종목의 평가값은 null입니다. 변경 요청은 GET /api/auth/csrf로 발급한 XSRF-TOKEN 쿠키와 동일한 값을 X-XSRF-TOKEN 헤더로 전송해야 합니다.")
+  @Parameter(
+      name = "X-XSRF-TOKEN",
+      in = ParameterIn.HEADER,
+      required = true,
+      description = "GET /api/auth/csrf로 발급한 CSRF 토큰. XSRF-TOKEN 쿠키와 같은 값",
+      schema = @Schema(type = "string"))
   @ApiResponses({
     @ApiResponse(
         responseCode = "200",
-        description = "계산 성공",
-        content = @Content(schema = @Schema(implementation = PortfolioCalculationResponse.class))),
+        description = "처리 성공",
+        content =
+            @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = PortfolioCalculationResponse.class))),
     @ApiResponse(
         responseCode = "400",
-        description = "보유자산 입력 오류",
-        content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+        description = "입력 검증 실패: INVALID_REQUEST. 중복 종목: DUPLICATE_PORTFOLIO_ASSET",
+        content =
+            @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = ErrorResponse.class))),
+    @ApiResponse(
+        responseCode = "403",
+        description = "CSRF 토큰 누락 또는 불일치: FORBIDDEN",
+        content =
+            @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = ErrorResponse.class))),
     @ApiResponse(
         responseCode = "404",
-        description = "종가 데이터 없음",
-        content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+        description = "종목 자체가 존재하지 않음: ASSET_NOT_FOUND. 종가가 없는 경우에는 200 PARTIAL 응답",
+        content =
+            @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = ErrorResponse.class))),
+    @ApiResponse(
+        responseCode = "502",
+        description = "미국 종목의 평가·과거 스냅샷 계산에 필요한 환율 조회 실패: EODHD_API_REQUEST_FAILED",
+        content =
+            @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = ErrorResponse.class))),
+    @ApiResponse(
+        responseCode = "503",
+        description = "미국 종목 환율 조회 서비스 미설정: EODHD_API_NOT_CONFIGURED",
+        content =
+            @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = ErrorResponse.class)))
   })
   @PostMapping("/calculate")
   public PortfolioCalculationResponse calculate(
       @Valid @RequestBody PortfolioCalculateRequest request) {
-    return portfolioCalculationService.calculate(request);
+    var quoteService = delayedQuotes.getIfAvailable();
+    if (quoteService == null) return portfolioCalculationService.calculate(request);
+    return portfolioCalculationService.calculateDashboard(
+        request,
+        () ->
+            quoteService.requestQuotes(
+                request.holdings().stream().map(PortfolioHoldingRequest::assetId).toList()));
   }
 }

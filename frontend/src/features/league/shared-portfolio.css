@@ -6,7 +6,8 @@
   flex-wrap: wrap;
   align-items: center;
 }
-.shared-page button {
+.shared-page button,
+.floating-review button {
   min-height: var(--button-height);
   padding: 9px 14px;
   border: 1px solid var(--button-outline);
@@ -19,27 +20,34 @@
   font-weight: var(--button-weight);
   line-height: 20px;
 }
-.shared-page button.shared-primary-button {
+.shared-page button.shared-primary-button,
+.floating-review button.shared-primary-button {
+  padding: 9px 14px;
+  border-radius: 999px;
   border-color: var(--button-action);
   background: var(--button-action);
   color: #fff;
   font-weight: var(--button-weight);
 }
-.shared-page button.shared-primary-button:hover:not(:disabled) {
+.shared-page button.shared-primary-button:hover:not(:disabled),
+.floating-review button.shared-primary-button:hover:not(:disabled) {
   border-color: var(--button-action-hover);
   background: var(--button-action-hover);
 }
 
-.shared-page button.shared-primary-button:active:not(:disabled) {
+.shared-page button.shared-primary-button:active:not(:disabled),
+.floating-review button.shared-primary-button:active:not(:disabled) {
   background: var(--button-action-active);
   border-color: var(--button-action-active);
 }
-.shared-page button:disabled {
+.shared-page button:disabled,
+.floating-review button:disabled {
   opacity: 0.5;
   cursor: default;
 }
 .shared-page button:focus-visible,
-.shared-page a:focus-visible {
+.shared-page a:focus-visible,
+.floating-review :is(button, a, textarea, summary):focus-visible {
   outline: 3px solid #2563eb;
   outline-offset: 3px;
 }
@@ -88,17 +96,8 @@
   color: var(--league-muted);
   font-size: 14px;
 }
-.shared-section-heading > button,
-.shared-visibility-choice {
+.shared-section-heading > button {
   flex-shrink: 0;
-}
-.shared-visibility-choice {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 44px;
-  cursor: pointer;
-  font-size: 14px;
 }
 .shared-panel {
   padding: 24px 0;
@@ -180,7 +179,8 @@
 }
 .shared-page input:not([type='checkbox']):not([type='radio']),
 .shared-page textarea,
-.shared-page select {
+.shared-page select,
+.floating-review textarea {
   display: block;
   box-sizing: border-box;
   width: 100%;
@@ -204,6 +204,43 @@
 }
 .shared-reason {
   grid-column: 1 / -1;
+}
+.shared-review-guide {
+  padding: 16px 0;
+  margin-bottom: 20px;
+  border-top: 1px solid var(--league-line);
+  line-height: 1.6;
+}
+.shared-review-guide p {
+  margin: 8px 0;
+}
+.shared-review-guide-basis {
+  font-weight: 600;
+}
+.shared-review-evidence ol {
+  display: grid;
+  gap: 10px;
+  padding-left: 24px;
+}
+.shared-review-evidence li {
+  padding: 10px;
+  border: 1px solid var(--league-line);
+  border-radius: 8px;
+  background: #fff;
+}
+.shared-review-evidence time {
+  display: block;
+  color: var(--league-muted);
+  font-size: 13px;
+}
+.shared-review-evidence li p {
+  margin-bottom: 0;
+}
+.shared-review-question {
+  margin: 6px 0;
+  color: var(--league-muted);
+  font-size: 14px;
+  line-height: 1.6;
 }
 .shared-list {
   margin-top: 8px;
@@ -336,9 +373,6 @@
   .shared-holding > header {
     align-items: flex-start;
   }
-  .shared-visibility-choice {
-    flex-shrink: 1;
-  }
 }
 
 .league-settings-page {
@@ -458,10 +492,6 @@
 }
 .shared-choice-options input[type='radio']:focus-visible {
   outline: none;
-}
-.shared-settings .shared-visibility-choice:has(input:disabled) {
-  color: var(--league-muted);
-  cursor: default;
 }
 .shared-page summary:focus-visible {
   outline: 3px solid #2563eb;
@@ -605,7 +635,8 @@
 }
 .shared-page button.shared-text-action,
 .shared-page .shared-holding-actions > button,
-.shared-page .shared-form-actions > button[type='button'] {
+.shared-page .shared-form-actions > button[type='button'],
+.floating-review .shared-form-actions > button[type='button'] {
   min-height: 44px;
   padding: 8px 0;
   border: 0;

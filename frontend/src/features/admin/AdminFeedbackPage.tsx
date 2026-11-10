@@ -1,13 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ApiError } from '../../api/client';
 import { deleteAdminFeedback, getAdminFeedbacks, updateAdminFeedbackStatus } from '../feedback/api';
-import type { AdminFeedback, FeedbackStatus } from '../feedback/types';
+import type { AdminFeedback, FeedbackCategory, FeedbackStatus } from '../feedback/types';
 import { formatDate } from '../news/newslist/utils';
 import './admin.css';
 
 const STATUS_LABELS: Record<FeedbackStatus, string> = {
   PENDING: '접수',
+  IN_PROGRESS: '처리 중',
   RESOLVED: '처리완료',
+};
+
+const CATEGORY_LABELS: Record<FeedbackCategory, string> = {
+  BUG: '오류',
+  INCONVENIENCE: '사용 불편',
+  FEATURE_REQUEST: '기능 제안',
 };
 
 function getErrorMessage(error: unknown, fallback: string) {
@@ -81,8 +88,8 @@ export function AdminFeedbackPage() {
 
   const paginationPages = useMemo(() => getPaginationPages(page, totalPages), [page, totalPages]);
 
-  async function handleStatusChange(item: AdminFeedback) {
-    const nextStatus: FeedbackStatus = item.status === 'PENDING' ? 'RESOLVED' : 'PENDING';
+  async function handleStatusChange(item: AdminFeedback, nextStatus: FeedbackStatus) {
+    if (nextStatus === item.status) return;
     setProcessingId(item.id);
     setErrorMessage(null);
     try {
@@ -146,6 +153,8 @@ export function AdminFeedbackPage() {
               <thead>
                 <tr>
                   <th scope="col">피드백</th>
+                  <th scope="col">유형</th>
+                  <th scope="col">작성자</th>
                   <th scope="col">작성 화면</th>
                   <th scope="col">상태</th>
                   <th scope="col">접수일</th>
@@ -169,27 +178,34 @@ export function AdminFeedbackPage() {
                           {item.content}
                         </button>
                       </td>
+                      <td data-label="유형">
+                        {item.category ? CATEGORY_LABELS[item.category] : '일반 의견'}
+                      </td>
+                      <td data-label="작성자">{item.authorNickname ?? '사용자'}</td>
                       <td data-label="작성 화면" className="admin-feedback-path">
                         {item.pagePath}
                       </td>
                       <td data-label="상태">
-                        <StatusBadge status={item.status} />
+                        <label className="admin-feedback-status-select">
+                          <span className="sr-only">피드백 상태</span>
+                          <select
+                            value={item.status}
+                            disabled={isProcessing}
+                            onChange={(event) =>
+                              handleStatusChange(item, event.target.value as FeedbackStatus)
+                            }
+                          >
+                            {Object.entries(STATUS_LABELS).map(([value, label]) => (
+                              <option key={value} value={value}>
+                                {label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
                       </td>
                       <td data-label="접수일">{formatDate(item.createdAt)}</td>
                       <td data-label="관리">
                         <div className="admin-row-actions">
-                          <button
-                            type="button"
-                            className={item.status === 'PENDING' ? 'publish' : undefined}
-                            disabled={isProcessing}
-                            onClick={() => handleStatusChange(item)}
-                          >
-                            {isProcessing
-                              ? '처리 중'
-                              : item.status === 'PENDING'
-                                ? '완료 처리'
-                                : '접수로 변경'}
-                          </button>
                           <button
                             type="button"
                             className="danger"
@@ -264,6 +280,16 @@ export function AdminFeedbackPage() {
               </button>
             </div>
             <dl>
+              <div>
+                <dt>유형</dt>
+                <dd>
+                  {selectedItem.category ? CATEGORY_LABELS[selectedItem.category] : '일반 의견'}
+                </dd>
+              </div>
+              <div>
+                <dt>작성자</dt>
+                <dd>{selectedItem.authorNickname ?? '사용자'}</dd>
+              </div>
               <div>
                 <dt>상태</dt>
                 <dd>

@@ -52,7 +52,7 @@ class AssetContentServiceTest {
     Asset asset = mock(Asset.class);
     given(asset.getId()).willReturn(1L);
     given(asset.getAssetCode()).willReturn("005930");
-    given(asset.getName()).willReturn("삼성전자");
+    given(asset.getDisplayName()).willReturn("삼성전자");
     AssetContent content =
         AssetContent.create(
             asset, ContentSourceType.YOUTUBE, "삼성전자 분석", "https://youtu.be/example");

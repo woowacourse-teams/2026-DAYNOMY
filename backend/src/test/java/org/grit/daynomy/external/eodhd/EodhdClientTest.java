@@ -3,13 +3,16 @@ package org.grit.daynomy.external.eodhd;
 import static org.assertj.core.api.Assertions.*;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.external.ExternalErrorCode;
+import org.grit.daynomy.external.RetryableExternalRequestException;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -29,6 +32,35 @@ class EodhdClientTest {
   @AfterEach
   void tearDown() throws Exception {
     server.shutdown();
+  }
+
+  @Test
+  void delayedQuoteBatchKeepsIndividualTimestampsAndSkipsMissingPrices() throws Exception {
+    json(
+        """
+        [{"code":"005930.KO","close":72000,"timestamp":1794186000},
+         {"code":"069500.KO","close":40000,"timestamp":1794185940},
+         {"code":"000660.KO","close":"NA","timestamp":"NA"}]
+        """);
+
+    var response = client.getDelayedQuotes(List.of("005930.KO", "069500.KO", "000660.KO"));
+
+    assertThat(response.quotes())
+        .extracting(EodhdClient.DelayedQuote::asOf)
+        .containsExactly(Instant.ofEpochSecond(1794186000), Instant.ofEpochSecond(1794185940));
+    var request = server.takeRequest().getRequestUrl();
+    assertThat(request.encodedPath()).isEqualTo("/api/real-time/005930.KO");
+    assertThat(request.queryParameter("s")).isEqualTo("069500.KO,000660.KO");
+  }
+
+  @Test
+  void delayedQuoteRateLimitReturnsOnlyStatus() {
+    server.enqueue(new MockResponse().setResponseCode(402).setBody("test-key"));
+
+    var response = client.getDelayedQuotes(List.of("AAPL.US"));
+
+    assertThat(response.status()).isEqualTo(402);
+    assertThat(response.quotes()).isEmpty();
   }
 
   @Test
@@ -106,6 +138,14 @@ class EodhdClientTest {
   }
 
   @Test
+  void allowsEmptyUsHolidayCalendarForShortDateRanges() {
+    json("{\"Code\":\"US\",\"ExchangeHolidays\":{}}");
+
+    assertThat(client.getUsMarketHolidays(LocalDate.of(2026, 1, 2), LocalDate.of(2026, 1, 9)))
+        .isEmpty();
+  }
+
+  @Test
   void rejectsMissingUsHolidayCalendar() {
     json("{\"Code\":\"US\"}");
 
@@ -125,6 +165,11 @@ class EodhdClientTest {
               assertThat(e.errorCode()).isEqualTo(ExternalErrorCode.EODHD_API_REQUEST_FAILED);
               assertThat(e.getCause()).isNull();
               assertThat(e.getMessage()).doesNotContain("test-key");
+              assertThat(e)
+                  .isExactlyInstanceOf(
+                      status == 429 || status >= 500
+                          ? RetryableExternalRequestException.class
+                          : BusinessException.class);
             });
   }
 
@@ -132,7 +177,7 @@ class EodhdClientTest {
   @ValueSource(strings = {"{}", "null", "[null]", "not-json"})
   void rejectsMalformedResponses(String body) {
     json(body);
-    assertThatThrownBy(() -> client.getUsSymbols()).isInstanceOf(BusinessException.class);
+    assertThatThrownBy(() -> client.getUsSymbols()).isExactlyInstanceOf(BusinessException.class);
   }
 
   @Test
@@ -147,6 +192,31 @@ class EodhdClientTest {
     server.enqueue(new MockResponse().setHeadersDelay(300, TimeUnit.MILLISECONDS).setBody("[]"));
     assertThatThrownBy(() -> client.getUsSymbols())
         .isInstanceOfSatisfying(BusinessException.class, e -> assertThat(e.getCause()).isNull());
+  }
+
+  @Test
+  void bodyReadTimeoutIsRetryableWithoutLeakingRequestUrl() {
+    client =
+        new EodhdClient(
+            new EodhdProperties(
+                "test-key",
+                server.url("/api").toString(),
+                Duration.ofSeconds(1),
+                Duration.ofMillis(100)));
+    server.enqueue(
+        new MockResponse()
+            .setHeader("Content-Type", "application/json")
+            .setBody("[]")
+            .setBodyDelay(1, TimeUnit.SECONDS));
+
+    assertThatThrownBy(() -> client.getUsSymbols())
+        .isInstanceOfSatisfying(
+            RetryableExternalRequestException.class,
+            e -> {
+              assertThat(e.errorCode()).isEqualTo(ExternalErrorCode.EODHD_API_REQUEST_FAILED);
+              assertThat(e.getCause()).isNull();
+              assertThat(e.getMessage()).doesNotContain("test-key");
+            });
   }
 
   @Test
