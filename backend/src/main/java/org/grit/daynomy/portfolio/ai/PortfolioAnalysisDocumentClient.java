@@ -295,6 +295,28 @@ public class PortfolioAnalysisDocumentClient implements AutoCloseable {
         .select("time[itemprop=datePublished][datetime], time.published[datetime]")
         .forEach(element -> addDate(dates, element.attr("datetime")));
     document
+        .select(".media_end_head_info_datestamp_time._ARTICLE_DATE_TIME[data-date-time]")
+        .forEach(
+            element -> {
+              try {
+                dates.add(
+                    java.time.LocalDateTime.parse(
+                            element.attr("data-date-time"),
+                            DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm:ss")
+                                .withResolverStyle(java.time.format.ResolverStyle.STRICT))
+                        .toLocalDate());
+              } catch (java.time.DateTimeException ignored) {
+                /* 네이버 기사 최초 입력 시각만 확인하고 수정 시각으로 대체하지 않는다. */
+              }
+            });
+    if (document.selectFirst("p.single-date") != null) {
+      document
+          .select("meta[name=date]")
+          .forEach(element -> addDate(dates, element.attr("content")));
+    }
+    var postDate = document.selectFirst(".post-info > li > span.date");
+    if (postDate != null) addVisibleDate(dates, postDate.text());
+    document
         .select("script[type=application/ld+json]")
         .forEach(
             element -> {
@@ -317,7 +339,7 @@ public class PortfolioAnalysisDocumentClient implements AutoCloseable {
     var scope = main == null ? document : main;
     var article =
         scope.selectFirst(
-            "[itemprop=articleBody], .entry-content, .article-content, .article-body, .post-contents, .content_desc");
+            "#dic_area, [itemprop=articleBody], .entry-content, .article-content, .article-body, .post-contents, .content_desc");
     if (article == null) article = scope.selectFirst("article");
     if (article == null) article = main;
     if (article == null) article = document.body();

@@ -122,7 +122,7 @@ export function usePortfolioAnalysis(
               ...response.analysis.impacts,
               ...(response.analysis.excludedAssets ?? []),
             ]) === snapshotKey
-            ? '새 소식을 확인하지 못했어요. 이전 분석을 유지하고 있어요.'
+            ? '새 소식을 확인하지 못했어요.'
             : '현재 보유 자산의 분석을 완료하지 못했어요.'
           : null,
       );
@@ -310,12 +310,16 @@ export function usePortfolioAnalysis(
             if (controller.signal.aborted) return;
             if (
               response.status === 'PROCESSING' ||
+              (response.status === 'FAILED' && response.analysis !== null) ||
               (response.analysis !== null &&
                 response.status !== 'FAILED' &&
                 (response.analysisId !== saved?.analysisId ||
                   response.lastSucceededAt !== saved?.lastSucceededAt))
             ) {
-              recordResult(response.status, response.lastCheckOutcome);
+              recordResult(
+                response.status === 'FAILED' ? 'ERROR' : response.status,
+                response.lastCheckOutcome,
+              );
               accept(response);
               return;
             }
@@ -326,7 +330,7 @@ export function usePortfolioAnalysis(
         recordResult('ERROR');
         setError(
           analysis && !portfolioChanged
-            ? '새 소식을 확인하지 못했어요. 이전 분석을 유지하고 있어요.'
+            ? '새 소식을 확인하지 못했어요.'
             : '포트폴리오 분석을 완료하지 못했어요.',
         );
       }

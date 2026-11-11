@@ -23,7 +23,76 @@ public record PortfolioAnalysisResult(
       String reason,
       String evidenceSentence,
       List<Source> sources,
-      int sortOrder) {
+      int sortOrder,
+      String riskSearchStatus,
+      boolean noNewNews) {
+    public AssetImpactResult(
+        String assetName,
+        ImpactDirection direction,
+        ImpactLevel impactLevel,
+        String issueSummary,
+        String expectedReaction,
+        String outlook,
+        String reason,
+        String evidenceSentence,
+        List<Source> sources,
+        int sortOrder,
+        String riskSearchStatus) {
+      this(
+          assetName,
+          direction,
+          impactLevel,
+          issueSummary,
+          expectedReaction,
+          outlook,
+          reason,
+          evidenceSentence,
+          sources,
+          sortOrder,
+          riskSearchStatus,
+          false);
+    }
+
+    public AssetImpactResult(
+        String assetName,
+        ImpactDirection direction,
+        ImpactLevel impactLevel,
+        String issueSummary,
+        String expectedReaction,
+        String outlook,
+        String reason,
+        String evidenceSentence,
+        List<Source> sources,
+        int sortOrder) {
+      this(
+          assetName,
+          direction,
+          impactLevel,
+          issueSummary,
+          expectedReaction,
+          outlook,
+          reason,
+          evidenceSentence,
+          sources,
+          sortOrder,
+          null);
+    }
+
+    public AssetImpactResult withRiskSearchStatus(String status) {
+      return new AssetImpactResult(
+          assetName,
+          direction,
+          impactLevel,
+          issueSummary,
+          expectedReaction,
+          outlook,
+          reason,
+          evidenceSentence,
+          sources,
+          sortOrder,
+          status,
+          noNewNews);
+    }
 
     public AssetImpactResult {
       sources = List.copyOf(sources);

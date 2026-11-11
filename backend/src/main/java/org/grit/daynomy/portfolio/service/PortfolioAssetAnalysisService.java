@@ -31,7 +31,7 @@ import org.springframework.stereotype.Service;
 @Slf4j
 @Service
 public class PortfolioAssetAnalysisService {
-  static final String ANALYSIS_VERSION = "asset-v4-grounded-source";
+  static final String ANALYSIS_VERSION = "asset-v8-yesterday-today";
   private final PortfolioAssetAnalysisRepository repository;
   private final PortfolioAnalysisAiClient ai;
   private final String model;
@@ -245,7 +245,9 @@ public class PortfolioAssetAnalysisService {
         impact.reason(),
         impact.evidenceSentence(),
         impact.sources(),
-        order);
+        order,
+        impact.riskSearchStatus(),
+        impact.noNewNews());
   }
 
   private int priority(ImpactLevel level) {

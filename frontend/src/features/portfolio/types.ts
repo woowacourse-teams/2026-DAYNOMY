@@ -135,6 +135,7 @@ export type PortfolioAnalysisSource = {
 };
 
 export type PortfolioAssetImpactResponse = {
+  riskSearchStatus?: 'SOURCES_FOUND' | 'NOT_FOUND' | null;
   assetName: string;
   weight: number;
   direction: PortfolioImpactDirection | null;
@@ -149,6 +150,8 @@ export type PortfolioAssetImpactResponse = {
 };
 
 export type PortfolioAnalysisResponse = {
+  priceContexts?: Record<string, PortfolioAnalysisPriceContext>;
+  personalContext?: PortfolioAnalysisPersonalContext | null;
   excludedAssets?: PortfolioAsset[];
   coverage?: 'COMPLETE' | 'PARTIAL' | 'INSUFFICIENT';
   analyzedWeight?: number;
@@ -162,6 +165,41 @@ export type PortfolioAnalysisResponse = {
   overallImpact: string;
   impacts: PortfolioAssetImpactResponse[];
   sources: PortfolioAnalysisSource[];
+};
+
+export type PortfolioAnalysisPriceContext = {
+  status:
+    | 'AVAILABLE'
+    | 'INSUFFICIENT_HISTORY'
+    | 'STALE_PRICE'
+    | 'UNAVAILABLE'
+    | 'AMBIGUOUS_ASSET'
+    | 'LOOKUP_FAILED';
+  currency: 'KRW' | 'USD' | null;
+  priceType: 'CLOSE' | 'DELAYED' | null;
+  baseDate: string | null;
+  asOf: string | null;
+  price: number | null;
+  comparisonDate: string | null;
+  comparisonPrice: number | null;
+  changeRate: number | null;
+  observationCount: number;
+};
+
+export type PortfolioAnalysisPersonalContext = {
+  baseDate: string;
+  purchaseAmount: number;
+  evaluationAmount: number;
+  profitLoss: number;
+  returnRate: number;
+  holdings: {
+    assetName: string;
+    baseDate: string;
+    quantity: number;
+    averagePurchasePrice: number;
+    profitLoss: number;
+    returnRate: number;
+  }[];
 };
 
 export type SavedPortfolioAnalysisResponse = {

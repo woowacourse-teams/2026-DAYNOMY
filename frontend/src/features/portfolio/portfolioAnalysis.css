@@ -1106,3 +1106,30 @@ button.portfolio-asset-row:focus-visible {
 .portfolio-analysis-checked-at {
   font-variant-numeric: tabular-nums;
 }
+/* 분석 상태 안내에만 적용하며 차트 디자인은 유지한다. */
+.portfolio-analysis-empty {
+  gap: 16px;
+  padding: clamp(28px, 5vw, 64px) 24px;
+  background: #fff;
+}
+
+.portfolio-analysis-mascot {
+  display: block;
+  width: clamp(120px, 18vw, 176px);
+  height: auto;
+  flex-shrink: 0;
+}
+
+.portfolio-analysis-empty > strong {
+  color: #141b2b;
+  font-size: clamp(20px, 2.5vw, 28px);
+  line-height: 1.5;
+  word-break: keep-all;
+}
+
+.portfolio-analysis-empty > p {
+  margin: 0;
+  color: #596579;
+  font-size: 16px;
+  font-weight: 400;
+}

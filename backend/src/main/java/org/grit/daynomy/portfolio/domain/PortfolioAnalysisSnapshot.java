@@ -12,11 +12,32 @@ public record PortfolioAnalysisSnapshot(
     List<Asset> assets,
     PortfolioImpactSummary summary,
     String overallImpact,
-    List<AssetImpact> impacts) {
+    List<AssetImpact> impacts,
+    java.util.Map<String, PortfolioAnalysisPriceContext> priceContexts,
+    PortfolioAnalysisPersonalContext personalContext) {
+
+  public PortfolioAnalysisSnapshot(
+      List<Asset> assets,
+      PortfolioImpactSummary summary,
+      String overallImpact,
+      List<AssetImpact> impacts,
+      java.util.Map<String, PortfolioAnalysisPriceContext> priceContexts) {
+    this(assets, summary, overallImpact, impacts, priceContexts, null);
+  }
+
+  public PortfolioAnalysisSnapshot(
+      List<Asset> assets,
+      PortfolioImpactSummary summary,
+      String overallImpact,
+      List<AssetImpact> impacts) {
+    this(assets, summary, overallImpact, impacts, java.util.Map.of());
+  }
 
   public PortfolioAnalysisSnapshot {
     assets = List.copyOf(assets);
     impacts = List.copyOf(impacts);
+    priceContexts =
+        priceContexts == null ? java.util.Map.of() : java.util.Map.copyOf(priceContexts);
   }
 
   public boolean hasSameAssets(List<Asset> other) {
@@ -54,5 +75,55 @@ public record PortfolioAnalysisSnapshot(
       String outlook,
       String reason,
       String evidenceSentence,
-      int rank) {}
+      int rank,
+      String riskSearchStatus,
+      boolean noNewNews) {
+    public AssetImpact(
+        String assetName,
+        ImpactDirection direction,
+        ImpactLevel impactLevel,
+        String issueSummary,
+        String expectedReaction,
+        String outlook,
+        String reason,
+        String evidenceSentence,
+        int rank,
+        String riskSearchStatus) {
+      this(
+          assetName,
+          direction,
+          impactLevel,
+          issueSummary,
+          expectedReaction,
+          outlook,
+          reason,
+          evidenceSentence,
+          rank,
+          riskSearchStatus,
+          false);
+    }
+
+    public AssetImpact(
+        String assetName,
+        ImpactDirection direction,
+        ImpactLevel impactLevel,
+        String issueSummary,
+        String expectedReaction,
+        String outlook,
+        String reason,
+        String evidenceSentence,
+        int rank) {
+      this(
+          assetName,
+          direction,
+          impactLevel,
+          issueSummary,
+          expectedReaction,
+          outlook,
+          reason,
+          evidenceSentence,
+          rank,
+          null);
+    }
+  }
 }

@@ -91,6 +91,57 @@ afterEach(() => {
 });
 
 describe('포트폴리오 분석 화면', () => {
+  it('새 사실이 없으면 안내 카드 없이 이전 분석을 바로 표시한다', async () => {
+    memberFetch(() =>
+      saved({ lastCheckOutcome: 'UNCHANGED', lastSucceededAt: new Date().toISOString() }),
+    );
+    const view = render(<PortfolioAnalysis assets={assets} />);
+    expect(await view.findByText(analysisResponse.overallImpact)).toBeTruthy();
+    expect(view.getByRole('heading', { name: '자산별 영향' })).toBeTruthy();
+    expect(view.queryByText('아직 새로운 소식이 없어요')).toBeNull();
+    expect(view.queryByRole('button', { name: '이전 분석 보기' })).toBeNull();
+    expect(view.container.querySelector('.portfolio-analysis-mascot')).toBeNull();
+  });
+
+  it('과거의 새 소식 없음 결과를 오늘 확인한 결과처럼 표시하지 않는다', async () => {
+    memberFetch(() =>
+      saved({
+        status: 'RECHECK_REQUIRED',
+        lastCheckOutcome: 'UNCHANGED',
+        lastSucceededAt: new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString(),
+      }),
+    );
+    const view = render(<PortfolioAnalysis assets={assets} />);
+    expect(
+      await view.findByText('기존 분석을 유지하고 있어요. 근거를 다시 확인해 주세요.'),
+    ).toBeTruthy();
+    expect(
+      view.queryByText('어제·오늘 확인한 자료에서 분석을 갱신할 새 소식을 찾지 못했어요.'),
+    ).toBeNull();
+  });
+  it('반대 근거 확인 실패 시 이전 분석 대신 재시도 안내를 표시한다', async () => {
+    memberFetch(() =>
+      saved({
+        status: 'FAILED',
+        failureCode: 'PORTFOLIO_ANALYSIS_RISK_SEARCH_FAILED',
+        lastFailedAt: new Date().toISOString(),
+      }),
+    );
+    const view = render(<PortfolioAnalysis assets={assets} />);
+    expect(await view.findByRole('alert')).toBeTruthy();
+    expect(view.queryByText(analysisResponse.overallImpact)).toBeNull();
+    expect(view.queryByRole('heading', { name: '자산별 영향' })).toBeNull();
+    expect(view.queryByText(/마지막 분석 처리:/)).toBeNull();
+    expect(view.container.querySelector('.portfolio-analysis-mascot')).toBeTruthy();
+  });
+
+  it('근거 재확인 불가는 새 소식 없음과 구분하고 이전 분석을 숨긴다', async () => {
+    memberFetch(() => saved({ status: 'RECHECK_REQUIRED', lastCheckOutcome: 'UNCONFIRMED' }));
+    const view = render(<PortfolioAnalysis assets={assets} />);
+    expect(await view.findByRole('alert')).toBeTruthy();
+    expect(view.queryByText(analysisResponse.overallImpact)).toBeNull();
+    expect(view.queryByText('아직 새로운 소식이 없어요')).toBeNull();
+  });
   it('상태가 배열인 응답은 분석 결과 대신 오류를 표시하고 재시도할 수 있다', async () => {
     let invalid = true;
     memberFetch(() => saved(invalid ? { status: ['READY'] } : {}));
@@ -100,7 +151,7 @@ describe('포트폴리오 분석 화면', () => {
     );
     expect(view.queryByText(analysisResponse.overallImpact)).toBeNull();
     invalid = false;
-    fireEvent.click(view.getByRole('button', { name: '다시 시도' }));
+    fireEvent.click(view.getByRole('button', { name: '다시 분석하기' }));
     expect(await view.findByText(analysisResponse.overallImpact)).toBeTruthy();
   });
 
@@ -376,7 +427,7 @@ describe('포트폴리오 분석 화면', () => {
     expect(await view.findByRole('alert')).toBeTruthy();
     expect(sessionStorage.getItem(GUEST_PORTFOLIO_ANALYSIS_TRIAL_STORAGE_KEY)).toBeNull();
 
-    fireEvent.click(view.getByRole('button', { name: '다시 시도' }));
+    fireEvent.click(view.getByRole('button', { name: '다시 분석하기' }));
     expect(await view.findByRole('heading', { name: '전체 포트폴리오' })).toBeTruthy();
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
@@ -610,7 +661,7 @@ describe('포트폴리오 분석 화면', () => {
     expect(view.getByRole('heading', { name: changeReason })).toBeTruthy();
     expect(
       view
-        .getByText(/최근 확인:/)
+        .getByText(/마지막 분석 처리:/)
         .querySelector('time')
         ?.getAttribute('datetime'),
     ).toBe(updated.lastSucceededAt);
@@ -677,7 +728,7 @@ describe('포트폴리오 분석 화면', () => {
     await waitFor(() => expect(resolveRefresh).toBeDefined());
     expect(view.queryByText(analysisResponse.overallImpact)).toBeNull();
     expect(view.queryByRole('heading', { name: '자산별 영향' })).toBeNull();
-    expect(view.getByText(/분석에 약 30초 정도 걸려요/)).toBeTruthy();
+    expect(view.getByText(/긍정적인 소식과 주의할 소식을 함께 확인하고 있어요/)).toBeTruthy();
     const button = view.getByRole('button', { name: '확인 중' }) as HTMLButtonElement;
     expect(button.disabled).toBe(true);
     fireEvent.click(button);
@@ -691,7 +742,7 @@ describe('포트폴리오 분석 화면', () => {
     expect(await view.findByRole('button', { name: '새 소식 확인' })).toBeTruthy();
     expect(view.queryByText('주요 변화가 없어 기존 분석을 유지했어요.')).toBeNull();
     expect(view.queryByText(/보유 자산 \d+개 중 \d+개 분석/)).toBeNull();
-    const checkedAt = view.getByText(/최근 확인:/).querySelector('time');
+    const checkedAt = view.getByText(/마지막 분석 처리:/).querySelector('time');
     expect(checkedAt?.getAttribute('datetime')).toBe('2026-10-06T08:00:00Z');
     expect(view.getByText(analysisResponse.overallImpact)).toBeTruthy();
     expect(fetchMock.mock.calls.filter(([url]) => String(url).endsWith('/refresh'))).toHaveLength(
@@ -699,7 +750,7 @@ describe('포트폴리오 분석 화면', () => {
     );
   });
 
-  it('회원 검색 실패에도 기존 결과를 보존하고 재시도로 갱신 이유를 표시한다', async () => {
+  it('회원 검색 실패 시 이전 결과를 숨기고 재시도 성공 시 새 결과를 표시한다', async () => {
     let attempts = 0;
     memberFetch((url) => {
       if (!url.endsWith('/refresh')) return saved();
@@ -712,8 +763,8 @@ describe('포트폴리오 분석 화면', () => {
     const view = render(<PortfolioAnalysis assets={assets} />);
     fireEvent.click(await view.findByRole('button', { name: '새 소식 확인' }));
     expect(await view.findByRole('alert')).toBeTruthy();
-    expect(view.getByText(analysisResponse.overallImpact)).toBeTruthy();
-    fireEvent.click(view.getByRole('button', { name: '다시 시도' }));
+    expect(view.queryByText(analysisResponse.overallImpact)).toBeNull();
+    fireEvent.click(view.getByRole('button', { name: '다시 분석하기' }));
     expect(await view.findByText('새 계약의 영향을 반영했어요.')).toBeTruthy();
     expect(view.getByRole('heading', { name: '새 계약 발표를 반영했어요.' })).toBeTruthy();
     expect(view.container.querySelector('.portfolio-analysis-meta')?.textContent).not.toContain(
@@ -727,7 +778,7 @@ describe('포트폴리오 분석 화면', () => {
     const fetchMock = memberFetch(() => (attempts++ === 0 ? jsonResponse({}, 500) : saved()));
     const view = render(<PortfolioAnalysis assets={assets} />);
     expect(await view.findByRole('alert')).toBeTruthy();
-    fireEvent.click(view.getByRole('button', { name: '다시 시도' }));
+    fireEvent.click(view.getByRole('button', { name: '다시 분석하기' }));
     expect(await view.findByText(analysisResponse.overallImpact)).toBeTruthy();
     expect(fetchMock.mock.calls.every(([, init]) => !init?.method)).toBe(true);
   });
@@ -807,7 +858,7 @@ describe('포트폴리오 분석 화면', () => {
     const view = render(<PortfolioAnalysis assets={currentAssets} />);
     fireEvent.click(await view.findByRole('button', { name: '다시 분석하기' }));
     expect(await view.findByRole('alert')).toBeTruthy();
-    expect(view.getByRole('button', { name: '다시 시도' })).toBeTruthy();
+    expect(view.getByRole('button', { name: '다시 분석하기' })).toBeTruthy();
     expect(view.queryByText('SK하이닉스')).toBeNull();
     expect(view.queryByText(analysisResponse.overallImpact)).toBeNull();
     expect(view.queryByRole('heading', { name: '전체 포트폴리오' })).toBeNull();
@@ -928,7 +979,7 @@ describe('포트폴리오 분석 화면', () => {
         { timeout: 4500 },
       );
       expect(second.getByRole('heading', { name: '전체 포트폴리오' })).toBeTruthy();
-      expect(second.queryByText(/분석에 약 30초 정도 걸려요/)).toBeNull();
+      expect(second.queryByText(/긍정적인 소식과 주의할 소식을 함께 확인하고 있어요/)).toBeNull();
       fireEvent.click(second.getByText('삼성전자').closest('button')!);
       expect(second.getByText(analysisResponse.impacts[0].expectedReaction)).toBeTruthy();
       fireEvent.click(second.getByRole('button', { name: /^전체 포트폴리오 분석 보기$/ }));
@@ -962,7 +1013,7 @@ describe('포트폴리오 분석 화면', () => {
     const view = render(<PortfolioAnalysis assets={assets} />);
     fireEvent.click(await view.findByRole('button', { name: 'AI 분석하기' }));
     const processingMessage = await view.findByText(
-      /분석에 약 30초 정도 걸려요\.\s*다른 화면을 둘러보거나 새로고침해도 분석은 계속돼요\./,
+      /긍정적인 소식과 주의할 소식을 함께 확인하고 있어요\.\s*다른 화면을 둘러보거나 새로고침해도 분석은 계속돼요\./,
     );
     expect(processingMessage.querySelector('br')).toBeTruthy();
     const processingStatus = processingMessage.closest('[role="status"]');

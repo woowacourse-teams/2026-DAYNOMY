@@ -19,6 +19,206 @@ import org.junit.jupiter.api.Test;
 
 class PortfolioAnalysisRefreshTest {
   @Test
+  void noNewNewsPreservesPreviousBusinessJudgmentWhileRefreshingPrices() {
+    var old =
+        response(impact("삼성전자", false, ImpactDirection.POSITIVE))
+            .withPriceContexts(java.util.Map.of("삼성전자", price("100", "0")));
+    var candidate =
+        response(
+                new PortfolioAssetImpactResponse(
+                    "삼성전자",
+                    BigDecimal.valueOf(100),
+                    null,
+                    null,
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    List.of(),
+                    1,
+                    "NOT_FOUND",
+                    true))
+            .withPriceContexts(java.util.Map.of("삼성전자", price("90", "-10")));
+    var revision = PortfolioAnalysisRefresh.compare(old, candidate);
+    assertThat(revision.analysis().impacts().getFirst().direction())
+        .isEqualTo(ImpactDirection.POSITIVE);
+    assertThat(revision.analysis().impacts().getFirst().sources())
+        .isEqualTo(old.impacts().getFirst().sources());
+    assertThat(revision.analysis().analyzedAt()).isEqualTo(old.analyzedAt());
+    assertThat(revision.analysis().priceContexts().get("삼성전자").price()).isEqualByComparingTo("90");
+  }
+
+  @Test
+  void priceOnlyRefreshRebuildsSummaryButPreservesBusinessDirectionAndEvidence() {
+    var original =
+        response(
+                impact("삼성전자", false, ImpactDirection.POSITIVE),
+                impact("SK하이닉스", false, ImpactDirection.NEGATIVE))
+            .withOverallImpact("현재 보유한 두 종목의 비중이 같아요.\n\n사업 근거를 확인했어요.\n\n다음 실적을 확인해야 해요.");
+    var old = original.withPriceContexts(java.util.Map.of("삼성전자", price("100", "0")));
+    var candidate =
+        response(
+                impact("삼성전자", false, ImpactDirection.NEGATIVE),
+                impact("SK하이닉스", false, ImpactDirection.POSITIVE))
+            .withPriceContexts(java.util.Map.of("삼성전자", price("90", "-10")));
+    var revision = PortfolioAnalysisRefresh.compare(old, candidate);
+    assertThat(revision.outcome()).isEqualTo(Outcome.UPDATED);
+    assertThat(revision.analysis().impacts())
+        .extracting(PortfolioAssetImpactResponse::direction)
+        .containsExactly(ImpactDirection.NEGATIVE, ImpactDirection.POSITIVE);
+    assertThat(revision.analysis().priceContexts().get("삼성전자").changeRate())
+        .isEqualByComparingTo("-10");
+    assertThat(revision.analysis().overallScore()).isEqualByComparingTo(old.overallScore());
+    assertThat(PortfolioAnalysisRefresh.compare(old, revision.analysis()).outcome())
+        .isEqualTo(Outcome.UPDATED);
+  }
+
+  @Test
+  void selectivePriceRefreshPreservesUntouchedContextsAndFailedLookups() {
+    var old =
+        response(
+                impact("삼성전자", false, ImpactDirection.POSITIVE),
+                impact("SK하이닉스", false, ImpactDirection.NEGATIVE))
+            .withPriceContexts(
+                java.util.Map.of("삼성전자", price("100", "0"), "SK하이닉스", price("200", "0")));
+    var candidate =
+        response(impact("삼성전자", false, ImpactDirection.POSITIVE))
+            .withPriceContexts(
+                java.util.Map.of("삼성전자", price("90", "-10"), "SK하이닉스", price("150", "-25")));
+    var revision =
+        PortfolioAnalysisRefresh.compareSelected(old, candidate, List.of(), Set.of("삼성전자"));
+    assertThat(revision.analysis().priceContexts().get("SK하이닉스"))
+        .isEqualTo(old.priceContexts().get("SK하이닉스"));
+    var failed =
+        candidate.withPriceContexts(
+            java.util.Map.of(
+                "삼성전자",
+                org.grit.daynomy.portfolio.dto.PortfolioAnalysisPriceContextResponse.from(
+                    org.grit.daynomy.portfolio.domain.PortfolioAnalysisPriceContext.unavailable(
+                        org.grit.daynomy.portfolio.domain.PortfolioAnalysisPriceContext.Status
+                            .LOOKUP_FAILED))));
+    assertThat(
+            PortfolioAnalysisRefresh.compareSelected(old, failed, List.of(), Set.of("삼성전자"))
+                .outcome())
+        .isEqualTo(Outcome.UNCHANGED);
+  }
+
+  private org.grit.daynomy.portfolio.dto.PortfolioAnalysisPriceContextResponse price(
+      String value, String rate) {
+    return new org.grit.daynomy.portfolio.dto.PortfolioAnalysisPriceContextResponse(
+        "AVAILABLE",
+        "KRW",
+        "CLOSE",
+        LocalDate.of(2026, 11, 10),
+        null,
+        new BigDecimal(value),
+        LocalDate.of(2026, 10, 20),
+        new BigDecimal("100"),
+        new BigDecimal(rate),
+        15);
+  }
+
+  @Test
+  void sameDayRiskUpdatesOnlyChangedAssetAndSurvivesTheSecondComparisonBeforeSaving() {
+    var oldAsset = impact("삼성전자", false, ImpactDirection.POSITIVE);
+    var other = impact("SK하이닉스", false, ImpactDirection.NEGATIVE);
+    var risk =
+        new PortfolioAnalysisSourceResponse(
+            "공식 정정",
+            "https://example.invalid/correction",
+            LocalDate.of(2026, 9, 25),
+            LocalDate.of(2026, 9, 25),
+            "전망을 하향했어요.",
+            "Guidance was lowered.");
+    var current =
+        withSources(
+            impact("삼성전자", false, ImpactDirection.NEGATIVE),
+            List.of(oldAsset.sources().getFirst(), risk));
+    var old = response(oldAsset, other);
+
+    var revision =
+        PortfolioAnalysisRefresh.compare(
+            old, response(current, impact("SK하이닉스", false, ImpactDirection.POSITIVE)));
+
+    assertThat(revision.outcome()).isEqualTo(Outcome.UPDATED);
+    assertThat(revision.analysis().overallDirection()).isEqualTo(ImpactDirection.NEGATIVE);
+    assertThat(revision.analysis().impacts())
+        .allSatisfy(i -> assertThat(i.direction()).isEqualTo(ImpactDirection.NEGATIVE));
+    assertThat(PortfolioAnalysisRefresh.compare(old, revision.analysis()).outcome())
+        .isEqualTo(Outcome.UPDATED);
+  }
+
+  @Test
+  void automaticRefreshAcceptsPublicationOnlyRiskWithoutForcingItsDirection() {
+    var oldAsset = impact("삼성전자", false, ImpactDirection.POSITIVE);
+    var old = response(oldAsset, impact("SK하이닉스", false, ImpactDirection.NEGATIVE));
+    var risk =
+        new PortfolioAnalysisSourceResponse(
+            "규제 발표",
+            "https://example.invalid/regulation",
+            LocalDate.of(2026, 9, 25),
+            null,
+            "규제 부담을 확인했어요.",
+            "New restrictions apply.");
+    var current = withSources(oldAsset, List.of(oldAsset.sources().getFirst(), risk));
+
+    var revision =
+        PortfolioAnalysisRefresh.compareSelected(old, response(current), List.of(), Set.of("삼성전자"));
+
+    assertThat(revision.outcome()).isEqualTo(Outcome.UPDATED);
+    assertThat(
+            revision.analysis().impacts().stream()
+                .filter(i -> i.assetName().equals("삼성전자"))
+                .findFirst()
+                .orElseThrow()
+                .direction())
+        .isEqualTo(ImpactDirection.POSITIVE);
+    assertThat(
+            PortfolioAnalysisRefresh.compareSelected(
+                    old, revision.analysis(), List.of(), Set.of("삼성전자"))
+                .outcome())
+        .isEqualTo(Outcome.UPDATED);
+  }
+
+  @Test
+  void unverifiedDateDoesNotReplaceAnExistingValidJudgment() {
+    var oldAsset = impact("삼성전자", false, ImpactDirection.POSITIVE);
+    var old = response(oldAsset, impact("SK하이닉스", false, ImpactDirection.NEGATIVE));
+    var risk =
+        new PortfolioAnalysisSourceResponse(
+            "발표",
+            "https://example.invalid/risk",
+            null,
+            null,
+            "전망을 하향했어요.",
+            "Guidance was lowered.");
+    var current = withSources(impact("삼성전자", false, ImpactDirection.NEGATIVE), List.of(risk));
+
+    var revision =
+        PortfolioAnalysisRefresh.compareSelected(old, response(current), List.of(), Set.of("삼성전자"));
+
+    assertThat(revision.outcome()).isEqualTo(Outcome.UNCONFIRMED);
+    assertThat(revision.analysis()).isSameAs(old);
+  }
+
+  private PortfolioAssetImpactResponse withSources(
+      PortfolioAssetImpactResponse impact, List<PortfolioAnalysisSourceResponse> sources) {
+    return new PortfolioAssetImpactResponse(
+        impact.assetName(),
+        impact.weight(),
+        impact.direction(),
+        impact.impactLevel(),
+        impact.issueSummary(),
+        impact.expectedReaction(),
+        impact.outlook(),
+        impact.reason(),
+        impact.evidenceSentence(),
+        sources,
+        impact.rank());
+  }
+
+  @Test
   void selectiveRefreshPreservesOtherEvidenceAndRecalculatesCurrentWeights() {
     var old =
         response(
