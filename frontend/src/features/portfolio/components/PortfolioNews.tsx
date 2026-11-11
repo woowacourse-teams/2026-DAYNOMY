@@ -3,6 +3,7 @@ import { trackEvent } from '../../../analytics';
 import { trackLoadResult, useContentImpression, useContentView } from '../../news/issue/analytics';
 import { memo, useEffect, useRef, useState } from 'react';
 import { getStockRelatedContents } from '../../stock-content/api';
+import { StockNewsEmptyState } from '../../stock-content/StockNewsEmptyState';
 import { STOCK_CONTENT_SOURCE_LABELS, type StockRelatedContent } from '../../stock-content/types';
 import { feedDate, youtubeThumbnail } from '../../news/issue/feed';
 import xMark from '../../../assets/platform-x.svg';
@@ -207,13 +208,17 @@ export const PortfolioNews = memo(function PortfolioNews({
           </button>
         </p>
       )}
-      {!demo && !loading && !failed && !items.length && (
-        <p className="portfolio-news-state is-empty">
-          {holdings.length
-            ? '보유 자산에 등록된 소식이 없습니다.'
-            : '자산을 등록하면 관련 소식이 여기에 모입니다.'}
-        </p>
-      )}
+      {!demo &&
+        !loading &&
+        !failed &&
+        !items.length &&
+        (holdings.length ? (
+          <StockNewsEmptyState title="아직 보유 종목의 소식이 없어요" />
+        ) : (
+          <p className="portfolio-news-state is-empty">
+            자산을 등록하면 관련 소식이 여기에 모입니다.
+          </p>
+        ))}
       <ul className="portfolio-news-list">
         {displayItems.map((item, index) => (
           <li key={item.url}>
