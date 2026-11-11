@@ -28,7 +28,6 @@ final result: passed
 - 선택 응답·글자 수 연결·입력 검증·노출 정책은 유지한다. 관련 UI 테스트 17개와 format/lint/typecheck/build 통과.
 
 final result: passed
-
 ---
 
 # PMF 설문 선택 의견 기본 표시 — FE #805
@@ -306,3 +305,27 @@ passed
 - frontend format:check/lint/typecheck, unit/server/UI 677개, production build, Docker 기반 배포·롤백·캐시·연속성 검증 통과.
 - 브라우저 전체 실행에서 53개 통과. 위 두 원인으로 실패한 데스크톱·모바일 4개도 수정 후 모두 통과.
 - backend clean build 통과: 205개 테스트 스위트, 1,365개 중 실패 0·오류 0·기존 제외 3개.
+
+---
+
+# 소식 홈 최신순·인기순 탭 — FE #888
+
+- 기준 시안:
+  - `/var/folders/fr/9gplj_s903v4wmr2rtc9j9rc0000gn/T/TemporaryItems/NSIRD_screencaptureui_UwFa1a/스크린샷 2026-11-11 오전 9.56.53.png` (1624×324px)
+  - `/var/folders/fr/9gplj_s903v4wmr2rtc9j9rc0000gn/T/TemporaryItems/NSIRD_screencaptureui_6ZFuGn/스크린샷 2026-11-11 오전 9.57.14.png` (412×164px)
+- 구현 캡처: `/private/tmp/daynomy-fe-888-desktop.png` (1280×720px), `/private/tmp/daynomy-fe-888-mobile.png` (390×844px). CSS viewport와 캡처는 1px/CSS px다.
+- 밀도 정규화: 정렬 상세 시안은 고밀도 크롭으로 보이며 1× 구현의 13px 라벨, 14px 간격, 2px 선택 밑줄과 비교했다.
+- 상태: 최신순 선택 상태로 시안을 비교했고 최신순→인기순→최신순 전환도 확인했다.
+
+## 비교 결과
+
+- 글꼴/위계: 기존 소식 화면 글꼴을 사용하고 선택 라벨은 굵은 네이비, 미선택 라벨은 회색으로 표시한다.
+- 간격/레이아웃: 데스크톱에서는 출처 필터 오른쪽, 390px에서는 필터 아래에 배치해 겹침 없이 표시한다.
+- 색상/토큰: 기존 소식 화면의 네이비·회색 토큰과 정렬 탭 스타일을 재사용했다.
+- 이미지/자산: 이미지나 새 아이콘이 필요한 컨트롤이 아니므로 자산을 추가하지 않았다.
+- 문구: 시안의 `최신순`, `인기순`을 그대로 사용했다.
+- 상호작용: 선택한 정렬에 따라 `aria-pressed`와 밑줄이 바뀌며 해당 정렬값으로 피드를 다시 요청한다. 출처 필터와 함께 동작한다.
+- 브라우저 콘솔 오류 없음. 잔여 P0/P1/P2 없음.
+- 검증: format:check, lint, typecheck, 전체 테스트(UI 897개 포함), production build 통과.
+
+final result: passed
