@@ -1876,7 +1876,7 @@ class SavedPortfolioAnalysisAcceptanceTest extends SharedDatabaseTest {
   }
 
   @Test
-  void correctedQuoteWithSameSummaryRequiresRecheckAfterDatabaseRestore() {
+  void correctedQuoteWithSameSummaryCreatesRevisionAfterDatabaseRestore() {
     Member member = member();
     hold(portfolio(member), "삼성전자");
     when(ai.analyze(anyList()))
@@ -1894,15 +1894,96 @@ class SavedPortfolioAnalysisAcceptanceTest extends SharedDatabaseTest {
         .post(API + "/refresh")
         .then()
         .statusCode(200)
-        .body("analysisId", equalTo((int) id))
-        .body("status", equalTo("RECHECK_REQUIRED"))
-        .body("lastCheckOutcome", equalTo("UNCONFIRMED"));
+        .body("analysisId", org.hamcrest.Matchers.not(equalTo((int) id)))
+        .body("status", equalTo("READY"))
+        .body("lastCheckOutcome", equalTo("UPDATED"));
     client(member)
         .get(API)
         .then()
         .statusCode(200)
-        .body("status", equalTo("RECHECK_REQUIRED"))
-        .body("analysis.impacts[0].sources[0].factQuote", equalTo("Operating profit fell 10%."));
+        .body("status", equalTo("READY"))
+        .body("analysis.impacts[0].sources[0].factQuote", equalTo("Operating profit fell 20%."));
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void sameDayRiskCreatesRevisionEvenWhenOnlyPublicationDateIsKnown(boolean unknownEventDate) {
+    Member member = member();
+    hold(portfolio(member), "삼성전자");
+    LocalDate date = LocalDate.of(2026, 9, 25);
+    var original =
+        new PortfolioAnalysisResult.Source(
+            "실적 발표",
+            "https://example.invalid/results",
+            date,
+            date,
+            "매출이 증가했어요.",
+            "Revenue increased.");
+    var risk =
+        new PortfolioAnalysisResult.Source(
+            "규제 발표",
+            "https://example.invalid/regulation",
+            date,
+            unknownEventDate ? null : date,
+            "규제 부담을 확인했어요.",
+            "New restrictions apply.");
+    when(ai.analyze(anyList()))
+        .thenAnswer(
+            invocation ->
+                verifiedResult(
+                    invocation.getArgument(0), List.of(original), ImpactDirection.POSITIVE));
+    long id = client(member).post(API).jsonPath().getLong("analysisId");
+    when(ai.refresh(anyList(), anyString()))
+        .thenAnswer(
+            invocation ->
+                verifiedResult(
+                    invocation.getArgument(0), List.of(original, risk), ImpactDirection.NEGATIVE));
+
+    client(member)
+        .post(API + "/refresh")
+        .then()
+        .statusCode(200)
+        .body("analysisId", org.hamcrest.Matchers.not(equalTo((int) id)))
+        .body("lastCheckOutcome", equalTo("UPDATED"))
+        .body("analysis.impacts[0].direction", equalTo("NEGATIVE"))
+        .body("analysis.impacts[0].sources.size()", equalTo(2));
+    client(member)
+        .get(API)
+        .then()
+        .statusCode(200)
+        .body("analysis.impacts[0].sources[1].factQuote", equalTo("New restrictions apply."));
+    client(member)
+        .get(API + "/history")
+        .then()
+        .statusCode(200)
+        .body("size()", equalTo(2))
+        .body("[0].previousAnalysisId", equalTo((int) id))
+        .body("[1].analysis.impacts[0].direction", equalTo("POSITIVE"));
+  }
+
+  private PortfolioAnalysisResult verifiedResult(
+      List<PortfolioAnalysisTarget> targets,
+      List<PortfolioAnalysisResult.Source> sources,
+      ImpactDirection direction) {
+    String fact = sources.getLast().excerpt();
+    return new PortfolioAnalysisResult(
+        "확인한 사실이에요.",
+        targets.stream()
+            .map(
+                target ->
+                    new PortfolioAnalysisResult.AssetImpactResult(
+                        target.assetName(),
+                        direction,
+                        ImpactLevel.HIGH,
+                        fact,
+                        direction == ImpactDirection.NEGATIVE ? "사업 부담이 증가했어요." : "매출 증가를 확인했어요.",
+                        "다음 발표를 확인해야 해요.",
+                        fact,
+                        fact,
+                        sources,
+                        1))
+            .toList(),
+        sources);
   }
 
   private PortfolioAnalysisResult quotedResult(

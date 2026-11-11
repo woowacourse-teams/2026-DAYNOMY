@@ -19,6 +19,105 @@ import org.junit.jupiter.api.Test;
 
 class PortfolioAnalysisRefreshTest {
   @Test
+  void sameDayRiskUpdatesOnlyChangedAssetAndSurvivesTheSecondComparisonBeforeSaving() {
+    var oldAsset = impact("삼성전자", false, ImpactDirection.POSITIVE);
+    var other = impact("SK하이닉스", false, ImpactDirection.NEGATIVE);
+    var risk =
+        new PortfolioAnalysisSourceResponse(
+            "공식 정정",
+            "https://example.invalid/correction",
+            LocalDate.of(2026, 9, 25),
+            LocalDate.of(2026, 9, 25),
+            "전망을 하향했어요.",
+            "Guidance was lowered.");
+    var current =
+        withSources(
+            impact("삼성전자", false, ImpactDirection.NEGATIVE),
+            List.of(oldAsset.sources().getFirst(), risk));
+    var old = response(oldAsset, other);
+
+    var revision =
+        PortfolioAnalysisRefresh.compare(
+            old, response(current, impact("SK하이닉스", false, ImpactDirection.POSITIVE)));
+
+    assertThat(revision.outcome()).isEqualTo(Outcome.UPDATED);
+    assertThat(revision.analysis().overallDirection()).isEqualTo(ImpactDirection.NEGATIVE);
+    assertThat(revision.analysis().impacts())
+        .allSatisfy(i -> assertThat(i.direction()).isEqualTo(ImpactDirection.NEGATIVE));
+    assertThat(PortfolioAnalysisRefresh.compare(old, revision.analysis()).outcome())
+        .isEqualTo(Outcome.UPDATED);
+  }
+
+  @Test
+  void automaticRefreshAcceptsPublicationOnlyRiskWithoutForcingItsDirection() {
+    var oldAsset = impact("삼성전자", false, ImpactDirection.POSITIVE);
+    var old = response(oldAsset, impact("SK하이닉스", false, ImpactDirection.NEGATIVE));
+    var risk =
+        new PortfolioAnalysisSourceResponse(
+            "규제 발표",
+            "https://example.invalid/regulation",
+            LocalDate.of(2026, 9, 25),
+            null,
+            "규제 부담을 확인했어요.",
+            "New restrictions apply.");
+    var current = withSources(oldAsset, List.of(oldAsset.sources().getFirst(), risk));
+
+    var revision =
+        PortfolioAnalysisRefresh.compareSelected(old, response(current), List.of(), Set.of("삼성전자"));
+
+    assertThat(revision.outcome()).isEqualTo(Outcome.UPDATED);
+    assertThat(
+            revision.analysis().impacts().stream()
+                .filter(i -> i.assetName().equals("삼성전자"))
+                .findFirst()
+                .orElseThrow()
+                .direction())
+        .isEqualTo(ImpactDirection.POSITIVE);
+    assertThat(
+            PortfolioAnalysisRefresh.compareSelected(
+                    old, revision.analysis(), List.of(), Set.of("삼성전자"))
+                .outcome())
+        .isEqualTo(Outcome.UPDATED);
+  }
+
+  @Test
+  void unverifiedDateDoesNotReplaceAnExistingValidJudgment() {
+    var oldAsset = impact("삼성전자", false, ImpactDirection.POSITIVE);
+    var old = response(oldAsset, impact("SK하이닉스", false, ImpactDirection.NEGATIVE));
+    var risk =
+        new PortfolioAnalysisSourceResponse(
+            "발표",
+            "https://example.invalid/risk",
+            null,
+            null,
+            "전망을 하향했어요.",
+            "Guidance was lowered.");
+    var current = withSources(impact("삼성전자", false, ImpactDirection.NEGATIVE), List.of(risk));
+
+    var revision =
+        PortfolioAnalysisRefresh.compareSelected(old, response(current), List.of(), Set.of("삼성전자"));
+
+    assertThat(revision.outcome()).isEqualTo(Outcome.UNCONFIRMED);
+    assertThat(revision.analysis()).isSameAs(old);
+  }
+
+  private PortfolioAssetImpactResponse withSources(
+      PortfolioAssetImpactResponse impact, List<PortfolioAnalysisSourceResponse> sources) {
+    return new PortfolioAssetImpactResponse(
+        impact.assetName(),
+        impact.weight(),
+        impact.direction(),
+        impact.impactLevel(),
+        impact.issueSummary(),
+        impact.expectedReaction(),
+        impact.outlook(),
+        impact.reason(),
+        impact.evidenceSentence(),
+        sources,
+        impact.rank());
+  }
+
+  @Test
   void selectiveRefreshPreservesOtherEvidenceAndRecalculatesCurrentWeights() {
     var old =
         response(

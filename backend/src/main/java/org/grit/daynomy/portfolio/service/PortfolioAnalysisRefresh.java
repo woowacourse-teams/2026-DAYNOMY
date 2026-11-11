@@ -199,7 +199,12 @@ final class PortfolioAnalysisRefresh {
     return impact.sources().stream()
         .map(
             source ->
-                new Fact(source.url(), source.occurredOn(), source.excerpt(), source.factQuote()))
+                new Fact(
+                    source.url(),
+                    source.occurredOn(),
+                    source.excerpt(),
+                    source.factQuote(),
+                    source.publishedOn()))
         .toList();
   }
 

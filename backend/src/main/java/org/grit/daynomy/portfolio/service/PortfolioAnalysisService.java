@@ -118,6 +118,10 @@ public class PortfolioAnalysisService {
                                                   Map.of(
                                                       "url",
                                                       source.url(),
+                                                      "publishedOn",
+                                                      source.publishedOn() == null
+                                                          ? ""
+                                                          : source.publishedOn().toString(),
                                                       "occurredOn",
                                                       source.occurredOn() == null
                                                           ? ""

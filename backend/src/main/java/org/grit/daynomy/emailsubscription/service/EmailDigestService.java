@@ -238,7 +238,11 @@ public class EmailDigestService {
         .map(
             source ->
                 new PortfolioEvidenceComparison.Fact(
-                    source.url(), source.occurredOn(), source.excerpt(), source.factQuote()))
+                    source.url(),
+                    source.occurredOn(),
+                    source.excerpt(),
+                    source.factQuote(),
+                    source.publishedOn()))
         .toList();
   }
 
