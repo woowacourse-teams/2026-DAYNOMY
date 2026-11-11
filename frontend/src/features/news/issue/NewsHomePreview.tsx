@@ -75,6 +75,7 @@ export default function NewsHomePreview({ preview = false }: { preview?: boolean
   const [rankingFailed, setRankingFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [latestSource, setLatestSource] = useState<'ALL' | FeedItem['source']>('ALL');
+  const [latestSort, setLatestSort] = useState<'LATEST' | 'POPULAR'>('LATEST');
   const people = useFeaturedPeople(isPreview ? 'news_home_preview' : 'news_home', 1, 100);
   const trackNewsHomeEvent = (name: string, params: Record<string, string | number | boolean>) => {
     if (!isPreview) trackEvent(name, params);
@@ -130,7 +131,7 @@ export default function NewsHomePreview({ preview = false }: { preview?: boolean
     const controller = new AbortController();
     setLatestLoading(true);
     setFailed(false);
-    getNewsFeed(latestSource, 1, 8, 'LATEST', controller.signal)
+    getNewsFeed(latestSource, 1, 8, latestSort, controller.signal)
       .then((result) => {
         if (ignore) return;
         setLatest(result.items);
@@ -152,7 +153,7 @@ export default function NewsHomePreview({ preview = false }: { preview?: boolean
       ignore = true;
       controller.abort();
     };
-  }, [attempt, isPreview, latestSource]);
+  }, [attempt, isPreview, latestSort, latestSource]);
 
   const listStatus = failed ? 'partial_error' : 'ready';
   useContentView(!isPreview && !latestLoading, 'view_content_list', {
@@ -303,29 +304,55 @@ export default function NewsHomePreview({ preview = false }: { preview?: boolean
               모두 보기
             </Link>
           </div>
-          <div
-            className="issue-source-filters briefing-source-filters"
-            role="group"
-            aria-label="전체 소식 카테고리"
-          >
-            {latestSources.map(([value, label]) => (
-              <button
-                key={value}
-                type="button"
-                aria-pressed={latestSource === value}
-                onClick={() => {
-                  if (latestSource === value) return;
-                  trackNewsHomeEvent('filter_content_source', {
-                    surface: 'news_home',
-                    previous_source: latestSource,
-                    source_type: value,
-                  });
-                  setLatestSource(value);
-                }}
-              >
-                {label}
-              </button>
-            ))}
+          <div className="briefing-latest-controls">
+            <div
+              className="issue-source-filters briefing-source-filters"
+              role="group"
+              aria-label="전체 소식 카테고리"
+            >
+              {latestSources.map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  aria-pressed={latestSource === value}
+                  onClick={() => {
+                    if (latestSource === value) return;
+                    trackNewsHomeEvent('filter_content_source', {
+                      surface: 'news_home',
+                      previous_source: latestSource,
+                      source_type: value,
+                    });
+                    setLatestSource(value);
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className="issue-sort-options" role="group" aria-label="전체 소식 정렬">
+              {(
+                [
+                  ['LATEST', '최신순'],
+                  ['POPULAR', '인기순'],
+                ] as const
+              ).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  aria-pressed={latestSort === value}
+                  onClick={() => {
+                    if (latestSort === value) return;
+                    trackNewsHomeEvent('sort_content', {
+                      surface: 'news_home',
+                      sort: value.toLowerCase(),
+                    });
+                    setLatestSort(value);
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
           {latestLoading ? (
             <p className="issue-state" role="status">
