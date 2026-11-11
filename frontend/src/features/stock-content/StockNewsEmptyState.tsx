@@ -5,7 +5,7 @@ import './stockNewsEmptyState.css';
 export function StockNewsEmptyState({ title }: { title: string }) {
   return (
     <div className="stock-news-empty">
-      <img src={cryingCat} alt="" width="180" height="198" />
+      <img src={cryingCat} alt="" width="180" height="180" />
       <div className="stock-news-empty-copy">
         <p className="stock-news-empty-title">{title}</p>
         <p className="stock-news-empty-description">
