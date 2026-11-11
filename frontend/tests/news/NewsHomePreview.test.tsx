@@ -392,6 +392,24 @@ it('전체 소식 카테고리로 출처를 필터링한다', async () => {
   expect(JSON.stringify(vi.mocked(trackEvent).mock.calls)).not.toContain('유튜브 소식');
 });
 
+it('전체 소식을 최신순과 인기순으로 전환한다', async () => {
+  vi.mocked(getNews).mockResolvedValue(page);
+  const view = show();
+  const sort = within(view.getByRole('group', { name: '전체 소식 정렬' }));
+  expect(sort.getByRole('button', { name: '최신순', pressed: true })).toBeTruthy();
+
+  fireEvent.click(sort.getByRole('button', { name: '인기순' }));
+
+  expect(sort.getByRole('button', { name: '인기순', pressed: true })).toBeTruthy();
+  await waitFor(() =>
+    expect(getNewsFeed).toHaveBeenCalledWith('ALL', 1, 8, 'POPULAR', expect.anything()),
+  );
+  expect(trackEvent).toHaveBeenCalledWith('sort_content', {
+    surface: 'news_home',
+    sort: 'popular',
+  });
+});
+
 it('더보기와 인물 미리보기 이동은 목적지와 위치만 기록한다', async () => {
   vi.mocked(getNews).mockResolvedValue(page);
   vi.mocked(useFeaturedPeople).mockReturnValue({
