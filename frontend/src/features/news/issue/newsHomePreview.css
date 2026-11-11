@@ -503,8 +503,16 @@
   scroll-margin-top: 100px;
 }
 
-.issue-source-filters.briefing-source-filters {
+.briefing-latest-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
   margin: 19px 0 12px;
+}
+
+.issue-source-filters.briefing-source-filters {
+  margin: 0;
 }
 
 .briefing-latest .issue-feed {
@@ -997,6 +1005,16 @@
   .briefing-holdings li:nth-child(3) {
     padding-left: 18px;
     border-left: 1px solid var(--briefing-line);
+  }
+
+  .briefing-latest-controls {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .briefing-latest-controls .issue-sort-options {
+    margin-left: 0;
   }
 
   .briefing-latest .issue-feed-row--news {
