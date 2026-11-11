@@ -440,7 +440,7 @@ class SavedPortfolioAnalysisAcceptanceTest extends SharedDatabaseTest {
         .isEqualTo(
             version.equals("v1")
                 ? "portfolio-v7-batch-price-v1"
-                : "portfolio-v8-select5-price-ai-v2");
+                : "portfolio-v9-select5-risk-sources");
     if (version.equals("v1")) {
       // prepare와 complete에서 각각 현재 포트폴리오 가격을 확인한다.
       verify(prices, times(assetCount * 2))

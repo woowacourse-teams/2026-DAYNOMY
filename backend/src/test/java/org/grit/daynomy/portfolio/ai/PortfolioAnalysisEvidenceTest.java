@@ -11,6 +11,65 @@ import org.junit.jupiter.api.Test;
 
 class PortfolioAnalysisEvidenceTest {
   @Test
+  void rereadingTheSameUrlIncludesNewAdverseFactsFromTheUpdatedOriginal() {
+    String added = "Operating margin decreased.";
+    var risks =
+        PortfolioAnalysisEvidence.from(
+            Map.of("삼성전자", List.of(url)),
+            Map.of(
+                url,
+                new PortfolioAnalysisSourceDocument("Updated results", quote + " " + added, null)));
+
+    var merged = evidence.withRiskSources(risks);
+    var input = mapper.valueToTree(merged.input(List.of(new PortfolioAnalysisTarget("삼성전자"))));
+
+    assertThat(input.path("sources")).hasSize(1);
+    assertThat(input.path("sources").get(0).path("quotes").properties())
+        .extracting(entry -> entry.getValue().asText())
+        .containsExactly(quote, added);
+  }
+
+  @Test
+  void riskCollectionKeepsVerifiedPrimaryQuotesAfterAnUnsuccessfulNewerSourceSearch() {
+    var target = new PortfolioAnalysisTarget("삼성전자");
+    var failedReplacement =
+        PortfolioAnalysisEvidence.from(
+            Map.of("삼성전자", List.of("https://example.com/unreadable")), Map.of());
+    var retained = evidence.mergeNewerSources(failedReplacement);
+    var noRisks = PortfolioAnalysisEvidence.from(Map.of("삼성전자", List.of()), Map.of());
+
+    var merged = retained.withRiskSources(noRisks);
+
+    assertThat(merged.references(List.of(target)))
+        .containsExactlyElementsOf(evidence.references(List.of(target)));
+    var input = mapper.valueToTree(merged.input(List.of(target)));
+    assertThat(input.path("sources").get(0).path("url").asText()).isEqualTo(url);
+    assertThat(input.path("assets").get(0).path("riskSearchStatus").asText())
+        .isEqualTo("NOT_FOUND");
+  }
+
+  @Test
+  void riskSearchStatusAndEvidenceStayIndependentForEachAsset() {
+    String riskUrl = "https://example.com/risk";
+    var risk =
+        PortfolioAnalysisEvidence.from(
+            Map.of("삼성전자", List.of(riskUrl), "카카오", List.of()),
+            Map.of(
+                riskUrl,
+                new PortfolioAnalysisSourceDocument("Risk", "Operating profit decreased.", null)));
+    var targets = List.of(new PortfolioAnalysisTarget("삼성전자"), new PortfolioAnalysisTarget("카카오"));
+
+    var input = mapper.valueToTree(evidence.withRiskSources(risk).input(targets));
+
+    assertThat(input.path("assets").get(0).path("riskSearchStatus").asText())
+        .isEqualTo("SOURCES_FOUND");
+    assertThat(input.path("assets").get(1).path("riskSearchStatus").asText())
+        .isEqualTo("NOT_FOUND");
+    assertThat(input.path("assets").get(1).path("sourceUrls")).isEmpty();
+    assertThat(input.path("sources")).hasSize(2);
+  }
+
+  @Test
   void refreshesOldPublicationButKeepsItWhenNoNewerOriginalIsFound() {
     var target = new PortfolioAnalysisTarget("삼성전자");
     assertThat(evidence.needsRecentSource(target, LocalDate.of(2026, 9, 1))).isTrue();

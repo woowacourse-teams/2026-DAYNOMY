@@ -38,7 +38,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Service
 public class SavedPortfolioAnalysisTransactionService {
 
-  private static final String ANALYSIS_VERSION = "portfolio-v9-grounded-source";
+  private static final String ANALYSIS_VERSION = "portfolio-v10-risk-sources";
   private static final int RETAINED_ANALYSES = 10;
 
   private final PortfolioRepository portfolios;
