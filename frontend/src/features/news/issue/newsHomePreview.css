@@ -1008,7 +1008,7 @@
   }
 
   .briefing-latest-controls {
-    align-items: flex-start;
+    align-items: stretch;
     flex-direction: column;
     gap: 8px;
   }
