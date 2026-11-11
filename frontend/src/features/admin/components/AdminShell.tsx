@@ -16,6 +16,11 @@ const sections = [
     icon: 'M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-2 2 M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l2-2',
   },
   {
+    path: '/admin/industries',
+    label: '업종 관리',
+    icon: 'M4 7h6v6H4z M14 4h6v6h-6z M14 14h6v6h-6z M7 13v4h7 M10 10h4',
+  },
+  {
     path: '/admin/content-sources',
     label: '소식 출처',
     icon: 'M4 17l5-5 4 4 7-8 M15 8h5v5',

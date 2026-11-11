@@ -29,6 +29,11 @@ import type {
   AdminContentCollectionReviewPage,
   AdminContentCollectionRematchResult,
   ContentCollectionSourceType,
+  AdminAssetIndustries,
+  AdminIndustry,
+  AdminIndustryAssets,
+  AdminIndustryCreateRequest,
+  AdminIndustryUpdateRequest,
 } from './types';
 
 const DEFAULT_PAGE_SIZE = 15;
@@ -197,6 +202,54 @@ function isAdminStockPriceSyncResponse(value: unknown): value is AdminStockPrice
     Number(value.pendingDateCount) >= 0 &&
     Number.isInteger(value.failedDateCount) &&
     Number(value.failedDateCount) >= 0
+  );
+}
+
+function isAdminIndustry(value: unknown): value is AdminIndustry {
+  return (
+    isRecord(value) &&
+    Number.isSafeInteger(value.id) &&
+    Number(value.id) > 0 &&
+    typeof value.code === 'string' &&
+    /^[A-Z][A-Z0-9_]{0,49}$/.test(value.code) &&
+    typeof value.name === 'string' &&
+    value.name.length > 0 &&
+    Number.isSafeInteger(value.displayOrder) &&
+    Number(value.displayOrder) >= 0 &&
+    typeof value.active === 'boolean'
+  );
+}
+
+function isAdminIndustriesResponse(value: unknown): value is { industries: AdminIndustry[] } {
+  return (
+    isRecord(value) && Array.isArray(value.industries) && value.industries.every(isAdminIndustry)
+  );
+}
+
+function isAdminAssetIndustries(value: unknown): value is AdminAssetIndustries {
+  return (
+    isRecord(value) &&
+    Number.isSafeInteger(value.assetId) &&
+    Number(value.assetId) > 0 &&
+    Array.isArray(value.industries) &&
+    value.industries.every(isAdminIndustry)
+  );
+}
+
+function isAdminIndustryAssets(value: unknown): value is AdminIndustryAssets {
+  return (
+    isRecord(value) &&
+    Number.isSafeInteger(value.industryId) &&
+    Number(value.industryId) > 0 &&
+    Array.isArray(value.items) &&
+    value.items.every(isStock) &&
+    Number.isSafeInteger(value.page) &&
+    Number(value.page) > 0 &&
+    Number.isSafeInteger(value.size) &&
+    Number(value.size) > 0 &&
+    isNonNegativeInteger(value.totalPages) &&
+    isNonNegativeInteger(value.totalElements) &&
+    typeof value.hasNext === 'boolean'
   );
 }
 
@@ -534,6 +587,63 @@ export async function backfillAdminStockPrices(from: string, to: string) {
         'skippedCount',
       ].every((key) => Number.isSafeInteger(value[key]) && Number(value[key]) >= 0),
   );
+}
+
+export async function getAdminIndustries(signal?: AbortSignal) {
+  const response = await request<unknown>('/api/admin/industries', { signal });
+  return assertResponse(response, isAdminIndustriesResponse).industries;
+}
+
+export async function createAdminIndustry(values: AdminIndustryCreateRequest) {
+  const response = await requestWithCsrf<unknown>('/api/admin/industries', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(values),
+  });
+  return assertResponse(response, isAdminIndustry);
+}
+
+export async function updateAdminIndustry(industryId: number, values: AdminIndustryUpdateRequest) {
+  const response = await requestWithCsrf<unknown>(`/api/admin/industries/${industryId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(values),
+  });
+  return assertResponse(response, isAdminIndustry);
+}
+
+export async function getAdminIndustryAssets(industryId: number, page = 1, signal?: AbortSignal) {
+  const query = new URLSearchParams({ page: String(page), size: '20' });
+  const response = await request<unknown>(`/api/admin/industries/${industryId}/assets?${query}`, {
+    signal,
+  });
+  return assertResponse(response, isAdminIndustryAssets);
+}
+
+export async function addAdminIndustryAsset(industryId: number, assetId: number) {
+  return requestWithCsrf<void>(`/api/admin/industries/${industryId}/assets/${assetId}`, {
+    method: 'PUT',
+  });
+}
+
+export async function removeAdminIndustryAsset(industryId: number, assetId: number) {
+  return requestWithCsrf<void>(`/api/admin/industries/${industryId}/assets/${assetId}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function getAdminAssetIndustries(assetId: number, signal?: AbortSignal) {
+  const response = await request<unknown>(`/api/admin/assets/${assetId}/industries`, { signal });
+  return assertResponse(response, isAdminAssetIndustries);
+}
+
+export async function updateAdminAssetIndustries(assetId: number, industryIds: number[]) {
+  const response = await requestWithCsrf<unknown>(`/api/admin/assets/${assetId}/industries`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ industryIds }),
+  });
+  return assertResponse(response, isAdminAssetIndustries);
 }
 
 export async function recalculateAdminLeague() {
