@@ -30,13 +30,23 @@ public class ContentSearchRepository {
                CAST(NULL AS date) AS published_date
         FROM featured_person_posts p
         JOIN featured_people person ON person.id = p.person_id
-        WHERE p.status = 'APPROVED'
+        WHERE p.status = 'APPROVED' AND CAST(:industry AS text) IS NULL
         UNION ALL
         SELECT 'ASSET_CONTENT', c.id, c.source_type, c.title, CAST(NULL AS text),
                c.created_at, c.url, CAST(NULL AS bigint), CAST(NULL AS text), c.asset_id,
                c.image_url, CAST(NULL AS text), c.published_date
         FROM stock_related_contents c
         WHERE c.news_id IS NULL AND c.source_type IN ('YOUTUBE', 'THREADS', 'X')
+          AND (
+            CAST(:industry AS text) IS NULL OR EXISTS (
+              SELECT 1
+              FROM asset_industries ai
+              JOIN industries i ON i.id = ai.industry_id
+              WHERE ai.asset_id = c.asset_id
+                AND i.code = :industry
+                AND i.active = TRUE
+            )
+          )
       ),
       external_cleaned AS (
         SELECT e.*,
@@ -99,6 +109,17 @@ public class ContentSearchRepository {
                CAST(NULL AS bigint), n.image_url, n.category, CAST(NULL AS date)
         FROM news n
         WHERE n.status = 'PUBLISHED'
+          AND (
+            CAST(:industry AS text) IS NULL OR EXISTS (
+              SELECT 1
+              FROM stock_related_contents related
+              JOIN asset_industries ai ON ai.asset_id = related.asset_id
+              JOIN industries i ON i.id = ai.industry_id
+              WHERE related.news_id = n.id
+                AND i.code = :industry
+                AND i.active = TRUE
+            )
+          )
       ),
       matched AS (
         SELECT *
@@ -119,8 +140,13 @@ public class ContentSearchRepository {
   private final NamedParameterJdbcTemplate jdbc;
 
   public ContentSearchResponse findFeed(
-      ContentSearchSource source, int page, int size, ContentSearchSort sort, LocalDate fromDate) {
-    return search(new NewsSearchTerms(List.of()), source, page, size, sort, fromDate);
+      ContentSearchSource source,
+      int page,
+      int size,
+      ContentSearchSort sort,
+      LocalDate fromDate,
+      String industry) {
+    return search(new NewsSearchTerms(List.of()), source, page, size, sort, fromDate, industry);
   }
 
   public ContentSearchResponse search(
@@ -130,10 +156,22 @@ public class ContentSearchRepository {
       int size,
       ContentSearchSort sort,
       LocalDate fromDate) {
+    return search(terms, source, page, size, sort, fromDate, null);
+  }
+
+  private ContentSearchResponse search(
+      NewsSearchTerms terms,
+      ContentSearchSource source,
+      int page,
+      int size,
+      ContentSearchSort sort,
+      LocalDate fromDate,
+      String industry) {
     MapSqlParameterSource params =
         new MapSqlParameterSource()
             .addValue("source", source.name())
             .addValue("fromDate", fromDate)
+            .addValue("industry", industry)
             .addValue("size", size)
             .addValue("offset", (long) (page - 1) * size);
     StringBuilder conditions = new StringBuilder();

@@ -10,6 +10,9 @@ import static org.mockito.Mockito.verifyNoInteractions;
 
 import java.util.List;
 import java.util.UUID;
+import org.grit.daynomy.asset.domain.Asset;
+import org.grit.daynomy.asset.repository.AssetRepository;
+import org.grit.daynomy.content.service.AssetContentService;
 import org.grit.daynomy.news.ai.GeneratedEconomicNews;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
@@ -29,6 +32,8 @@ class NewsPersistenceServiceTest {
 
   @Mock private NewsRepository newsRepository;
   @Mock private NewsGenerationTopicRepository topicRepository;
+  @Mock private AssetRepository assetRepository;
+  @Mock private AssetContentService assetContentService;
 
   @InjectMocks private NewsPersistenceService newsPersistenceService;
 
@@ -43,6 +48,26 @@ class NewsPersistenceServiceTest {
 
     assertThat(drafts).singleElement().extracting(News::getTitle).isEqualTo("미국 중간선거");
     verifyNoInteractions(topicRepository);
+  }
+
+  @Test
+  @DisplayName("자동 분류된 업종의 상장 종목을 뉴스에 연결한다")
+  void connectsIndustryAssetsToGeneratedNews() {
+    GeneratedEconomicNews article =
+        new GeneratedEconomicNews(
+            "keyword", "반도체 소식", "본문", Category.STOCK, List.of(), List.of("SEMICONDUCTOR", "AI"));
+    News savedNews = org.mockito.Mockito.mock(News.class);
+    Asset first = org.mockito.Mockito.mock(Asset.class);
+    Asset second = org.mockito.Mockito.mock(Asset.class);
+    given(first.getId()).willReturn(1L);
+    given(second.getId()).willReturn(2L);
+    given(newsRepository.saveAll(anyList())).willReturn(List.of(savedNews));
+    given(assetRepository.findListedStocksByIndustryCodes(java.util.Set.of("SEMICONDUCTOR", "AI")))
+        .willReturn(List.of(first, second));
+
+    assertThat(newsPersistenceService.saveDrafts(List.of(article))).containsExactly(savedNews);
+
+    verify(assetContentService).syncNewsContents(savedNews, List.of(1L, 2L));
   }
 
   @Test

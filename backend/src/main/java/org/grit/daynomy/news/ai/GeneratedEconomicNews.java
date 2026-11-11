@@ -9,9 +9,20 @@ public record GeneratedEconomicNews(
     String title,
     String content,
     Category category,
-    List<NewsSourceInfo> sources) {
+    List<NewsSourceInfo> sources,
+    List<String> industryCodes) {
 
   public GeneratedEconomicNews {
     sources = List.copyOf(sources);
+    industryCodes = List.copyOf(industryCodes);
+  }
+
+  public GeneratedEconomicNews(
+      String topicKey,
+      String title,
+      String content,
+      Category category,
+      List<NewsSourceInfo> sources) {
+    this(topicKey, title, content, category, sources, List.of());
   }
 }

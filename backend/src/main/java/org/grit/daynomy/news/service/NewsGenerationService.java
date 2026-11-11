@@ -9,6 +9,7 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.grit.daynomy.asset.service.IndustryService;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.common.logging.LogEvent;
 import org.grit.daynomy.external.openai.OpenAiNewsGenerator;
@@ -35,6 +36,7 @@ public class NewsGenerationService {
   private final NewsGenerationTopicService topicService;
   private final NewsGenerationDiscoveryLock discoveryLock;
   private final NewsPersistenceService newsPersistenceService;
+  private final IndustryService industryService;
 
   public List<News> generateKoreanEconomicNewsDrafts() {
     return generateDrafts(NewsGenerationType.KOREA);
@@ -46,7 +48,8 @@ public class NewsGenerationService {
 
   public List<News> generateEconomicNewsDraftByKeyword(String keyword) {
     return newsPersistenceService.saveDrafts(
-        openAiNewsGenerator.generateEconomicNewsByKeyword(keyword));
+        openAiNewsGenerator.generateEconomicNewsByKeyword(
+            keyword, industryService.findActiveIndustries()));
   }
 
   private List<News> generateDrafts(NewsGenerationType generationType) {
@@ -79,7 +82,8 @@ public class NewsGenerationService {
 
       List<GeneratedEconomicNews> generatedNews =
           openAiNewsGenerator.write(
-              reserved.stream().map(NewsGenerationTopic::toResearch).toList());
+              reserved.stream().map(NewsGenerationTopic::toResearch).toList(),
+              industryService.findActiveIndustries());
       List<News> drafts =
           newsPersistenceService.saveDrafts(
               generatedNews,

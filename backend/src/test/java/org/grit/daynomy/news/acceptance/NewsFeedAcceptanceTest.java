@@ -7,7 +7,17 @@ import static org.mockito.Mockito.when;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
+import org.grit.daynomy.asset.domain.Asset;
+import org.grit.daynomy.asset.domain.Industry;
+import org.grit.daynomy.asset.domain.StockMarket;
+import org.grit.daynomy.asset.repository.AssetRepository;
+import org.grit.daynomy.asset.repository.IndustryRepository;
+import org.grit.daynomy.content.domain.ContentSourceType;
+import org.grit.daynomy.content.dto.AssetContentRequest;
+import org.grit.daynomy.content.repository.AssetContentRepository;
+import org.grit.daynomy.content.service.AssetContentService;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
 import org.grit.daynomy.news.repository.NewsRepository;
@@ -47,12 +57,18 @@ class NewsFeedAcceptanceTest {
 
   @LocalServerPort private int port;
   @Autowired private NewsRepository newsRepository;
+  @Autowired private AssetRepository assetRepository;
+  @Autowired private IndustryRepository industryRepository;
+  @Autowired private AssetContentRepository assetContentRepository;
+  @Autowired private AssetContentService assetContentService;
   @MockitoBean private Clock clock;
 
   @BeforeEach
   void setUp() {
     when(clock.instant()).thenReturn(Instant.parse("2026-10-21T01:00:00Z"));
+    assetContentRepository.deleteAll();
     newsRepository.deleteAll();
+    assetRepository.deleteAll();
   }
 
   @Test
@@ -82,6 +98,77 @@ class NewsFeedAcceptanceTest {
         .statusCode(200)
         .body("items", hasSize(1))
         .body("items[0].id", equalTo(oldest.getId().intValue()));
+  }
+
+  @Test
+  void filtersNewsByRelatedAssetIndustry() {
+    Industry semiconductor =
+        industryRepository.findByCodeAndActiveTrue("SEMICONDUCTOR").orElseThrow();
+    Asset asset =
+        Asset.listedStock("반도체 종목", "999991", StockMarket.KOSPI, null, LocalDate.of(2026, 10, 20));
+    asset.addIndustry(semiconductor);
+    asset = assetRepository.save(asset);
+    News semiconductorNews = published("반도체 소식", "2026-10-20T00:00:00Z");
+    published("일반 소식", "2026-10-19T00:00:00Z");
+    assetContentService.syncNewsContents(semiconductorNews, List.of(asset.getId()));
+
+    given()
+        .port(port)
+        .queryParam("industry", "SEMICONDUCTOR")
+        .when()
+        .get("/api/news/feed")
+        .then()
+        .statusCode(200)
+        .body("items", hasSize(1))
+        .body("items[0].id", equalTo(semiconductorNews.getId().intValue()))
+        .body("totalElements", equalTo(1));
+  }
+
+  @Test
+  void rejectsUnknownIndustry() {
+    given()
+        .port(port)
+        .queryParam("industry", "UNKNOWN")
+        .when()
+        .get("/api/news/feed")
+        .then()
+        .statusCode(400)
+        .body("code", equalTo("INDUSTRY_NOT_FOUND"));
+  }
+
+  @Test
+  void filtersDuplicateExternalContentBeforeUrlDeduplication() {
+    Industry semiconductor =
+        industryRepository.findByCodeAndActiveTrue("SEMICONDUCTOR").orElseThrow();
+    Industry automobile = industryRepository.findByCodeAndActiveTrue("AUTOMOBILE").orElseThrow();
+    Asset semiconductorStock =
+        Asset.listedStock("반도체 종목", "999992", StockMarket.KOSPI, null, LocalDate.of(2026, 10, 20));
+    semiconductorStock.addIndustry(semiconductor);
+    semiconductorStock = assetRepository.save(semiconductorStock);
+    Asset automobileStock =
+        Asset.listedStock("자동차 종목", "999993", StockMarket.KOSPI, null, LocalDate.of(2026, 10, 20));
+    automobileStock.addIndustry(automobile);
+    automobileStock = assetRepository.save(automobileStock);
+    AssetContentRequest request =
+        new AssetContentRequest(
+            ContentSourceType.X,
+            "공통 URL 콘텐츠",
+            "https://x.com/example/status/1",
+            null,
+            LocalDate.of(2026, 10, 20));
+    assetContentService.createContent(semiconductorStock.getId(), request);
+    assetContentService.createContent(automobileStock.getId(), request);
+
+    given()
+        .port(port)
+        .queryParam("industry", "SEMICONDUCTOR")
+        .when()
+        .get("/api/news/feed")
+        .then()
+        .statusCode(200)
+        .body("items", hasSize(1))
+        .body("items[0].kind", equalTo("ASSET_CONTENT"))
+        .body("items[0].assetId", equalTo(semiconductorStock.getId().intValue()));
   }
 
   private News published(String title, String publishedAt) {
