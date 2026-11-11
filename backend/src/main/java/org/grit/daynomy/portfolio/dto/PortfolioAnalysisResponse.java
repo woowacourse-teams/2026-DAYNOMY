@@ -32,9 +32,87 @@ public record PortfolioAnalysisResponse(
     @Schema(description = "포트폴리오 자산별 주요 이슈 영향 분석 목록") List<PortfolioAssetImpactResponse> impacts,
     @Schema(description = "분석에 사용된 웹 검색 출처") List<PortfolioAnalysisSourceResponse> sources,
     @Schema(description = "분석 예산에 따라 제외된 자산. 근거 부족이나 중립을 뜻하지 않습니다.")
-        List<ExcludedAsset> excludedAssets) {
+        List<ExcludedAsset> excludedAssets,
+    @Schema(description = "분석 당시 종목별 시장 가격 맥락. 개인 수익률·방향 판정과 구분하며 구형 분석은 빈 객체")
+        Map<String, PortfolioAnalysisPriceContextResponse> priceContexts,
+    @Schema(description = "분석 당시 회원 손익. 비회원·구형 결과는 null")
+        PortfolioAnalysisPersonalContextResponse personalContext) {
+
+  public PortfolioAnalysisResponse(
+      int totalAssetCount,
+      int analyzedAssetCount,
+      ImpactDirection overallDirection,
+      BigDecimal overallScore,
+      BigDecimal positiveImpactScore,
+      BigDecimal negativeImpactScore,
+      Instant analyzedAt,
+      String overallImpact,
+      List<PortfolioAssetImpactResponse> impacts,
+      List<PortfolioAnalysisSourceResponse> sources,
+      List<ExcludedAsset> excludedAssets,
+      Map<String, PortfolioAnalysisPriceContextResponse> priceContexts) {
+    this(
+        totalAssetCount,
+        analyzedAssetCount,
+        overallDirection,
+        overallScore,
+        positiveImpactScore,
+        negativeImpactScore,
+        analyzedAt,
+        overallImpact,
+        impacts,
+        sources,
+        excludedAssets,
+        priceContexts,
+        null);
+  }
+
+  public PortfolioAnalysisResponse withPersonalContext(
+      PortfolioAnalysisPersonalContextResponse context) {
+    return new PortfolioAnalysisResponse(
+        totalAssetCount,
+        analyzedAssetCount,
+        overallDirection,
+        overallScore,
+        positiveImpactScore,
+        negativeImpactScore,
+        analyzedAt,
+        overallImpact,
+        impacts,
+        sources,
+        excludedAssets,
+        priceContexts,
+        context);
+  }
 
   public record ExcludedAsset(String assetName, BigDecimal weight) {}
+
+  public PortfolioAnalysisResponse(
+      int totalAssetCount,
+      int analyzedAssetCount,
+      ImpactDirection overallDirection,
+      BigDecimal overallScore,
+      BigDecimal positiveImpactScore,
+      BigDecimal negativeImpactScore,
+      Instant analyzedAt,
+      String overallImpact,
+      List<PortfolioAssetImpactResponse> impacts,
+      List<PortfolioAnalysisSourceResponse> sources,
+      List<ExcludedAsset> excludedAssets) {
+    this(
+        totalAssetCount,
+        analyzedAssetCount,
+        overallDirection,
+        overallScore,
+        positiveImpactScore,
+        negativeImpactScore,
+        analyzedAt,
+        overallImpact,
+        impacts,
+        sources,
+        excludedAssets,
+        Map.of());
+  }
 
   public PortfolioAnalysisResponse(
       int totalAssetCount,
@@ -65,6 +143,25 @@ public record PortfolioAnalysisResponse(
     impacts = List.copyOf(impacts);
     sources = List.copyOf(sources);
     excludedAssets = List.copyOf(excludedAssets);
+    priceContexts = priceContexts == null ? Map.of() : Map.copyOf(priceContexts);
+  }
+
+  public PortfolioAnalysisResponse withPriceContexts(
+      Map<String, PortfolioAnalysisPriceContextResponse> contexts) {
+    return new PortfolioAnalysisResponse(
+        totalAssetCount,
+        analyzedAssetCount,
+        overallDirection,
+        overallScore,
+        positiveImpactScore,
+        negativeImpactScore,
+        analyzedAt,
+        overallImpact,
+        impacts,
+        sources,
+        excludedAssets,
+        contexts,
+        personalContext);
   }
 
   @com.fasterxml.jackson.annotation.JsonProperty
@@ -90,7 +187,9 @@ public record PortfolioAnalysisResponse(
         assets.stream()
             .filter(asset -> !selected.contains(asset.assetName()))
             .map(asset -> new ExcludedAsset(asset.assetName(), asset.weight()))
-            .toList());
+            .toList(),
+        priceContexts,
+        personalContext);
   }
 
   @com.fasterxml.jackson.annotation.JsonProperty
@@ -121,7 +220,9 @@ public record PortfolioAnalysisResponse(
         text,
         impacts,
         sources,
-        excludedAssets);
+        excludedAssets,
+        priceContexts,
+        personalContext);
   }
 
   public PortfolioAnalysisSnapshot toSnapshot(List<PortfolioAssetRequest> assets) {
@@ -147,8 +248,13 @@ public record PortfolioAnalysisResponse(
                         impact.outlook(),
                         impact.reason(),
                         impact.evidenceSentence(),
-                        impact.rank()))
-            .toList());
+                        impact.rank(),
+                        impact.riskSearchStatus(),
+                        impact.noNewNews()))
+            .toList(),
+        priceContexts.entrySet().stream()
+            .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().toSnapshot())),
+        personalContext == null ? null : personalContext.toSnapshot());
   }
 
   public static PortfolioAnalysisResponse from(
@@ -185,7 +291,9 @@ public record PortfolioAnalysisResponse(
                                         source.getFactQuote()))
                             .distinct()
                             .toList(),
-                        impact.rank()))
+                        impact.rank(),
+                        impact.riskSearchStatus(),
+                        impact.noNewNews()))
             .toList();
     return of(
             snapshot.assets().size(),
@@ -218,7 +326,15 @@ public record PortfolioAnalysisResponse(
                     asset ->
                         new PortfolioAssetRequest(
                             asset.assetName(), asset.weight(), asset.quantity()))
-                .toList());
+                .toList())
+        .withPriceContexts(
+            snapshot.priceContexts().entrySet().stream()
+                .collect(
+                    Collectors.toMap(
+                        Map.Entry::getKey,
+                        entry -> PortfolioAnalysisPriceContextResponse.from(entry.getValue()))))
+        .withPersonalContext(
+            PortfolioAnalysisPersonalContextResponse.from(snapshot.personalContext()));
   }
 
   public static PortfolioAnalysisResponse of(

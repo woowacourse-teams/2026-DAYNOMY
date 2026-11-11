@@ -33,10 +33,14 @@ class PortfolioAnalysisBatchIntegrationTest {
     var batches = new ConcurrentLinkedQueue<List<String>>();
     try (var server = new MockWebServer()) {
       server.start();
+      var riskSearch = new PortfolioRiskSearchStub();
+      server.setDispatcher(riskSearch);
       server.setDispatcher(
           new Dispatcher() {
             @Override
             public MockResponse dispatch(RecordedRequest request) {
+              var risk = riskSearch.respondIfRisk(request);
+              if (risk != null) return risk;
               try {
                 var input = mapper.readTree(request.getBody().clone().readUtf8()).path("input");
                 var assets = mapper.readTree(input.get(1).path("content").asText()).path("assets");
@@ -50,8 +54,7 @@ class PortfolioAnalysisBatchIntegrationTest {
                         .path("name")
                         .asText()
                         .equals("portfolio_sources")) {
-                  if (refresh)
-                    assertThat(mapper.readTree(input.get(2).path("content").asText())).hasSize(5);
+                  assertThat(input).hasSize(3);
                   return sourceResponse(requested, List.of("https://example.com/announcement"));
                 }
                 batches.add(requested);
@@ -135,7 +138,7 @@ class PortfolioAnalysisBatchIntegrationTest {
         var targets = names.stream().map(PortfolioAnalysisTarget::new).toList();
         result = refresh ? client.refresh(targets, previous.toString()) : client.analyze(targets);
       }
-      assertThat(server.getRequestCount()).isEqualTo(v1 ? 10 : 20);
+      assertThat(riskSearch.nonRiskRequestCount(server)).isEqualTo(v1 ? 10 : 20);
       assertThat(result.impacts())
           .extracting(PortfolioAnalysisResult.AssetImpactResult::assetName)
           .containsExactlyInAnyOrderElementsOf(names);
@@ -156,7 +159,8 @@ class PortfolioAnalysisBatchIntegrationTest {
     var names = List.of("삼성전자", "현대차", "NAVER", "LG전자", "SK하이닉스", "삼성전자");
     try (var server = new MockWebServer()) {
       server.start();
-      ((okhttp3.mockwebserver.QueueDispatcher) server.getDispatcher()).setFailFast(true);
+      var riskSearch = new PortfolioRiskSearchStub();
+      server.setDispatcher(riskSearch);
       if (v1) {
         var client =
             new OpenAiPortfolioAnalysisClientV1(
@@ -179,7 +183,7 @@ class PortfolioAnalysisBatchIntegrationTest {
         var targets = names.stream().map(PortfolioAnalysisTarget::new).toList();
         assertThatThrownBy(() -> client.analyze(targets)).isInstanceOf(BusinessException.class);
       }
-      assertThat(server.getRequestCount()).isZero();
+      assertThat(riskSearch.nonRiskRequestCount(server)).isZero();
     }
   }
 
@@ -189,7 +193,8 @@ class PortfolioAnalysisBatchIntegrationTest {
       throws Exception {
     try (var server = new MockWebServer()) {
       server.start();
-      ((okhttp3.mockwebserver.QueueDispatcher) server.getDispatcher()).setFailFast(true);
+      var riskSearch = new PortfolioRiskSearchStub();
+      server.setDispatcher(riskSearch);
       var initial = validImpact();
       initial.putArray("sourceUrls").add("https://example.com/category/ir");
       if (!v1)
@@ -198,20 +203,21 @@ class PortfolioAnalysisBatchIntegrationTest {
       var corrected = validImpact();
       // 첫 검색에서 확인한 개별 기사는 보정 검색 결과에 다시 나오지 않을 수 있다.
       if (!v1)
-        server.enqueue(
+        riskSearch.enqueueResponse(
             sourceResponse(
                 List.of("SK하이닉스"),
                 originallyVerified
                     ? List.of("https://example.com/announcement", "https://example.com/category/ir")
                     : List.of("https://example.com/category/ir")));
-      server.enqueue(
+      riskSearch.enqueueResponse(
           searchResponse(
               v1,
               initial,
               originallyVerified
                   ? List.of("https://example.com/announcement", "https://example.com/category/ir")
                   : List.of("https://example.com/category/ir")));
-      server.enqueue(searchResponse(v1, corrected, List.of("https://example.com/other-article")));
+      riskSearch.enqueueResponse(
+          searchResponse(v1, corrected, List.of("https://example.com/other-article")));
       java.util.function.Supplier<PortfolioAnalysisResult> analyze;
       if (v1) {
         var client =
@@ -246,7 +252,8 @@ class PortfolioAnalysisBatchIntegrationTest {
       } else {
         assertThatThrownBy(analyze::get).isInstanceOf(BusinessException.class);
       }
-      assertThat(server.getRequestCount()).isEqualTo(v1 ? 2 : 3);
+      assertThat(riskSearch.nonRiskRequestCount(server))
+          .isEqualTo(v1 ? 2 : originallyVerified ? 3 : 1);
     }
   }
 
@@ -397,7 +404,8 @@ class PortfolioAnalysisBatchIntegrationTest {
                               new org.grit.daynomy.portfolio.domain.PortfolioAnalysisSourceDocument(
                                   "공식 발표",
                                   "Operating profit increased by 10%.\n2026-10-12",
-                                  java.time.LocalDate.of(2026, 10, 12))));
+                                  java.time.LocalDate.now(java.time.ZoneId.of("Asia/Seoul"))
+                                      .minusDays(1))));
               return PortfolioAnalysisEvidence.from(urls, documents);
             });
     return verifier;

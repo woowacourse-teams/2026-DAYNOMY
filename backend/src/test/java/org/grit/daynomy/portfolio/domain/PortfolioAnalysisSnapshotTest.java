@@ -9,6 +9,16 @@ import org.junit.jupiter.api.Test;
 
 class PortfolioAnalysisSnapshotTest {
   @Test
+  void legacySnapshotsWithoutPriceContextStillRestore() throws Exception {
+    var mapper = new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules();
+    var legacy =
+        mapper.readValue(
+            "{\"assets\":[],\"summary\":null,\"overallImpact\":\"\",\"impacts\":[]}",
+            PortfolioAnalysisSnapshot.class);
+    assertThat(legacy.priceContexts()).isEmpty();
+  }
+
+  @Test
   void assetOrderCaseAndDecimalScaleDoNotInvalidateAnalysis() {
     assertThat(
             PortfolioAnalysisSnapshot.sameAssets(

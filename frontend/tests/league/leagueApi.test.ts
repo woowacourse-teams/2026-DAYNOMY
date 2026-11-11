@@ -659,7 +659,7 @@ test('AI 복기 검색 상태는 정상 문자열을 유지하고 배열·누락
 
 test('복기 알림과 미루기는 CSRF를 사용하고 서버 일정과 요청 키를 검증한다', async () => {
   const originalFetch = globalThis.fetch;
-  const requestKey = '7ef19645-d715-4d80-9f2f-3551e0e8971b';
+  const requestKey = '00000000-0000-4000-8000-000000000001';
   const nextNotificationAt = '2026-11-09T00:00:00Z';
   const calls: Array<{ url: string; init?: RequestInit }> = [];
   let response: unknown = { requestKey: null, transactions: [], nextNotificationAt };

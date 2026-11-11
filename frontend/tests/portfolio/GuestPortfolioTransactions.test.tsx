@@ -97,6 +97,7 @@ it('전량 매도 후 다시 매수할 수 있고 정정·제거 이후에도 �
     view.result.current.createTransaction({ ...buy, type: 'SELL', quantity: 10 }, stock),
   );
   expect(view.result.current.holdings).toEqual([]);
+  expect(view.result.current.hasPortfolioHistory).toBe(true);
   await act(() => view.result.current.createTransaction(buy, stock));
   await act(() => view.result.current.saveHolding({ ...initial, quantity: 5 }));
   expect(loadGuestPortfolioHoldings()).toEqual([{ ...initial, quantity: 5 }]);

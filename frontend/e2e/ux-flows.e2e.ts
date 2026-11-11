@@ -217,8 +217,10 @@ test('모바일: 삭제된 돈 관리의 기존 주소는 비회원 포트폴리
   ]) {
     await page.goto(path);
     await expect(page).toHaveURL('/');
-    await expect(page.getByRole('heading', { name: '내 포트폴리오' })).toBeVisible();
-    await expect(page.getByRole('button', { name: '종목 추가', exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: '포트폴리오를 만들어 보세요' })).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: '포트폴리오 만들기', exact: true }),
+    ).toBeVisible();
     await expect(page.getByRole('banner').getByRole('link', { name: '로그인' })).toHaveAttribute(
       'href',
       '/login?returnTo=%2F',

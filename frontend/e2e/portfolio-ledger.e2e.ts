@@ -83,12 +83,64 @@ for (const viewport of [
   { name: 'desktop', width: 1440, height: 1050 },
   { name: 'mobile', width: 390, height: 844 },
 ]) {
+  test(`빈 포트폴리오에서 종목을 검색해 첫 거래 기록: ${viewport.name}`, async ({
+    page,
+  }, testInfo) => {
+    await page.setViewportSize(viewport);
+    await installAccessibilityFixtures(page);
+    await page.goto('/');
+    await page.getByRole('button', { name: '포트폴리오 만들기', exact: true }).click();
+    await page
+      .getByRole('dialog', { name: '거래 기록' })
+      .getByRole('button', { name: '닫기', exact: true })
+      .click();
+
+    const search = page
+      .getByRole('region', { name: '보유 자산', exact: true })
+      .getByRole('button', { name: '종목명 또는 티커 검색' });
+    await search.scrollIntoViewIfNeeded();
+    await expect(search).toBeInViewport();
+    await page.screenshot({ path: testInfo.outputPath('portfolio-empty.png') });
+    await search.click();
+
+    const dialog = page.getByRole('dialog', { name: '거래 기록' });
+    const input = dialog.getByRole('searchbox', { name: '종목 검색' });
+    await expect(input).toBeFocused();
+    await input.fill('없는종목');
+    await expect(
+      dialog.getByText('검색 결과가 없습니다. 종목명이나 코드를 확인해 주세요.'),
+    ).toBeVisible();
+
+    await input.fill('삼성');
+    await dialog.getByRole('button', { name: /삼성전자.*005930/ }).click();
+    await expect(dialog.getByLabel('수량 (주)')).toHaveValue('1');
+    await expect(dialog.getByLabel('거래 단가 (원)')).toHaveValue('70,000');
+    await dialog.press('Escape');
+    await expect(search).toBeFocused();
+
+    await search.click();
+    await input.fill('삼성');
+    await dialog.getByRole('button', { name: /삼성전자.*005930/ }).click();
+    await expect(dialog.getByLabel('거래 단가 (원)')).toHaveValue('70,000');
+    await dialog.getByRole('button', { name: '추가하기', exact: true }).click();
+    await expect(search).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /삼성전자.*상세/ })).toBeVisible();
+    await page.reload();
+    await expect(page.getByRole('button', { name: /삼성전자.*상세/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: '포트폴리오 만들기' })).toBeHidden();
+  });
+
   test(`종목 추가 키패드와 기존 거래 수정 화면 분리: ${viewport.name}`, async ({
     page,
   }, testInfo) => {
     await page.setViewportSize(viewport);
     await installAccessibilityFixtures(page);
     await page.goto('/');
+    await page.getByRole('button', { name: '포트폴리오 만들기', exact: true }).click();
+    await page
+      .getByRole('dialog', { name: '거래 기록' })
+      .getByRole('button', { name: '닫기', exact: true })
+      .click();
     await page.getByRole('button', { name: '종목 추가', exact: true }).click();
     await page.getByRole('button', { name: '한 종목 추가', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: '거래 기록' });
@@ -197,7 +249,11 @@ for (const viewport of [
       return route.fulfill({ status: 401, json: {} });
     });
     await page.goto('/');
-    const open = page.getByRole('button', { name: '종목 추가', exact: true });
+    await page.getByRole('button', { name: '포트폴리오 만들기', exact: true }).click();
+    await page
+      .getByRole('dialog', { name: '거래 기록' })
+      .getByRole('button', { name: '닫기', exact: true })
+      .click();
     const ledgerAdd = page.getByRole('button', { name: '목록에서 종목 추가', exact: true });
     const tabs = page.getByRole('group', { name: '포트폴리오 내역 보기' });
     await ledgerAdd.scrollIntoViewIfNeeded();
@@ -214,6 +270,8 @@ for (const viewport of [
       .screenshot({ path: testInfo.outputPath('ledger-empty-state.png') });
     await tabs.getByRole('button', { name: '거래 내역', exact: true }).click();
     await ledgerAdd.click();
+    await expect(page.getByRole('button', { name: '일괄 편집', exact: true })).toBeEnabled();
+    await page.getByRole('button', { name: '한 종목 추가', exact: true }).click();
     await expect(
       page.getByRole('dialog', { name: '거래 기록' }).getByRole('searchbox'),
     ).toBeFocused();
@@ -224,6 +282,16 @@ for (const viewport of [
     await expect(ledgerAdd).toBeFocused();
     await tabs.getByRole('button', { name: '보유 자산 0', exact: true }).click();
     await ledgerAdd.click();
+    await expect(page.getByRole('button', { name: '일괄 편집', exact: true })).toBeEnabled();
+    await expect(page.getByRole('button', { name: 'CSV 파일 업로드' })).toBeVisible();
+    await page.screenshot({ path: testInfo.outputPath('ledger-add-menu.png') });
+    await page.getByRole('button', { name: '일괄 편집', exact: true }).click();
+    const bulk = page.getByRole('dialog', { name: '여러 종목 일괄 추가', exact: true });
+    await expect(bulk.getByRole('button', { name: '1행 종목 검색' })).toBeVisible();
+    await bulk.getByRole('button', { name: '일괄 편집 닫기' }).click();
+    await expect(ledgerAdd).toBeFocused();
+    await ledgerAdd.click();
+    await page.getByRole('button', { name: '한 종목 추가', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: '거래 기록' });
     const input = dialog.getByRole('searchbox', { name: '종목 검색' });
     await expect(input).toBeFocused();
@@ -273,8 +341,7 @@ for (const viewport of [
     await expect(dialog.getByLabel('수량 (주)')).toHaveValue('1');
     await dialog.getByRole('button', { name: '닫기', exact: true }).click();
     await page.reload();
-    await open.click();
-    await page.getByRole('button', { name: '한 종목 추가', exact: true }).click();
+    await page.getByRole('button', { name: '포트폴리오 만들기', exact: true }).click();
     const recent = dialog.getByRole('region', { name: '최근 검색어' });
     await expect(recent.getByRole('button', { name: 'S&P', exact: true })).toBeVisible();
     await expect(recent.getByText('이 브라우저에 저장된 검색어예요.')).toHaveCount(0);
@@ -321,6 +388,11 @@ for (const viewport of [
       route.fulfill({ status: 401, contentType: 'application/json', body: '{}' }),
     );
     await page.goto('/');
+    await page.getByRole('button', { name: '포트폴리오 만들기', exact: true }).click();
+    await page
+      .getByRole('dialog', { name: '거래 기록' })
+      .getByRole('button', { name: '닫기', exact: true })
+      .click();
     const trend = page.locator('.portfolio-return-dashboard');
     const composition = page.locator('.portfolio-composition');
     await expect(trend.getByRole('link', { name: '로그인하기' })).toBeVisible();
@@ -575,6 +647,19 @@ for (const viewport of [
     const history = page.getByRole('region', { name: '거래 내역', exact: true });
     await expect(history.getByText('이 기간에 표시할 내역이 없어요')).toBeVisible();
     await history.screenshot({ path: testInfo.outputPath('guest-history.png') });
+    const createTrade = history.getByRole('button', { name: '거래 기록하기' });
+    await createTrade.click();
+    await expect(
+      page.getByRole('dialog', { name: '거래 기록' }).getByRole('searchbox'),
+    ).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(createTrade).toBeFocused();
+    await expect(createTrade).toHaveCSS('outline-style', 'none');
+    await page.keyboard.press('Shift+Tab');
+    await page.keyboard.press('Tab');
+    await expect(createTrade).toBeFocused();
+    await expect(createTrade).toHaveCSS('outline-color', 'rgb(75, 75, 75)');
+    await expect(createTrade).toHaveCSS('outline-style', 'solid');
     await page.getByRole('button', { name: /^보유 자산 \d+$/ }).click();
     const holdingTrigger = page.getByRole('button', { name: '삼성전자 보유 상세' });
     await holdingTrigger.click();

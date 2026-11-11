@@ -102,6 +102,7 @@ class PortfolioAnalysisServiceTest {
 
   @Mock private PortfolioAnalysisAiClient portfolioAnalysisAiClient;
   @Mock private PortfolioAssetAnalysisService assetAnalysisService;
+  @Mock private PortfolioAnalysisPriceService priceService;
   @Mock private org.grit.daynomy.portfolio.ai.PortfolioAnalysisNarrative narrative;
   @Spy private GuestPortfolioAnalysisTrial guestPortfolioAnalysisTrial;
 

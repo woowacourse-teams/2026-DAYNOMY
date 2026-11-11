@@ -168,6 +168,9 @@ function isPortfolioAssetImpact(value: unknown): value is PortfolioAssetImpactRe
   if (!isRecord(value)) return false;
 
   return (
+    (value.riskSearchStatus == null ||
+      (typeof value.riskSearchStatus === 'string' &&
+        ['SOURCES_FOUND', 'NOT_FOUND'].includes(value.riskSearchStatus))) &&
     typeof value.assetName === 'string' &&
     hasNumber(value, 'weight') &&
     (value.direction === null ||
@@ -191,6 +194,10 @@ function isPortfolioAssetImpact(value: unknown): value is PortfolioAssetImpactRe
 export function isPortfolioAnalysisResponse(value: unknown): value is PortfolioAnalysisResponse {
   return (
     isRecord(value) &&
+    (value.priceContexts === undefined ||
+      (isRecord(value.priceContexts) &&
+        Object.values(value.priceContexts).every(isAnalysisPriceContext))) &&
+    (value.personalContext == null || isAnalysisPersonalContext(value.personalContext)) &&
     Number.isInteger(value.totalAssetCount) &&
     Number.isInteger(value.analyzedAssetCount) &&
     (value.overallDirection === null ||
@@ -215,6 +222,98 @@ export function isPortfolioAnalysisResponse(value: unknown): value is PortfolioA
     value.impacts.every(isPortfolioAssetImpact) &&
     Array.isArray(value.sources) &&
     value.sources.every(isPortfolioAnalysisSource)
+  );
+}
+
+function isAnalysisDate(value: unknown): value is string {
+  return (
+    typeof value === 'string' &&
+    /^\d{4}-\d{2}-\d{2}$/.test(value) &&
+    Number.isFinite(Date.parse(value)) &&
+    new Date(value).toISOString().slice(0, 10) === value
+  );
+}
+
+function isAnalysisPriceContext(value: unknown): boolean {
+  if (
+    !isRecord(value) ||
+    typeof value.status !== 'string' ||
+    ![
+      'AVAILABLE',
+      'INSUFFICIENT_HISTORY',
+      'STALE_PRICE',
+      'UNAVAILABLE',
+      'AMBIGUOUS_ASSET',
+      'LOOKUP_FAILED',
+    ].includes(value.status) ||
+    !Number.isSafeInteger(value.observationCount) ||
+    typeof value.observationCount !== 'number' ||
+    value.observationCount < 0 ||
+    !['price', 'comparisonPrice', 'changeRate'].every((key) => hasNullableNumber(value, key))
+  )
+    return false;
+  if (['UNAVAILABLE', 'AMBIGUOUS_ASSET', 'LOOKUP_FAILED'].includes(value.status)) {
+    return (
+      value.currency === null &&
+      value.priceType === null &&
+      value.baseDate === null &&
+      value.asOf === null &&
+      value.price === null &&
+      value.comparisonDate === null &&
+      value.comparisonPrice === null &&
+      value.changeRate === null &&
+      value.observationCount === 0
+    );
+  }
+  if (
+    (value.currency !== 'KRW' && value.currency !== 'USD') ||
+    !isAnalysisDate(value.baseDate) ||
+    typeof value.price !== 'number' ||
+    value.price <= 0
+  )
+    return false;
+  if (
+    value.priceType === 'CLOSE'
+      ? value.asOf !== null
+      : value.priceType !== 'DELAYED' ||
+        typeof value.asOf !== 'string' ||
+        !Number.isFinite(Date.parse(value.asOf))
+  )
+    return false;
+  if (value.comparisonDate === null)
+    return (
+      value.status !== 'AVAILABLE' && value.comparisonPrice === null && value.changeRate === null
+    );
+  return (
+    value.status !== 'INSUFFICIENT_HISTORY' &&
+    isAnalysisDate(value.comparisonDate) &&
+    value.comparisonDate < value.baseDate &&
+    typeof value.comparisonPrice === 'number' &&
+    value.comparisonPrice > 0 &&
+    typeof value.changeRate === 'number'
+  );
+}
+
+function isAnalysisPersonalContext(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    isAnalysisDate(value.baseDate) &&
+    ['purchaseAmount', 'evaluationAmount', 'profitLoss', 'returnRate'].every((key) =>
+      hasNumber(value, key),
+    ) &&
+    Array.isArray(value.holdings) &&
+    value.holdings.every(
+      (holding: unknown) =>
+        isRecord(holding) &&
+        typeof holding.assetName === 'string' &&
+        isAnalysisDate(holding.baseDate) &&
+        typeof holding.quantity === 'number' &&
+        Number.isSafeInteger(holding.quantity) &&
+        holding.quantity > 0 &&
+        ['averagePurchasePrice', 'profitLoss', 'returnRate'].every((key) =>
+          hasNumber(holding, key),
+        ),
+    )
   );
 }
 
@@ -261,7 +360,9 @@ export async function getSavedPortfolio(signal?: AbortSignal) {
     !isRecord(response) ||
     !Array.isArray(response.holdings) ||
     !response.holdings.every(isSavedPortfolioHolding) ||
-    !hasNumber(response, 'totalRealizedProfitLoss')
+    !hasNumber(response, 'totalRealizedProfitLoss') ||
+    (response.hasPortfolioHistory !== undefined &&
+      typeof response.hasPortfolioHistory !== 'boolean')
   ) {
     throw new Error('포트폴리오 응답 형식이 올바르지 않습니다.');
   }

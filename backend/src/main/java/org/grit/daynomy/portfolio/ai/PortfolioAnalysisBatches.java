@@ -158,7 +158,9 @@ public final class PortfolioAnalysisBatches {
               impact.reason(),
               impact.evidenceSentence(),
               impact.sources(),
-              index + 1));
+              index + 1,
+              impact.riskSearchStatus(),
+              impact.noNewNews()));
     }
     String summary =
         ranked.stream().noneMatch(impact -> impact.direction() != null)

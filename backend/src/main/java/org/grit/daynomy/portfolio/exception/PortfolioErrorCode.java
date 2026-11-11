@@ -4,6 +4,12 @@ import org.grit.daynomy.common.exception.ErrorCode;
 import org.springframework.http.HttpStatus;
 
 public enum PortfolioErrorCode implements ErrorCode {
+  PORTFOLIO_ANALYSIS_SOURCE_DATE_UNCONFIRMED(
+      HttpStatus.BAD_GATEWAY, "자료의 발표일을 확인하지 못했습니다. 기존 분석을 유지합니다."),
+  PORTFOLIO_ANALYSIS_SOURCE_UNAVAILABLE(
+      HttpStatus.BAD_GATEWAY, "분석 자료의 본문을 확인하지 못했습니다. 기존 분석을 유지합니다."),
+  PORTFOLIO_ANALYSIS_RISK_SEARCH_FAILED(
+      HttpStatus.BAD_GATEWAY, "반대 근거 검색·원문 확인에 실패했습니다. 기존 분석을 유지합니다."),
   INVALID_TRANSACTION_EXCHANGE_RATE(
       HttpStatus.BAD_REQUEST, "미국 거래는 1 USD당 원화 환율이 필요하며, 국내 거래의 환율은 1이어야 합니다."),
   PORTFOLIO_ANALYSIS_IN_PROGRESS(HttpStatus.CONFLICT, "포트폴리오 분석이 진행 중입니다."),

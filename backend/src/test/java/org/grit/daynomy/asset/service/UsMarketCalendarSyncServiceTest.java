@@ -8,11 +8,13 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.grit.daynomy.asset.domain.MarketTradingDay;
 import org.grit.daynomy.asset.repository.MarketTradingDayRepository;
-import org.grit.daynomy.external.eodhd.EodhdClient;
+import org.grit.daynomy.external.nyse.NyseCalendarClient;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -25,7 +27,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 
 @ExtendWith(MockitoExtension.class)
 class UsMarketCalendarSyncServiceTest {
-  @Mock private EodhdClient client;
+  @Mock private NyseCalendarClient client;
   @Mock private MarketTradingDayRepository days;
   @Mock private PlatformTransactionManager transactionManager;
   @Mock private ApplicationEventPublisher events;
@@ -45,7 +47,7 @@ class UsMarketCalendarSyncServiceTest {
 
     service.initialize();
 
-    verify(client, times(3)).getUsMarketHolidays(any(), any());
+    verify(client).annualHolidays();
     verify(events).publishEvent(new MarketCalendarSyncResult(calendar.size()));
   }
 
@@ -58,7 +60,7 @@ class UsMarketCalendarSyncServiceTest {
 
     service.initialize();
 
-    verify(client, times(3)).getUsMarketHolidays(any(), any());
+    verify(client).annualHolidays();
   }
 
   @Test
@@ -115,7 +117,9 @@ class UsMarketCalendarSyncServiceTest {
     unchanged.collected(collected);
     unchanged.usCollected(collected);
     when(days.findCalendarForUpdate(from, to)).thenReturn(current);
-    when(client.getUsMarketHolidays(from, to)).thenReturn(Set.of(from, holiday.getBaseDate()));
+    var holidays = new HashMap<>(validYearlyHolidays());
+    holidays.put(year, Set.of(from, holiday.getBaseDate()));
+    when(client.annualHolidays()).thenReturn(holidays);
 
     service.synchronize();
 
@@ -136,8 +140,7 @@ class UsMarketCalendarSyncServiceTest {
 
   @Test
   void leavesUnknownDaysUntouchedOnProviderFailureAndRetriesTheNextRun() {
-    when(client.getUsMarketHolidays(any(), any()))
-        .thenThrow(new IllegalStateException("unavailable"));
+    when(client.annualHolidays()).thenThrow(new IllegalStateException("unavailable"));
 
     service.synchronize();
 
@@ -146,15 +149,15 @@ class UsMarketCalendarSyncServiceTest {
 
     service.synchronize();
 
-    verify(client, times(6)).getUsMarketHolidays(any(), any());
+    verify(client, times(2)).annualHolidays();
     verify(events).publishEvent(new MarketCalendarSyncResult(calendar(first, last).size()));
   }
 
   @Test
-  void continuesOtherYearsWhenOneYearFails() {
-    givenValidYearlyHolidays();
-    when(client.getUsMarketHolidays(first, first.plusYears(1).minusDays(1)))
-        .thenThrow(new IllegalStateException("unavailable"));
+  void preservesUnpublishedYearsWhileRepairingPublishedYears() {
+    var holidays = new HashMap<>(validYearlyHolidays());
+    holidays.remove(first.getYear());
+    when(client.annualHolidays()).thenReturn(holidays);
 
     service.synchronize();
 
@@ -177,25 +180,28 @@ class UsMarketCalendarSyncServiceTest {
 
   @Test
   void rejectsEmptyYearlyHolidaysWithoutSideEffectsAndRecoversOnRetry() {
-    when(client.getUsMarketHolidays(any(), any())).thenReturn(Set.of());
+    var holidays = new HashMap<>(validYearlyHolidays());
+    holidays.replaceAll((year, dates) -> Set.of());
+    when(client.annualHolidays()).thenReturn(holidays);
 
     service.synchronize();
 
-    verify(client, times(3)).getUsMarketHolidays(any(), any());
+    verify(client).annualHolidays();
     verifyNoInteractions(days, transactionManager, events);
 
     givenValidYearlyHolidays();
     service.synchronize();
 
-    verify(client, times(6)).getUsMarketHolidays(any(), any());
+    verify(client, times(2)).annualHolidays();
     verify(transactionManager, times(3)).commit(any());
     verify(events).publishEvent(new MarketCalendarSyncResult(calendar(first, last).size()));
   }
 
   @Test
   void continuesOtherYearsWhenOneYearReturnsEmptyHolidays() {
-    givenValidYearlyHolidays();
-    doReturn(Set.of()).when(client).getUsMarketHolidays(first, first.plusYears(1).minusDays(1));
+    var holidays = new HashMap<>(validYearlyHolidays());
+    holidays.put(first.getYear(), Set.of());
+    when(client.annualHolidays()).thenReturn(holidays);
 
     service.synchronize();
 
@@ -206,9 +212,14 @@ class UsMarketCalendarSyncServiceTest {
   }
 
   private void givenValidYearlyHolidays() {
-    doAnswer(invocation -> Set.of(((LocalDate) invocation.getArgument(0)).withDayOfYear(1)))
-        .when(client)
-        .getUsMarketHolidays(any(), any());
+    doReturn(validYearlyHolidays()).when(client).annualHolidays();
+  }
+
+  private Map<Integer, Set<LocalDate>> validYearlyHolidays() {
+    return Map.of(
+        first.getYear(), Set.of(first),
+        today.getYear(), Set.of(LocalDate.of(today.getYear(), 1, 1)),
+        last.getYear(), Set.of(LocalDate.of(last.getYear(), 1, 1)));
   }
 
   private List<MarketTradingDay> calendar(LocalDate from, LocalDate to) {

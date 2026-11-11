@@ -21,6 +21,11 @@ test('소식·포트폴리오·주간 리그 본문을 같은 너비로 배치�
           page.getByRole('heading', { name: '소식', level: 1, includeHidden: true }),
         ).toBeAttached();
       } else {
+        await page.getByRole('button', { name: '포트폴리오 만들기', exact: true }).click();
+        await page
+          .getByRole('dialog', { name: '거래 기록' })
+          .getByRole('button', { name: '닫기', exact: true })
+          .click();
         await expect(page.locator('.portfolio-page-title h1')).toBeVisible();
       }
       const layout = await page.locator(main).evaluate((element) => {

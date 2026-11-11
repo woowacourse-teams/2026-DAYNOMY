@@ -71,6 +71,11 @@ for (const viewport of [
       return fulfill({}, 401);
     });
     await page.goto('/');
+    await page.getByRole('button', { name: '포트폴리오 만들기', exact: true }).click();
+    await page
+      .getByRole('dialog', { name: '거래 기록' })
+      .getByRole('button', { name: '닫기', exact: true })
+      .click();
     const csv =
       '나의 엑셀 보유현황\r\n종목;보유분;총매입금액\r\nAAPL;5;$1,000\r\n삼성전자;10;700000원\r\n합계;15;';
     for (let iteration = 0; iteration < 2; iteration++) {

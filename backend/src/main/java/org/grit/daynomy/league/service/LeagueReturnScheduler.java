@@ -64,7 +64,12 @@ public class LeagueReturnScheduler {
   }
 
   @EventListener(MarketCalendarSyncResult.class)
-  public synchronized void recalculateAfterCalendarSync() {
+  public void recalculateAfterCalendarSync() {
+    // 시작 중 달력 변경도 ApplicationReadyEvent와 준비 상태 전환을 막지 않는다.
+    taskScheduler.schedule(this::recalculateAfterCalendarChange, Instant.now());
+  }
+
+  private synchronized void recalculateAfterCalendarChange() {
     pendingFullRecalculation = true;
     if (recalculateAfterSync("CALENDAR_SYNC", leagueReturnService::recalculate)) {
       pendingFullRecalculation = false;

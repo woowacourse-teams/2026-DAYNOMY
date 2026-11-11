@@ -9,6 +9,7 @@ public enum ExternalErrorCode implements ErrorCode {
   KIS_STOCK_MASTER_REQUEST_FAILED(HttpStatus.BAD_GATEWAY, "한국투자증권 종목정보파일을 확인하지 못했습니다."),
   PUBLIC_DATA_API_REQUEST_FAILED(HttpStatus.BAD_GATEWAY, "공공데이터 API 요청에 실패했습니다."),
   KRX_CALENDAR_REQUEST_FAILED(HttpStatus.BAD_GATEWAY, "한국거래소 거래일 달력을 확인하지 못했습니다."),
+  NYSE_CALENDAR_REQUEST_FAILED(HttpStatus.BAD_GATEWAY, "뉴욕증권거래소 거래일 달력을 확인하지 못했습니다."),
   YOUTUBE_API_NOT_CONFIGURED(HttpStatus.SERVICE_UNAVAILABLE, "YouTube API 키가 설정되지 않았습니다."),
   YOUTUBE_API_REQUEST_FAILED(HttpStatus.BAD_GATEWAY, "YouTube API 요청에 실패했습니다."),
   AI_SOCIAL_SEARCH_FAILED(HttpStatus.BAD_GATEWAY, "Threads·X 게시물 검색에 실패했습니다."),

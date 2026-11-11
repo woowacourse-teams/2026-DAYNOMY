@@ -70,6 +70,7 @@ export function PortfolioBulkEditor({
   isLoggedIn,
   amountsHidden,
   onClose,
+  onSwitchMode,
   onSaveHoldings,
   onAddHoldings,
   onSaveTransactions,
@@ -80,6 +81,7 @@ export function PortfolioBulkEditor({
   isLoggedIn: boolean;
   amountsHidden: boolean;
   onClose: () => void;
+  onSwitchMode?: () => void;
   onSaveHoldings: (changes: PortfolioHoldingInput[]) => Promise<void>;
   onAddHoldings: (items: PortfolioHoldingInput[]) => Promise<void>;
   onSaveTransactions: (items: BulkTransaction[], csv: boolean) => Promise<boolean>;
@@ -209,7 +211,7 @@ export function PortfolioBulkEditor({
   const [reading, setReading] = useState(false);
   const [error, setError] = useState('');
   const [fileName, setFileName] = useState('');
-  const [discarding, setDiscarding] = useState(false);
+  const [discarding, setDiscarding] = useState<'close' | 'switch' | null>(null);
   const [expanded, setExpanded] = useState(false);
   const fileRequest = useRef<AbortController | null>(null);
   const csvStage = useRef<'file' | 'parse' | 'matching'>('file');
@@ -293,7 +295,7 @@ export function PortfolioBulkEditor({
       : mode === 'add'
         ? '여러 종목 일괄 추가'
         : 'CSV 파일 업로드';
-  function dismiss() {
+  function dismiss(afterDismiss = onClose) {
     if (dismissed.current) return;
     dismissed.current = true;
     trackPortfolioEvent('portfolio_bulk_closed', {
@@ -314,7 +316,7 @@ export function PortfolioBulkEditor({
       has_changes: dirty,
       duration_ms: Math.max(0, Math.round(performance.now() - openedAt.current)),
     });
-    onClose();
+    afterDismiss();
   }
   function close() {
     if (busy) return;
@@ -324,7 +326,7 @@ export function PortfolioBulkEditor({
       dismiss();
       return;
     }
-    if (dirty) setDiscarding(true);
+    if (dirty) setDiscarding('close');
     else dismiss();
   }
   function change(next: HoldingDraft[]) {
@@ -1028,6 +1030,19 @@ export function PortfolioBulkEditor({
               <kbd>⌘D</kbd> 채우기
             </p>
           </div>
+          {onSwitchMode && (
+            <button
+              type="button"
+              className="portfolio-bulk-add-asset"
+              disabled={busy}
+              onClick={() => {
+                if (dirty) setDiscarding('switch');
+                else dismiss(onSwitchMode);
+              }}
+            >
+              {mode === 'holdings' ? '종목 일괄 추가' : '보유 종목 편집'}
+            </button>
+          )}
           {mode === 'add' && (
             <button
               type="button"
@@ -1634,12 +1649,19 @@ export function PortfolioBulkEditor({
         )}
         {discarding && (
           <div className="portfolio-bulk-discard" role="alert">
-            <p>저장하지 않은 변경사항이 있어요. 편집을 종료할까요?</p>
-            <button type="button" onClick={() => setDiscarding(false)}>
+            <p>
+              {discarding === 'switch'
+                ? '저장하지 않은 변경사항을 취소하고 다른 작업으로 전환할까요?'
+                : '저장하지 않은 변경사항이 있어요. 편집을 종료할까요?'}
+            </p>
+            <button type="button" onClick={() => setDiscarding(null)}>
               계속 편집
             </button>
-            <button type="button" onClick={dismiss}>
-              변경 취소하고 닫기
+            <button
+              type="button"
+              onClick={() => dismiss(discarding === 'switch' ? onSwitchMode : onClose)}
+            >
+              {discarding === 'switch' ? '변경 취소하고 전환' : '변경 취소하고 닫기'}
             </button>
           </div>
         )}

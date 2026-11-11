@@ -29,6 +29,7 @@ import org.grit.daynomy.external.ExternalErrorCode;
 import org.grit.daynomy.external.eodhd.EodhdClient;
 import org.grit.daynomy.external.eodhd.dto.EodhdDailyPrice;
 import org.grit.daynomy.external.krx.KrxCalendarClient;
+import org.grit.daynomy.external.nyse.NyseCalendarClient;
 import org.grit.daynomy.investmentcalendar.external.InvestmentCalendarHistoricalPriceClient;
 import org.grit.daynomy.investmentcalendar.external.InvestmentCalendarHistoricalPriceClient.HistoricalPrice;
 import org.grit.daynomy.portfolio.domain.Portfolio;
@@ -61,6 +62,7 @@ class PortfolioPriceHistoryServiceTest {
   @Mock private InvestmentCalendarHistoricalPriceClient domesticClient;
   @Mock private EodhdClient usClient;
   @Mock private KrxCalendarClient krxCalendarClient;
+  @Mock private NyseCalendarClient nyseCalendarClient;
   @Mock private PortfolioSnapshotTransactionService snapshotService;
   @Mock private ThreadPoolTaskExecutor historyExecutor;
   @Mock private PlatformTransactionManager transactionManager;
@@ -127,7 +129,7 @@ class PortfolioPriceHistoryServiceTest {
 
   @Test
   void fetchesMissingUsHistoryThenRefreshesSnapshots() {
-    given(usClient.getUsMarketHolidays(from, to)).willReturn(Set.of());
+    given(nyseCalendarClient.annualHolidays()).willReturn(Map.of(from.getYear(), Set.of()));
     given(usClient.getHistoricalPrices("AAPL", from, to))
         .willReturn(
             weekdays(from, to).stream()
@@ -161,7 +163,7 @@ class PortfolioPriceHistoryServiceTest {
                   return price;
                 })
             .toList();
-    given(usClient.getUsMarketHolidays(from, to)).willReturn(Set.of());
+    given(nyseCalendarClient.annualHolidays()).willReturn(Map.of(from.getYear(), Set.of()));
     given(
             priceRepository.findAllByAssetIdInAndBaseDateBetweenOrderByBaseDateAscAssetIdAsc(
                 List.of(7L), from, to))
@@ -176,7 +178,7 @@ class PortfolioPriceHistoryServiceTest {
     job.getValue().run();
 
     assertThat(asset.hasPriceHistory(from, to)).isTrue();
-    then(usClient).should().getUsMarketHolidays(from, to);
+    then(nyseCalendarClient).should().annualHolidays();
     then(usClient).shouldHaveNoMoreInteractions();
   }
 
@@ -299,7 +301,7 @@ class PortfolioPriceHistoryServiceTest {
 
   @Test
   void reportsFailedCollectionUntilExplicitRetry() {
-    given(usClient.getUsMarketHolidays(from, to)).willReturn(Set.of());
+    given(nyseCalendarClient.annualHolidays()).willReturn(Map.of(from.getYear(), Set.of()));
     given(usClient.getHistoricalPrices("AAPL", from, to))
         .willThrow(new IllegalStateException("provider unavailable"));
 
@@ -368,7 +370,7 @@ class PortfolioPriceHistoryServiceTest {
         LocalDate.now(ZoneId.of("Asia/Seoul"))
             .minusDays(1)
             .with(java.time.temporal.TemporalAdjusters.previousOrSame(DayOfWeek.FRIDAY));
-    given(usClient.getUsMarketHolidays(friday, friday)).willReturn(Set.of(friday));
+    given(nyseCalendarClient.annualHolidays()).willReturn(Map.of(friday.getYear(), Set.of(friday)));
     given(transactionManager.getTransaction(any(TransactionDefinition.class)))
         .willReturn(new SimpleTransactionStatus());
 
@@ -379,14 +381,14 @@ class PortfolioPriceHistoryServiceTest {
     job.getValue().run();
 
     assertThat(asset.hasPriceHistory(friday, friday)).isTrue();
-    then(usClient).should().getUsMarketHolidays(friday, friday);
+    then(nyseCalendarClient).should().annualHolidays();
     then(usClient).shouldHaveNoMoreInteractions();
   }
 
   @Test
   void missingTradingDayPriceDoesNotMarkWholeRangeCovered() {
     List<LocalDate> expected = weekdays(from, to);
-    given(usClient.getUsMarketHolidays(from, to)).willReturn(Set.of());
+    given(nyseCalendarClient.annualHolidays()).willReturn(Map.of(from.getYear(), Set.of()));
     given(usClient.getHistoricalPrices("AAPL", from, to))
         .willReturn(
             List.of(

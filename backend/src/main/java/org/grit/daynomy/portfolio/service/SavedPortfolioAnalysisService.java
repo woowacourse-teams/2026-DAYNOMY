@@ -49,7 +49,10 @@ public class SavedPortfolioAnalysisService {
               memberId,
               prepared.token(),
               prepared.assets(),
-              revision.analysis().withOverallImpact(""),
+              revision
+                  .analysis()
+                  .withOverallImpact("")
+                  .withPersonalContext(prepared.personalContext()),
               names);
       return "PENDING".equals(core.summaryStatus()) ? summarize(memberId, prepared, core) : core;
     } catch (RuntimeException exception) {
@@ -77,9 +80,10 @@ public class SavedPortfolioAnalysisService {
     try {
       var request = new PortfolioAnalysisRequest(prepared.assets());
       var result =
-          !refresh && prepared.previous() == null
-              ? analysisService.analyzeAssets(request)
-              : analysisService.refreshAssets(request, prepared.previous()).analysis();
+          (!refresh && prepared.previous() == null
+                  ? analysisService.analyzeAssets(request)
+                  : analysisService.refreshAssets(request, prepared.previous()).analysis())
+              .withPersonalContext(prepared.personalContext());
       var core =
           transactions.completeCore(
               memberId, prepared.token(), prepared.assets(), result.withOverallImpact(""));
@@ -119,11 +123,29 @@ public class SavedPortfolioAnalysisService {
     }
     try {
       // 외부 API 대기 중에는 DB 트랜잭션과 행 잠금을 유지하지 않는다.
+      var request = new PortfolioAnalysisRequest(prepared.assets());
       var result =
-          !refresh && prepared.previous() == null
-              ? analysisService.analyze(new PortfolioAnalysisRequest(prepared.assets()), true)
-              : analysisService.refresh(
-                  new PortfolioAnalysisRequest(prepared.assets()), prepared.previous());
+          analysisService
+              .analyzeMemberCore(request, prepared.previous(), refresh)
+              .withPersonalContext(prepared.personalContext());
+      boolean noNewNews =
+          !result.impacts().isEmpty()
+              && result.impacts().stream().allMatch(impact -> impact.noNewNews());
+      var revision =
+          prepared.previous() == null || noNewNews
+              ? null
+              : PortfolioAnalysisRefresh.compare(prepared.previous(), result);
+      if (revision != null
+          && revision.outcome()
+              == org.grit.daynomy.portfolio.domain.PortfolioAnalysisCheck.Outcome.UPDATED)
+        result = revision.analysis();
+      if (!noNewNews
+          && (revision == null
+              || revision.outcome()
+                  == org.grit.daynomy.portfolio.domain.PortfolioAnalysisCheck.Outcome.UPDATED
+              || !java.util.Objects.equals(
+                  prepared.previous().personalContext(), prepared.personalContext())))
+        result = analysisService.summarize(result);
       return transactions.complete(memberId, prepared.token(), prepared.assets(), result);
     } catch (RuntimeException exception) {
       fail(memberId, prepared, exception);

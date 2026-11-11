@@ -1,3 +1,4 @@
+import { PencilSimpleLineIcon } from '@phosphor-icons/react/dist/csr/PencilSimpleLine';
 import { useEffect, useState } from 'react';
 import { portfolioErrorType, trackPortfolioEvent } from '../analytics';
 import { getPortfolioHistories } from '../api';
@@ -173,9 +174,14 @@ export function PortfolioHistory({
       ) : !visible.length ? (
         <div className="portfolio-ledger-empty portfolio-history-empty">
           <h3>이 기간에 표시할 내역이 없어요</h3>
-          <p>조회 기간을 바꾸거나 매수·매도 거래를 기록해 보세요.</p>
-          <button className="portfolio-secondary-button is-primary" onClick={onCreate}>
-            거래 기록하기
+          <button
+            type="button"
+            className="portfolio-history-create"
+            aria-haspopup="dialog"
+            onClick={onCreate}
+          >
+            <span>거래 기록하기</span>
+            <PencilSimpleLineIcon size={16} aria-hidden="true" />
           </button>
         </div>
       ) : (

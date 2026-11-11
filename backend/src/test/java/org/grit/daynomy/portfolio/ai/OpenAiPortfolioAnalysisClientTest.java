@@ -39,6 +39,7 @@ class OpenAiPortfolioAnalysisClientTest {
   private final ListAppender<ILoggingEvent> appender = new ListAppender<>();
 
   private MockWebServer server;
+  private PortfolioRiskSearchStub riskSearch;
   private OpenAiPortfolioAnalysisClient client;
   private PortfolioAnalysisEvidenceVerifier evidenceVerifier;
   private Level originalLevel;
@@ -57,11 +58,12 @@ class OpenAiPortfolioAnalysisClientTest {
     logger.addAppender(appender);
     ((Logger) LoggerFactory.getLogger(PortfolioAnalysisCall.class)).addAppender(appender);
     server = new MockWebServer();
+    riskSearch = new PortfolioRiskSearchStub();
+    server.setDispatcher(riskSearch);
     firstEnqueuedResponse = null;
     firstSearchResponse = null;
     fixtureUrls.clear();
     fixtureDocuments.clear();
-    ((okhttp3.mockwebserver.QueueDispatcher) server.getDispatcher()).setFailFast(true);
     server.start();
     evidenceVerifier = acceptingVerifier();
     client =
@@ -195,6 +197,8 @@ class OpenAiPortfolioAnalysisClientTest {
         new okhttp3.mockwebserver.Dispatcher() {
           @Override
           public MockResponse dispatch(RecordedRequest request) {
+            var risk = riskSearch.respondIfRisk(request);
+            if (risk != null) return risk;
             try {
               var body = objectMapper.readTree(request.getBody().readUtf8());
               var requested = new java.util.ArrayList<String>();
@@ -210,7 +214,7 @@ class OpenAiPortfolioAnalysisClientTest {
                 fixtureDocuments.put(
                     "https://example.com/semiconductor",
                     new org.grit.daynomy.portfolio.domain.PortfolioAnalysisSourceDocument(
-                        "공식 발표", "Operating profit increased by 10%.", null));
+                        "공식 발표", "Operating profit increased by 10%.", recentPublication()));
                 return sourceResponseFor(requested, "https://example.com/semiconductor");
               }
               assertThat(body.has("tools")).isFalse();
@@ -392,7 +396,7 @@ class OpenAiPortfolioAnalysisClientTest {
     enqueueOutput(invalid);
     enqueueCorrection(invalid);
     assertAnalysisFailed(() -> client.analyze(targets()));
-    assertThat(server.getRequestCount()).isEqualTo(4);
+    assertThat(riskSearch.nonRiskRequestCount(server)).isEqualTo(4);
   }
 
   @Test
@@ -404,7 +408,7 @@ class OpenAiPortfolioAnalysisClientTest {
             i -> assertThat(i.evidenceSentence()).isEqualTo(i.sources().getFirst().excerpt()));
     var request = objectMapper.readTree(takeAnalysisRequest().getBody().readUtf8());
     assertThat(request.path("text").toString()).doesNotContain("evidenceSentence");
-    assertThat(server.getRequestCount()).isEqualTo(2);
+    assertThat(riskSearch.nonRiskRequestCount(server)).isEqualTo(2);
   }
 
   @Test
@@ -511,7 +515,7 @@ class OpenAiPortfolioAnalysisClientTest {
               assertThat(impact.outlook()).isEmpty();
             });
     assertThat(result.sources()).isEmpty();
-    assertThat(server.getRequestCount()).isEqualTo(3);
+    assertThat(riskSearch.nonRiskRequestCount(server)).isEqualTo(1);
   }
 
   @Test
@@ -532,7 +536,7 @@ class OpenAiPortfolioAnalysisClientTest {
         .singleElement()
         .satisfies(i -> assertThat(i.direction()).isEqualTo(ImpactDirection.NEUTRAL));
     assertThat(result.overallImpact()).doesNotContain("삼성전자", "English");
-    assertThat(server.getRequestCount()).isEqualTo(4);
+    assertThat(riskSearch.nonRiskRequestCount(server)).isEqualTo(4);
   }
 
   @Test
@@ -577,7 +581,7 @@ class OpenAiPortfolioAnalysisClientTest {
     enqueueOutput(objectMapper.writeValueAsString(output));
     assertThat(client.analyze(targets()).impacts())
         .allSatisfy(i -> assertThat(i.sources()).hasSize(1));
-    assertThat(server.getRequestCount()).isEqualTo(2);
+    assertThat(riskSearch.nonRiskRequestCount(server)).isEqualTo(2);
   }
 
   @Test
@@ -592,7 +596,7 @@ class OpenAiPortfolioAnalysisClientTest {
     enqueueOutput(objectMapper.writeValueAsString(output));
     assertThat(client.analyze(targets()).impacts())
         .allSatisfy(i -> assertThat(i.sources()).hasSize(1));
-    assertThat(server.getRequestCount()).isEqualTo(2);
+    assertThat(riskSearch.nonRiskRequestCount(server)).isEqualTo(2);
   }
 
   @Test
@@ -602,7 +606,7 @@ class OpenAiPortfolioAnalysisClientTest {
     var result = client.analyze(targets());
     assertThat(result.impacts())
         .allSatisfy(i -> assertThat(i.issueSummary()).doesNotContain("2026-07-30"));
-    assertThat(server.getRequestCount()).isEqualTo(3);
+    assertThat(riskSearch.nonRiskRequestCount(server)).isEqualTo(3);
   }
 
   @Test
@@ -633,6 +637,8 @@ class OpenAiPortfolioAnalysisClientTest {
     var search = new java.util.ArrayList<Map<String, Object>>();
     var targets = new java.util.ArrayList<PortfolioAnalysisTarget>();
     for (int index = 0; index < facts.size(); index++) {
+      ((com.fasterxml.jackson.databind.node.ObjectNode) facts.get(index))
+          .put("publishedOn", recentPublication().plusDays(index).toString());
       var fact = (com.fasterxml.jackson.databind.node.ObjectNode) facts.get(index).deepCopy();
       String name = fact.remove("assetName").asText();
       String url = canonicalFixtureUrl(fact.path("url").asText());
@@ -678,7 +684,7 @@ class OpenAiPortfolioAnalysisClientTest {
     var output = objectMapper.readTree(withEvidence(validOutput()));
     for (JsonNode impact : output.path("impacts")) {
       ((com.fasterxml.jackson.databind.node.ObjectNode) impact.path("evidence").get(0))
-          .put("publishedOn", "2026-09-29")
+          .put("publishedOn", recentPublication().toString())
           .put("occurredOn", "2026-09-25");
     }
     enqueueOutput(objectMapper.writeValueAsString(output));
@@ -686,15 +692,12 @@ class OpenAiPortfolioAnalysisClientTest {
     fixtureDocuments.put(
         "https://example.com/semiconductor",
         new org.grit.daynomy.portfolio.domain.PortfolioAnalysisSourceDocument(
-            original.title(),
-            original.body() + "\n2026-09-25",
-            java.time.LocalDate.of(2026, 9, 29)));
+            original.title(), original.body() + "\n2026-09-25", recentPublication()));
     var result = client.analyze(targets());
     assertThat(result.impacts())
         .allSatisfy(
             impact -> {
-              assertThat(impact.sources().getFirst().publishedOn())
-                  .isEqualTo(java.time.LocalDate.of(2026, 9, 29));
+              assertThat(impact.sources().getFirst().publishedOn()).isEqualTo(recentPublication());
               assertThat(impact.sources().getFirst().occurredOn())
                   .isEqualTo(java.time.LocalDate.of(2026, 9, 25));
               assertThat(impact.sources().getFirst().excerpt())
@@ -720,7 +723,7 @@ class OpenAiPortfolioAnalysisClientTest {
               assertThat(impact.direction()).isNotNull();
               assertThat(impact.sources().getFirst().occurredOn()).isNull();
             });
-    assertThat(server.getRequestCount()).isEqualTo(2);
+    assertThat(riskSearch.nonRiskRequestCount(server)).isEqualTo(2);
   }
 
   @Test
@@ -733,7 +736,7 @@ class OpenAiPortfolioAnalysisClientTest {
     enqueueOutput(onlyAsset(validOutput(), "삼성전자"));
     assertThat(client.analyze(targets()).impacts())
         .allSatisfy(i -> assertThat(i.direction()).isNotNull());
-    assertThat(server.getRequestCount()).isEqualTo(2);
+    assertThat(riskSearch.nonRiskRequestCount(server)).isEqualTo(2);
   }
 
   @Test
@@ -757,7 +760,7 @@ class OpenAiPortfolioAnalysisClientTest {
         .singleElement()
         .satisfies(i -> assertThat(i.direction()).isNotNull());
     assertThat(result.overallImpact()).doesNotContain("삼성전자");
-    assertThat(server.getRequestCount()).isEqualTo(4);
+    assertThat(riskSearch.nonRiskRequestCount(server)).isEqualTo(4);
   }
 
   @Test
@@ -771,8 +774,13 @@ class OpenAiPortfolioAnalysisClientTest {
         (url, document) ->
             new org.grit.daynomy.portfolio.domain.PortfolioAnalysisSourceDocument(
                 document.title(), "", document.publishedOn()));
-    assertAnalysisFailed(() -> client.analyze(targets()));
-    assertThat(server.getRequestCount()).isEqualTo(3);
+    assertThatThrownBy(() -> client.analyze(targets()))
+        .isInstanceOf(BusinessException.class)
+        .extracting(e -> ((BusinessException) e).errorCode())
+        .isEqualTo(
+            org.grit.daynomy.portfolio.exception.PortfolioErrorCode
+                .PORTFOLIO_ANALYSIS_SOURCE_UNAVAILABLE);
+    assertThat(riskSearch.nonRiskRequestCount(server)).isEqualTo(2);
   }
 
   @Test
@@ -795,7 +803,7 @@ class OpenAiPortfolioAnalysisClientTest {
                         source ->
                             assertThat(source.factQuote())
                                 .isEqualTo("Operating profit increased by 10%.")));
-    assertThat(server.getRequestCount()).isEqualTo(2);
+    assertThat(riskSearch.nonRiskRequestCount(server)).isEqualTo(2);
   }
 
   @Test
@@ -812,7 +820,8 @@ class OpenAiPortfolioAnalysisClientTest {
             .replace("\"impactLevel\": \"LOW\"", "\"impactLevel\": null"));
     var result = client.analyze(targets());
     assertThat(result.sources()).isEmpty();
-    assertThat(keyValues(appender.list.getLast())).containsEntry("analyzedCount", 0L);
+    assertThat(riskSearch.nonRiskRequestCount(server)).isEqualTo(1);
+    assertThat(result.overallImpact()).contains("새 소식을 찾지 못했어요");
     assertThat(result.impacts())
         .hasSize(2)
         .allSatisfy(impact -> assertThat(impact.direction()).isNull());
@@ -956,8 +965,8 @@ class OpenAiPortfolioAnalysisClientTest {
   void searchesOnlyCompanyWhoseOriginalCouldNotBePreparedBeforeAnalysis() throws Exception {
     String output = withEvidence(validOutput());
     String url = "https://example.com/semiconductor";
-    server.enqueue(sourceResponseFor(List.of("삼성전자", "SK하이닉스"), url));
-    server.enqueue(sourceResponseFor(List.of("SK하이닉스"), url));
+    riskSearch.enqueueResponse(sourceResponseFor(List.of("삼성전자", "SK하이닉스"), url));
+    riskSearch.enqueueResponse(sourceResponseFor(List.of("SK하이닉스"), url));
     firstEnqueuedResponse = new MockResponse();
     enqueueOutput(output);
     var attempts = new java.util.concurrent.atomic.AtomicInteger();
@@ -972,9 +981,11 @@ class OpenAiPortfolioAnalysisClientTest {
         .prepare(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
     assertThat(client.analyze(targets()).impacts())
         .allSatisfy(impact -> assertThat(impact.direction()).isNotNull());
-    assertThat(server.getRequestCount()).isEqualTo(3);
-    server.takeRequest();
-    var fallback = objectMapper.readTree(server.takeRequest().getBody().readUtf8());
+    assertThat(riskSearch.nonRiskRequestCount(server)).isEqualTo(3);
+    PortfolioRiskSearchStub.takeNonRiskRequest(server);
+    var fallback =
+        objectMapper.readTree(
+            PortfolioRiskSearchStub.takeNonRiskRequest(server).getBody().readUtf8());
     assertThat(fallback.path("input").get(1).path("content").asText())
         .contains("SK하이닉스")
         .doesNotContain("삼성전자");
@@ -992,12 +1003,12 @@ class OpenAiPortfolioAnalysisClientTest {
     String first = objectMapper.writeValueAsString(original);
     // 초기 검색은 두 종목 모두 읽을 수 있지만 삼성전자는 직접 판단 근거가 없는 원문을 반환한다.
     withEvidence(validOutput());
-    server.enqueue(
+    riskSearch.enqueueResponse(
         sourceResponseFor(List.of("삼성전자", "SK하이닉스"), "https://example.com/semiconductor"));
     firstEnqueuedResponse = new MockResponse();
     enqueueOutput(first);
     String replacementUrl = "https://official.example/results";
-    server.enqueue(sourceResponseFor(List.of("삼성전자"), replacementUrl));
+    riskSearch.enqueueResponse(sourceResponseFor(List.of("삼성전자"), replacementUrl));
     String recoveredOutput =
         foundFacts
             ? onlyAsset(
@@ -1011,7 +1022,7 @@ class OpenAiPortfolioAnalysisClientTest {
       fixtureDocuments.put(
           replacementUrl,
           new org.grit.daynomy.portfolio.domain.PortfolioAnalysisSourceDocument(
-              "IR 안내", "Conference call scheduled.", null));
+              "IR 안내", "Conference call scheduled.", recentPublication()));
     }
 
     var result = client.analyze(targets());
@@ -1029,10 +1040,10 @@ class OpenAiPortfolioAnalysisClientTest {
         .filteredOn(impact -> impact.assetName().equals("SK하이닉스"))
         .singleElement()
         .satisfies(impact -> assertThat(impact.direction()).isEqualTo(ImpactDirection.NEUTRAL));
-    assertThat(server.getRequestCount()).isEqualTo(4);
-    server.takeRequest();
-    server.takeRequest();
-    String recovery = server.takeRequest().getBody().readUtf8();
+    assertThat(riskSearch.nonRiskRequestCount(server)).isEqualTo(4);
+    PortfolioRiskSearchStub.takeNonRiskRequest(server);
+    PortfolioRiskSearchStub.takeNonRiskRequest(server);
+    String recovery = PortfolioRiskSearchStub.takeNonRiskRequest(server).getBody().readUtf8();
     assertThat(recovery)
         .contains("unavailableSources", "삼성전자")
         .doesNotContain("blocked_domains", "SK하이닉스");
@@ -1048,7 +1059,7 @@ class OpenAiPortfolioAnalysisClientTest {
     withEvidence(validOutput());
     enqueueOutput(objectMapper.writeValueAsString(root));
     String replacementUrl = "https://example.com/new-announcement";
-    server.enqueue(sourceResponseFor(List.of("삼성전자"), replacementUrl));
+    riskSearch.enqueueResponse(sourceResponseFor(List.of("삼성전자"), replacementUrl));
     enqueueOutput(
         onlyAsset(
             validOutput()
@@ -1069,15 +1080,19 @@ class OpenAiPortfolioAnalysisClientTest {
         .filteredOn(i -> i.assetName().equals("SK하이닉스"))
         .singleElement()
         .satisfies(i -> assertThat(i.direction()).isEqualTo(ImpactDirection.NEUTRAL));
-    server.takeRequest();
-    server.takeRequest();
-    var search = objectMapper.readTree(server.takeRequest().getBody().readUtf8());
+    PortfolioRiskSearchStub.takeNonRiskRequest(server);
+    PortfolioRiskSearchStub.takeNonRiskRequest(server);
+    var search =
+        objectMapper.readTree(
+            PortfolioRiskSearchStub.takeNonRiskRequest(server).getBody().readUtf8());
     assertThat(search.path("tools").toString()).doesNotContain("blocked_domains");
-    var request = objectMapper.readTree(server.takeRequest().getBody().readUtf8());
+    var request =
+        objectMapper.readTree(
+            PortfolioRiskSearchStub.takeNonRiskRequest(server).getBody().readUtf8());
     assertThat(request.path("input").get(2).path("content").asText())
         .contains("삼성전자", replacementUrl)
         .doesNotContain("SK하이닉스");
-    assertThat(server.getRequestCount()).isEqualTo(4);
+    assertThat(riskSearch.nonRiskRequestCount(server)).isEqualTo(4);
   }
 
   @Test
@@ -1119,7 +1134,7 @@ class OpenAiPortfolioAnalysisClientTest {
         validOutput().replace("https://example.com/semiconductor", root), root);
     enqueueCorrection(validOutput());
     assertAnalysisFailed(() -> client.analyze(targets()));
-    assertThat(server.getRequestCount()).isEqualTo(3);
+    assertThat(riskSearch.nonRiskRequestCount(server)).isEqualTo(1);
   }
 
   @Test
@@ -1130,7 +1145,7 @@ class OpenAiPortfolioAnalysisClientTest {
     enqueueCorrection(validOutput());
 
     assertAnalysisFailed(() -> client.analyze(targets()));
-    assertThat(server.getRequestCount()).isEqualTo(3);
+    assertThat(riskSearch.nonRiskRequestCount(server)).isEqualTo(1);
   }
 
   @Test
@@ -1140,7 +1155,7 @@ class OpenAiPortfolioAnalysisClientTest {
         validOutput().replace("https://example.com/semiconductor", index), index);
     enqueueCorrection(validOutput().replace("https://example.com/semiconductor", index));
     assertThatThrownBy(() -> client.analyze(targets())).isInstanceOf(BusinessException.class);
-    assertThat(server.getRequestCount()).isEqualTo(3);
+    assertThat(riskSearch.nonRiskRequestCount(server)).isEqualTo(1);
   }
 
   @Test
@@ -1149,7 +1164,7 @@ class OpenAiPortfolioAnalysisClientTest {
     enqueueOutputWithSearchSources(
         validOutput().replace("https://example.com/semiconductor", url), url);
     assertThat(client.analyze(targets()).impacts()).hasSize(2);
-    assertThat(server.getRequestCount()).isEqualTo(2);
+    assertThat(riskSearch.nonRiskRequestCount(server)).isEqualTo(2);
   }
 
   @Test
@@ -1165,7 +1180,7 @@ class OpenAiPortfolioAnalysisClientTest {
     takeAnalysisRequest();
     String request = takeAnalysisRequest().getBody().readUtf8();
     assertThat(request).contains("문체·근거 참조 검증", "reference");
-    assertThat(server.getRequestCount()).isEqualTo(3);
+    assertThat(riskSearch.nonRiskRequestCount(server)).isEqualTo(3);
   }
 
   @Test
@@ -1216,7 +1231,7 @@ class OpenAiPortfolioAnalysisClientTest {
                       source -> {
                         assertThat(source.factQuote())
                             .isEqualTo("Operating profit increased by 10%.");
-                        assertThat(source.publishedOn()).isNull();
+                        assertThat(source.publishedOn()).isEqualTo(recentPublication());
                         assertThat(source.url()).isEqualTo("https://example.com/semiconductor");
                         assertThat(source.excerpt())
                             .isEqualTo("Operating profit increased by 10%.");
@@ -1230,7 +1245,7 @@ class OpenAiPortfolioAnalysisClientTest {
     assertThat(request.path("input").toString())
         .contains("English original.. 해요.", "Operating profit increased by 10%.")
         .doesNotContain(unrelated);
-    assertThat(server.getRequestCount()).isEqualTo(3);
+    assertThat(riskSearch.nonRiskRequestCount(server)).isEqualTo(3);
   }
 
   @Test
@@ -1263,7 +1278,7 @@ class OpenAiPortfolioAnalysisClientTest {
               assertThat(impact.direction()).isNotNull();
               assertThat(impact.issueSummary()).doesNotContain("2099-01-01");
             });
-    assertThat(server.getRequestCount()).isEqualTo(3);
+    assertThat(riskSearch.nonRiskRequestCount(server)).isEqualTo(3);
   }
 
   @Test
@@ -1282,7 +1297,7 @@ class OpenAiPortfolioAnalysisClientTest {
         .filteredOn(impact -> impact.assetName().equals("SK하이닉스"))
         .singleElement()
         .satisfies(impact -> assertThat(impact.direction()).isNotNull());
-    assertThat(server.getRequestCount()).isEqualTo(4);
+    assertThat(riskSearch.nonRiskRequestCount(server)).isEqualTo(4);
   }
 
   @Test
@@ -1299,7 +1314,7 @@ class OpenAiPortfolioAnalysisClientTest {
         .allSatisfy(i -> assertThat(i.sources()).hasSize(1));
     takeAnalysisRequest();
     assertThat(takeAnalysisRequest().getBody().readUtf8()).contains("문체·근거 참조 검증");
-    assertThat(server.getRequestCount()).isEqualTo(3);
+    assertThat(riskSearch.nonRiskRequestCount(server)).isEqualTo(3);
   }
 
   @Test
@@ -1311,7 +1326,7 @@ class OpenAiPortfolioAnalysisClientTest {
     assertAnalysisFailed(() -> client.analyze(targets()));
     assertThat(keyValues(appender.list.getLast()))
         .containsEntry("validationReason", "INVALID_ANALYSIS");
-    assertThat(server.getRequestCount()).isEqualTo(4);
+    assertThat(riskSearch.nonRiskRequestCount(server)).isEqualTo(4);
     var validations =
         appender.list.stream()
             .filter(
@@ -1343,7 +1358,8 @@ class OpenAiPortfolioAnalysisClientTest {
                 .filter(
                     e -> "portfolio.analysis.ai.call.completed".equals(keyValues(e).get("event")))
                 .map(e -> keyValues(e).get("phase")))
-        .containsExactly("source_search", "initial", "correction", "source_search");
+        .containsExactly(
+            "source_search", "risk_source_search", "initial", "correction", "source_search");
   }
 
   @Test
@@ -1373,7 +1389,7 @@ class OpenAiPortfolioAnalysisClientTest {
     enqueueCorrection(
         withEvidence(validOutput()).replace("추가 흐름을 확인해야 해요.", "English original.. 해요."));
     assertAnalysisFailed(() -> client.analyze(targets()));
-    assertThat(server.getRequestCount()).isEqualTo(3);
+    assertThat(riskSearch.nonRiskRequestCount(server)).isEqualTo(1);
   }
 
   @Test
@@ -1402,14 +1418,14 @@ class OpenAiPortfolioAnalysisClientTest {
         .filteredOn(i -> i.assetName().equals("SK하이닉스"))
         .singleElement()
         .satisfies(i -> assertThat(i.direction()).isNotNull());
-    assertThat(server.getRequestCount()).isEqualTo(4);
+    assertThat(riskSearch.nonRiskRequestCount(server)).isEqualTo(4);
   }
 
   private PortfolioAnalysisResult.Source source(String title, String url) {
     return new PortfolioAnalysisResult.Source(
         title,
         url,
-        null,
+        recentPublication(),
         null,
         "Operating profit increased by 10%.",
         "Operating profit increased by 10%.");
@@ -1472,7 +1488,7 @@ class OpenAiPortfolioAnalysisClientTest {
             .computeIfAbsent(
                 node.path("assetName").asText(), ignored -> new java.util.ArrayList<>())
             .add(url);
-        java.time.LocalDate published = null;
+        java.time.LocalDate published = recentPublication();
         try {
           if (fact.path("publishedOn").isTextual())
             published = java.time.LocalDate.parse(fact.path("publishedOn").asText());
@@ -1495,6 +1511,10 @@ class OpenAiPortfolioAnalysisClientTest {
       node.remove("sourceUrls");
     }
     return objectMapper.writeValueAsString(root);
+  }
+
+  private java.time.LocalDate recentPublication() {
+    return java.time.LocalDate.now(java.time.ZoneId.of("Asia/Seoul")).minusDays(1);
   }
 
   private String validOutput() {
@@ -1537,6 +1557,8 @@ class OpenAiPortfolioAnalysisClientTest {
         new okhttp3.mockwebserver.Dispatcher() {
           @Override
           public MockResponse dispatch(RecordedRequest request) throws InterruptedException {
+            var risk = riskSearch.respondIfRisk(request);
+            if (risk != null) return risk;
             int call = calls.getAndIncrement();
             if (call == 0 && firstSearchResponse != null) return firstSearchResponse;
             if (call == (firstSearchResponse == null ? 0 : 1)) return initialResponse;
@@ -1793,7 +1815,7 @@ class OpenAiPortfolioAnalysisClientTest {
                                               root.toString(),
                                               "annotations",
                                               List.of())))))));
-          server.enqueue(firstSearchResponse);
+          riskSearch.enqueueResponse(firstSearchResponse);
           if (fixtureDocuments.values().stream()
               .anyMatch(
                   document ->
@@ -1803,13 +1825,13 @@ class OpenAiPortfolioAnalysisClientTest {
                               .isBefore(
                                   java.time.LocalDate.now(java.time.ZoneId.of("Asia/Seoul"))
                                       .minusDays(45)))) {
-            server.enqueue(firstSearchResponse.clone());
+            riskSearch.enqueueResponse(firstSearchResponse.clone());
           }
         }
       } catch (Exception ignored) {
       }
     }
-    server.enqueue(response);
+    riskSearch.enqueueResponse(response);
   }
 
   private MockResponse sourceResponseFor(List<String> names, String url) throws Exception {
@@ -1853,11 +1875,11 @@ class OpenAiPortfolioAnalysisClientTest {
   }
 
   private RecordedRequest takeAnalysisRequest() throws InterruptedException {
-    RecordedRequest request = server.takeRequest(100, java.util.concurrent.TimeUnit.MILLISECONDS);
+    RecordedRequest request = PortfolioRiskSearchStub.takeNonRiskRequest(server);
     try {
       var body = objectMapper.readTree(request.getBody().clone().readUtf8());
       if (body.path("text").path("format").path("name").asText().equals("portfolio_sources")) {
-        var analysis = server.takeRequest(100, java.util.concurrent.TimeUnit.MILLISECONDS);
+        var analysis = PortfolioRiskSearchStub.takeNonRiskRequest(server);
         return analysis == null ? request : analysis;
       }
     } catch (Exception ignored) {
@@ -1897,7 +1919,7 @@ class OpenAiPortfolioAnalysisClientTest {
     assertThat(result.impacts()).allMatch(impact -> impact.direction() != null);
     assertThat(result.impacts())
         .anyMatch(impact -> impact.expectedReaction().equals("방향을 단정하기 어려워요."));
-    assertThat(server.getRequestCount()).isEqualTo(2);
+    assertThat(riskSearch.nonRiskRequestCount(server)).isEqualTo(2);
   }
 
   @Test
@@ -1914,15 +1936,19 @@ class OpenAiPortfolioAnalysisClientTest {
         .filteredOn(impact -> impact.assetName().equals("삼성전자"))
         .singleElement()
         .satisfies(impact -> assertThat(impact.direction()).isNull());
-    assertThat(server.getRequestCount()).isEqualTo(4);
+    assertThat(riskSearch.nonRiskRequestCount(server)).isEqualTo(4);
   }
 
   @Test
   void sourceSearchUsesSeparateModelWhileAnalysisModelIsPreserved() throws Exception {
     enqueueOutput(validOutput());
     client.analyze(targets());
-    var search = objectMapper.readTree(server.takeRequest().getBody().readUtf8());
-    var analysis = objectMapper.readTree(server.takeRequest().getBody().readUtf8());
+    var search =
+        objectMapper.readTree(
+            PortfolioRiskSearchStub.takeNonRiskRequest(server).getBody().readUtf8());
+    var analysis =
+        objectMapper.readTree(
+            PortfolioRiskSearchStub.takeNonRiskRequest(server).getBody().readUtf8());
     assertThat(search.path("model").asText()).isEqualTo("test-search-model");
     assertThat(analysis.path("model").asText()).isEqualTo("test-model");
     assertThat(appender.list)
@@ -1941,7 +1967,7 @@ class OpenAiPortfolioAnalysisClientTest {
     String replacementUrl = "https://example.com/another-announcement";
     enqueueOutput(validOutput());
     enqueueOutput(onlyAsset(validOutput(), "삼성전자"));
-    server.enqueue(sourceResponseFor(List.of("삼성전자"), replacementUrl));
+    riskSearch.enqueueResponse(sourceResponseFor(List.of("삼성전자"), replacementUrl));
     enqueueOutput(
         onlyAsset(validOutput().replace(originalUrl, replacementUrl), "삼성전자"), replacementUrl);
     org.mockito.Mockito.when(
@@ -1991,11 +2017,13 @@ class OpenAiPortfolioAnalysisClientTest {
         .filteredOn(impact -> impact.assetName().equals("SK하이닉스"))
         .singleElement()
         .satisfies(impact -> assertThat(impact.direction()).isEqualTo(ImpactDirection.NEUTRAL));
-    assertThat(server.getRequestCount()).isEqualTo(replacementAccepted ? 5 : 6);
-    server.takeRequest();
-    server.takeRequest();
-    server.takeRequest();
-    var recovery = objectMapper.readTree(server.takeRequest().getBody().readUtf8());
+    assertThat(riskSearch.nonRiskRequestCount(server)).isEqualTo(replacementAccepted ? 5 : 6);
+    PortfolioRiskSearchStub.takeNonRiskRequest(server);
+    PortfolioRiskSearchStub.takeNonRiskRequest(server);
+    PortfolioRiskSearchStub.takeNonRiskRequest(server);
+    var recovery =
+        objectMapper.readTree(
+            PortfolioRiskSearchStub.takeNonRiskRequest(server).getBody().readUtf8());
     assertThat(recovery.path("input").toString()).contains("삼성전자").doesNotContain("SK하이닉스");
     assertThat(recovery.path("tools").toString()).doesNotContain("blocked_domains");
   }

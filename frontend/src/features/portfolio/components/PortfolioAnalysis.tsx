@@ -12,6 +12,7 @@ import type {
   PortfolioImpactLevel,
 } from '../types';
 import '../portfolioAnalysis.css';
+import analysisMascot from '../assets/analysis-mascot.jpeg';
 
 const DIRECTION_LABELS: Record<PortfolioImpactDirection, string> = {
   POSITIVE: '긍정',
@@ -310,6 +311,10 @@ function PortfolioEmpty({ onAddAsset, title }: { onAddAsset?: () => void; title?
   );
 }
 
+function AnalysisMascot() {
+  return <img className="portfolio-analysis-mascot" src={analysisMascot} alt="" />;
+}
+
 function PortfolioAnalysisEmpty() {
   return (
     <div
@@ -317,9 +322,7 @@ function PortfolioAnalysisEmpty() {
       role="status"
       aria-live="polite"
     >
-      <span className="portfolio-analysis-state-icon" aria-hidden="true">
-        −
-      </span>
+      <AnalysisMascot />
       <strong>표시할 포트폴리오 분석 결과가 없어요.</strong>
       <p>잠시 후 다시 분석해 주세요.</p>
     </div>
@@ -333,8 +336,10 @@ function PortfolioAnalysisLoading() {
       role="status"
       aria-live="polite"
     >
-      <span className="portfolio-analysis-spinner" aria-hidden="true" />
+      <AnalysisMascot />
       <strong>내 포트폴리오에 미치는 영향을 분석하고 있어요.</strong>
+      <p>보유 종목의 긍정적인 소식과 주의할 소식을 함께 확인하고 있어요.</p>
+      <span className="portfolio-analysis-spinner" aria-hidden="true" />
     </div>
   );
 }
@@ -352,7 +357,9 @@ function PortfolioAnalysisError({
 }) {
   return (
     <div className="portfolio-analysis-state portfolio-analysis-empty" role="alert">
+      <AnalysisMascot />
       <strong>{message}</strong>
+      <p>자료를 확인하는 중 문제가 생겼어요. 잠시 후 다시 시도해 주세요.</p>
       <button
         ref={buttonRef}
         className="portfolio-analysis-retry-button"
@@ -360,7 +367,7 @@ function PortfolioAnalysisError({
         onClick={onRetry}
         disabled={retryDisabled}
       >
-        다시 시도
+        다시 분석하기
       </button>
     </div>
   );
@@ -840,6 +847,16 @@ function PortfolioAnalysisView({
   const waitingForCore =
     (loading || processing) && !(currentAnalysis && summaryStatus === 'PENDING');
   const analysis = waitingForCore ? null : currentAnalysis;
+  const checkedToday = Boolean(
+    saved?.lastSucceededAt &&
+    new Date(saved.lastSucceededAt).toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' }) ===
+      new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' }),
+  );
+  const noNewNews = saved?.lastCheckOutcome === 'UNCHANGED' && checkedToday;
+  const verificationFailed =
+    saved?.status === 'FAILED' || saved?.lastCheckOutcome === 'UNCONFIRMED';
+  const hideAnalysis = Boolean(error || verificationFailed);
+  const failureMessage = error ?? '새 소식을 확인하지 못했어요.';
   const [selectedAssetName, setSelectedAssetName] = useState<string | null>(null);
   const sortedImpacts = useMemo(
     () => [...(analysis?.impacts ?? [])].sort((left, right) => left.rank - right.rank),
@@ -861,7 +878,7 @@ function PortfolioAnalysisView({
     analyze();
   };
 
-  const hasAnalysis = Boolean(analysis && sortedImpacts.length > 0);
+  const hasAnalysis = Boolean(analysis && sortedImpacts.length > 0 && !hideAnalysis);
   const resultRef = useRef<HTMLDivElement>(null);
   useContentImpression(
     resultRef,
@@ -947,7 +964,7 @@ function PortfolioAnalysisView({
   );
 
   const showIntroduction =
-    hasAnalysisTarget && !analysis && !loading && !error && !trialExhausted && !processing;
+    hasAnalysisTarget && !analysis && !loading && !hideAnalysis && !trialExhausted && !processing;
   const previewTitle = portfolioChanged
     ? '자산 구성이 바뀌어 이전 분석을 숨겼어요. 현재 보유 자산으로 다시 분석해 주세요.'
     : isLoggedIn
@@ -978,7 +995,7 @@ function PortfolioAnalysisView({
       type="button"
       ref={ctaRef as Ref<HTMLButtonElement>}
       disabled={!canAnalyze}
-      onClick={analyze}
+      onClick={handleRetry}
     >
       {loading
         ? currentAnalysis
@@ -1029,20 +1046,26 @@ function PortfolioAnalysisView({
               : `오늘 새 소식 확인 ${saved.remainingRefreshCount}회 남음 · 하루 최대 3회`}
           </p>
         ) : null}
-        {analysis?.excludedAssets?.length ? (
+        {!hideAnalysis && analysis?.excludedAssets?.length ? (
           <p>
             보유 비중 상위 5종목을 분석했어요. 나머지 {analysis.excludedAssets.length}종목은 분석
             대상에서 제외했으며 전체 포트폴리오 점수는 확정하지 않아요.
           </p>
         ) : null}
 
-        {analysis && !loading && saved?.status === 'RECHECK_REQUIRED' ? (
+        {!hideAnalysis &&
+        !noNewNews &&
+        analysis &&
+        !loading &&
+        saved?.status === 'RECHECK_REQUIRED' ? (
           <p role="status">기존 분석을 유지하고 있어요. 근거를 다시 확인해 주세요.</p>
         ) : null}
-        {selectedImpact && updateNotice ? <p role="status">{updateNotice}</p> : null}
-        {analysis && saved?.lastSucceededAt ? (
+        {!hideAnalysis && selectedImpact && updateNotice ? (
+          <p role="status">{updateNotice}</p>
+        ) : null}
+        {!hideAnalysis && analysis && saved?.lastSucceededAt ? (
           <p className="portfolio-analysis-checked-at">
-            최근 확인:{' '}
+            마지막 분석 처리:{' '}
             <time dateTime={saved.lastSucceededAt}>
               {formatAnalyzedAt(saved.lastSucceededAt)?.replace(' 분석 기준', '')}
             </time>
@@ -1055,18 +1078,20 @@ function PortfolioAnalysisView({
           role="status"
           aria-live="polite"
         >
+          <AnalysisMascot />
+          <strong>내 자산과 관련된 소식을 살펴보고 있어요</strong>
           <span className="portfolio-analysis-spinner" aria-hidden="true" />
           <p>
-            분석에 약 30초 정도 걸려요.
+            긍정적인 소식과 주의할 소식을 함께 확인하고 있어요.
             <br />
             다른 화면을 둘러보거나 새로고침해도 분석은 계속돼요.
           </p>
         </div>
       ) : null}
-      {analysis && summaryStatus === 'PENDING' ? (
+      {!hideAnalysis && analysis && summaryStatus === 'PENDING' ? (
         <p role="status">점수와 종목별 근거가 준비됐어요. 종합 설명을 작성하고 있어요.</p>
       ) : null}
-      {analysis && summaryStatus === 'FAILED' ? (
+      {!hideAnalysis && analysis && summaryStatus === 'FAILED' ? (
         <p role="status">종합 설명을 불러오지 못했어요. 점수와 종목별 근거는 확인할 수 있어요.</p>
       ) : null}
       {!hasAnalysisTarget ? <PortfolioEmpty onAddAsset={onAddAsset} title={previewTitle} /> : null}
@@ -1081,11 +1106,11 @@ function PortfolioAnalysisView({
         <PortfolioAnalysisLoading />
       ) : null}
 
-      {hasAnalysisTarget && !loading && error ? (
+      {hasAnalysisTarget && !loading && !processing && (error || verificationFailed) ? (
         <PortfolioAnalysisError
           buttonRef={refreshExhausted ? undefined : (ctaRef as Ref<HTMLButtonElement>)}
           onRetry={handleRetry}
-          message={error}
+          message={failureMessage}
           retryDisabled={refreshExhausted}
         />
       ) : null}
@@ -1094,11 +1119,11 @@ function PortfolioAnalysisView({
         <PortfolioAnalysisTrialExhausted />
       ) : null}
 
-      {hasAnalysisTarget && !loading && !error && analysis?.impacts.length === 0 ? (
+      {hasAnalysisTarget && !loading && !hideAnalysis && analysis?.impacts.length === 0 ? (
         <PortfolioAnalysisEmpty />
       ) : null}
 
-      {hasAnalysisTarget && analysis && sortedImpacts.length > 0 ? (
+      {hasAnalysisTarget && !hideAnalysis && analysis && sortedImpacts.length > 0 ? (
         <>
           <div ref={resultRef} className="portfolio-analysis-layout">
             <div className="portfolio-analysis-overview">
