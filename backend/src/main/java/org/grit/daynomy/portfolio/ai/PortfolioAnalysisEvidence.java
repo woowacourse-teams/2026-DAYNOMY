@@ -15,12 +15,33 @@ public final class PortfolioAnalysisEvidence {
   private final List<String> referenceIds;
   private final Map<String, Integer> referenceNumbers;
   private final Map<String, List<String>> requestedUrls;
+  private final Map<String, String> riskSearchStatuses;
+  private final Map<String, List<String>> riskSourceUrls;
 
   private PortfolioAnalysisEvidence(
       Map<String, Map<String, Quote>> byAsset,
       Map<String, PortfolioAnalysisSourceDocument> documents,
       Map<String, List<String>> requestedUrls) {
-    this.requestedUrls = Map.copyOf(requestedUrls);
+    this(byAsset, documents, requestedUrls, Map.of());
+  }
+
+  private PortfolioAnalysisEvidence(
+      Map<String, Map<String, Quote>> byAsset,
+      Map<String, PortfolioAnalysisSourceDocument> documents,
+      Map<String, List<String>> requestedUrls,
+      Map<String, String> riskSearchStatuses) {
+    this(byAsset, documents, requestedUrls, riskSearchStatuses, Map.of());
+  }
+
+  private PortfolioAnalysisEvidence(
+      Map<String, Map<String, Quote>> byAsset,
+      Map<String, PortfolioAnalysisSourceDocument> documents,
+      Map<String, List<String>> requestedUrls,
+      Map<String, String> riskSearchStatuses,
+      Map<String, List<String>> riskSourceUrls) {
+    this.riskSourceUrls = Map.copyOf(riskSourceUrls);
+    this.riskSearchStatuses = Map.copyOf(riskSearchStatuses);
+    this.requestedUrls = java.util.Collections.unmodifiableMap(new LinkedHashMap<>(requestedUrls));
     this.byAsset = java.util.Collections.unmodifiableMap(new LinkedHashMap<>(byAsset));
     this.documents = Map.copyOf(documents);
     this.referenceIds =
@@ -82,7 +103,18 @@ public final class PortfolioAnalysisEvidence {
                     .computeIfAbsent(quote.url(), ignored -> new LinkedHashMap<>())
                     .putIfAbsent(id, quote);
               });
-      assets.add(Map.of("assetName", target.assetName(), "sourceUrls", urls));
+      var asset = new LinkedHashMap<String, Object>();
+      asset.put("assetName", target.assetName());
+      asset.put("sourceUrls", urls);
+      var negativeUrls = riskSourceUrls.getOrDefault(target.assetName(), List.of());
+      asset.put(
+          "searchPerspectives",
+          Map.of(
+              "POSITIVE", urls.stream().filter(url -> !negativeUrls.contains(url)).toList(),
+              "NEGATIVE", urls.stream().filter(negativeUrls::contains).toList()));
+      if (riskSearchStatuses.containsKey(target.assetName()))
+        asset.put("riskSearchStatus", riskSearchStatuses.get(target.assetName()));
+      assets.add(asset);
     }
     var sources = new ArrayList<Map<String, Object>>();
     grouped.forEach(
@@ -200,7 +232,95 @@ public final class PortfolioAnalysisEvidence {
     combined.putAll(other.documents);
     Map<String, List<String>> urls = new LinkedHashMap<>(requestedUrls);
     urls.putAll(other.requestedUrls);
-    return new PortfolioAnalysisEvidence(merged, combined, urls);
+    return new PortfolioAnalysisEvidence(
+        merged, combined, urls, riskSearchStatuses, riskSourceUrls);
+  }
+
+  /** 반대 근거는 날짜와 관계없이 함께 제공한다. 동일 본문의 재보도만 제거한다. */
+  PortfolioAnalysisEvidence withRiskSources(PortfolioAnalysisEvidence risks) {
+    Map<String, List<String>> urls = new LinkedHashMap<>(requestedUrls);
+    Map<String, PortfolioAnalysisSourceDocument> combined = new LinkedHashMap<>(documents);
+    combined.putAll(risks.documents);
+    Map<String, List<String>> accepted = new LinkedHashMap<>();
+    byAsset.forEach(
+        (name, quotes) ->
+            accepted.put(name, quotes.values().stream().map(Quote::url).distinct().toList()));
+    Map<String, String> statuses = new LinkedHashMap<>();
+    risks.requestedUrls.forEach(
+        (name, candidates) -> {
+          statuses.put(name, candidates.isEmpty() ? "NOT_FOUND" : "SOURCES_FOUND");
+          var selected = new ArrayList<>(urls.getOrDefault(name, List.of()));
+          var readable = new ArrayList<>(accepted.getOrDefault(name, List.of()));
+          var bodies = new java.util.HashSet<String>();
+          readable.stream()
+              .map(combined::get)
+              .filter(java.util.Objects::nonNull)
+              .map(document -> document.body().strip().replaceAll("\\s+", " "))
+              .forEach(bodies::add);
+          for (String url : candidates) {
+            var document = combined.get(url);
+            if (document != null && bodies.add(document.body().strip().replaceAll("\\s+", " "))) {
+              selected.add(url);
+              readable.add(url);
+            }
+          }
+          urls.put(name, selected);
+          accepted.put(name, readable);
+        });
+    // 같은 URL을 다시 읽어 본문이 바뀌었으면 최신 본문 전체에서 인용문을 구성한다.
+    var merged = from(accepted, combined);
+    var negativeUrls = new LinkedHashMap<>(riskSourceUrls);
+    risks.byAsset.forEach(
+        (name, quotes) ->
+            negativeUrls.put(name, quotes.values().stream().map(Quote::url).distinct().toList()));
+    return new PortfolioAnalysisEvidence(merged.byAsset, combined, urls, statuses, negativeUrls);
+  }
+
+  boolean hasUnreadableSources() {
+    return requestedUrls.values().stream()
+        .flatMap(List::stream)
+        .anyMatch(url -> (!documents.containsKey(url) || documents.get(url).body().isBlank()));
+  }
+
+  boolean hasUnreadableSources(String assetName) {
+    return requestedUrls.getOrDefault(assetName, List.of()).stream()
+        .anyMatch(url -> (!documents.containsKey(url) || documents.get(url).body().isBlank()));
+  }
+
+  boolean hasUndatedSources(String assetName) {
+    return requestedUrls.getOrDefault(assetName, List.of()).stream()
+        .map(documents::get)
+        .filter(java.util.Objects::nonNull)
+        .anyMatch(document -> document.publishedOn() == null);
+  }
+
+  PortfolioAnalysisEvidence withinPublicationWindow(
+      java.time.LocalDate from, java.time.LocalDate to) {
+    Map<String, List<String>> recent = new LinkedHashMap<>();
+    requestedUrls.forEach(
+        (name, urls) ->
+            recent.put(
+                name,
+                urls.stream()
+                    .filter(
+                        url ->
+                            !documents.containsKey(url)
+                                || (documents.get(url).publishedOn() != null
+                                    && !documents.get(url).publishedOn().isBefore(from)
+                                    && !documents.get(url).publishedOn().isAfter(to)))
+                    .toList()));
+    var retained =
+        recent.values().stream().flatMap(List::stream).collect(java.util.stream.Collectors.toSet());
+    Map<String, PortfolioAnalysisSourceDocument> selected = new LinkedHashMap<>();
+    documents.forEach(
+        (url, document) -> {
+          if (retained.contains(url)) selected.put(url, document);
+        });
+    return from(recent, selected);
+  }
+
+  String riskSearchStatus(String assetName) {
+    return riskSearchStatuses.get(assetName);
   }
 
   /** 원문을 다시 조회하지 않고 서버가 보관한 인용문과 날짜를 연결한다. */

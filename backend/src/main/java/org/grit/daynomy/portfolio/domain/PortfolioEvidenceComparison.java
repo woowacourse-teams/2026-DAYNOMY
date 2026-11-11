@@ -5,7 +5,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Objects;
 
-/** 문장 유사도로 새 사건을 추측하지 않고 확인 가능한 날짜·사실만 비교한다. */
+/** 검증된 원문 사실의 추가·정정을 비교한다. 사건일의 선후만으로 갱신을 제한하지 않는다. */
 public final class PortfolioEvidenceComparison {
   private PortfolioEvidenceComparison() {}
 
@@ -15,9 +15,14 @@ public final class PortfolioEvidenceComparison {
     UNCONFIRMED
   }
 
-  public record Fact(String url, LocalDate occurredOn, String excerpt, String factQuote) {
+  public record Fact(
+      String url, LocalDate occurredOn, String excerpt, String factQuote, LocalDate publishedOn) {
+    public Fact(String url, LocalDate occurredOn, String excerpt, String factQuote) {
+      this(url, occurredOn, excerpt, factQuote, null);
+    }
+
     public Fact(String url, LocalDate occurredOn, String excerpt) {
-      this(url, occurredOn, excerpt, null);
+      this(url, occurredOn, excerpt, null, null);
     }
   }
 
@@ -25,7 +30,13 @@ public final class PortfolioEvidenceComparison {
     if (current.isEmpty()) {
       return Result.UNCONFIRMED;
     }
-    if (current.stream().anyMatch(fact -> normalized(fact.excerpt()).isEmpty())) {
+    LocalDate today = LocalDate.now(java.time.ZoneId.of("Asia/Seoul"));
+    if (current.stream()
+        .anyMatch(
+            fact ->
+                normalized(fact.excerpt()).isEmpty()
+                    || (fact.occurredOn() != null && fact.occurredOn().isAfter(today))
+                    || (fact.publishedOn() != null && fact.publishedOn().isAfter(today)))) {
       return Result.UNCONFIRMED;
     }
     if (previous.isEmpty()) {
@@ -47,21 +58,31 @@ public final class PortfolioEvidenceComparison {
             .filter(Objects::nonNull)
             .max(LocalDate::compareTo)
             .orElse(null);
-    if (latest == null
-        || added.stream()
-            .anyMatch(fact -> fact.occurredOn() == null || !fact.occurredOn().isAfter(latest))) {
+    if (added.stream()
+        .anyMatch(
+            fact -> {
+              if (!normalized(fact.factQuote()).isEmpty())
+                return fact.occurredOn() == null && fact.publishedOn() == null;
+              // 원문 발췌가 없는 과거 형식의 근거는 기존의 날짜 확인 기준을 유지한다.
+              return latest == null
+                  || fact.occurredOn() == null
+                  || !fact.occurredOn().isAfter(latest);
+            })) {
       return Result.UNCONFIRMED;
     }
     return Result.NEW_EVIDENCE;
   }
 
   private static boolean sameFact(Fact left, Fact right) {
-    if (!Objects.equals(left.occurredOn(), right.occurredOn())
-        || normalized(left.excerpt()).isEmpty()
-        || !sameText(left, right)) {
+    if (normalized(left.excerpt()).isEmpty() || !sameText(left, right)) {
       return false;
     }
-    // 사건일이 확인된 같은 사실의 재보도는 URL이 달라도 새 사건이 아니다.
+    if (left.occurredOn() != null && right.occurredOn() != null)
+      return left.occurredOn().equals(right.occurredOn());
+    // 같은 원문 사실의 재보도·발표일 변경·사건일 보완은 새 사실이 아니다.
+    if (!normalized(left.factQuote()).isEmpty() && !normalized(right.factQuote()).isEmpty())
+      return true;
+    if (!Objects.equals(left.occurredOn(), right.occurredOn())) return false;
     return left.occurredOn() != null
         || normalizedUrl(left.url()).equals(normalizedUrl(right.url()));
   }

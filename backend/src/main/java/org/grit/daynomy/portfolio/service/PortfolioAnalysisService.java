@@ -33,6 +33,7 @@ public class PortfolioAnalysisService {
   private final PortfolioAssetAnalysisService assetAnalysisService;
   private final org.grit.daynomy.portfolio.ai.PortfolioAnalysisNarrative narrative;
   private final GuestPortfolioAnalysisTrial guestPortfolioAnalysisTrial;
+  private final PortfolioAnalysisPriceService priceService;
 
   @Observed(name = "portfolio.analysis", contextualName = "portfolio-analysis")
   public PortfolioAnalysisResponse analyze(
@@ -59,8 +60,17 @@ public class PortfolioAnalysisService {
     return response(request, assetAnalysisService.analyze(createTargets(request.assets())));
   }
 
-  PortfolioAnalysisResponse summarize(PortfolioAnalysisResponse result) {
+  public PortfolioAnalysisResponse summarize(PortfolioAnalysisResponse result) {
     return result.withOverallImpact(narrative.summarize(result));
+  }
+
+  /** 회원 전용 저장 흐름에서 개인 맥락을 붙이기 전의 핵심 결과를 생성한다. */
+  public PortfolioAnalysisResponse analyzeMemberCore(
+      PortfolioAnalysisRequest request, PortfolioAnalysisResponse previous, boolean refresh) {
+    validate(request);
+    return previous == null && !refresh
+        ? analyzeAssets(request)
+        : refreshAssets(request, previous).analysis();
   }
 
   @Observed(name = "portfolio.analysis.refresh", contextualName = "portfolio-analysis-refresh")
@@ -118,6 +128,10 @@ public class PortfolioAnalysisService {
                                                   Map.of(
                                                       "url",
                                                       source.url(),
+                                                      "publishedOn",
+                                                      source.publishedOn() == null
+                                                          ? ""
+                                                          : source.publishedOn().toString(),
                                                       "occurredOn",
                                                       source.occurredOn() == null
                                                           ? ""
@@ -131,6 +145,13 @@ public class PortfolioAnalysisService {
                                           .toList()))
                       .toList());
       var candidate = response(request, portfolioAnalysisAiClient.refresh(targets, context));
+      if (!candidate.impacts().isEmpty()
+          && candidate.impacts().stream().allMatch(impact -> impact.noNewNews())) {
+        return new PortfolioAnalysisRefresh.Revision(
+            org.grit.daynomy.portfolio.domain.PortfolioAnalysisCheck.Outcome.UNCHANGED,
+            candidate,
+            "");
+      }
       var revision =
           names == null
               ? PortfolioAnalysisRefresh.compare(previous, candidate)
@@ -175,7 +196,18 @@ public class PortfolioAnalysisService {
             result.overallImpact(),
             impacts,
             sources)
-        .withExcludedAssets(request.assets());
+        .withExcludedAssets(request.assets())
+        .withPriceContexts(
+            priceService
+                .lookup(impacts.stream().map(PortfolioAssetImpactResponse::assetName).toList())
+                .entrySet()
+                .stream()
+                .collect(
+                    Collectors.toMap(
+                        Map.Entry::getKey,
+                        entry ->
+                            org.grit.daynomy.portfolio.dto.PortfolioAnalysisPriceContextResponse
+                                .from(entry.getValue()))));
   }
 
   void validate(PortfolioAnalysisRequest request) {

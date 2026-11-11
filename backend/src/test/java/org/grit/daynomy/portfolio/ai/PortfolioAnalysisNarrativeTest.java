@@ -22,6 +22,57 @@ import org.junit.jupiter.api.Test;
 import org.springframework.web.client.RestClient;
 
 class PortfolioAnalysisNarrativeTest {
+  @Test
+  void passesPersonalLossOnlyToPortfolioNarrativeAndKeepsBusinessDirection() throws Exception {
+    var context =
+        new org.grit.daynomy.portfolio.dto.PortfolioAnalysisPersonalContextResponse(
+            java.time.LocalDate.of(2026, 11, 10),
+            new BigDecimal("300000"),
+            new BigDecimal("240000"),
+            new BigDecimal("-60000"),
+            new BigDecimal("-20"),
+            List.of());
+    enqueue(Map.of("impact", "확인한 사업 영향과 개인 손익을 구분해야 해요.", "priority", "실제 가격 흐름을 함께 확인해야 해요."));
+    client.summarize(analysis().withPersonalContext(context));
+    var request = mapper.readTree(server.takeRequest().getBody().readUtf8());
+    var input = mapper.readTree(request.path("input").get(1).path("content").asText());
+    assertThat(input.path("personalContext").path("returnRate").decimalValue())
+        .isEqualByComparingTo("-20");
+    assertThat(request.path("input").get(0).path("content").asText())
+        .contains("개인 손실을 기업의 부정 영향으로 바꾸거나", "원화 개인 수익률은 다릅니다");
+  }
+
+  @Test
+  void passesDatedPriceContextWithoutChangingBusinessJudgmentsOrInventingBenchmarks()
+      throws Exception {
+    var prices =
+        new org.grit.daynomy.portfolio.dto.PortfolioAnalysisPriceContextResponse(
+            "AVAILABLE",
+            "USD",
+            "CLOSE",
+            java.time.LocalDate.of(2026, 11, 10),
+            null,
+            new BigDecimal("180"),
+            java.time.LocalDate.of(2026, 10, 20),
+            new BigDecimal("200"),
+            new BigDecimal("-10"),
+            15);
+    enqueue(Map.of("impact", "사업 영향과 가격 흐름을 함께 확인해야 해요.", "priority", "확인한 가격의 기준일을 살펴봐야 해요."));
+    var original = analysis();
+    var result = client.summarize(original.withPriceContexts(Map.of("삼성전자", prices)));
+    assertThat(result).contains("가격 흐름");
+    var request = mapper.readTree(server.takeRequest().getBody().readUtf8());
+    var input = mapper.readTree(request.path("input").get(1).path("content").asText());
+    assertThat(input.path("priceContexts").path("삼성전자").path("changeRate").decimalValue())
+        .isEqualByComparingTo("-10");
+    assertThat(input.path("priceContexts").path("삼성전자").path("currency").asText()).isEqualTo("USD");
+    assertThat(input.path("priceContexts").path("삼성전자").path("baseDate").asText())
+        .isEqualTo("2026-11-10");
+    assertThat(input.path("benchmarkAvailability").asText()).isEqualTo("UNAVAILABLE");
+    assertThat(request.path("input").get(0).path("content").asText())
+        .contains("가격 하락만으로", "원인이라고 단정하지", "실제 비교일", "개인 매수가·수익률이 아닙니다");
+  }
+
   private final ObjectMapper mapper = new ObjectMapper();
   private MockWebServer server;
   private PortfolioAnalysisNarrative client;
@@ -95,6 +146,37 @@ class PortfolioAnalysisNarrativeTest {
     assertThat(summary.split("\n\n")).hasSize(3);
     assertThat(summary).contains("삼성전자 비중은 60%", "전체 영향은 판단을 보류해요.");
     assertThat(summary).doesNotContain("긍정", "부정", "중립");
+    assertThat(server.getRequestCount()).isZero();
+  }
+
+  @Test
+  void missingRiskEvidenceAloneIsNotCompletedNoNewNews() {
+    var insufficient = impact("삼성전자", "100", false).withRiskSearchStatus("NOT_FOUND");
+    assertThat(client.summarize(withImpacts(List.of(insufficient))))
+        .contains("판단을 보류")
+        .doesNotContain("새 소식을 찾지 못했어요");
+    assertThat(server.getRequestCount()).isZero();
+  }
+
+  @Test
+  void completedSearchWithoutNewSourcesDoesNotGenerateAnotherJudgment() {
+    var noNews =
+        new PortfolioAssetImpactResponse(
+            "삼성전자",
+            new BigDecimal("100"),
+            null,
+            null,
+            "",
+            "",
+            "",
+            "",
+            "",
+            List.of(),
+            1,
+            "NOT_FOUND",
+            true);
+    assertThat(client.summarize(withImpacts(List.of(noNews))))
+        .contains("어제·오늘", "새 소식을 찾지 못했어요", "위험이 없다는 뜻은 아니에요");
     assertThat(server.getRequestCount()).isZero();
   }
 

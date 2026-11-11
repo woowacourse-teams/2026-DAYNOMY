@@ -63,13 +63,15 @@ final class PortfolioAnalysisRefresh {
     List<PortfolioAssetImpactResponse> merged = new ArrayList<>();
     List<String> reasons = new ArrayList<>();
     boolean insufficient = false;
+    Set<String> confirmed = new java.util.HashSet<>();
     for (var old : previous.impacts()) {
       if (names != null && !names.contains(old.assetName())) {
         merged.add(old);
         continue;
       }
       var current = byName.get(old.assetName());
-      if (names != null && (current == null || current.direction() == null)) {
+      if (names != null
+          && (current == null || (current.direction() == null && !current.noNewNews()))) {
         insufficient = true;
         merged.add(old);
         continue;
@@ -79,6 +81,11 @@ final class PortfolioAnalysisRefresh {
         return new Revision(Outcome.UNCONFIRMED, previous, "");
       }
       // 근거 부족 종목은 보존하되 다른 종목의 새 근거 반영을 막지 않는다.
+      if (current.direction() == null && current.sources().isEmpty() && current.noNewNews()) {
+        merged.add(old);
+        confirmed.add(old.assetName());
+        continue;
+      }
       if (old.sources().isEmpty() && current.sources().isEmpty()) {
         insufficient = true;
         merged.add(old);
@@ -86,6 +93,7 @@ final class PortfolioAnalysisRefresh {
       }
       if (!validStoredImpact(old)) {
         merged.add(current);
+        if (current.direction() != null) confirmed.add(current.assetName());
         reasons.add(current.assetName());
         continue;
       }
@@ -96,18 +104,48 @@ final class PortfolioAnalysisRefresh {
         continue;
       }
       if (comparison == PortfolioEvidenceComparison.Result.SAME) {
-        merged.add(old);
+        merged.add(
+            old.withRiskSearchStatus(
+                current.riskSearchStatus() == null
+                    ? old.riskSearchStatus()
+                    : current.riskSearchStatus()));
+        if (current.riskSearchStatus() != null
+            && !java.util.Objects.equals(current.riskSearchStatus(), old.riskSearchStatus()))
+          reasons.add("반대 근거 확인");
       } else {
         merged.add(current);
         reasons.add(current.assetName());
       }
+      confirmed.add(old.assetName());
     }
     if (selectionChanged) {
       candidate.impacts().stream()
           .filter(i -> !previousNames.contains(i.assetName()))
           .forEach(merged::add);
       reasons.add("중점 분석 대상");
+      candidate.impacts().stream()
+          .filter(i -> i.direction() != null)
+          .map(PortfolioAssetImpactResponse::assetName)
+          .forEach(confirmed::add);
     }
+    Map<String, org.grit.daynomy.portfolio.dto.PortfolioAnalysisPriceContextResponse> prices =
+        new java.util.LinkedHashMap<>(previous.priceContexts());
+    var retained =
+        merged.stream().map(PortfolioAssetImpactResponse::assetName).collect(Collectors.toSet());
+    prices.keySet().retainAll(retained);
+    candidate
+        .priceContexts()
+        .forEach(
+            (name, context) -> {
+              if (confirmed.contains(name) && !"LOOKUP_FAILED".equals(context.status()))
+                prices.put(name, context);
+            });
+    if (!prices.equals(previous.priceContexts())) reasons.add("가격 흐름");
+    var personal =
+        candidate.personalContext() == null
+            ? previous.personalContext()
+            : candidate.personalContext();
+    if (!java.util.Objects.equals(personal, previous.personalContext())) reasons.add("개인 손익");
     boolean repairSummary =
         names == null
             && previous.analyzedAssetCount() > 0
@@ -145,7 +183,9 @@ final class PortfolioAnalysisRefresh {
               impact.reason(),
               impact.evidenceSentence(),
               impact.sources(),
-              index + 1));
+              index + 1,
+              impact.riskSearchStatus(),
+              impact.noNewNews()));
     }
     var summary =
         PortfolioImpactSummary.calculate(
@@ -177,7 +217,10 @@ final class PortfolioAnalysisRefresh {
             merged.size() == previous.totalAssetCount() ? summary.score() : null,
             summary.positiveScore(),
             summary.negativeScore(),
-            candidate.analyzedAt(),
+            reasons.stream()
+                    .allMatch(reason -> List.of("가격 흐름", "개인 손익", "반대 근거 확인").contains(reason))
+                ? previous.analyzedAt()
+                : candidate.analyzedAt(),
             "",
             merged,
             sources,
@@ -189,17 +232,26 @@ final class PortfolioAnalysisRefresh {
                             new PortfolioAnalysisResponse.ExcludedAsset(
                                 asset.assetName(),
                                 weights.getOrDefault(asset.assetName(), asset.weight())))
-                    .toList()),
+                    .toList(),
+            prices,
+            personal),
         reasons.isEmpty()
             ? "종목별 판단은 유지하고 전체 설명을 정리했어요."
-            : String.join(", ", reasons) + "의 근거와 설명을 갱신했어요.");
+            : reasons.equals(List.of("가격 흐름"))
+                ? "사업 판단은 유지하고 가격 흐름과 전체 설명을 갱신했어요."
+                : String.join(", ", reasons) + "의 근거와 설명을 갱신했어요.");
   }
 
   private static List<Fact> facts(PortfolioAssetImpactResponse impact) {
     return impact.sources().stream()
         .map(
             source ->
-                new Fact(source.url(), source.occurredOn(), source.excerpt(), source.factQuote()))
+                new Fact(
+                    source.url(),
+                    source.occurredOn(),
+                    source.excerpt(),
+                    source.factQuote(),
+                    source.publishedOn()))
         .toList();
   }
 

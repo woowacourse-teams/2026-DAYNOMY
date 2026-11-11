@@ -30,9 +30,10 @@ class SavedPortfolioAutomaticAnalysisTest {
     var token = UUID.randomUUID();
     var previous = mock(PortfolioAnalysisResponse.class);
     var candidate = mock(PortfolioAnalysisResponse.class);
+    var personal = mock(PortfolioAnalysisPersonalContextResponse.class);
     var prepared =
         new SavedPortfolioAnalysisTransactionService.PreparedAnalysis(
-            null, token, List.of(), previous);
+            null, token, List.of(), previous, personal);
     when(transactions.prepareAutomatic(1L, Set.of("삼성전자"))).thenReturn(prepared);
     when(ai.refreshAssets(any(), eq(previous), eq(Set.of("삼성전자"))))
         .thenReturn(
@@ -41,6 +42,7 @@ class SavedPortfolioAutomaticAnalysisTest {
                 candidate,
                 "새 근거"));
     when(candidate.withOverallImpact("")).thenReturn(candidate);
+    when(candidate.withPersonalContext(personal)).thenReturn(candidate);
     var core = mock(SavedPortfolioAnalysisResponse.class);
     when(core.summaryStatus()).thenReturn("PENDING");
     when(core.analysis()).thenReturn(candidate);
@@ -53,6 +55,7 @@ class SavedPortfolioAutomaticAnalysisTest {
     var completed = mock(SavedPortfolioAnalysisResponse.class);
     when(transactions.completeSummary(1L, token, 101L, "완성된 종합 설명")).thenReturn(completed);
     assertThat(service.refreshAutomatically(1L, Set.of("삼성전자"))).isSameAs(completed);
+    verify(candidate).withPersonalContext(personal);
     var order = inOrder(transactions, ai);
     order
         .verify(transactions)
@@ -65,9 +68,10 @@ class SavedPortfolioAutomaticAnalysisTest {
   void unchangedResultDoesNotGenerateAnotherSummary() {
     var token = UUID.randomUUID();
     var previous = mock(PortfolioAnalysisResponse.class);
+    var personal = mock(PortfolioAnalysisPersonalContextResponse.class);
     var prepared =
         new SavedPortfolioAnalysisTransactionService.PreparedAnalysis(
-            null, token, List.of(), previous);
+            null, token, List.of(), previous, personal);
     when(transactions.prepareAutomatic(1L, Set.of("삼성전자"))).thenReturn(prepared);
     when(ai.refreshAssets(any(), eq(previous), eq(Set.of("삼성전자"))))
         .thenReturn(
@@ -76,11 +80,13 @@ class SavedPortfolioAutomaticAnalysisTest {
                 previous,
                 ""));
     when(previous.withOverallImpact("")).thenReturn(previous);
+    when(previous.withPersonalContext(personal)).thenReturn(previous);
     var saved = mock(SavedPortfolioAnalysisResponse.class);
     when(saved.summaryStatus()).thenReturn("READY");
     when(transactions.completeAutomaticCore(1L, token, List.of(), previous, Set.of("삼성전자")))
         .thenReturn(saved);
     assertThat(service.refreshAutomatically(1L, Set.of("삼성전자"))).isSameAs(saved);
+    verify(previous).withPersonalContext(personal);
     verify(ai, never()).summarize(any());
     verify(transactions, never()).completeSummary(anyLong(), any(), anyLong(), anyString());
   }

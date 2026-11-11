@@ -36,7 +36,7 @@ public class PortfolioAnalysisV1Config {
         calculation,
         transactionManager,
         model,
-        "portfolio-v7-batch-price-v1");
+        "portfolio-v11-yesterday-today-v1");
   }
 
   @Bean("savedPortfolioAnalysisV1")

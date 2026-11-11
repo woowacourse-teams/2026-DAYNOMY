@@ -21,7 +21,10 @@ public class PortfolioAnalysisNarrative {
   private final RestClient client;
   private final String apiKey;
   private final String model;
-  private final ObjectMapper mapper = new ObjectMapper();
+  private final ObjectMapper mapper =
+      new ObjectMapper()
+          .findAndRegisterModules()
+          .disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
 
   public PortfolioAnalysisNarrative(
       RestClient.Builder builder,
@@ -41,6 +44,11 @@ public class PortfolioAnalysisNarrative {
     String composition = composition(analysis);
     var supported = analysis.impacts().stream().filter(i -> i.direction() != null).toList();
     if (supported.isEmpty()) {
+      if (!analysis.impacts().isEmpty()
+          && analysis.impacts().stream().allMatch(impact -> impact.noNewNews()))
+        return composition
+            + "\n\n어제·오늘 확인한 자료에서 분석을 갱신할 새 소식을 찾지 못했어요."
+            + "\n\n새 소식이 없다는 뜻이며 중립·긍정 판단이나 위험이 없다는 뜻은 아니에요.";
       return composition
           + "\n\n보유 종목의 영향 판단에 필요한 근거가 부족해 전체 영향은 판단을 보류해요."
           + "\n\n비중이 큰 종목부터 실적·사업 관련 공식 자료를 확인해야 해요.";
@@ -97,7 +105,13 @@ public class PortfolioAnalysisNarrative {
               "assets",
               data,
               "excludedAssets",
-              analysis.excludedAssets());
+              analysis.excludedAssets(),
+              "priceContexts",
+              analysis.priceContexts(),
+              "benchmarkAvailability",
+              "UNAVAILABLE",
+              "personalContext",
+              analysis.personalContext() == null ? Map.of() : analysis.personalContext());
       var request =
           Map.of(
               "model",
@@ -125,6 +139,11 @@ public class PortfolioAnalysisNarrative {
               분석 범위와 전체 판단 보류 안내는 서버가 붙이므로 반복하지 마세요.
               산업 분류·종목 간 상관관계·분산 효과·손실 상쇄·변동성 감소는 입력으로 입증되지 않으면 추측하지 마세요.
               overallDirection 및 개별 판단과 상충하지 마세요. 영향 점수·방향은 예상 수익률이 아니에요.
+              priceContexts는 종목 통화 기준 실제 시장 가격이며 개인 매수가·수익률이 아닙니다. 사업상 유리·불리한 근거와 최근 가격 흐름을 구분해 설명하세요. 가격 하락만으로 사업 영향을 부정으로 바꾸거나 특정 뉴스가 하락 원인이라고 단정하지 마세요.
+              personalContext가 있으면 분석 당시 회원의 원화 매수가·손익·수익률과 보유 비중을 연결해 설명하세요. 종목 통화의 시장 가격 등락과 원화 개인 수익률은 다릅니다. 개인 손실을 기업의 부정 영향으로 바꾸거나 매수가에 따라 종목 방향·점수를 바꾸지 마세요. personalContext가 비어 있으면 개인 손익을 추측하지 마세요.
+              가격·등락률은 서버가 제공한 값만 사용하고 직접 계산하지 마세요. 실제 비교일·가격 기준일과 통화, CLOSE(종가)·DELAYED(지연 시세)를 구분하세요. 비교 기간은 실제 확보한 두 날짜 사이이며 관측값이 적다고 최근 한 달 전체를 확인한 것처럼 설명하지 마세요.
+              STALE_PRICE는 7일 넘게 오래된 마지막 가격이므로 현재가라고 부르지 마세요. INSUFFICIENT_HISTORY는 가격 흐름 판단을 보류하고, UNAVAILABLE·AMBIGUOUS_ASSET·LOOKUP_FAILED는 확인된 가격이 없는 상태입니다. 빈 priceContexts를 가격 변화 없음으로 해석하지 마세요.
+              benchmarkAvailability가 UNAVAILABLE이면 시장·업종 대비 등락이나 초과 수익을 추측하지 마세요. 가격이 움직였다는 사실과 그 원인에 대한 해석을 구분하세요.
               주가 선반영 여부·예상 대비 실적·수익 보장·매매 권유·목표 비중을 만들어내지 마세요.
               기업 실적만으로 전체 자산의 안정성이 개선됐거나 위험이 줄었다고 단정하지 마세요.
               새로운 사실·숫자·일정·예측을 추가하지 마세요. 기대와 실현된 성과를 구분하세요.

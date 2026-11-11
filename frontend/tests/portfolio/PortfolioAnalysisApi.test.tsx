@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   analyzePortfolio,
+  isPortfolioAnalysisResponse,
   getSavedPortfolioAnalysis,
   updateSavedPortfolioAnalysis,
 } from '../../src/features/portfolio/api';
@@ -58,6 +59,99 @@ afterEach(() => {
 });
 
 describe('포트폴리오 대시보드 분석 API', () => {
+  const price = {
+    status: 'AVAILABLE',
+    currency: 'USD',
+    priceType: 'CLOSE',
+    baseDate: '2026-11-10',
+    asOf: null,
+    price: 180,
+    comparisonDate: '2026-10-20',
+    comparisonPrice: 200,
+    changeRate: -10,
+    observationCount: 15,
+  };
+  it('새 가격·검색 필드를 검증하고 구형 분석의 필드 누락은 허용한다', () => {
+    expect(isPortfolioAnalysisResponse(analysisResponse)).toBe(true);
+    expect(
+      isPortfolioAnalysisResponse({
+        ...analysisResponse,
+        personalContext: null,
+        priceContexts: { Apple: price },
+      }),
+    ).toBe(true);
+  });
+  it.each([
+    { status: 'UNKNOWN' },
+    { status: 1 },
+    { price: '180' },
+    { price: null },
+    { baseDate: null },
+    { baseDate: '2026-02-30' },
+    { asOf: 10 },
+    { observationCount: null },
+    { observationCount: 1.5 },
+    { comparisonPrice: null },
+    { changeRate: '0' },
+    { currency: 'EUR' },
+    { priceType: null },
+    { comparisonDate: '2026-11-11' },
+    { priceType: 'DELAYED', asOf: null },
+  ])('잘못된 가격 맥락을 정상 응답으로 통과시키지 않는다: %j', (patch) => {
+    expect(
+      isPortfolioAnalysisResponse({
+        ...analysisResponse,
+        priceContexts: { Apple: { ...price, ...patch } },
+      }),
+    ).toBe(false);
+  });
+  it.each([null, [], 1, { Apple: {} }])(
+    '잘못된 가격 맥락 컨테이너를 거부한다: %j',
+    (priceContexts) => {
+      expect(isPortfolioAnalysisResponse({ ...analysisResponse, priceContexts })).toBe(false);
+    },
+  );
+  it.each(['UNKNOWN', 1, {}])(
+    '알 수 없는 반대 근거 검색 상태를 거부한다: %j',
+    (riskSearchStatus) => {
+      expect(
+        isPortfolioAnalysisResponse({
+          ...analysisResponse,
+          impacts: analysisResponse.impacts.map((impact) => ({ ...impact, riskSearchStatus })),
+        }),
+      ).toBe(false);
+    },
+  );
+  it('개인 손익의 정상·누락·null·잘못된 타입을 구분한다', () => {
+    const personalContext = {
+      baseDate: '2026-11-10',
+      purchaseAmount: 300000,
+      evaluationAmount: 240000,
+      profitLoss: -60000,
+      returnRate: -20,
+      holdings: [
+        {
+          assetName: 'Apple',
+          baseDate: '2026-11-10',
+          quantity: 1,
+          averagePurchasePrice: 300000,
+          profitLoss: -60000,
+          returnRate: -20,
+        },
+      ],
+    };
+    expect(isPortfolioAnalysisResponse({ ...analysisResponse, personalContext })).toBe(true);
+    for (const invalid of [
+      {},
+      1,
+      { ...personalContext, returnRate: '-20' },
+      { ...personalContext, holdings: null },
+      { ...personalContext, baseDate: undefined },
+    ])
+      expect(isPortfolioAnalysisResponse({ ...analysisResponse, personalContext: invalid })).toBe(
+        false,
+      );
+  });
   it('전체 보유 자산과 비중으로 포트폴리오 분석을 요청한다', async () => {
     const fetchMock = vi.fn(async () => jsonResponse(analysisResponse));
     vi.stubGlobal('fetch', fetchMock);
