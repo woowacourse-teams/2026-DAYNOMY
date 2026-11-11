@@ -465,17 +465,15 @@ function PortfolioContentsView({
               {!portfolio.holdings.length ? (
                 <p className="issue-state">보유 종목을 등록하면 관련 소식을 볼 수 있습니다. </p>
               ) : !items.length && !selectionFailed && !popularityError ? (
-                source !== 'ALL' ? (
-                  <p className="issue-state">선택한 조건에 연결된 소식이 없습니다.</p>
-                ) : (
-                  <StockNewsEmptyState
-                    title={
-                      selectedAsset === 'ALL'
+                <StockNewsEmptyState
+                  title={
+                    source !== 'ALL'
+                      ? '선택한 조건의 소식이 없어요'
+                      : selectedAsset === 'ALL'
                         ? '아직 보유 종목의 소식이 없어요'
                         : '아직 이 종목의 소식이 없어요'
-                    }
-                  />
-                )
+                  }
+                />
               ) : null}
               <ul className="issue-feed issue-feed--visual">
                 {items.slice((currentPage - 1) * 12, currentPage * 12).map((item, index) => {
