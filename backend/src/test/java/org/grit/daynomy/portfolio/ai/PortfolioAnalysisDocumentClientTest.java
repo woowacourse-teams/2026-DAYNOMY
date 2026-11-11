@@ -186,6 +186,43 @@ class PortfolioAnalysisDocumentClientTest {
   }
 
   @Test
+  void readsOriginalNaverNewsDateWithoutUsingCorrectionTimeOrRelatedArticleDates()
+      throws Exception {
+    try (var client = new PortfolioAnalysisDocumentClient()) {
+      var document =
+          client.parse(
+              """
+          <span class="media_end_head_info_datestamp_time _ARTICLE_DATE_TIME" data-date-time="2026-11-10 09:30:00">입력</span>
+          <span class="media_end_head_info_datestamp_time _ARTICLE_MODIFY_DATE_TIME" data-date-time="2026-11-11 13:00:00">수정</span>
+          <div id="dic_area">본 기사에서 확인한 매출 증가예요.</div>
+          <aside>관련 기사의 실적 감소예요.</aside>
+          """);
+      assertThat(document.publishedOn()).isEqualTo(LocalDate.of(2026, 11, 10));
+      assertThat(document.body()).isEqualTo("본 기사에서 확인한 매출 증가예요.");
+    }
+  }
+
+  @Test
+  void readsSamsungAndSkHynixArticlePublicationDatesWithoutRelatedDates() throws Exception {
+    try (var client = new PortfolioAnalysisDocumentClient()) {
+      var samsung =
+          client.parse(
+              """
+          <meta name="date" content="2026-10-29T10:10:00+09:00">
+          <p class="single-date">Korea on October 29, 2026</p><article>실적 발표예요.</article>
+          """);
+      assertThat(samsung.publishedOn()).isEqualTo(LocalDate.of(2026, 10, 29));
+      var hynix =
+          client.parse(
+              """
+          <ul class="post-info"><li><span class="date">October 28, 2026</span></li></ul>
+          <article>실적 발표예요.</article><div class="date">November 11, 2026</div>
+          """);
+      assertThat(hynix.publishedOn()).isEqualTo(LocalDate.of(2026, 10, 28));
+    }
+  }
+
+  @Test
   void readsPublicationMetadataAndArticleInsteadOfModifiedDateAndNavigation() throws Exception {
     try (var client = new PortfolioAnalysisDocumentClient()) {
       var document =

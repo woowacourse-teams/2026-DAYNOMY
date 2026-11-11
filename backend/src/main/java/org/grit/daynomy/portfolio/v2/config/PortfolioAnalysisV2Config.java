@@ -36,7 +36,7 @@ public class PortfolioAnalysisV2Config {
         calculation,
         transactionManager,
         model,
-        "portfolio-v10-select5-price-context");
+        "portfolio-v13-select5-yesterday-today");
   }
 
   @Bean("savedPortfolioAnalysisV2")

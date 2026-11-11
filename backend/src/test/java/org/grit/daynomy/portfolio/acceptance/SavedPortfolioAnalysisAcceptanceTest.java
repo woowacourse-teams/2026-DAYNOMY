@@ -81,6 +81,137 @@ class SavedPortfolioAnalysisAcceptanceTest extends SharedDatabaseTest {
   private static final String GUEST = LEGACY + "/tasks";
 
   @Test
+  void membersShareBusinessJudgmentButKeepTheirPurchasePricesAndReturnsSeparate() {
+    var first = member();
+    var second = member();
+    var firstPortfolio = portfolio(first);
+    var secondPortfolio = portfolio(second);
+    hold(firstPortfolio, "개인손익 시험종목");
+    var assetId =
+        holdings
+            .findAllByPortfolioIdOrderById(firstPortfolio.getId())
+            .getFirst()
+            .getAsset()
+            .getId();
+    var asset = assets.findById(assetId).orElseThrow();
+    holdings.save(new PortfolioHolding(secondPortfolio, asset, 1, new BigDecimal("200")));
+    prices.save(
+        new StockDailyPrice(
+            asset,
+            LocalDate.now(java.time.ZoneId.of("Asia/Seoul")).minusDays(1),
+            new BigDecimal("150")));
+    var date = LocalDate.of(2026, 9, 25);
+    var source =
+        new PortfolioAnalysisResult.Source(
+            "발표",
+            "https://example.invalid/personal-context",
+            date,
+            date,
+            "매출이 증가했어요.",
+            "Revenue increased.");
+    when(ai.analyze(anyList()))
+        .thenAnswer(
+            invocation -> {
+              var result =
+                  verifiedResult(
+                      invocation.getArgument(0), List.of(source), ImpactDirection.POSITIVE);
+              return new PortfolioAnalysisResult(
+                  result.overallImpact(),
+                  result.impacts().stream()
+                      .map(item -> item.withRiskSearchStatus("NOT_FOUND"))
+                      .toList(),
+                  result.sources());
+            });
+
+    client(first)
+        .post(API)
+        .then()
+        .statusCode(200)
+        .body("analysis.personalContext.returnRate", equalTo(50.0f))
+        .body("analysis.personalContext.holdings[0].averagePurchasePrice", equalTo(100.0f))
+        .body("analysis.impacts[0].direction", equalTo("POSITIVE"));
+    client(second)
+        .post(API)
+        .then()
+        .statusCode(200)
+        .body("analysis.personalContext.returnRate", equalTo(-25.0f))
+        .body("analysis.personalContext.holdings[0].averagePurchasePrice", equalTo(200.0f))
+        .body("analysis.impacts[0].direction", equalTo("POSITIVE"))
+        .body("analysis.impacts[0].riskSearchStatus", equalTo("NOT_FOUND"));
+    client(first)
+        .get(API)
+        .then()
+        .statusCode(200)
+        .body("analysis.personalContext.returnRate", equalTo(50.0f));
+    verify(ai, times(1)).analyze(anyList());
+    assertThat(assetAnalyses.findAll().getFirst().getSnapshot().toString())
+        .doesNotContain("personalContext", "averagePurchasePrice", "profitLoss");
+  }
+
+  @Test
+  void riskSearchFailurePreservesPreviousAnalysisAndReportsItsOwnFailureCode() {
+    var member = member();
+    hold(portfolio(member), "삼성전자");
+    successfulAi();
+    var first = client(member).post(API);
+    long id = first.jsonPath().getLong("analysisId");
+    when(ai.refresh(anyList(), anyString()))
+        .thenThrow(new BusinessException(PortfolioErrorCode.PORTFOLIO_ANALYSIS_RISK_SEARCH_FAILED));
+    client(member).post(API + "/refresh").then().statusCode(502);
+    client(member)
+        .get(API)
+        .then()
+        .statusCode(200)
+        .body("status", equalTo("FAILED"))
+        .body("failureCode", equalTo("PORTFOLIO_ANALYSIS_RISK_SEARCH_FAILED"))
+        .body("analysisId", equalTo((int) id));
+  }
+
+  @Test
+  void completedNoNewsRefreshKeepsPreviousAnalysisAndReportsUnchanged() {
+    var member = member();
+    hold(portfolio(member), "삼성전자");
+    successfulAi();
+    var first = client(member).post(API);
+    first.then().statusCode(200);
+    var id = first.jsonPath().getInt("analysisId");
+    var analyzedAt = first.jsonPath().getString("analysis.analyzedAt");
+    when(ai.refresh(anyList(), anyString()))
+        .thenAnswer(
+            invocation -> {
+              List<PortfolioAnalysisTarget> targets = invocation.getArgument(0);
+              return new PortfolioAnalysisResult(
+                  "새 소식 없음",
+                  targets.stream()
+                      .map(
+                          target ->
+                              new PortfolioAnalysisResult.AssetImpactResult(
+                                  target.assetName(),
+                                  null,
+                                  null,
+                                  "",
+                                  "",
+                                  "",
+                                  "",
+                                  "",
+                                  List.of(),
+                                  1,
+                                  "NOT_FOUND",
+                                  true))
+                      .toList(),
+                  List.of());
+            });
+    client(member)
+        .post(API + "/refresh")
+        .then()
+        .statusCode(200)
+        .body("analysisId", equalTo(id))
+        .body("lastCheckOutcome", equalTo("UNCHANGED"))
+        .body("analysis.analyzedAt", equalTo(analyzedAt))
+        .body("analysis.impacts[0].direction", equalTo("NEGATIVE"));
+  }
+
+  @Test
   void fallingPricesAreSavedAndRefreshedWithoutChangingPositiveBusinessJudgment() {
     var member = member();
     var portfolio = portfolio(member);
@@ -132,7 +263,7 @@ class SavedPortfolioAnalysisAcceptanceTest extends SharedDatabaseTest {
         .then()
         .statusCode(200)
         .body("analysisId", org.hamcrest.Matchers.not(equalTo((int) id)))
-        .body("lastCheckOutcome", equalTo("UPDATED"))
+        .body("lastCheckOutcome", equalTo("UNCHANGED"))
         .body("analysis.impacts[0].direction", equalTo("POSITIVE"))
         .body("analysis.priceContexts.삼성전자.changeRate", equalTo(-20.0f));
     client(member)
@@ -358,7 +489,7 @@ class SavedPortfolioAnalysisAcceptanceTest extends SharedDatabaseTest {
       verify(narrative, times(1)).summarize(org.mockito.ArgumentMatchers.any());
     } else {
       assertThat(after.analysisId()).isNotEqualTo(before.analysisId());
-      assertThat(after.lastCheckOutcome()).isEqualTo("UPDATED");
+      assertThat(after.lastCheckOutcome()).isEqualTo("UNCHANGED");
       assertThat(after.analysis().priceContexts().get("삼성전자").price()).isEqualByComparingTo("200");
       assertThat(
               after.analysis().impacts().stream()
@@ -515,8 +646,8 @@ class SavedPortfolioAnalysisAcceptanceTest extends SharedDatabaseTest {
     assertThat(stored.getAnalysisVersion())
         .isEqualTo(
             version.equals("v1")
-                ? "portfolio-v8-batch-price-context-v1"
-                : "portfolio-v10-select5-price-context");
+                ? "portfolio-v11-yesterday-today-v1"
+                : "portfolio-v13-select5-yesterday-today");
     if (version.equals("v1")) {
       // prepare·complete의 버전별 평가 쿼리와 분석 가격 맥락의 공통 일괄 조회를 구분한다.
       verify(prices, times(assetCount * 2))

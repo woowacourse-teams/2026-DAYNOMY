@@ -214,7 +214,7 @@ class OpenAiPortfolioAnalysisClientTest {
                 fixtureDocuments.put(
                     "https://example.com/semiconductor",
                     new org.grit.daynomy.portfolio.domain.PortfolioAnalysisSourceDocument(
-                        "공식 발표", "Operating profit increased by 10%.", null));
+                        "공식 발표", "Operating profit increased by 10%.", recentPublication()));
                 return sourceResponseFor(requested, "https://example.com/semiconductor");
               }
               assertThat(body.has("tools")).isFalse();
@@ -515,7 +515,7 @@ class OpenAiPortfolioAnalysisClientTest {
               assertThat(impact.outlook()).isEmpty();
             });
     assertThat(result.sources()).isEmpty();
-    assertThat(riskSearch.nonRiskRequestCount(server)).isEqualTo(3);
+    assertThat(riskSearch.nonRiskRequestCount(server)).isEqualTo(1);
   }
 
   @Test
@@ -637,6 +637,8 @@ class OpenAiPortfolioAnalysisClientTest {
     var search = new java.util.ArrayList<Map<String, Object>>();
     var targets = new java.util.ArrayList<PortfolioAnalysisTarget>();
     for (int index = 0; index < facts.size(); index++) {
+      ((com.fasterxml.jackson.databind.node.ObjectNode) facts.get(index))
+          .put("publishedOn", recentPublication().plusDays(index).toString());
       var fact = (com.fasterxml.jackson.databind.node.ObjectNode) facts.get(index).deepCopy();
       String name = fact.remove("assetName").asText();
       String url = canonicalFixtureUrl(fact.path("url").asText());
@@ -682,7 +684,7 @@ class OpenAiPortfolioAnalysisClientTest {
     var output = objectMapper.readTree(withEvidence(validOutput()));
     for (JsonNode impact : output.path("impacts")) {
       ((com.fasterxml.jackson.databind.node.ObjectNode) impact.path("evidence").get(0))
-          .put("publishedOn", "2026-09-29")
+          .put("publishedOn", recentPublication().toString())
           .put("occurredOn", "2026-09-25");
     }
     enqueueOutput(objectMapper.writeValueAsString(output));
@@ -690,15 +692,12 @@ class OpenAiPortfolioAnalysisClientTest {
     fixtureDocuments.put(
         "https://example.com/semiconductor",
         new org.grit.daynomy.portfolio.domain.PortfolioAnalysisSourceDocument(
-            original.title(),
-            original.body() + "\n2026-09-25",
-            java.time.LocalDate.of(2026, 9, 29)));
+            original.title(), original.body() + "\n2026-09-25", recentPublication()));
     var result = client.analyze(targets());
     assertThat(result.impacts())
         .allSatisfy(
             impact -> {
-              assertThat(impact.sources().getFirst().publishedOn())
-                  .isEqualTo(java.time.LocalDate.of(2026, 9, 29));
+              assertThat(impact.sources().getFirst().publishedOn()).isEqualTo(recentPublication());
               assertThat(impact.sources().getFirst().occurredOn())
                   .isEqualTo(java.time.LocalDate.of(2026, 9, 25));
               assertThat(impact.sources().getFirst().excerpt())
@@ -775,8 +774,13 @@ class OpenAiPortfolioAnalysisClientTest {
         (url, document) ->
             new org.grit.daynomy.portfolio.domain.PortfolioAnalysisSourceDocument(
                 document.title(), "", document.publishedOn()));
-    assertAnalysisFailed(() -> client.analyze(targets()));
-    assertThat(riskSearch.nonRiskRequestCount(server)).isEqualTo(3);
+    assertThatThrownBy(() -> client.analyze(targets()))
+        .isInstanceOf(BusinessException.class)
+        .extracting(e -> ((BusinessException) e).errorCode())
+        .isEqualTo(
+            org.grit.daynomy.portfolio.exception.PortfolioErrorCode
+                .PORTFOLIO_ANALYSIS_SOURCE_UNAVAILABLE);
+    assertThat(riskSearch.nonRiskRequestCount(server)).isEqualTo(2);
   }
 
   @Test
@@ -816,7 +820,8 @@ class OpenAiPortfolioAnalysisClientTest {
             .replace("\"impactLevel\": \"LOW\"", "\"impactLevel\": null"));
     var result = client.analyze(targets());
     assertThat(result.sources()).isEmpty();
-    assertThat(keyValues(appender.list.getLast())).containsEntry("analyzedCount", 0L);
+    assertThat(riskSearch.nonRiskRequestCount(server)).isEqualTo(1);
+    assertThat(result.overallImpact()).contains("새 소식을 찾지 못했어요");
     assertThat(result.impacts())
         .hasSize(2)
         .allSatisfy(impact -> assertThat(impact.direction()).isNull());
@@ -1017,7 +1022,7 @@ class OpenAiPortfolioAnalysisClientTest {
       fixtureDocuments.put(
           replacementUrl,
           new org.grit.daynomy.portfolio.domain.PortfolioAnalysisSourceDocument(
-              "IR 안내", "Conference call scheduled.", null));
+              "IR 안내", "Conference call scheduled.", recentPublication()));
     }
 
     var result = client.analyze(targets());
@@ -1129,7 +1134,7 @@ class OpenAiPortfolioAnalysisClientTest {
         validOutput().replace("https://example.com/semiconductor", root), root);
     enqueueCorrection(validOutput());
     assertAnalysisFailed(() -> client.analyze(targets()));
-    assertThat(riskSearch.nonRiskRequestCount(server)).isEqualTo(3);
+    assertThat(riskSearch.nonRiskRequestCount(server)).isEqualTo(1);
   }
 
   @Test
@@ -1140,7 +1145,7 @@ class OpenAiPortfolioAnalysisClientTest {
     enqueueCorrection(validOutput());
 
     assertAnalysisFailed(() -> client.analyze(targets()));
-    assertThat(riskSearch.nonRiskRequestCount(server)).isEqualTo(3);
+    assertThat(riskSearch.nonRiskRequestCount(server)).isEqualTo(1);
   }
 
   @Test
@@ -1150,7 +1155,7 @@ class OpenAiPortfolioAnalysisClientTest {
         validOutput().replace("https://example.com/semiconductor", index), index);
     enqueueCorrection(validOutput().replace("https://example.com/semiconductor", index));
     assertThatThrownBy(() -> client.analyze(targets())).isInstanceOf(BusinessException.class);
-    assertThat(riskSearch.nonRiskRequestCount(server)).isEqualTo(3);
+    assertThat(riskSearch.nonRiskRequestCount(server)).isEqualTo(1);
   }
 
   @Test
@@ -1226,7 +1231,7 @@ class OpenAiPortfolioAnalysisClientTest {
                       source -> {
                         assertThat(source.factQuote())
                             .isEqualTo("Operating profit increased by 10%.");
-                        assertThat(source.publishedOn()).isNull();
+                        assertThat(source.publishedOn()).isEqualTo(recentPublication());
                         assertThat(source.url()).isEqualTo("https://example.com/semiconductor");
                         assertThat(source.excerpt())
                             .isEqualTo("Operating profit increased by 10%.");
@@ -1384,7 +1389,7 @@ class OpenAiPortfolioAnalysisClientTest {
     enqueueCorrection(
         withEvidence(validOutput()).replace("추가 흐름을 확인해야 해요.", "English original.. 해요."));
     assertAnalysisFailed(() -> client.analyze(targets()));
-    assertThat(riskSearch.nonRiskRequestCount(server)).isEqualTo(3);
+    assertThat(riskSearch.nonRiskRequestCount(server)).isEqualTo(1);
   }
 
   @Test
@@ -1420,7 +1425,7 @@ class OpenAiPortfolioAnalysisClientTest {
     return new PortfolioAnalysisResult.Source(
         title,
         url,
-        null,
+        recentPublication(),
         null,
         "Operating profit increased by 10%.",
         "Operating profit increased by 10%.");
@@ -1483,7 +1488,7 @@ class OpenAiPortfolioAnalysisClientTest {
             .computeIfAbsent(
                 node.path("assetName").asText(), ignored -> new java.util.ArrayList<>())
             .add(url);
-        java.time.LocalDate published = null;
+        java.time.LocalDate published = recentPublication();
         try {
           if (fact.path("publishedOn").isTextual())
             published = java.time.LocalDate.parse(fact.path("publishedOn").asText());
@@ -1506,6 +1511,10 @@ class OpenAiPortfolioAnalysisClientTest {
       node.remove("sourceUrls");
     }
     return objectMapper.writeValueAsString(root);
+  }
+
+  private java.time.LocalDate recentPublication() {
+    return java.time.LocalDate.now(java.time.ZoneId.of("Asia/Seoul")).minusDays(1);
   }
 
   private String validOutput() {

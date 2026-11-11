@@ -34,7 +34,56 @@ public record PortfolioAnalysisResponse(
     @Schema(description = "분석 예산에 따라 제외된 자산. 근거 부족이나 중립을 뜻하지 않습니다.")
         List<ExcludedAsset> excludedAssets,
     @Schema(description = "분석 당시 종목별 시장 가격 맥락. 개인 수익률·방향 판정과 구분하며 구형 분석은 빈 객체")
-        Map<String, PortfolioAnalysisPriceContextResponse> priceContexts) {
+        Map<String, PortfolioAnalysisPriceContextResponse> priceContexts,
+    @Schema(description = "분석 당시 회원 손익. 비회원·구형 결과는 null")
+        PortfolioAnalysisPersonalContextResponse personalContext) {
+
+  public PortfolioAnalysisResponse(
+      int totalAssetCount,
+      int analyzedAssetCount,
+      ImpactDirection overallDirection,
+      BigDecimal overallScore,
+      BigDecimal positiveImpactScore,
+      BigDecimal negativeImpactScore,
+      Instant analyzedAt,
+      String overallImpact,
+      List<PortfolioAssetImpactResponse> impacts,
+      List<PortfolioAnalysisSourceResponse> sources,
+      List<ExcludedAsset> excludedAssets,
+      Map<String, PortfolioAnalysisPriceContextResponse> priceContexts) {
+    this(
+        totalAssetCount,
+        analyzedAssetCount,
+        overallDirection,
+        overallScore,
+        positiveImpactScore,
+        negativeImpactScore,
+        analyzedAt,
+        overallImpact,
+        impacts,
+        sources,
+        excludedAssets,
+        priceContexts,
+        null);
+  }
+
+  public PortfolioAnalysisResponse withPersonalContext(
+      PortfolioAnalysisPersonalContextResponse context) {
+    return new PortfolioAnalysisResponse(
+        totalAssetCount,
+        analyzedAssetCount,
+        overallDirection,
+        overallScore,
+        positiveImpactScore,
+        negativeImpactScore,
+        analyzedAt,
+        overallImpact,
+        impacts,
+        sources,
+        excludedAssets,
+        priceContexts,
+        context);
+  }
 
   public record ExcludedAsset(String assetName, BigDecimal weight) {}
 
@@ -111,7 +160,8 @@ public record PortfolioAnalysisResponse(
         impacts,
         sources,
         excludedAssets,
-        contexts);
+        contexts,
+        personalContext);
   }
 
   @com.fasterxml.jackson.annotation.JsonProperty
@@ -138,7 +188,8 @@ public record PortfolioAnalysisResponse(
             .filter(asset -> !selected.contains(asset.assetName()))
             .map(asset -> new ExcludedAsset(asset.assetName(), asset.weight()))
             .toList(),
-        priceContexts);
+        priceContexts,
+        personalContext);
   }
 
   @com.fasterxml.jackson.annotation.JsonProperty
@@ -170,7 +221,8 @@ public record PortfolioAnalysisResponse(
         impacts,
         sources,
         excludedAssets,
-        priceContexts);
+        priceContexts,
+        personalContext);
   }
 
   public PortfolioAnalysisSnapshot toSnapshot(List<PortfolioAssetRequest> assets) {
@@ -196,10 +248,13 @@ public record PortfolioAnalysisResponse(
                         impact.outlook(),
                         impact.reason(),
                         impact.evidenceSentence(),
-                        impact.rank()))
+                        impact.rank(),
+                        impact.riskSearchStatus(),
+                        impact.noNewNews()))
             .toList(),
         priceContexts.entrySet().stream()
-            .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().toSnapshot())));
+            .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().toSnapshot())),
+        personalContext == null ? null : personalContext.toSnapshot());
   }
 
   public static PortfolioAnalysisResponse from(
@@ -236,7 +291,9 @@ public record PortfolioAnalysisResponse(
                                         source.getFactQuote()))
                             .distinct()
                             .toList(),
-                        impact.rank()))
+                        impact.rank(),
+                        impact.riskSearchStatus(),
+                        impact.noNewNews()))
             .toList();
     return of(
             snapshot.assets().size(),
@@ -275,7 +332,9 @@ public record PortfolioAnalysisResponse(
                 .collect(
                     Collectors.toMap(
                         Map.Entry::getKey,
-                        entry -> PortfolioAnalysisPriceContextResponse.from(entry.getValue()))));
+                        entry -> PortfolioAnalysisPriceContextResponse.from(entry.getValue()))))
+        .withPersonalContext(
+            PortfolioAnalysisPersonalContextResponse.from(snapshot.personalContext()));
   }
 
   public static PortfolioAnalysisResponse of(

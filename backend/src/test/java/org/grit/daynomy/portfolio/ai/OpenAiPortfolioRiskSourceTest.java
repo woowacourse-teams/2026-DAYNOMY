@@ -30,6 +30,60 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.web.client.RestClient;
 
 class OpenAiPortfolioRiskSourceTest {
+  @ParameterizedTest
+  @ValueSource(ints = {0, 1})
+  void acceptsTodayAndYesterdayPublications(int daysAgo) {
+    originals.put(
+        MAIN, new PortfolioAnalysisSourceDocument("실적", FAVORABLE, today().minusDays(daysAgo)));
+    assertThat(client.analyze(targets()).impacts().getFirst().direction())
+        .isEqualTo(ImpactDirection.NEUTRAL);
+  }
+
+  @Test
+  void oldPublicationsDoNotProduceANewJudgmentOrAnotherSummary() {
+    originals.put(MAIN, new PortfolioAnalysisSourceDocument("실적", FAVORABLE, today().minusDays(2)));
+    originals.put(RISK, new PortfolioAnalysisSourceDocument("위험", ADVERSE, today().minusDays(2)));
+    var result = client.analyze(targets());
+    assertThat(result.impacts().getFirst().direction()).isNull();
+    assertThat(result.impacts().getFirst().sources()).isEmpty();
+    assertThat(result.impacts().getFirst().riskSearchStatus()).isEqualTo("NOT_FOUND");
+    assertThat(analysisInput).isNull();
+    assertThat(server.getRequestCount()).isEqualTo(2);
+  }
+
+  @Test
+  void undatedAlternativeDoesNotRejectTheSameAssetsDatedCurrentArticle() {
+    String pdf = "https://company.example/report.pdf";
+    originals.put(pdf, new PortfolioAnalysisSourceDocument("보고서", FAVORABLE, null));
+    mainUrls = List.of(MAIN, pdf);
+    var result = client.analyze(targets());
+    assertThat(result.impacts().getFirst().direction()).isEqualTo(ImpactDirection.NEUTRAL);
+    assertThat(result.sources()).noneMatch(source -> source.url().equals(pdf));
+  }
+
+  @Test
+  void previousAnalysisDoesNotAnchorFreshPositiveSearchToAnOldArticle() {
+    client.refresh(
+        targets(),
+        "[{\"assetName\":\"셀트리온\",\"sources\":[{\"url\":\"https://old.example/2020-results\"}]}]");
+    assertThat(positiveRequest.path("input").toString())
+        .doesNotContain("old.example", "2020-results");
+  }
+
+  @Test
+  void unknownPublicationDateCannotBecomeNoNewNews() {
+    originals.put(MAIN, new PortfolioAnalysisSourceDocument("실적", FAVORABLE, null));
+    assertThatThrownBy(() -> client.analyze(targets()))
+        .isInstanceOfSatisfying(
+            BusinessException.class,
+            failure ->
+                assertThat(failure.errorCode())
+                    .isEqualTo(
+                        org.grit.daynomy.portfolio.exception.PortfolioErrorCode
+                            .PORTFOLIO_ANALYSIS_SOURCE_DATE_UNCONFIRMED));
+    assertThat(analysisInput).isNull();
+  }
+
   private static final String MAIN = "https://company.example/results";
   private static final String RISK = "https://regulator.example/order";
   private static final String FAVORABLE = "매출이 증가했어요.";
@@ -43,9 +97,16 @@ class OpenAiPortfolioRiskSourceTest {
   private List<String> discoveredRiskUrls;
   private String riskToolStatus;
   private int riskHttpStatus;
+  private boolean firstRiskTemporarilyUnavailable;
   private JsonNode riskRequest;
+  private JsonNode positiveRequest;
   private JsonNode analysisInput;
   private String direction;
+  private boolean unverifiedFirstRiskResponse;
+  private List<String> invalidFirstRiskUrls;
+  private List<String> repairedRiskUrls;
+  private List<String> alternativeSearchUrls;
+  private int riskRequestCount;
 
   @BeforeEach
   void setUp() throws Exception {
@@ -74,11 +135,28 @@ class OpenAiPortfolioRiskSourceTest {
             try {
               var body = mapper.readTree(request.getBody().clone().readUtf8());
               String name = body.path("text").path("format").path("name").asText();
-              if (name.equals("portfolio_sources")) return search(mainUrls, mainUrls, "completed");
+              if (name.equals("portfolio_sources")) {
+                positiveRequest = body;
+                return search(mainUrls, mainUrls, "completed");
+              }
               if (name.equals("portfolio_risk_sources")) {
                 riskRequest = body;
+                riskRequestCount++;
+                if (firstRiskTemporarilyUnavailable && riskRequestCount == 1)
+                  return new MockResponse().setResponseCode(503);
                 if (riskHttpStatus != 200)
                   return new MockResponse().setResponseCode(riskHttpStatus);
+                if (unverifiedFirstRiskResponse && riskRequestCount == 1)
+                  return search(
+                      invalidFirstRiskUrls == null
+                          ? List.of(RISK, RISK + "-1")
+                          : invalidFirstRiskUrls,
+                      List.of(RISK),
+                      "completed");
+                if (riskRequestCount == 3 && alternativeSearchUrls != null)
+                  return search(alternativeSearchUrls, alternativeSearchUrls, "completed");
+                if (riskRequestCount > 1 && repairedRiskUrls != null)
+                  return search(repairedRiskUrls, repairedRiskUrls, "completed");
                 return search(
                     riskUrls,
                     discoveredRiskUrls == null ? riskUrls : discoveredRiskUrls,
@@ -150,12 +228,26 @@ class OpenAiPortfolioRiskSourceTest {
   void independentlySearchesRisksAndProvidesBothOriginalsBeforeJudgment() throws Exception {
     var result = client.analyze(targets());
 
+    assertThat(result.impacts().getFirst().riskSearchStatus()).isEqualTo("SOURCES_FOUND");
     assertThat(server.getRequestCount()).isEqualTo(3);
     assertThat(riskRequest.path("tool_choice").asText()).isEqualTo("required");
     var content = mapper.readTree(riskRequest.path("input").get(1).path("content").asText());
     assertThat(content.path("assets").get(0).path("recentQuery").asText())
         .contains("전망 하향", "계약 취소", "정정", "after:", "before:");
     assertThat(riskRequest.path("input").toString()).contains(MAIN, FAVORABLE);
+    var positiveContent =
+        mapper.readTree(positiveRequest.path("input").get(1).path("content").asText());
+    assertThat(positiveContent.path("assets").get(0).path("perspective").asText())
+        .isEqualTo("POSITIVE");
+    assertThat(positiveContent.path("assets").get(0).path("newsQuery").asText())
+        .contains("실적 개선", "site:n.news.naver.com");
+    assertThat(content.path("assets").get(0).path("perspective").asText()).isEqualTo("NEGATIVE");
+    assertThat(content.path("assets").get(0).path("newsQuery").asText())
+        .contains("수익성 악화", "기대 미달");
+    assertThat(riskRequest.path("tools").toString()).contains("blocked_domains", "company.example");
+    var perspectives = analysisInput.path("assets").get(0).path("searchPerspectives");
+    assertThat(perspectives.path("POSITIVE")).isEqualTo(mapper.valueToTree(List.of(MAIN)));
+    assertThat(perspectives.path("NEGATIVE")).isEqualTo(mapper.valueToTree(List.of(RISK)));
     assertThat(analysisInput.path("sources")).hasSize(2);
     assertThat(analysisInput.toString()).contains(FAVORABLE, ADVERSE, "SOURCES_FOUND");
     assertThat(result.impacts().getFirst().sources())
@@ -171,7 +263,39 @@ class OpenAiPortfolioRiskSourceTest {
 
     assertThat(analysisInput.toString()).contains("NOT_FOUND").doesNotContain("SOURCES_FOUND");
     assertThat(result.impacts().getFirst().direction()).isEqualTo(ImpactDirection.POSITIVE);
+    assertThat(result.impacts().getFirst().riskSearchStatus()).isEqualTo("NOT_FOUND");
     assertThat(server.getRequestCount()).isEqualTo(3);
+  }
+
+  @ParameterizedTest
+  @ValueSource(
+      strings = {
+        "https://company.example/risk",
+        "https://www.company.example/risk",
+        "https://en.company.example/risk"
+      })
+  void thePositiveSourceDomainCannotBeReusedAsIndependentNegativeEvidence(String url) {
+    riskUrls = List.of(url);
+    originals.put(url, document(ADVERSE));
+    assertRiskFailure();
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  void naverAllowsAnotherArticleButNeverReusesTheSameArticle(boolean sameArticle) {
+    String positive = "https://n.news.naver.com/mnews/article/001/0000001";
+    String negative = sameArticle ? positive : "https://n.news.naver.com/mnews/article/002/0000002";
+    mainUrls = List.of(positive);
+    originals.put(positive, document(FAVORABLE));
+    riskUrls = List.of(negative);
+    if (sameArticle) {
+      assertRiskFailure();
+    } else {
+      originals.put(negative, document(ADVERSE));
+      assertThat(client.analyze(targets()).impacts().getFirst().riskSearchStatus())
+          .isEqualTo("SOURCES_FOUND");
+      assertThat(analysisInput.toString()).contains(positive, negative, ADVERSE);
+    }
   }
 
   @Test
@@ -180,6 +304,106 @@ class OpenAiPortfolioRiskSourceTest {
     assertThat(client.analyze(targets()).impacts().getFirst().direction())
         .isEqualTo(ImpactDirection.POSITIVE);
     assertThat(analysisInput.toString()).contains(ADVERSE, "SOURCES_FOUND");
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"/", "?utm_source=test", "#section"})
+  void normalizedDuplicatesDoNotTriggerRepairOrDuplicateEvidence(String suffix) {
+    String variant = RISK + suffix;
+    originals.put(variant, document(ADVERSE));
+    riskUrls = List.of(variant, RISK);
+
+    var result = client.analyze(targets());
+
+    assertThat(riskRequestCount).isEqualTo(1);
+    assertThat(server.getRequestCount()).isEqualTo(3);
+    assertThat(result.impacts().getFirst().sources())
+        .extracting(PortfolioAnalysisResult.Source::factQuote)
+        .containsExactly(FAVORABLE, ADVERSE);
+  }
+
+  @Test
+  void retriesUnverifiedUrlVariantOnceAndUsesOnlyVerifiedOriginals() {
+    unverifiedFirstRiskResponse = true;
+
+    var result = client.analyze(targets());
+
+    assertThat(riskRequestCount).isEqualTo(2);
+    assertThat(server.getRequestCount()).isEqualTo(4);
+    assertThat(riskRequest.path("input").toString()).contains("미검증 주소", "verifiedCandidateUrls");
+    assertThat(riskRequest.has("tools")).isFalse();
+    assertThat(
+            riskRequest
+                .path("text")
+                .path("format")
+                .path("schema")
+                .path("properties")
+                .path("assets")
+                .path("items")
+                .path("properties")
+                .path("urls")
+                .path("items")
+                .path("enum"))
+        .isEqualTo(mapper.valueToTree(List.of(RISK)));
+    assertThat(result.impacts().getFirst().riskSearchStatus()).isEqualTo("SOURCES_FOUND");
+    assertThat(analysisInput.toString()).contains(RISK).doesNotContain(RISK + "-1");
+  }
+
+  @ParameterizedTest
+  @ValueSource(
+      strings = {
+        "https://media.example/news",
+        "https://invented.example/article",
+        "ftp://media.example/file"
+      })
+  void repairsInvalidSelectionFromKnownCandidatesOnly(String invalidUrl) {
+    unverifiedFirstRiskResponse = true;
+    invalidFirstRiskUrls = List.of(RISK, invalidUrl);
+
+    assertThat(client.analyze(targets()).impacts().getFirst().riskSearchStatus())
+        .isEqualTo("SOURCES_FOUND");
+    assertThat(riskRequestCount).isEqualTo(2);
+    assertThat(analysisInput.toString()).doesNotContain(invalidUrl);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"unverified", "index"})
+  void failedRepairCannotBecomeNotFoundOrStartAnUnboundedRetry(String kind) {
+    unverifiedFirstRiskResponse = true;
+    repairedRiskUrls =
+        switch (kind) {
+          case "empty" -> List.of();
+          case "index" -> List.of("https://media.example/news");
+          default -> List.of("https://invented.example/article");
+        };
+    assertRiskFailure(3);
+    assertThat(riskRequestCount).isEqualTo(2);
+  }
+
+  @Test
+  void aNewCompletedSearchWithoutCandidatesAfterInvalidSelectionIsNotFound() {
+    unverifiedFirstRiskResponse = true;
+    repairedRiskUrls = List.of();
+    direction = "POSITIVE";
+    var result = client.analyze(targets());
+    assertThat(riskRequestCount).isEqualTo(3);
+    assertThat(result.impacts().getFirst().riskSearchStatus()).isEqualTo("NOT_FOUND");
+    assertThat(result.impacts().getFirst().direction()).isEqualTo(ImpactDirection.POSITIVE);
+  }
+
+  @Test
+  void emptySelectionRepairsBySearchingAnotherDomainWithoutDeclaringNotFound() {
+    String alternative = "https://another.example/verified-order";
+    originals.put(alternative, document(ADVERSE));
+    unverifiedFirstRiskResponse = true;
+    repairedRiskUrls = List.of();
+    alternativeSearchUrls = List.of(alternative);
+    assertThat(client.analyze(targets()).impacts().getFirst().riskSearchStatus())
+        .isEqualTo("SOURCES_FOUND");
+    assertThat(riskRequestCount).isEqualTo(3);
+    assertThat(riskRequest.path("tools").toString())
+        .contains("blocked_domains", "regulator.example");
+    assertThat(analysisInput.toString()).contains(alternative, ADVERSE);
   }
 
   @Test
@@ -219,7 +443,29 @@ class OpenAiPortfolioRiskSourceTest {
       case "partial" -> riskUrls = List.of(RISK, "https://media.example/unreadable");
       default -> throw new AssertionError(kind);
     }
-    assertRiskFailure();
+    assertRiskFailure(3);
+  }
+
+  @Test
+  void recoversUnreadableRiskFromAnotherVerifiedOriginal() {
+    String alternative = "https://media.example/verified-order";
+    originals.remove(RISK);
+    originals.put(alternative, document(ADVERSE));
+    repairedRiskUrls = List.of(alternative);
+
+    var result = client.analyze(targets());
+
+    assertThat(riskRequestCount).isEqualTo(2);
+    assertThat(result.impacts().getFirst().riskSearchStatus()).isEqualTo("SOURCES_FOUND");
+    assertThat(analysisInput.toString()).contains(alternative, ADVERSE).doesNotContain(RISK);
+    assertThat(riskRequest.path("input").toString()).contains("unreadableUrls", RISK);
+  }
+
+  @Test
+  void failedOriginalFollowedByAnEmptySearchIsStillFailure() {
+    originals.remove(RISK);
+    repairedRiskUrls = List.of();
+    assertRiskFailure(3);
   }
 
   @ParameterizedTest
@@ -232,20 +478,35 @@ class OpenAiPortfolioRiskSourceTest {
       case "index" -> riskUrls = List.of("https://media.example/news");
       default -> throw new AssertionError(kind);
     }
-    assertRiskFailure();
+    assertRiskFailure("http".equals(kind) ? 3 : 2);
   }
 
   @Test
-  void refreshSearchReceivesPreviousJudgmentAndCurrentOriginals() {
+  void refreshRiskSearchUsesCurrentOriginalsWithoutAnchoringOnPreviousJudgment() {
     client.refresh(
         targets(),
         "[{\"assetName\":\"삼성전자\",\"direction\":\"POSITIVE\",\"issueSummary\":\"기존 수주 발표\"}]");
-    assertThat(riskRequest.path("input").toString()).contains("기존 수주 발표", MAIN, FAVORABLE);
+    assertThat(riskRequest.path("input").toString())
+        .contains(MAIN, FAVORABLE)
+        .doesNotContain("기존 수주 발표");
+  }
+
+  @Test
+  void transientRiskSearch503IsRetriedOnceBeforeSavingVerifiedResults() {
+    firstRiskTemporarilyUnavailable = true;
+    var result = client.analyze(targets());
+    assertThat(result.impacts().getFirst().direction()).isEqualTo(ImpactDirection.NEUTRAL);
+    assertThat(riskRequestCount).isEqualTo(2);
+    assertThat(server.getRequestCount()).isEqualTo(4);
   }
 
   private void assertRiskFailure() {
+    assertRiskFailure(2);
+  }
+
+  private void assertRiskFailure(int expectedRequests) {
     assertThatThrownBy(() -> client.analyze(targets())).isInstanceOf(BusinessException.class);
-    assertThat(server.getRequestCount()).isEqualTo(2);
+    assertThat(server.getRequestCount()).isEqualTo(expectedRequests);
     assertThat(analysisInput).isNull();
   }
 

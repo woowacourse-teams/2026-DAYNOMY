@@ -14,7 +14,6 @@ import org.springframework.stereotype.Service;
 @Service
 public class PortfolioAnalysisServiceV1 extends PortfolioAnalysisService {
   private final OpenAiPortfolioAnalysisClientV1 client;
-  private final PortfolioAnalysisNarrative narrative;
 
   public PortfolioAnalysisServiceV1(
       PortfolioAnalysisAiClient ai,
@@ -25,16 +24,15 @@ public class PortfolioAnalysisServiceV1 extends PortfolioAnalysisService {
       org.grit.daynomy.portfolio.service.PortfolioAnalysisPriceService priceService) {
     super(ai, assetAnalysis, narrative, guestTrial, priceService);
     this.client = client;
-    this.narrative = narrative;
   }
 
   @Override
-  protected PortfolioAnalysisResponse analyze(PortfolioAnalysisRequest request) {
+  protected PortfolioAnalysisResponse analyzeAssets(PortfolioAnalysisRequest request) {
     var targets =
         request.assets().stream()
             .map(asset -> new PortfolioAnalysisTargetV1(asset.assetName(), asset.weight()))
             .toList();
     var result = response(request, client.analyze(targets));
-    return result.withOverallImpact(narrative.summarize(result));
+    return result;
   }
 }

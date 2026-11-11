@@ -38,7 +38,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Service
 public class SavedPortfolioAnalysisTransactionService {
 
-  private static final String ANALYSIS_VERSION = "portfolio-v11-price-context";
+  private static final String ANALYSIS_VERSION = "portfolio-v14-yesterday-today";
   private static final int RETAINED_ANALYSES = 10;
 
   private final PortfolioRepository portfolios;
@@ -186,7 +186,10 @@ public class SavedPortfolioAnalysisTransactionService {
       PortfolioCalculationService.PreparedPrices prices,
       Set<String> names) {
     Portfolio portfolio = lockedPortfolio(memberId);
-    List<PortfolioAssetRequest> assets = currentAssets(portfolio, prices);
+    var calculated = calculation.calculate(currentHoldings(portfolio), prices);
+    List<PortfolioAssetRequest> assets = currentAssets(calculated);
+    var personal =
+        org.grit.daynomy.portfolio.dto.PortfolioAnalysisPersonalContextResponse.from(calculated);
     if (assets.isEmpty()) {
       throw new BusinessException(PortfolioErrorCode.PORTFOLIO_ANALYSIS_ASSETS_UNAVAILABLE);
     }
@@ -226,6 +229,7 @@ public class SavedPortfolioAnalysisTransactionService {
     if (!refresh
         && previous != null
         && matches(previous, assets)
+        && java.util.Objects.equals(previous.getSnapshot().personalContext(), personal.toSnapshot())
         && analysisVersion.equals(previous.getAnalysisVersion())
         && model.equals(previous.getModel())) {
       return new PreparedAnalysis(
@@ -251,7 +255,8 @@ public class SavedPortfolioAnalysisTransactionService {
                 previous,
                 evidence.findAllByAnalysisIdAndAnalysisPortfolioMemberIdOrderById(
                     previous.getId(), memberId))
-            : null);
+            : null,
+        personal);
   }
 
   public SavedPortfolioAnalysisResponse complete(
@@ -323,9 +328,26 @@ public class SavedPortfolioAnalysisTransactionService {
     PortfolioAnalysis previous = latest(memberId);
     String reason =
         previous == null ? "최초 분석" : matches(previous, assets) ? "분석 기준 변경" : "보유 종목·수량·비중 변경";
+    boolean noNewNews =
+        !result.impacts().isEmpty()
+            && result.impacts().stream()
+                .allMatch(
+                    impact ->
+                        impact.direction() == null
+                            && impact.sources().isEmpty()
+                            && impact.noNewNews());
+    var checkOutcome =
+        result.analyzedAssetCount() == 0
+            ? (!result.impacts().isEmpty()
+                    && result.impacts().stream().allMatch(impact -> impact.noNewNews())
+                ? PortfolioAnalysisCheck.Outcome.UNCHANGED
+                : PortfolioAnalysisCheck.Outcome.UNCONFIRMED)
+            : PortfolioAnalysisCheck.Outcome.UPDATED;
     if (previous != null
-        && (names == null ? matches(previous, assets) : sameHoldings(previous, assets))
-        && analysisVersion.equals(previous.getAnalysisVersion())
+        && (names == null && !noNewNews
+            ? matches(previous, assets)
+            : sameHoldings(previous, assets))
+        && (analysisVersion.equals(previous.getAnalysisVersion()) || noNewNews)
         && model.equals(previous.getModel())) {
       var old =
           PortfolioAnalysisResponse.from(
@@ -333,20 +355,50 @@ public class SavedPortfolioAnalysisTransactionService {
               evidence.findAllByAnalysisIdAndAnalysisPortfolioMemberIdOrderById(
                   previous.getId(), memberId));
       var revision =
-          names == null
+          names == null && !noNewNews
               ? PortfolioAnalysisRefresh.compare(old, result)
-              : PortfolioAnalysisRefresh.compareSelected(old, result, assets, names);
+              : PortfolioAnalysisRefresh.compareSelected(
+                  old,
+                  result,
+                  assets,
+                  names == null
+                      ? old.impacts().stream()
+                          .map(
+                              org.grit.daynomy.portfolio.dto.PortfolioAssetImpactResponse
+                                  ::assetName)
+                          .collect(java.util.stream.Collectors.toSet())
+                      : names);
       if (revision.outcome() != PortfolioAnalysisCheck.Outcome.UPDATED) {
         check.recordSuccess(now, revision.outcome());
         check.finish(token);
         return response(memberId, previous, check, assets, now);
       }
-      if (!result.impacts().equals(revision.analysis().impacts())) {
+      if (!noNewNews && !result.impacts().equals(revision.analysis().impacts())) {
         throw new IllegalStateException("최종 병합 결과와 전체 설명의 분석 대상이 다릅니다.");
       }
-      result = revision.analysis().withOverallImpact(result.overallImpact());
+      result =
+          revision
+              .analysis()
+              .withOverallImpact(noNewNews ? old.overallImpact() : result.overallImpact());
+      var currentByName =
+          result.impacts().stream()
+              .collect(
+                  java.util.stream.Collectors.toMap(
+                      org.grit.daynomy.portfolio.dto.PortfolioAssetImpactResponse::assetName,
+                      java.util.function.Function.identity()));
+      if (old.impacts().size() == result.impacts().size()
+          && old.impacts().stream()
+              .allMatch(
+                  impact -> {
+                    var current = currentByName.get(impact.assetName());
+                    return current != null
+                        && java.util.Objects.equals(impact.direction(), current.direction())
+                        && java.util.Objects.equals(impact.impactLevel(), current.impactLevel())
+                        && impact.sources().equals(current.sources());
+                  })) checkOutcome = PortfolioAnalysisCheck.Outcome.UNCHANGED;
       reason = revision.reason();
     }
+    if (noNewNews && previous != null) deferSummary = false;
     PortfolioAnalysis analysis =
         PortfolioAnalysis.create(
             portfolio,
@@ -399,11 +451,7 @@ public class SavedPortfolioAnalysisTransactionService {
                         source.excerpt(),
                         source.factQuote())));
     evidence.saveAll(savedEvidence);
-    check.recordSuccess(
-        now,
-        result.analyzedAssetCount() == 0
-            ? PortfolioAnalysisCheck.Outcome.UNCONFIRMED
-            : PortfolioAnalysisCheck.Outcome.UPDATED);
+    check.recordSuccess(now, checkOutcome);
     if (!deferSummary) {
       check.finish(token);
     }
@@ -519,6 +567,11 @@ public class SavedPortfolioAnalysisTransactionService {
     var request = currentHoldings(portfolio);
     if (request.holdings().isEmpty()) return List.of();
     var calculated = calculation.calculate(request, prices);
+    return currentAssets(calculated);
+  }
+
+  private List<PortfolioAssetRequest> currentAssets(
+      org.grit.daynomy.portfolio.dto.PortfolioCalculationResponse calculated) {
     // 가격 없는 자산을 빼고 나머지를 전체 포트폴리오처럼 분석하지 않는다.
     if (calculated.unpricedHoldingCount() > 0) {
       return List.of();
@@ -660,5 +713,14 @@ public class SavedPortfolioAnalysisTransactionService {
       SavedPortfolioAnalysisResponse saved,
       UUID token,
       List<PortfolioAssetRequest> assets,
-      PortfolioAnalysisResponse previous) {}
+      PortfolioAnalysisResponse previous,
+      org.grit.daynomy.portfolio.dto.PortfolioAnalysisPersonalContextResponse personalContext) {
+    public PreparedAnalysis(
+        SavedPortfolioAnalysisResponse saved,
+        UUID token,
+        List<PortfolioAssetRequest> assets,
+        PortfolioAnalysisResponse previous) {
+      this(saved, token, assets, previous, null);
+    }
+  }
 }

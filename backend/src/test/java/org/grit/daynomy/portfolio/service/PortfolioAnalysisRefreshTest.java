@@ -19,6 +19,37 @@ import org.junit.jupiter.api.Test;
 
 class PortfolioAnalysisRefreshTest {
   @Test
+  void noNewNewsPreservesPreviousBusinessJudgmentWhileRefreshingPrices() {
+    var old =
+        response(impact("삼성전자", false, ImpactDirection.POSITIVE))
+            .withPriceContexts(java.util.Map.of("삼성전자", price("100", "0")));
+    var candidate =
+        response(
+                new PortfolioAssetImpactResponse(
+                    "삼성전자",
+                    BigDecimal.valueOf(100),
+                    null,
+                    null,
+                    "",
+                    "",
+                    "",
+                    "",
+                    "",
+                    List.of(),
+                    1,
+                    "NOT_FOUND",
+                    true))
+            .withPriceContexts(java.util.Map.of("삼성전자", price("90", "-10")));
+    var revision = PortfolioAnalysisRefresh.compare(old, candidate);
+    assertThat(revision.analysis().impacts().getFirst().direction())
+        .isEqualTo(ImpactDirection.POSITIVE);
+    assertThat(revision.analysis().impacts().getFirst().sources())
+        .isEqualTo(old.impacts().getFirst().sources());
+    assertThat(revision.analysis().analyzedAt()).isEqualTo(old.analyzedAt());
+    assertThat(revision.analysis().priceContexts().get("삼성전자").price()).isEqualByComparingTo("90");
+  }
+
+  @Test
   void priceOnlyRefreshRebuildsSummaryButPreservesBusinessDirectionAndEvidence() {
     var original =
         response(

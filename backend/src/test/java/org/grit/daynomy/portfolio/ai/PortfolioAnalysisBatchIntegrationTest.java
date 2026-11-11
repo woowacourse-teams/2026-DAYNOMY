@@ -54,8 +54,7 @@ class PortfolioAnalysisBatchIntegrationTest {
                         .path("name")
                         .asText()
                         .equals("portfolio_sources")) {
-                  if (refresh)
-                    assertThat(mapper.readTree(input.get(2).path("content").asText())).hasSize(5);
+                  assertThat(input).hasSize(3);
                   return sourceResponse(requested, List.of("https://example.com/announcement"));
                 }
                 batches.add(requested);
@@ -253,7 +252,8 @@ class PortfolioAnalysisBatchIntegrationTest {
       } else {
         assertThatThrownBy(analyze::get).isInstanceOf(BusinessException.class);
       }
-      assertThat(riskSearch.nonRiskRequestCount(server)).isEqualTo(v1 ? 2 : 3);
+      assertThat(riskSearch.nonRiskRequestCount(server))
+          .isEqualTo(v1 ? 2 : originallyVerified ? 3 : 1);
     }
   }
 
@@ -404,7 +404,8 @@ class PortfolioAnalysisBatchIntegrationTest {
                               new org.grit.daynomy.portfolio.domain.PortfolioAnalysisSourceDocument(
                                   "공식 발표",
                                   "Operating profit increased by 10%.\n2026-10-12",
-                                  java.time.LocalDate.of(2026, 10, 12))));
+                                  java.time.LocalDate.now(java.time.ZoneId.of("Asia/Seoul"))
+                                      .minusDays(1))));
               return PortfolioAnalysisEvidence.from(urls, documents);
             });
     return verifier;

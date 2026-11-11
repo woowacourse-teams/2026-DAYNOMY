@@ -19,7 +19,82 @@ public record PortfolioAssetImpactResponse(
     @Schema(description = "판단에 사용한 웹 검색 근거", example = "반도체 수요가 전년 대비 증가했습니다.")
         String evidenceSentence,
     @Schema(description = "자산 분석에 사용된 웹 검색 출처") List<PortfolioAnalysisSourceResponse> sources,
-    @Schema(description = "자산 영향도 순위", example = "1") int rank) {
+    @Schema(description = "자산 영향도 순위", example = "1") int rank,
+    @Schema(description = "반대 근거 검색: SOURCES_FOUND, NOT_FOUND. 구형 분석은 null")
+        String riskSearchStatus,
+    @Schema(description = "양쪽 검색 완료 후 어제·오늘 새 자료가 없음") boolean noNewNews) {
+  public PortfolioAssetImpactResponse(
+      String assetName,
+      BigDecimal weight,
+      ImpactDirection direction,
+      ImpactLevel impactLevel,
+      String issueSummary,
+      String expectedReaction,
+      String outlook,
+      String reason,
+      String evidenceSentence,
+      List<PortfolioAnalysisSourceResponse> sources,
+      int rank,
+      String riskSearchStatus) {
+    this(
+        assetName,
+        weight,
+        direction,
+        impactLevel,
+        issueSummary,
+        expectedReaction,
+        outlook,
+        reason,
+        evidenceSentence,
+        sources,
+        rank,
+        riskSearchStatus,
+        false);
+  }
+
+  public PortfolioAssetImpactResponse(
+      String assetName,
+      BigDecimal weight,
+      ImpactDirection direction,
+      ImpactLevel impactLevel,
+      String issueSummary,
+      String expectedReaction,
+      String outlook,
+      String reason,
+      String evidenceSentence,
+      List<PortfolioAnalysisSourceResponse> sources,
+      int rank) {
+    this(
+        assetName,
+        weight,
+        direction,
+        impactLevel,
+        issueSummary,
+        expectedReaction,
+        outlook,
+        reason,
+        evidenceSentence,
+        sources,
+        rank,
+        null);
+  }
+
+  public PortfolioAssetImpactResponse withRiskSearchStatus(String status) {
+    return new PortfolioAssetImpactResponse(
+        assetName,
+        weight,
+        direction,
+        impactLevel,
+        issueSummary,
+        expectedReaction,
+        outlook,
+        reason,
+        evidenceSentence,
+        sources,
+        rank,
+        status,
+        noNewNews);
+  }
 
   public PortfolioAssetImpactResponse {
     sources = List.copyOf(sources);
@@ -44,6 +119,8 @@ public record PortfolioAssetImpactResponse(
         impact.reason(),
         impact.evidenceSentence(),
         impact.sources().stream().map(PortfolioAnalysisSourceResponse::from).toList(),
-        impact.sortOrder());
+        impact.sortOrder(),
+        impact.riskSearchStatus(),
+        impact.noNewNews());
   }
 }

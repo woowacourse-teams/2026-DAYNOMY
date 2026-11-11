@@ -166,7 +166,10 @@ class OpenAiPortfolioSourceFirstTest {
                     url,
                     url.equals(backup)
                         ? Optional.of(
-                            new PortfolioAnalysisSourceDocument("기아 실적", "매출이 증가했어요.", null))
+                            new PortfolioAnalysisSourceDocument(
+                                "기아 실적",
+                                "매출이 증가했어요.",
+                                LocalDate.now(java.time.ZoneId.of("Asia/Seoul")).minusDays(1)))
                         : Optional.empty());
               return result;
             });

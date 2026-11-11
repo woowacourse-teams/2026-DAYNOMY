@@ -70,7 +70,8 @@ final class PortfolioAnalysisRefresh {
         continue;
       }
       var current = byName.get(old.assetName());
-      if (names != null && (current == null || current.direction() == null)) {
+      if (names != null
+          && (current == null || (current.direction() == null && !current.noNewNews()))) {
         insufficient = true;
         merged.add(old);
         continue;
@@ -80,6 +81,11 @@ final class PortfolioAnalysisRefresh {
         return new Revision(Outcome.UNCONFIRMED, previous, "");
       }
       // 근거 부족 종목은 보존하되 다른 종목의 새 근거 반영을 막지 않는다.
+      if (current.direction() == null && current.sources().isEmpty() && current.noNewNews()) {
+        merged.add(old);
+        confirmed.add(old.assetName());
+        continue;
+      }
       if (old.sources().isEmpty() && current.sources().isEmpty()) {
         insufficient = true;
         merged.add(old);
@@ -98,7 +104,14 @@ final class PortfolioAnalysisRefresh {
         continue;
       }
       if (comparison == PortfolioEvidenceComparison.Result.SAME) {
-        merged.add(old);
+        merged.add(
+            old.withRiskSearchStatus(
+                current.riskSearchStatus() == null
+                    ? old.riskSearchStatus()
+                    : current.riskSearchStatus()));
+        if (current.riskSearchStatus() != null
+            && !java.util.Objects.equals(current.riskSearchStatus(), old.riskSearchStatus()))
+          reasons.add("반대 근거 확인");
       } else {
         merged.add(current);
         reasons.add(current.assetName());
@@ -128,6 +141,11 @@ final class PortfolioAnalysisRefresh {
                 prices.put(name, context);
             });
     if (!prices.equals(previous.priceContexts())) reasons.add("가격 흐름");
+    var personal =
+        candidate.personalContext() == null
+            ? previous.personalContext()
+            : candidate.personalContext();
+    if (!java.util.Objects.equals(personal, previous.personalContext())) reasons.add("개인 손익");
     boolean repairSummary =
         names == null
             && previous.analyzedAssetCount() > 0
@@ -165,7 +183,9 @@ final class PortfolioAnalysisRefresh {
               impact.reason(),
               impact.evidenceSentence(),
               impact.sources(),
-              index + 1));
+              index + 1,
+              impact.riskSearchStatus(),
+              impact.noNewNews()));
     }
     var summary =
         PortfolioImpactSummary.calculate(
@@ -197,7 +217,10 @@ final class PortfolioAnalysisRefresh {
             merged.size() == previous.totalAssetCount() ? summary.score() : null,
             summary.positiveScore(),
             summary.negativeScore(),
-            candidate.analyzedAt(),
+            reasons.stream()
+                    .allMatch(reason -> List.of("가격 흐름", "개인 손익", "반대 근거 확인").contains(reason))
+                ? previous.analyzedAt()
+                : candidate.analyzedAt(),
             "",
             merged,
             sources,
@@ -210,7 +233,8 @@ final class PortfolioAnalysisRefresh {
                                 asset.assetName(),
                                 weights.getOrDefault(asset.assetName(), asset.weight())))
                     .toList(),
-            prices),
+            prices,
+            personal),
         reasons.isEmpty()
             ? "종목별 판단은 유지하고 전체 설명을 정리했어요."
             : reasons.equals(List.of("가격 흐름"))
