@@ -20,7 +20,12 @@ class PortfolioAnalysisServiceV1Test {
       mock(OpenAiPortfolioAnalysisClientV1.class);
   private final PortfolioAnalysisServiceV1 service =
       new PortfolioAnalysisServiceV1(
-          sharedAi, assets, narrative, new GuestPortfolioAnalysisTrial(), client);
+          sharedAi,
+          assets,
+          narrative,
+          new GuestPortfolioAnalysisTrial(),
+          client,
+          mock(org.grit.daynomy.portfolio.service.PortfolioAnalysisPriceService.class));
   private final PortfolioAnalysisRequest request =
       new PortfolioAnalysisRequest(
           List.of(

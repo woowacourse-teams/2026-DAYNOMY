@@ -19,6 +19,76 @@ import org.junit.jupiter.api.Test;
 
 class PortfolioAnalysisRefreshTest {
   @Test
+  void priceOnlyRefreshRebuildsSummaryButPreservesBusinessDirectionAndEvidence() {
+    var original =
+        response(
+                impact("삼성전자", false, ImpactDirection.POSITIVE),
+                impact("SK하이닉스", false, ImpactDirection.NEGATIVE))
+            .withOverallImpact("현재 보유한 두 종목의 비중이 같아요.\n\n사업 근거를 확인했어요.\n\n다음 실적을 확인해야 해요.");
+    var old = original.withPriceContexts(java.util.Map.of("삼성전자", price("100", "0")));
+    var candidate =
+        response(
+                impact("삼성전자", false, ImpactDirection.NEGATIVE),
+                impact("SK하이닉스", false, ImpactDirection.POSITIVE))
+            .withPriceContexts(java.util.Map.of("삼성전자", price("90", "-10")));
+    var revision = PortfolioAnalysisRefresh.compare(old, candidate);
+    assertThat(revision.outcome()).isEqualTo(Outcome.UPDATED);
+    assertThat(revision.analysis().impacts())
+        .extracting(PortfolioAssetImpactResponse::direction)
+        .containsExactly(ImpactDirection.NEGATIVE, ImpactDirection.POSITIVE);
+    assertThat(revision.analysis().priceContexts().get("삼성전자").changeRate())
+        .isEqualByComparingTo("-10");
+    assertThat(revision.analysis().overallScore()).isEqualByComparingTo(old.overallScore());
+    assertThat(PortfolioAnalysisRefresh.compare(old, revision.analysis()).outcome())
+        .isEqualTo(Outcome.UPDATED);
+  }
+
+  @Test
+  void selectivePriceRefreshPreservesUntouchedContextsAndFailedLookups() {
+    var old =
+        response(
+                impact("삼성전자", false, ImpactDirection.POSITIVE),
+                impact("SK하이닉스", false, ImpactDirection.NEGATIVE))
+            .withPriceContexts(
+                java.util.Map.of("삼성전자", price("100", "0"), "SK하이닉스", price("200", "0")));
+    var candidate =
+        response(impact("삼성전자", false, ImpactDirection.POSITIVE))
+            .withPriceContexts(
+                java.util.Map.of("삼성전자", price("90", "-10"), "SK하이닉스", price("150", "-25")));
+    var revision =
+        PortfolioAnalysisRefresh.compareSelected(old, candidate, List.of(), Set.of("삼성전자"));
+    assertThat(revision.analysis().priceContexts().get("SK하이닉스"))
+        .isEqualTo(old.priceContexts().get("SK하이닉스"));
+    var failed =
+        candidate.withPriceContexts(
+            java.util.Map.of(
+                "삼성전자",
+                org.grit.daynomy.portfolio.dto.PortfolioAnalysisPriceContextResponse.from(
+                    org.grit.daynomy.portfolio.domain.PortfolioAnalysisPriceContext.unavailable(
+                        org.grit.daynomy.portfolio.domain.PortfolioAnalysisPriceContext.Status
+                            .LOOKUP_FAILED))));
+    assertThat(
+            PortfolioAnalysisRefresh.compareSelected(old, failed, List.of(), Set.of("삼성전자"))
+                .outcome())
+        .isEqualTo(Outcome.UNCHANGED);
+  }
+
+  private org.grit.daynomy.portfolio.dto.PortfolioAnalysisPriceContextResponse price(
+      String value, String rate) {
+    return new org.grit.daynomy.portfolio.dto.PortfolioAnalysisPriceContextResponse(
+        "AVAILABLE",
+        "KRW",
+        "CLOSE",
+        LocalDate.of(2026, 11, 10),
+        null,
+        new BigDecimal(value),
+        LocalDate.of(2026, 10, 20),
+        new BigDecimal("100"),
+        new BigDecimal(rate),
+        15);
+  }
+
+  @Test
   void sameDayRiskUpdatesOnlyChangedAssetAndSurvivesTheSecondComparisonBeforeSaving() {
     var oldAsset = impact("삼성전자", false, ImpactDirection.POSITIVE);
     var other = impact("SK하이닉스", false, ImpactDirection.NEGATIVE);

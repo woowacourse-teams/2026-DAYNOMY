@@ -36,7 +36,7 @@ public class PortfolioAnalysisV2Config {
         calculation,
         transactionManager,
         model,
-        "portfolio-v9-select5-risk-sources");
+        "portfolio-v10-select5-price-context");
   }
 
   @Bean("savedPortfolioAnalysisV2")

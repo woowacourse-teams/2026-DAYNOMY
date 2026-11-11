@@ -63,6 +63,7 @@ final class PortfolioAnalysisRefresh {
     List<PortfolioAssetImpactResponse> merged = new ArrayList<>();
     List<String> reasons = new ArrayList<>();
     boolean insufficient = false;
+    Set<String> confirmed = new java.util.HashSet<>();
     for (var old : previous.impacts()) {
       if (names != null && !names.contains(old.assetName())) {
         merged.add(old);
@@ -86,6 +87,7 @@ final class PortfolioAnalysisRefresh {
       }
       if (!validStoredImpact(old)) {
         merged.add(current);
+        if (current.direction() != null) confirmed.add(current.assetName());
         reasons.add(current.assetName());
         continue;
       }
@@ -101,13 +103,31 @@ final class PortfolioAnalysisRefresh {
         merged.add(current);
         reasons.add(current.assetName());
       }
+      confirmed.add(old.assetName());
     }
     if (selectionChanged) {
       candidate.impacts().stream()
           .filter(i -> !previousNames.contains(i.assetName()))
           .forEach(merged::add);
       reasons.add("중점 분석 대상");
+      candidate.impacts().stream()
+          .filter(i -> i.direction() != null)
+          .map(PortfolioAssetImpactResponse::assetName)
+          .forEach(confirmed::add);
     }
+    Map<String, org.grit.daynomy.portfolio.dto.PortfolioAnalysisPriceContextResponse> prices =
+        new java.util.LinkedHashMap<>(previous.priceContexts());
+    var retained =
+        merged.stream().map(PortfolioAssetImpactResponse::assetName).collect(Collectors.toSet());
+    prices.keySet().retainAll(retained);
+    candidate
+        .priceContexts()
+        .forEach(
+            (name, context) -> {
+              if (confirmed.contains(name) && !"LOOKUP_FAILED".equals(context.status()))
+                prices.put(name, context);
+            });
+    if (!prices.equals(previous.priceContexts())) reasons.add("가격 흐름");
     boolean repairSummary =
         names == null
             && previous.analyzedAssetCount() > 0
@@ -189,10 +209,13 @@ final class PortfolioAnalysisRefresh {
                             new PortfolioAnalysisResponse.ExcludedAsset(
                                 asset.assetName(),
                                 weights.getOrDefault(asset.assetName(), asset.weight())))
-                    .toList()),
+                    .toList(),
+            prices),
         reasons.isEmpty()
             ? "종목별 판단은 유지하고 전체 설명을 정리했어요."
-            : String.join(", ", reasons) + "의 근거와 설명을 갱신했어요.");
+            : reasons.equals(List.of("가격 흐름"))
+                ? "사업 판단은 유지하고 가격 흐름과 전체 설명을 갱신했어요."
+                : String.join(", ", reasons) + "의 근거와 설명을 갱신했어요.");
   }
 
   private static List<Fact> facts(PortfolioAssetImpactResponse impact) {

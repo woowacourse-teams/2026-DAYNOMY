@@ -80,6 +80,69 @@ class SavedPortfolioAnalysisAcceptanceTest extends SharedDatabaseTest {
   private static final String LEGACY = "/api/portfolio/analysis";
   private static final String GUEST = LEGACY + "/tasks";
 
+  @Test
+  void fallingPricesAreSavedAndRefreshedWithoutChangingPositiveBusinessJudgment() {
+    var member = member();
+    var portfolio = portfolio(member);
+    hold(portfolio, "삼성전자");
+    var assetId =
+        holdings.findAllByPortfolioIdOrderById(portfolio.getId()).getFirst().getAsset().getId();
+    var asset = assets.findById(assetId).orElseThrow();
+    var today = LocalDate.now(java.time.ZoneId.of("Asia/Seoul"));
+    prices.save(new StockDailyPrice(asset, today.minusDays(20), new BigDecimal("100")));
+    prices.save(new StockDailyPrice(asset, today.minusDays(1), new BigDecimal("90")));
+    var date = LocalDate.of(2026, 9, 25);
+    var source =
+        new PortfolioAnalysisResult.Source(
+            "실적 발표",
+            "https://example.invalid/results",
+            date,
+            date,
+            "매출이 증가했어요.",
+            "Revenue increased.");
+    when(ai.analyze(anyList()))
+        .thenAnswer(
+            invocation ->
+                verifiedResult(
+                    invocation.getArgument(0), List.of(source), ImpactDirection.POSITIVE));
+    var first = client(member).post(API);
+    first
+        .then()
+        .statusCode(200)
+        .body("analysis.impacts[0].direction", equalTo("POSITIVE"))
+        .body("analysis.priceContexts.삼성전자.changeRate", equalTo(-10.0f));
+    long id = first.jsonPath().getLong("analysisId");
+    client(member)
+        .get(API)
+        .then()
+        .statusCode(200)
+        .body("analysis.priceContexts.삼성전자.priceType", equalTo("CLOSE"))
+        .body("analysis.priceContexts.삼성전자.currency", equalTo("KRW"));
+    var latest = prices.findByAssetIdAndBaseDate(assetId, today.minusDays(1)).orElseThrow();
+    latest.synchronize(new BigDecimal("80"));
+    prices.save(latest);
+    when(ai.refresh(anyList(), anyString()))
+        .thenAnswer(
+            invocation ->
+                verifiedResult(
+                    invocation.getArgument(0), List.of(source), ImpactDirection.POSITIVE));
+
+    client(member)
+        .post(API + "/refresh")
+        .then()
+        .statusCode(200)
+        .body("analysisId", org.hamcrest.Matchers.not(equalTo((int) id)))
+        .body("lastCheckOutcome", equalTo("UPDATED"))
+        .body("analysis.impacts[0].direction", equalTo("POSITIVE"))
+        .body("analysis.priceContexts.삼성전자.changeRate", equalTo(-20.0f));
+    client(member)
+        .get(API + "/history")
+        .then()
+        .statusCode(200)
+        .body("size()", equalTo(2))
+        .body("[1].analysis.priceContexts.삼성전자.changeRate", equalTo(-10.0f));
+  }
+
   @LocalServerPort private int port;
   @Autowired private io.micrometer.core.instrument.MeterRegistry metrics;
 
@@ -294,10 +357,22 @@ class SavedPortfolioAnalysisAcceptanceTest extends SharedDatabaseTest {
       assertThat(after.changeReason()).contains("삼성전자").doesNotContain("NAVER");
       verify(narrative, times(1)).summarize(org.mockito.ArgumentMatchers.any());
     } else {
-      assertThat(after.analysisId()).isEqualTo(before.analysisId());
-      assertThat(after.analysis().analyzedAt()).isEqualTo(before.analysis().analyzedAt());
-      assertThat(after.lastCheckOutcome()).isEqualTo("UNCHANGED");
-      verifyNoInteractions(narrative);
+      assertThat(after.analysisId()).isNotEqualTo(before.analysisId());
+      assertThat(after.lastCheckOutcome()).isEqualTo("UPDATED");
+      assertThat(after.analysis().priceContexts().get("삼성전자").price()).isEqualByComparingTo("200");
+      assertThat(
+              after.analysis().impacts().stream()
+                  .filter(item -> item.assetName().equals("삼성전자"))
+                  .findFirst()
+                  .orElseThrow()
+                  .direction())
+          .isEqualTo(
+              before.analysis().impacts().stream()
+                  .filter(item -> item.assetName().equals("삼성전자"))
+                  .findFirst()
+                  .orElseThrow()
+                  .direction());
+      verify(narrative, times(1)).summarize(org.mockito.ArgumentMatchers.any());
     }
   }
 
@@ -406,7 +481,8 @@ class SavedPortfolioAnalysisAcceptanceTest extends SharedDatabaseTest {
 
   @ParameterizedTest
   @CsvSource({"v1,2", "v2,2", "v1,50", "v2,50"})
-  void versionedAnalysisUsesItsOwnPriceQueryThroughoutTheRequest(String version, int assetCount) {
+  void versionedValuationKeepsItsPriceQueriesAndAddsSharedAnalysisContext(
+      String version, int assetCount) {
     Member member = member();
     Portfolio portfolio = portfolio(member);
     for (int index = 0; index < assetCount; index++) hold(portfolio, "인수시험 종목" + index);
@@ -439,15 +515,15 @@ class SavedPortfolioAnalysisAcceptanceTest extends SharedDatabaseTest {
     assertThat(stored.getAnalysisVersion())
         .isEqualTo(
             version.equals("v1")
-                ? "portfolio-v7-batch-price-v1"
-                : "portfolio-v9-select5-risk-sources");
+                ? "portfolio-v8-batch-price-context-v1"
+                : "portfolio-v10-select5-price-context");
     if (version.equals("v1")) {
-      // prepare와 complete에서 각각 현재 포트폴리오 가격을 확인한다.
+      // prepare·complete의 버전별 평가 쿼리와 분석 가격 맥락의 공통 일괄 조회를 구분한다.
       verify(prices, times(assetCount * 2))
           .findTop2ByAssetIdOrderByBaseDateDesc(org.mockito.ArgumentMatchers.anyLong());
-      verify(prices, never()).findLatestTwoByAssetIds(anyList());
+      verify(prices, times(1)).findLatestTwoByAssetIds(anyList());
     } else {
-      verify(prices, times(2)).findLatestTwoByAssetIds(anyList());
+      verify(prices, times(3)).findLatestTwoByAssetIds(anyList());
       verify(prices, never())
           .findTop2ByAssetIdOrderByBaseDateDesc(org.mockito.ArgumentMatchers.anyLong());
     }

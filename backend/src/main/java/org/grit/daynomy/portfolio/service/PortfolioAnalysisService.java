@@ -33,6 +33,7 @@ public class PortfolioAnalysisService {
   private final PortfolioAssetAnalysisService assetAnalysisService;
   private final org.grit.daynomy.portfolio.ai.PortfolioAnalysisNarrative narrative;
   private final GuestPortfolioAnalysisTrial guestPortfolioAnalysisTrial;
+  private final PortfolioAnalysisPriceService priceService;
 
   @Observed(name = "portfolio.analysis", contextualName = "portfolio-analysis")
   public PortfolioAnalysisResponse analyze(
@@ -179,7 +180,18 @@ public class PortfolioAnalysisService {
             result.overallImpact(),
             impacts,
             sources)
-        .withExcludedAssets(request.assets());
+        .withExcludedAssets(request.assets())
+        .withPriceContexts(
+            priceService
+                .lookup(impacts.stream().map(PortfolioAssetImpactResponse::assetName).toList())
+                .entrySet()
+                .stream()
+                .collect(
+                    Collectors.toMap(
+                        Map.Entry::getKey,
+                        entry ->
+                            org.grit.daynomy.portfolio.dto.PortfolioAnalysisPriceContextResponse
+                                .from(entry.getValue()))));
   }
 
   void validate(PortfolioAnalysisRequest request) {

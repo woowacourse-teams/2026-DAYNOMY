@@ -21,7 +21,12 @@ class PortfolioAnalysisServiceV2Test {
   private final PortfolioAssetAnalysisService assets = mock(PortfolioAssetAnalysisService.class);
   private final PortfolioAnalysisNarrative narrative = mock(PortfolioAnalysisNarrative.class);
   private final PortfolioAnalysisServiceV2 service =
-      new PortfolioAnalysisServiceV2(ai, assets, narrative, new GuestPortfolioAnalysisTrial());
+      new PortfolioAnalysisServiceV2(
+          ai,
+          assets,
+          narrative,
+          new GuestPortfolioAnalysisTrial(),
+          mock(PortfolioAnalysisPriceService.class));
 
   @Test
   void selectsFiveOfFiftyAndPreservesExcludedHoldingsAndOriginalWeights() {

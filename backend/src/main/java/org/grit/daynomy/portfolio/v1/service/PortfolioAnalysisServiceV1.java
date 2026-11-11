@@ -21,8 +21,9 @@ public class PortfolioAnalysisServiceV1 extends PortfolioAnalysisService {
       PortfolioAssetAnalysisService assetAnalysis,
       PortfolioAnalysisNarrative narrative,
       GuestPortfolioAnalysisTrial guestTrial,
-      OpenAiPortfolioAnalysisClientV1 client) {
-    super(ai, assetAnalysis, narrative, guestTrial);
+      OpenAiPortfolioAnalysisClientV1 client,
+      org.grit.daynomy.portfolio.service.PortfolioAnalysisPriceService priceService) {
+    super(ai, assetAnalysis, narrative, guestTrial, priceService);
     this.client = client;
     this.narrative = narrative;
   }

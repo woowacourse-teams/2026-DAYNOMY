@@ -22,6 +22,37 @@ import org.junit.jupiter.api.Test;
 import org.springframework.web.client.RestClient;
 
 class PortfolioAnalysisNarrativeTest {
+  @Test
+  void passesDatedPriceContextWithoutChangingBusinessJudgmentsOrInventingBenchmarks()
+      throws Exception {
+    var prices =
+        new org.grit.daynomy.portfolio.dto.PortfolioAnalysisPriceContextResponse(
+            "AVAILABLE",
+            "USD",
+            "CLOSE",
+            java.time.LocalDate.of(2026, 11, 10),
+            null,
+            new BigDecimal("180"),
+            java.time.LocalDate.of(2026, 10, 20),
+            new BigDecimal("200"),
+            new BigDecimal("-10"),
+            15);
+    enqueue(Map.of("impact", "사업 영향과 가격 흐름을 함께 확인해야 해요.", "priority", "확인한 가격의 기준일을 살펴봐야 해요."));
+    var original = analysis();
+    var result = client.summarize(original.withPriceContexts(Map.of("삼성전자", prices)));
+    assertThat(result).contains("가격 흐름");
+    var request = mapper.readTree(server.takeRequest().getBody().readUtf8());
+    var input = mapper.readTree(request.path("input").get(1).path("content").asText());
+    assertThat(input.path("priceContexts").path("삼성전자").path("changeRate").decimalValue())
+        .isEqualByComparingTo("-10");
+    assertThat(input.path("priceContexts").path("삼성전자").path("currency").asText()).isEqualTo("USD");
+    assertThat(input.path("priceContexts").path("삼성전자").path("baseDate").asText())
+        .isEqualTo("2026-11-10");
+    assertThat(input.path("benchmarkAvailability").asText()).isEqualTo("UNAVAILABLE");
+    assertThat(request.path("input").get(0).path("content").asText())
+        .contains("가격 하락만으로", "원인이라고 단정하지", "실제 비교일", "개인 매수가·수익률이 아닙니다");
+  }
+
   private final ObjectMapper mapper = new ObjectMapper();
   private MockWebServer server;
   private PortfolioAnalysisNarrative client;
