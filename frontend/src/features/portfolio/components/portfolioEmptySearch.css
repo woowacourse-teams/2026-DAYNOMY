@@ -1,0 +1,48 @@
+.portfolio-empty-search {
+  padding: clamp(28px, 4vw, 44px) 12px;
+  color: #242424;
+  text-align: center;
+}
+
+.portfolio-empty-search-mark {
+  display: block;
+  margin-inline: auto;
+  color: #6b6b6b;
+}
+
+.portfolio-empty-search h3 {
+  margin: 10px 0 0;
+  font-size: clamp(18px, 2vw, 21px);
+  letter-spacing: -0.035em;
+}
+
+.portfolio-empty-search-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  width: min(100%, 400px);
+  min-height: 46px;
+  margin: 16px auto 0;
+  padding: 0 13px;
+  border: 1px solid #c9c9c9;
+  border-radius: 8px;
+  background: #f5f5f5;
+  color: #595959;
+  font: inherit;
+  font-size: 16px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.portfolio-empty-search-field span {
+  flex: 1;
+}
+
+.portfolio-empty-search-field:hover:not(:disabled) {
+  background: #ededed;
+}
+
+.portfolio-empty-search-field:disabled {
+  opacity: 0.55;
+  cursor: default;
+}

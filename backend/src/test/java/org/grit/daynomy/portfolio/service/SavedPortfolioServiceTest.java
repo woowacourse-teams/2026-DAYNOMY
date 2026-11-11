@@ -56,6 +56,27 @@ class SavedPortfolioServiceTest {
   @Mock private org.springframework.context.ApplicationEventPublisher events;
   @InjectMocks private SavedPortfolioService service;
 
+  @Test
+  void missingPortfolioHasNoHistory() {
+    assertThat(service.get(1L).hasPortfolioHistory()).isFalse();
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  void anEmptyPortfolioUsesTheEntireLedgerToCheckHistory(boolean hasHistory) {
+    Portfolio portfolio = mock(Portfolio.class);
+    given(portfolio.getId()).willReturn(10L);
+    given(portfolioRepository.findByMemberId(1L)).willReturn(Optional.of(portfolio));
+    List<PortfolioHoldingHistory> history =
+        hasHistory ? List.of(mock(PortfolioHoldingHistory.class)) : List.of();
+    given(historyRepository.findAllByPortfolioIdOrderByEffectiveDateAscCreatedAtAscIdAsc(10L))
+        .willReturn(history);
+    given(ledgerCalculator.replay(history))
+        .willReturn(new PortfolioLedgerCalculator.LedgerResult(Map.of(), BigDecimal.ZERO));
+
+    assertThat(service.get(1L).hasPortfolioHistory()).isEqualTo(hasHistory);
+  }
+
   @ParameterizedTest
   @ValueSource(booleans = {true, false})
   void holdingsAndHistoriesPreferKoreanNamesWhenAvailable(boolean hasKoreanName) {

@@ -35,6 +35,7 @@ import type { StockSearchItem } from '../../stocks/types';
 export function usePortfolioHoldings(isLoggedIn: boolean) {
   const [guestLedger, setGuestLedger] = useState<GuestPortfolioLedger | null>(null);
   const [holdings, setHoldings] = useState<PortfolioHoldingInput[]>([]);
+  const [savedPortfolioHistory, setSavedPortfolioHistory] = useState<boolean>();
   const [totalRealizedProfitLoss, setTotalRealizedProfitLoss] = useState(0);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -62,6 +63,7 @@ export function usePortfolioHoldings(isLoggedIn: boolean) {
       .then((response) => {
         if (!controller.signal.aborted) {
           setHoldings(response.holdings);
+          setSavedPortfolioHistory(response.hasPortfolioHistory);
           setTotalRealizedProfitLoss(response.totalRealizedProfitLoss);
         }
       })
@@ -197,6 +199,11 @@ export function usePortfolioHoldings(isLoggedIn: boolean) {
 
   return {
     holdings,
+    hasPortfolioHistory: isLoggedIn
+      ? savedPortfolioHistory
+      : holdings.length > 0 ||
+        !!guestLedger?.openingHoldings.length ||
+        !!guestLedger?.histories.length,
     totalRealizedProfitLoss,
     revision,
     loading,

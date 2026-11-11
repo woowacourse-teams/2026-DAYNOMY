@@ -102,13 +102,17 @@ for (const viewport of [
       return fulfill({}, 401);
     });
     await page.goto('/');
-    await expect(page.getByRole('button', { name: '일괄 편집', exact: true })).toBeEnabled();
+    await expect(page.getByRole('button', { name: '일괄 편집', exact: true })).toHaveCount(0);
     const add = page.getByRole('button', { name: '종목 추가', exact: true });
     await add.click();
-    for (const name of ['한 종목 추가', '여러 종목 일괄 추가', 'CSV 파일 업로드'])
+    for (const name of ['한 종목 추가', '일괄 편집', 'CSV 파일 업로드'])
       await expect(page.getByRole('button', { name, exact: true })).toBeVisible();
     await page.screenshot({ path: testInfo.outputPath('add-menu.png') });
-    await page.getByRole('button', { name: '여러 종목 일괄 추가', exact: true }).click();
+    await page.getByRole('button', { name: '일괄 편집', exact: true }).click();
+    await page
+      .getByRole('dialog', { name: '포트폴리오 일괄편집', exact: true })
+      .getByRole('button', { name: '종목 일괄 추가', exact: true })
+      .click();
     let dialog = page.getByRole('dialog', { name: '여러 종목 일괄 추가', exact: true });
     for (const name of ['매매', '거래일', '수수료', '세금'])
       await expect(dialog.getByRole('columnheader', { name, exact: true })).toHaveCount(0);
@@ -154,10 +158,15 @@ for (const viewport of [
     await dialog.getByRole('button', { name: '1건 등록' }).click();
     await expect(dialog).toHaveCount(0);
     await expect(add).toBeFocused();
+    await page.getByRole('button', { name: '목록에서 종목 추가', exact: true }).click();
     await page.getByRole('button', { name: '일괄 편집', exact: true }).click();
     dialog = page.getByRole('dialog', { name: '포트폴리오 일괄편집', exact: true });
     await expect(dialog.getByRole('textbox', { name: '삼성전자 수량' })).toHaveValue('2');
     await dialog.getByRole('textbox', { name: '삼성전자 수량' }).fill('4');
+    await dialog.getByRole('button', { name: '종목 일괄 추가', exact: true }).click();
+    await expect(dialog.getByRole('button', { name: '변경 취소하고 전환' })).toBeVisible();
+    await dialog.getByRole('button', { name: '계속 편집' }).click();
+    await expect(dialog.getByRole('textbox', { name: '삼성전자 수량' })).toHaveValue('4');
     await expect(dialog.getByRole('textbox')).toHaveCount(6);
     await expect(dialog.getByRole('button', { name: '변경사항 저장' })).toBeInViewport();
     const box = (await dialog.boundingBox())!;
@@ -167,7 +176,11 @@ for (const viewport of [
     await dialog.getByRole('button', { name: '변경사항 저장' }).click();
     await expect(dialog).toHaveCount(0);
     await add.click();
-    await page.getByRole('button', { name: '여러 종목 일괄 추가', exact: true }).click();
+    await page.getByRole('button', { name: '일괄 편집', exact: true }).click();
+    await page
+      .getByRole('dialog', { name: '포트폴리오 일괄편집', exact: true })
+      .getByRole('button', { name: '종목 일괄 추가', exact: true })
+      .click();
     dialog = page.getByRole('dialog', { name: '여러 종목 일괄 추가', exact: true });
     await dialog.getByRole('button', { name: '1행 종목 검색' }).click();
     await dialog.getByRole('combobox', { name: '1행 종목명 또는 코드 검색' }).fill('애플');
@@ -237,6 +250,7 @@ for (const viewport of [
         .nativeAveragePurchasePrice,
     ).toBe(250);
     await page.reload();
+    await page.getByRole('button', { name: '목록에서 종목 추가', exact: true }).click();
     await page.getByRole('button', { name: '일괄 편집', exact: true }).click();
     dialog = page.getByRole('dialog', { name: '포트폴리오 일괄편집', exact: true });
     await expect(dialog.getByRole('textbox', { name: '애플 평균 매입가' })).toHaveValue('250');
@@ -247,6 +261,7 @@ for (const viewport of [
     await dialog.getByRole('button', { name: '변경사항 저장' }).click();
     await expect(dialog).toHaveCount(0);
     await page.reload();
+    await page.getByRole('button', { name: '목록에서 종목 추가', exact: true }).click();
     await page.getByRole('button', { name: '일괄 편집', exact: true }).click();
     dialog = page.getByRole('dialog', { name: '포트폴리오 일괄편집', exact: true });
     await expect(dialog.getByRole('textbox', { name: '애플 평균 매입가' })).toHaveValue('220');

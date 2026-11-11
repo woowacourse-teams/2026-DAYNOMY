@@ -73,6 +73,7 @@ export type PortfolioPerformanceResponse = {
 export type SavedPortfolioResponse = {
   holdings: PortfolioHoldingInput[];
   totalRealizedProfitLoss: number;
+  hasPortfolioHistory?: boolean;
 };
 
 export type PortfolioHoldingResult = PortfolioHoldingInput & {

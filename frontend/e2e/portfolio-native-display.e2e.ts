@@ -112,6 +112,7 @@ for (const viewport of [
     await expect(table.getByRole('button', { name: '최근 종가 정렬' })).toBeAttached();
     await expect(table.getByRole('button', { name: '평가금액 정렬' })).toBeAttached();
     await expect(page.locator('.portfolio-holdings-caption')).toHaveCount(0);
+    await page.getByRole('button', { name: '목록에서 종목 추가', exact: true }).click();
     await page.getByRole('button', { name: '일괄 편집', exact: true }).click();
     const bulk = page.getByRole('dialog', { name: '포트폴리오 일괄편집', exact: true });
     await expect(bulk.getByRole('textbox', { name: 'Invesco QQQ Trust 평균 매입가' })).toHaveValue(
@@ -177,6 +178,7 @@ for (const viewport of [
     await bulk.getByRole('button', { name: '일괄 편집 닫기' }).click();
     await page.screenshot({ path: testInfo.outputPath('dashboard-restored.png') });
     await page.getByRole('button', { name: '금액 숨기기' }).click();
+    await page.getByRole('button', { name: '목록에서 종목 추가', exact: true }).click();
     await page.getByRole('button', { name: '일괄 편집', exact: true }).click();
     await expect(bulk.getByText('$ 81,268.32', { exact: true })).toHaveCount(0);
     await expect(bulk.getByText('(−90.33%)', { exact: true })).toHaveCount(0);

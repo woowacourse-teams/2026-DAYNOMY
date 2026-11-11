@@ -15,15 +15,23 @@ test('키보드로 소개·거래 입력 오류 수정·뉴스 검색과 읽기�
 }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await installAccessibilityFixtures(page);
-  await page.goto('/');
+  await page.goto('/welcome');
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-  await expect(page).toHaveURL('/');
+  await expect(page).toHaveURL('/welcome');
   await page.keyboard.press('Tab');
   await expect(page.getByRole('link', { name: '본문 바로가기' })).toBeFocused();
   await page.keyboard.press('Enter');
   await expect(page.getByRole('main')).toBeFocused();
   await tabTo(page, '.hero .primary-cta');
   await page.keyboard.press('Enter');
+  await expect(page).toHaveURL('/');
+  await expect(
+    page.getByRole('heading', { name: '포트폴리오를 만들어 보세요', exact: true }),
+  ).toBeFocused();
+  await tabTo(page, '.portfolio-intro-register');
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('searchbox', { name: '종목 검색' })).toBeFocused();
+  await page.keyboard.press('Escape');
   await expect(page.getByRole('heading', { name: '내 포트폴리오', exact: true })).toBeFocused();
   await expect(page.getByRole('button', { name: '사용 가이드', exact: true })).toHaveCount(0);
   await expect(page.getByRole('complementary', { name: '처음 이용 안내' })).toHaveCount(0);
