@@ -6,6 +6,7 @@ import java.util.Set;
 import org.grit.daynomy.asset.domain.Asset;
 import org.grit.daynomy.asset.domain.AssetCategory;
 import org.grit.daynomy.asset.domain.StockMarket;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -20,6 +21,22 @@ public interface AssetRepository extends JpaRepository<Asset, Long> {
   List<Asset> findAllByCategoryIn(Set<AssetCategory> categories);
 
   List<Asset> findAllByCategoryInAndListedTrue(Set<AssetCategory> categories);
+
+  Page<Asset> findAllByIndustries_IdAndCategoryInAndListedTrueOrderByNameAscIdAsc(
+      Long industryId, Set<AssetCategory> categories, Pageable pageable);
+
+  @Query(
+      """
+      SELECT DISTINCT asset
+      FROM Asset asset
+      JOIN asset.industries industry
+      WHERE asset.category = org.grit.daynomy.asset.domain.AssetCategory.STOCK
+        AND asset.listed = true
+        AND industry.active = true
+        AND industry.code IN :industryCodes
+      ORDER BY asset.id
+      """)
+  List<Asset> findListedStocksByIndustryCodes(@Param("industryCodes") Set<String> industryCodes);
 
   @Query(
       """

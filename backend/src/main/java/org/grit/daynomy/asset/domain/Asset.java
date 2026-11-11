@@ -7,10 +7,16 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinTable;
+import jakarta.persistence.ManyToMany;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import java.time.LocalDate;
+import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.Objects;
+import java.util.Set;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -67,6 +73,13 @@ public class Asset extends BaseEntity {
 
   @Column(name = "portfolio_price_history_through")
   private LocalDate portfolioPriceHistoryThrough;
+
+  @ManyToMany
+  @JoinTable(
+      name = "asset_industries",
+      joinColumns = @JoinColumn(name = "asset_id"),
+      inverseJoinColumns = @JoinColumn(name = "industry_id"))
+  private Set<Industry> industries = new LinkedHashSet<>();
 
   public String getDisplayName() {
     return nameKo == null || nameKo.isBlank() ? name : nameKo;
@@ -162,5 +175,18 @@ public class Asset extends BaseEntity {
     }
     nameKo = normalizedName;
     return true;
+  }
+
+  public void addIndustry(Industry industry) {
+    industries.add(industry);
+  }
+
+  public void removeIndustry(Industry industry) {
+    industries.remove(industry);
+  }
+
+  public void replaceIndustries(Collection<Industry> industries) {
+    this.industries.clear();
+    this.industries.addAll(industries);
   }
 }

@@ -19,6 +19,7 @@ final class DatabaseCleaner {
         statement.execute("CREATE SCHEMA test_baseline");
         statement.execute(
             "CREATE TABLE test_baseline.market_trading_days AS TABLE public.market_trading_days");
+        statement.execute("CREATE TABLE test_baseline.industries AS TABLE public.industries");
         List<String> tables = new ArrayList<>();
         try (var results =
             statement.executeQuery(
@@ -33,6 +34,9 @@ final class DatabaseCleaner {
       statement.execute(truncate);
       statement.execute(
           "INSERT INTO public.market_trading_days SELECT * FROM test_baseline.market_trading_days");
+      statement.execute("INSERT INTO public.industries SELECT * FROM test_baseline.industries");
+      statement.execute(
+          "SELECT setval(pg_get_serial_sequence('public.industries', 'id'), (SELECT max(id) FROM public.industries), true)");
       connection.commit();
     }
   }

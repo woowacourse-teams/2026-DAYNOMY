@@ -19,6 +19,9 @@ public enum AssetErrorCode implements ErrorCode {
   STOCK_PRICE_SYNC_ALREADY_RUNNING(HttpStatus.CONFLICT, "국내 주식 종가 동기화가 이미 진행 중입니다."),
   INVALID_STOCK_PRICE_BACKFILL_RANGE(HttpStatus.BAD_REQUEST, "종가 백필 기간은 31일 이내여야 합니다."),
   STOCK_PRICE_DATA_NOT_FOUND(HttpStatus.BAD_GATEWAY, "동기화할 국내 주식 종가 데이터를 찾지 못했습니다."),
+  INDUSTRY_NOT_FOUND(HttpStatus.BAD_REQUEST, "활성 업종을 찾을 수 없습니다."),
+  INDUSTRY_ID_NOT_FOUND(HttpStatus.NOT_FOUND, "업종을 찾을 수 없습니다."),
+  INDUSTRY_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 사용 중인 업종 코드입니다."),
   STOCK_PRICE_NOT_FOUND(HttpStatus.NOT_FOUND, "주식·ETF 종가를 찾을 수 없습니다.");
 
   private final HttpStatus status;
