@@ -39,7 +39,7 @@ describe('포트폴리오 로그인 접근', () => {
     expect(view.queryByRole('contentinfo')).toBeNull();
   });
 
-  it('비로그인 사용자도 빈 포트폴리오 대시보드를 사용한다', async () => {
+  it('비로그인 사용자도 소개에서 빈 포트폴리오 대시보드로 이동할 수 있다', async () => {
     localStorage.setItem(SERVICE_STARTED_KEY, '1');
     vi.stubGlobal(
       'fetch',
@@ -49,6 +49,7 @@ describe('포트폴리오 로그인 접근', () => {
 
     const view = render(<App />);
 
+    (await view.findByRole('button', { name: '포트폴리오 바로 보기' })).click();
     expect(await view.findByRole('button', { name: '종목 추가' })).toBeTruthy();
     expect(view.getByRole('heading', { name: '내 포트폴리오' })).toBeTruthy();
     expect(view.queryByText('로그인해야 볼 수 있습니다')).toBeNull();

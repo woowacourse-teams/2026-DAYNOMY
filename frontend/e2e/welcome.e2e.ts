@@ -13,8 +13,8 @@ for (const width of [1440, 390]) {
     page,
   }) => {
     await page.setViewportSize({ width, height: 900 });
-    await page.goto('/');
-    await expect(page).toHaveURL('/');
+    await page.goto('/welcome');
+    await expect(page).toHaveURL('/welcome');
     await expect(page.getByRole('heading', { level: 1 })).toContainText('매일의 경제 이슈를');
     await expect(page).toHaveTitle('서비스 소개 | DAYNOMY');
     await expect(page.getByRole('banner')).toHaveCount(1);
@@ -28,6 +28,7 @@ for (const width of [1440, 390]) {
     expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
     await start.click();
     await expect(page).toHaveURL('/');
+    await page.getByRole('button', { name: '포트폴리오 바로 보기', exact: true }).click();
     await expect(page.getByRole('heading', { name: '내 포트폴리오', exact: true })).toBeFocused();
     await expect(page.getByRole('complementary', { name: '처음 이용 안내' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: '사용 가이드', exact: true })).toHaveCount(0);
@@ -44,7 +45,9 @@ for (const width of [1440, 390]) {
     );
     await page.reload();
     await expect(page.getByRole('region', { name: '포트폴리오 사용 안내' })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: '종목 추가', exact: true })).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: '포트폴리오 만들기', exact: true }),
+    ).toBeVisible();
     await expect(page.locator('.landing-page')).toHaveCount(0);
     await page.getByRole('link', { name: '서비스 소개', exact: true }).click();
     await expect(page).toHaveURL('/welcome');
@@ -207,9 +210,7 @@ for (const width of [390, 1440]) {
     await expect(page).toHaveURL(/#start$/);
     await page.locator('#start .primary-cta').click();
     await expect(
-      page
-        .locator('.portfolio-page-actions')
-        .getByRole('button', { name: '종목 추가', exact: true }),
+      page.getByRole('button', { name: '포트폴리오 만들기', exact: true }),
     ).toBeVisible();
   });
 }
@@ -235,6 +236,7 @@ test('키보드로 메뉴·FAQ·시작하기·거래 기록을 사용하고 닫�
   await expect(page.locator('details').first()).toHaveAttribute('open', '');
   await page.locator('.hero .primary-cta').focus();
   await page.keyboard.press('Enter');
+  await page.getByRole('button', { name: '포트폴리오 바로 보기', exact: true }).press('Enter');
   await expect(page.getByRole('heading', { name: '내 포트폴리오', exact: true })).toBeFocused();
   await expect(page.getByRole('button', { name: '사용 가이드', exact: true })).toHaveCount(0);
   const add = page.getByRole('button', { name: '종목 추가', exact: true });
@@ -314,21 +316,21 @@ test('공유 뉴스 상세는 소개를 거치지 않고 원래 주소로 열린
   await expect(page.locator('.landing-page')).toHaveCount(0);
   await page.getByRole('link', { name: '포트폴리오', exact: true }).click();
   await expect(page).toHaveURL('/');
-  await expect(page.getByRole('button', { name: '종목 추가', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: '포트폴리오 만들기', exact: true })).toBeVisible();
 });
 
-test('첫 방문과 새로고침 후에도 사용 가이드와 최초 안내를 표시하지 않는다', async ({ page }) => {
+test('거래 이력이 없는 방문자는 새로고침 후에도 그래프와 분석 예시를 바로 본다', async ({
+  page,
+}) => {
   await page.goto('/');
-  await page.locator('.hero .primary-cta').click();
-  await expect(page.getByRole('heading', { name: '내 포트폴리오', exact: true })).toBeVisible();
-  await expect(page.getByRole('complementary', { name: '처음 이용 안내' })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: '사용 가이드', exact: true })).toHaveCount(0);
-  await expect(page.getByRole('region', { name: '포트폴리오 사용 안내' })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: '종목 추가', exact: true })).toBeEnabled();
+  const register = page.getByRole('button', { name: '포트폴리오 만들기', exact: true });
+  const example = page.getByRole('heading', { name: '반도체 수요가 회복된다면' });
+  await expect(register).toBeVisible();
+  await expect(example).toBeVisible();
+  await expect(page.getByRole('list', { name: '예시 자산 비중' })).toBeVisible();
   await page.reload();
-  await expect(page.getByRole('heading', { name: '내 포트폴리오', exact: true })).toBeVisible();
-  await expect(page.getByRole('complementary', { name: '처음 이용 안내' })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: '사용 가이드', exact: true })).toHaveCount(0);
-  await expect(page.getByRole('region', { name: '포트폴리오 사용 안내' })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: '종목 추가', exact: true })).toBeEnabled();
+  await expect(register).toBeVisible();
+  await expect(example).toBeVisible();
+  await register.click();
+  await expect(page.getByRole('searchbox', { name: '종목 검색' })).toBeFocused();
 });

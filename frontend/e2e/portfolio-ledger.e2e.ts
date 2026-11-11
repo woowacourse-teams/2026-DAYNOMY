@@ -87,6 +87,7 @@ for (const viewport of [
     await page.setViewportSize(viewport);
     await installAccessibilityFixtures(page);
     await page.goto('/');
+    await page.getByRole('button', { name: '포트폴리오 바로 보기' }).click();
     await page.getByRole('button', { name: '종목 추가', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: '거래 기록' });
     await dialog.getByRole('searchbox').fill('삼성');
@@ -194,6 +195,7 @@ for (const viewport of [
       return route.fulfill({ status: 401, json: {} });
     });
     await page.goto('/');
+    await page.getByRole('button', { name: '포트폴리오 바로 보기' }).click();
     const open = page.getByRole('button', { name: '종목 추가', exact: true });
     const ledgerAdd = page.getByRole('button', { name: '목록에서 종목 추가', exact: true });
     const tabs = page.getByRole('group', { name: '포트폴리오 내역 보기' });
@@ -317,6 +319,7 @@ for (const viewport of [
       route.fulfill({ status: 401, contentType: 'application/json', body: '{}' }),
     );
     await page.goto('/');
+    await page.getByRole('button', { name: '포트폴리오 바로 보기' }).click();
     const trend = page.locator('.portfolio-return-dashboard');
     const composition = page.locator('.portfolio-composition');
     await expect(trend.getByRole('link', { name: '로그인하기' })).toBeVisible();
