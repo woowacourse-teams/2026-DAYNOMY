@@ -186,15 +186,22 @@ it('전체 보유 종목의 빈 소식은 전체 종목에 맞는 안내를 표�
   expect(await view.findByText('아직 보유 종목의 소식이 없어요')).toBeTruthy();
 });
 
-it('출처 필터로만 소식이 없어진 경우 기존 필터 안내를 유지한다', async () => {
-  state.holdings = [{ assetId: 1, name: '종목1' }];
-  vi.mocked(getStockRelatedContents).mockResolvedValue(response(1));
-  const view = show('&asset=1&source=YOUTUBE');
-  expect(await view.findByText('선택한 조건에 연결된 소식이 없습니다.')).toBeTruthy();
-  expect(view.queryByRole('link', { name: '다른 소식 둘러보기' })).toBeNull();
-  fireEvent.click(view.getByRole('button', { name: '전체' }));
-  expect(await view.findByRole('button', { name: /종목1 소식/ })).toBeTruthy();
-});
+it.each(['&asset=1', ''])(
+  '출처 필터의 빈 결과도 고양이 안내를 표시하고 전체로 돌아갈 수 있다 (%s)',
+  async (asset) => {
+    state.holdings = [{ assetId: 1, name: '종목1' }];
+    vi.mocked(getStockRelatedContents).mockResolvedValue(response(1));
+    const view = show(`${asset}&source=YOUTUBE`);
+    expect(await view.findByText('선택한 조건의 소식이 없어요')).toBeTruthy();
+    expect(view.container.querySelector('.stock-news-empty img')).toBeTruthy();
+    expect(view.getByRole('link', { name: '다른 소식 둘러보기' }).getAttribute('href')).toBe(
+      '/news',
+    );
+    fireEvent.click(view.getByRole('button', { name: '전체' }));
+    expect(await view.findByRole('button', { name: /종목1 소식/ })).toBeTruthy();
+    expect(view.queryByRole('link', { name: '다른 소식 둘러보기' })).toBeNull();
+  },
+);
 
 it.each([false, true])(
   '조회 실패를 빈 소식으로 표시하지 않는다 (부분 실패: %s)',
