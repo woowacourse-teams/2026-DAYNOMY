@@ -10,11 +10,10 @@ import { IssueHomePage } from '../../src/features/news/issue/IssueHomePage';
 import { NewsListPage } from '../../src/features/news/newslist/NewsListPage';
 import { ArticleCard } from '../../src/features/news/newslist/components/ArticleCard';
 import type { NewsListItem } from '../../src/features/news/newslist/types';
-import { getIndustries, getNewsFeed } from '../../src/features/news/issue/feedApi';
+import { getNewsFeed } from '../../src/features/news/issue/feedApi';
 
 vi.mock('../../src/features/news/issue/feedApi', () => ({
   getNewsFeed: vi.fn(),
-  getIndustries: vi.fn(),
 }));
 
 const article = {
@@ -51,8 +50,6 @@ function renderPage(element: ReactNode, isLoggedIn = false) {
 
 beforeEach(() => {
   vi.mocked(getNewsFeed).mockReset();
-  vi.mocked(getIndustries).mockReset();
-  vi.mocked(getIndustries).mockResolvedValue([]);
   vi.stubGlobal('matchMedia', () => ({
     matches: false,
     addEventListener() {},

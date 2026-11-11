@@ -5,7 +5,6 @@ import type { FeedItem } from './feed';
 
 export type NewsFeedSource = 'ALL' | FeedItem['source'];
 export type NewsFeedSort = 'LATEST' | 'POPULAR';
-export type Industry = { code: string; name: string };
 
 type BaseItem = { id: number; title: string; date: string | null };
 type NewsFeedItemResponse =
@@ -85,22 +84,6 @@ function isNewsFeedResponse(value: unknown): value is NewsFeedResponse {
   );
 }
 
-function isIndustriesResponse(value: unknown): value is { industries: Industry[] } {
-  if (!value || typeof value !== 'object') return false;
-  const response = value as Record<string, unknown>;
-  return (
-    Array.isArray(response.industries) &&
-    response.industries.every(
-      (industry) =>
-        industry !== null &&
-        typeof industry === 'object' &&
-        typeof (industry as Record<string, unknown>).code === 'string' &&
-        /^[A-Z][A-Z0-9_]{0,49}$/.test((industry as Record<string, unknown>).code as string) &&
-        typeof (industry as Record<string, unknown>).name === 'string',
-    )
-  );
-}
-
 function toFeedItem(item: NewsFeedItemResponse): FeedItem {
   if (item.kind === 'NEWS')
     return {
@@ -154,25 +137,11 @@ export function buildNewsFeedUrl(
   page = 1,
   size = 8,
   sort: NewsFeedSort = 'LATEST',
-  industry?: string,
 ) {
   const params = new URLSearchParams({ page: String(page), size: String(size) });
   if (source !== 'ALL') params.set('source', source);
   if (sort === 'POPULAR') params.set('sort', sort);
-  if (industry) params.set('industry', industry);
   return `/api/news/feed?${params.toString()}`;
-}
-
-export async function getIndustries(signal?: AbortSignal) {
-  try {
-    const { data } = await axios.get<unknown>('/api/industries', { signal });
-    if (!isIndustriesResponse(data)) throw new Error('업종 응답 형식이 올바르지 않습니다.');
-    return data.industries;
-  } catch (error) {
-    const apiError = toApiError(error, '업종을 불러오지 못했습니다.');
-    if (apiError) throw apiError;
-    throw error;
-  }
 }
 
 export async function getNewsFeed(
@@ -181,13 +150,11 @@ export async function getNewsFeed(
   size = 8,
   sort: NewsFeedSort = 'LATEST',
   signal?: AbortSignal,
-  industry?: string,
 ) {
   try {
-    const { data } = await axios.get<unknown>(
-      buildNewsFeedUrl(source, page, size, sort, industry),
-      { signal },
-    );
+    const { data } = await axios.get<unknown>(buildNewsFeedUrl(source, page, size, sort), {
+      signal,
+    });
     if (!isNewsFeedResponse(data)) throw new Error('소식 피드 응답 형식이 올바르지 않습니다.');
     return { ...data, items: data.items.map(toFeedItem) };
   } catch (error) {

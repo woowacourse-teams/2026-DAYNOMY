@@ -11,11 +11,10 @@ import {
   getContentPopularity,
   sortByPopularity,
 } from '../../src/features/news/issue/popularity';
-import { getIndustries, getNewsFeed } from '../../src/features/news/issue/feedApi';
+import { getNewsFeed } from '../../src/features/news/issue/feedApi';
 
 vi.mock('../../src/features/news/issue/feedApi', () => ({
   getNewsFeed: vi.fn(),
-  getIndustries: vi.fn(),
 }));
 
 vi.mock('../../src/features/investment-calendar/InvestmentCalendarPage', () => ({
@@ -108,11 +107,6 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] });
   vi.setSystemTime(new Date('2026-10-12T10:00:00Z'));
   vi.mocked(getNewsFeed).mockReset();
-  vi.mocked(getIndustries).mockReset();
-  vi.mocked(getIndustries).mockResolvedValue([
-    { code: 'SEMICONDUCTOR', name: '반도체' },
-    { code: 'AUTOMOBILE', name: '자동차' },
-  ]);
   vi.mocked(getNewsFeed).mockImplementation(
     async (source, currentPage = 1, size = 12, sort = 'LATEST') => {
       const [newsResponse, contentsResponse, peopleResponse] = await Promise.all([
@@ -265,7 +259,6 @@ describe('이슈 홈과 전체 목록', () => {
         fullFeed ? 12 : 6,
         'LATEST',
         expect.anything(),
-        undefined,
       );
       fireEvent.click(view.getByRole('button', { name: '2페이지' }));
       await view.findByText('이전 이슈');
@@ -315,44 +308,6 @@ describe('이슈 홈과 전체 목록', () => {
       'filter_content_source',
       expect.objectContaining({ surface: 'news_home', source_type: 'X' }),
     );
-  });
-  it('업종을 선택하면 URL과 피드 요청에 반영하고 첫 페이지로 돌아온다', async () => {
-    mockApi();
-    const view = render(
-      <MemoryRouter initialEntries={['/news?industry=SEMICONDUCTOR']}>
-        <IssueHomePage />
-      </MemoryRouter>,
-    );
-
-    expect(await view.findByRole('button', { name: '반도체', pressed: true })).toBeTruthy();
-    await waitFor(() =>
-      expect(getNewsFeed).toHaveBeenCalledWith(
-        'ALL',
-        1,
-        6,
-        'LATEST',
-        expect.anything(),
-        'SEMICONDUCTOR',
-      ),
-    );
-
-    fireEvent.click(view.getByRole('button', { name: '자동차' }));
-
-    await waitFor(() =>
-      expect(getNewsFeed).toHaveBeenLastCalledWith(
-        'ALL',
-        1,
-        6,
-        'LATEST',
-        expect.anything(),
-        'AUTOMOBILE',
-      ),
-    );
-    expect(trackEvent).toHaveBeenCalledWith('filter_content_industry', {
-      surface: 'news_home',
-      previous_industry: 'SEMICONDUCTOR',
-      industry_code: 'AUTOMOBILE',
-    });
   });
 });
 

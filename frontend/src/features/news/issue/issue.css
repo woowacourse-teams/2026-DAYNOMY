@@ -148,56 +148,6 @@
 .issue-feed-heading h2 {
   margin: 0;
 }
-.issue-industry-filter {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 16px;
-  color: var(--issue-muted);
-  font-size: 13px;
-}
-.issue-industry-filter > strong {
-  flex-shrink: 0;
-  color: var(--issue-ink);
-  font-size: 14px;
-}
-.issue-industry-filter > span button {
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--button-label);
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-.issue-industry-options {
-  display: flex;
-  min-width: 0;
-  gap: 8px;
-  padding: 4px;
-  margin: -4px;
-  overflow-x: auto;
-}
-.issue-industry-options button {
-  flex-shrink: 0;
-  min-height: 36px;
-  padding: 7px 16px;
-  border: 1px solid var(--issue-line);
-  border-radius: 999px;
-  background: #fff;
-  color: #24344f;
-  font-size: 12px;
-  white-space: nowrap;
-}
-.issue-industry-options button:hover {
-  border-color: #a5b0bf;
-  color: #24344f;
-}
-.issue-industry-options button[aria-pressed='true'] {
-  border-color: #24344f;
-  background: #24344f;
-  color: #fff;
-  font-weight: 700;
-}
 .issue-feed-controls > span {
   flex-shrink: 0;
   margin-left: auto;
@@ -426,17 +376,6 @@
     padding: 12px 0 16px;
     border-top: 1px solid var(--issue-line);
     border-bottom: 1px solid var(--issue-line);
-  }
-  .issue-industry-filter {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 8px;
-  }
-  .issue-industry-options {
-    width: 100%;
-  }
-  .issue-industry-options button {
-    min-height: 40px;
   }
   .issue-feed-controls > span {
     display: none;
