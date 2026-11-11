@@ -855,7 +855,7 @@ describe('포트폴리오 화면', () => {
     expect(newsTab.getAttribute('aria-expanded')).toBe('true');
     expect(newsTab.getAttribute('aria-controls')).toBe(newsPanel.id);
     expect(view.queryByRole('dialog', { name: '보유 자산 소식' })).toBeNull();
-    await within(newsPanel).findByText('보유 자산에 등록된 소식이 없습니다.');
+    await within(newsPanel).findByText('아직 보유 종목의 소식이 없어요');
     expect(
       vi
         .mocked(fetch)
@@ -899,7 +899,7 @@ describe('포트폴리오 화면', () => {
     await view.findAllByText('750,000원');
     const tab = view.getByRole('button', { name: /^소식$/ });
     await within(view.getByRole('complementary', { name: '보유 자산 소식' })).findByText(
-      '보유 자산에 등록된 소식이 없습니다.',
+      '아직 보유 종목의 소식이 없어요',
     );
     expect(document.body.style.overflow).not.toBe('hidden');
     fireEvent.click(view.getByRole('button', { name: '자산 분석 접기' }));
