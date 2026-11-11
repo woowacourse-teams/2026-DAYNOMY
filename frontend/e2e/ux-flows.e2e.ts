@@ -22,6 +22,17 @@ test.beforeEach(async ({ page }) => {
   );
   await page.route('**/api/auth/refresh', (route) => route.fulfill({ status: 401 }));
   await page.route('**/api/users/me', (route) => route.fulfill({ status: 401 }));
+  await page.route('**/api/users/me/email-subscription', (route) => {
+    expect(route.request().method()).toBe('GET');
+    return route.fulfill({
+      json: {
+        status: 'DECLINED',
+        email: 'ux@example.invalid',
+        promptRequired: false,
+        subscribedAt: null,
+      },
+    });
+  });
   await page.route('**/api/users/me/investor-profile', (route) => route.fulfill({ status: 204 }));
   await page.route('**/api/users/me/portfolio/transactions', (route) =>
     route.fulfill({ json: { transactions: [] } }),
@@ -56,10 +67,19 @@ for (const viewport of [
     await page.goto('/league');
     await page.getByRole('link', { name: '마이페이지' }).click();
     await expect(page).toHaveURL('/mypage');
-    await expect(page.getByText('ux@example.invalid', { exact: true })).toBeVisible();
+    await expect(
+      page
+        .getByRole('region', { name: '내 계정' })
+        .getByText('ux@example.invalid', { exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('region', { name: '이메일 알림' }).getByRole('heading', { name: '미구독' }),
+    ).toBeVisible();
     await checkWidth(page);
     await page.getByRole('button', { name: '로그아웃', exact: true }).click();
-    await expect(page.getByRole('alert')).toContainText('로그아웃하지 못했습니다');
+    await expect(page.getByRole('region', { name: '계정 관리' }).getByRole('alert')).toContainText(
+      '로그아웃하지 못했습니다',
+    );
     await expect(page.getByRole('link', { name: '마이페이지' })).toBeVisible();
     await page.getByRole('button', { name: '로그아웃', exact: true }).click();
     await expect(page).toHaveURL('/news');
@@ -94,18 +114,24 @@ for (const viewport of [
       return route.fulfill({ json: account });
     });
     await page.goto('/mypage');
-    await expect(page.getByText(account.email, { exact: true })).toBeVisible();
+    await expect(
+      page.getByRole('region', { name: '내 계정' }).getByText(account.email, { exact: true }),
+    ).toBeVisible();
     await expect(page.getByText(account.name, { exact: true })).toBeVisible();
     await expect(page.getByText('비공개', { exact: true })).toHaveCount(2);
     await expect(page.getByText('공개용', { exact: true })).toBeVisible();
     await page.getByRole('button', { name: '닉네임 변경' }).click();
     await page.getByLabel('새 닉네임', { exact: true }).fill('사용중');
     await page.getByRole('button', { name: '닉네임 저장' }).click();
-    await expect(page.getByRole('alert')).toContainText('이미 사용 중');
+    await expect(page.getByRole('region', { name: '내 계정' }).getByRole('alert')).toContainText(
+      '이미 사용 중',
+    );
     await expect(page.getByLabel('새 닉네임')).toHaveValue('사용중');
     await page.getByLabel('새 닉네임').fill('새로운공개별명');
     await page.getByRole('button', { name: '닉네임 저장' }).click();
-    await expect(page.getByRole('status')).toContainText('닉네임을 변경했어요');
+    await expect(page.getByRole('region', { name: '내 계정' }).getByRole('status')).toContainText(
+      '닉네임을 변경했어요',
+    );
     await expect(page.getByRole('link', { name: '마이페이지' })).toHaveText('새');
     await expect(page.getByText(account.name, { exact: true })).toBeVisible();
     await page.reload();
@@ -167,7 +193,9 @@ test('모바일: 이름이 없는 기존 계정은 재로그인을 안내하고 
   await page.getByRole('button', { name: '닉네임 변경' }).click();
   await page.getByLabel('새 닉네임').fill('');
   await page.getByRole('button', { name: '닉네임 저장' }).click();
-  await expect(page.getByRole('alert')).toContainText('1~20자');
+  await expect(page.getByRole('region', { name: '내 계정' }).getByRole('alert')).toContainText(
+    '1~20자',
+  );
   await page.getByLabel('새 닉네임').fill('바꾸지않을닉네임');
   await page.getByRole('button', { name: '취소', exact: true }).click();
   await expect(page.getByText('공개별명', { exact: true })).toBeVisible();
@@ -189,8 +217,10 @@ test('모바일: 삭제된 돈 관리의 기존 주소는 비회원 포트폴리
   ]) {
     await page.goto(path);
     await expect(page).toHaveURL('/');
-    await expect(page.getByRole('heading', { name: '내 포트폴리오' })).toBeVisible();
-    await expect(page.getByRole('button', { name: '종목 추가', exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: '포트폴리오를 만들어 보세요' })).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: '포트폴리오 만들기', exact: true }),
+    ).toBeVisible();
     await expect(page.getByRole('banner').getByRole('link', { name: '로그인' })).toHaveAttribute(
       'href',
       '/login?returnTo=%2F',
@@ -277,7 +307,8 @@ for (const width of [390, 1440]) {
       }
       if (path === '/league/reviews') {
         await page.getByRole('button', { name: /복기 작성/ }).click();
-        await expect(page.getByRole('textbox', { name: '실제 결과' })).toBeFocused();
+        await expect(page.getByRole('heading', { name: '나의 복기', exact: true })).toBeFocused();
+        await expect(page.getByRole('textbox', { name: '실제 결과' })).toBeEditable();
       }
       await checkWidth(page);
       const smallButtons = await page
@@ -329,7 +360,6 @@ for (const width of [390, 1440]) {
     await checkWidth(page);
   });
 }
-
 for (const width of [1440, 390]) {
   test(`${width}px: 관리자 화면에서 기간별 종가 복구와 리그 재집계를 실행한다`, async ({
     page,
@@ -371,48 +401,6 @@ for (const width of [1440, 390]) {
     await expect(page.getByText('2026.10.01 ~ 2026.10.02 재수집 결과')).toBeVisible();
     await page.getByRole('button', { name: '리그 성과 재집계' }).click();
     await expect(page.getByText('일간 기록 10건 처리')).toBeVisible();
-    await checkWidth(page);
-  });
-}
-
-for (const width of [1440, 390]) {
-  test(`${width}px: 비회원 임시 포트폴리오가 종목 자료 화면에서도 연결된다`, async ({ page }) => {
-    await page.setViewportSize({ width, height: 900 });
-    await page.addInitScript(() => {
-      sessionStorage.setItem(
-        'daynomy:guest-portfolio-holdings:v1',
-        JSON.stringify([
-          {
-            assetId: 1,
-            assetCode: '005930',
-            name: '삼성전자',
-            category: 'STOCK',
-            market: 'KOSPI',
-            quantity: 1,
-            averagePurchasePrice: 70000,
-          },
-        ]),
-      );
-    });
-    await page.route('**/api/assets/1/contents', (route) =>
-      route.fulfill({
-        json: { assetId: 1, assetCode: '005930', assetName: '삼성전자', contents: [] },
-      }),
-    );
-    const privateRequests: string[] = [];
-    page.on('request', (request) => {
-      if (new URL(request.url()).pathname === '/api/users/me/portfolio')
-        privateRequests.push(request.url());
-    });
-    await page.goto('/stocks/1');
-    await expect(page.getByRole('heading', { name: '삼성전자 소식' })).toBeVisible();
-    if (width === 1440)
-      await expect(page.getByRole('complementary', { name: '내 포트폴리오 종목' })).toContainText(
-        '삼성전자',
-      );
-    else
-      await expect(page.getByRole('combobox', { name: '종목 선택', exact: true })).toHaveValue('1');
-    expect(privateRequests).toEqual([]);
     await checkWidth(page);
   });
 }

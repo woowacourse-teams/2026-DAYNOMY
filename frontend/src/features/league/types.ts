@@ -61,6 +61,7 @@ export type AggregationEstimate = {
   baseDate: string | null;
   expectedAt: string | null;
   firstReturnExpectedAt: string | null;
+  nextCollectionAt?: string | null;
   reason: string;
   delayed: boolean;
 };
@@ -83,6 +84,8 @@ export type Performance = {
   currentHoldingWeight?: number | null;
   consecutiveRecordedWeeks?: number;
   weeklyRank?: number | null;
+  asOfDate?: string | null;
+  rankingAsOfDate?: string | null;
 };
 
 export type DailyReturnPoint = {
@@ -138,6 +141,30 @@ export type InvestmentReview = {
   createdAt: string;
   updatedAt?: string | null;
 };
+
+export type ReviewGuide = {
+  transactionId: number;
+  retrievalStatus: 'FOUND' | 'NO_EVIDENCE';
+  evidence: Array<{
+    id: string;
+    title: string;
+    publishedAt: string;
+    excerpt: string;
+    href: string;
+  }>;
+  basis: {
+    weekStart: string;
+    asOfDate: string;
+    portfolioWeeklyReturnRate: number;
+  } | null;
+  questions: {
+    actualResult: ReviewGuideQuestion;
+    differenceFromExpectation: ReviewGuideQuestion;
+    nextAction: ReviewGuideQuestion;
+  };
+};
+
+export type ReviewGuideQuestion = { text: string; evidenceIds: string[] };
 
 export type InvestmentDecisionInput = {
   reason: string;

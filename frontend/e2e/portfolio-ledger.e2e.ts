@@ -1,6 +1,8 @@
 import { expect, test } from '@playwright/test';
 import { installAccessibilityFixtures } from './fixtures/accessibility';
 
+test.describe.configure({ mode: 'parallel' });
+
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem('daynomy:service-started:v1', '1');
@@ -664,10 +666,7 @@ for (const viewport of [
     const detail = page.getByRole('dialog', { name: '삼성전자 보유 상세' });
     await expect(detail).toBeVisible();
     await expect(detail.getByRole('complementary', { name: '소식' })).toHaveCount(0);
-    await expect(detail.getByRole('link', { name: /종목 정보 보기/ })).toHaveAttribute(
-      'href',
-      '/stocks/1',
-    );
+    await expect(detail.getByRole('link', { name: /종목 정보 보기/ })).toHaveCount(0);
     await expect(detail.getByRole('button', { name: '매수', exact: true })).toBeVisible();
     await expect(detail.getByRole('button', { name: '매도', exact: true })).toBeVisible();
     await expect(detail.getByRole('heading', { name: '거래 내역', exact: true })).toBeVisible();

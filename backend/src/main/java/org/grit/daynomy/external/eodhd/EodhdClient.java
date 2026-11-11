@@ -3,13 +3,14 @@ package org.grit.daynomy.external.eodhd;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.time.DateTimeException;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.external.ExternalErrorCode;
 import org.grit.daynomy.external.RetryableExternalRequestException;
@@ -114,43 +115,6 @@ public class EodhdClient {
     }
   }
 
-  public Set<LocalDate> getUsMarketHolidays(LocalDate from, LocalDate to) {
-    requireToken();
-    try {
-      String body =
-          restClient
-              .get()
-              .uri(
-                  builder ->
-                      builder
-                          .path("/exchange-details/US")
-                          .queryParam("api_token", "{token}")
-                          .queryParam("fmt", "json")
-                          .queryParam("from", from)
-                          .queryParam("to", to)
-                          .build(properties.apiToken()))
-              .retrieve()
-              .body(String.class);
-      JsonNode response = body == null ? null : JSON.readTree(body);
-      JsonNode holidays = response == null ? null : response.get("ExchangeHolidays");
-      if (response == null
-          || !"US".equalsIgnoreCase(response.path("Code").asText())
-          || holidays == null
-          || !holidays.isContainerNode()) {
-        throw new BusinessException(ExternalErrorCode.EODHD_API_REQUEST_FAILED);
-      }
-      Set<LocalDate> dates = new HashSet<>();
-      for (JsonNode holiday : holidays) {
-        if (!"official".equalsIgnoreCase(holiday.path("Type").asText())) continue;
-        LocalDate date = LocalDate.parse(holiday.path("Date").asText());
-        if (!date.isBefore(from) && !date.isAfter(to)) dates.add(date);
-      }
-      return Set.copyOf(dates);
-    } catch (RestClientException | DateTimeException | IOException exception) {
-      throw new BusinessException(ExternalErrorCode.EODHD_API_REQUEST_FAILED);
-    }
-  }
-
   public List<EodhdDailyPrice> getUsdKrwRates(LocalDate from, LocalDate to) {
     requireToken();
     try {
@@ -173,6 +137,67 @@ public class EodhdClient {
       throw new BusinessException(ExternalErrorCode.EODHD_API_REQUEST_FAILED);
     }
   }
+
+  public DelayedQuotes getDelayedQuotes(List<String> symbols) {
+    requireToken();
+    try {
+      String body =
+          restClient
+              .get()
+              .uri(
+                  builder -> {
+                    builder
+                        .path("/real-time/{symbol}")
+                        .queryParam("api_token", "{token}")
+                        .queryParam("fmt", "json");
+                    if (symbols.size() > 1) {
+                      builder.queryParam("s", "{additional}");
+                    }
+                    return builder.build(
+                        Map.of(
+                            "symbol",
+                            symbols.getFirst(),
+                            "token",
+                            properties.apiToken(),
+                            "additional",
+                            String.join(",", symbols.subList(1, symbols.size()))));
+                  })
+              .retrieve()
+              .body(String.class);
+      JsonNode response = JSON.readTree(body == null ? "" : body);
+      List<JsonNode> rows = new ArrayList<>();
+      if (response != null && response.isArray()) response.forEach(rows::add);
+      else if (response != null && response.isObject()) rows.add(response);
+      List<DelayedQuote> quotes = new ArrayList<>();
+      for (JsonNode row : rows) {
+        JsonNode price = row.path("close");
+        JsonNode timestamp = row.path("timestamp");
+        if (price.isNumber()
+            && price.decimalValue().signum() > 0
+            && timestamp.isIntegralNumber()
+            && timestamp.canConvertToLong()) {
+          try {
+            quotes.add(
+                new DelayedQuote(
+                    row.path("code").asText(),
+                    price.decimalValue(),
+                    Instant.ofEpochSecond(timestamp.longValue())));
+          } catch (DateTimeException ignored) {
+            // A malformed symbol must not discard other valid rows from the batch.
+          }
+        }
+      }
+      return new DelayedQuotes(List.copyOf(quotes), 200);
+    } catch (RestClientResponseException exception) {
+      return new DelayedQuotes(List.of(), exception.getStatusCode().value());
+    } catch (RestClientException | IOException exception) {
+      throw new BusinessException(ExternalErrorCode.EODHD_API_REQUEST_FAILED);
+    }
+  }
+
+  public record DelayedQuote(String symbol, BigDecimal price, Instant asOf) {}
+
+  public record DelayedQuotes(List<DelayedQuote> quotes, int status) {}
 
   private void requireToken() {
     if (properties.apiToken() == null || properties.apiToken().isBlank()) {

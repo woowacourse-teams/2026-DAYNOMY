@@ -37,6 +37,7 @@ import org.grit.daynomy.portfolio.repository.PortfolioHoldingHistoryRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioHoldingRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioTransactionImportRepository;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
@@ -57,6 +58,7 @@ public class SavedPortfolioService {
   private final PortfolioSnapshotTransactionService snapshotTransactionService;
   private final PortfolioExchangeRateService exchangeRates;
   private final PlatformTransactionManager transactionManager;
+  private final ApplicationEventPublisher events;
   private final PortfolioTransactionImportRepository importRepository;
 
   @Transactional
@@ -97,6 +99,7 @@ public class SavedPortfolioService {
                     new PortfolioHoldingHistory(
                         holding, PortfolioHoldingChangeType.OPENING_BALANCE))
             .toList());
+    events.publishEvent(new OriginalPortfolioChanged(memberId));
     return get(memberId);
   }
 
@@ -113,6 +116,7 @@ public class SavedPortfolioService {
         request.holdings().stream()
             .map(item -> getHolding(portfolio.getId(), item.assetId()))
             .toList();
+    boolean changed = false;
     for (int index = 0; index < holdings.size(); index++) {
       var holding = holdings.get(index);
       var item = request.holdings().get(index);
@@ -120,8 +124,10 @@ public class SavedPortfolioService {
           item.quantity(), item.averagePurchasePrice(), item.nativeAveragePurchasePrice())) {
         historyRepository.save(
             new PortfolioHoldingHistory(holding, PortfolioHoldingChangeType.ADJUSTED));
+        changed = true;
       }
     }
+    if (changed) events.publishEvent(new OriginalPortfolioChanged(memberId));
     return holdings.stream().map(SavedPortfolioHoldingResponse::from).toList();
   }
 
@@ -201,6 +207,7 @@ public class SavedPortfolioService {
                   portfolio.getId(), ordered.getFirst().tradeDate(), rates);
               if (deduplicate)
                 importRepository.save(new PortfolioTransactionImport(portfolio, fingerprint));
+              events.publishEvent(new OriginalPortfolioChanged(memberId));
               return new PortfolioTransactionImportResponse(ordered.size(), false, get(memberId));
             });
   }
@@ -243,6 +250,7 @@ public class SavedPortfolioService {
     if (holding.change(request.quantity(), request.averagePurchasePrice())) {
       historyRepository.save(
           new PortfolioHoldingHistory(holding, PortfolioHoldingChangeType.ADJUSTED));
+      events.publishEvent(new OriginalPortfolioChanged(memberId));
     }
     return SavedPortfolioHoldingResponse.from(holding);
   }
@@ -254,6 +262,7 @@ public class SavedPortfolioService {
     historyRepository.save(
         new PortfolioHoldingHistory(holding, PortfolioHoldingChangeType.REMOVED));
     holdingRepository.delete(holding);
+    events.publishEvent(new OriginalPortfolioChanged(memberId));
   }
 
   public PortfolioTransactionResponse transact(Long memberId, PortfolioTransactionRequest request) {
@@ -311,6 +320,7 @@ public class SavedPortfolioService {
     if (refreshSnapshots) {
       snapshotTransactionService.refreshSnapshotsFrom(
           portfolio.getId(), request.tradeDate(), rates);
+      events.publishEvent(new OriginalPortfolioChanged(memberId));
     }
     return new PortfolioTransactionResponse(
         history.getId(), responseHolding, ledger.realizedProfitLoss());
@@ -348,6 +358,7 @@ public class SavedPortfolioService {
     LocalDate refreshFrom =
         previousTradeDate.isBefore(request.tradeDate()) ? previousTradeDate : request.tradeDate();
     snapshotTransactionService.refreshSnapshotsFrom(portfolio.getId(), refreshFrom, rates);
+    events.publishEvent(new OriginalPortfolioChanged(memberId));
     return new PortfolioTransactionResponse(
         history.getId(), responseHolding, ledger.realizedProfitLoss());
   }
@@ -375,6 +386,7 @@ public class SavedPortfolioService {
         applyLedgerPosition(portfolio, asset, current, ledger);
     snapshotTransactionService.refreshSnapshotsFrom(
         portfolio.getId(), history.getEffectiveDate(), rates);
+    events.publishEvent(new OriginalPortfolioChanged(memberId));
     return new PortfolioTransactionResponse(
         transactionId, responseHolding, ledger.realizedProfitLoss());
   }

@@ -12,12 +12,15 @@ import org.grit.daynomy.content.dto.ContentCollectionReviewApproveRequest;
 import org.grit.daynomy.content.dto.ContentCollectionReviewBulkApproveRequest;
 import org.grit.daynomy.content.dto.ContentCollectionReviewBulkRejectRequest;
 import org.grit.daynomy.content.dto.ContentCollectionReviewPageResponse;
+import org.grit.daynomy.content.dto.ContentCollectionReviewResponse;
+import org.grit.daynomy.content.dto.ContentCollectionReviewUpdateRequest;
 import org.grit.daynomy.content.service.ContentCollectionReviewService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -38,6 +41,14 @@ public class AdminContentCollectionReviewController {
       @RequestParam(defaultValue = "1") @Min(1) int page,
       @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
     return ResponseEntity.ok(reviewService.getPending(page, size));
+  }
+
+  @Operation(summary = "승인 대기 수집 콘텐츠 번역 수정")
+  @PutMapping("/{contentId}")
+  public ResponseEntity<ContentCollectionReviewResponse> update(
+      @PathVariable @Positive Long contentId,
+      @Valid @RequestBody ContentCollectionReviewUpdateRequest request) {
+    return ResponseEntity.ok(reviewService.update(contentId, request));
   }
 
   @Operation(summary = "수집 콘텐츠 승인")

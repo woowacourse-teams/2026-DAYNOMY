@@ -11,6 +11,19 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 class AssetTest {
   @Test
+  void displayNamePrefersKoreanNameAndFallsBackToOriginalName() {
+    Asset apple = new Asset("Apple", AssetCategory.STOCK, "AAPL.US");
+    assertThat(apple.getDisplayName()).isEqualTo("Apple");
+
+    apple.synchronizeKoreanName(" 애플 ");
+    assertThat(apple.getDisplayName()).isEqualTo("애플");
+    assertThat(apple.getName()).isEqualTo("Apple");
+
+    Asset samsung = new Asset("삼성전자", AssetCategory.STOCK, "005930");
+    assertThat(samsung.getDisplayName()).isEqualTo("삼성전자");
+  }
+
+  @Test
   void koreanNameIsSeparateAndSurvivesMasterSynchronization() {
     Asset apple =
         Asset.listedStock("Apple", "AAPL.US", StockMarket.NASDAQ, null, LocalDate.of(2026, 10, 27));

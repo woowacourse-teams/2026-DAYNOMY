@@ -6,6 +6,7 @@ import type {
   FollowSummary,
   HoldingPeriod,
   InvestmentReview,
+  ReviewGuide,
   InvestmentDecisionInput,
   InvestmentDecisionRecord,
   InvestorProfile,
@@ -43,13 +44,14 @@ function isDate(value: unknown): value is string {
 function optionalCollectionStatus(value: unknown) {
   return (
     value === undefined ||
-    [
-      'CALENDAR_PENDING',
-      'IN_PROGRESS',
-      'COLLECTION_PENDING',
-      'COMPLETE',
-      'NO_TRADING_DAYS',
-    ].includes(String(value))
+    (typeof value === 'string' &&
+      [
+        'CALENDAR_PENDING',
+        'IN_PROGRESS',
+        'COLLECTION_PENDING',
+        'COMPLETE',
+        'NO_TRADING_DAYS',
+      ].includes(value))
   );
 }
 
@@ -76,6 +78,7 @@ function optionalAggregation(value: unknown) {
       (value.baseDate === null || isDate(value.baseDate)) &&
       isNullableInstant(value.expectedAt) &&
       isNullableInstant(value.firstReturnExpectedAt) &&
+      (value.nextCollectionAt === undefined || isNullableInstant(value.nextCollectionAt)) &&
       typeof value.reason === 'string' &&
       typeof value.delayed === 'boolean')
   );
@@ -191,6 +194,8 @@ function isPublicInvestor(value: unknown): value is PublicInvestor {
     isNullableNumber(performance.volatilityRate) &&
     isNullableNumber(performance.maxHoldingWeight) &&
     isPerformanceExtension(performance) &&
+    optionalDate(performance.asOfDate) &&
+    optionalDate(performance.rankingAsOfDate) &&
     (performance.weeklyRank === undefined ||
       performance.weeklyRank === null ||
       (Number.isInteger(performance.weeklyRank) && Number(performance.weeklyRank) > 0)) &&
@@ -207,9 +212,8 @@ function isPublicInvestor(value: unknown): value is PublicInvestor {
         isNullableNumber(point.weeklyReturnRate) &&
         isNullableNumber(point.maxDrawdownRate) &&
         (point.status === undefined ||
-          ['CALCULATED', 'PENDING', 'EXCLUDED', 'NOT_PARTICIPATING'].includes(
-            String(point.status),
-          )) &&
+          (typeof point.status === 'string' &&
+            ['CALCULATED', 'PENDING', 'EXCLUDED', 'NOT_PARTICIPATING'].includes(point.status))) &&
         (point.confirmed === undefined || typeof point.confirmed === 'boolean') &&
         optionalCollectionStatus(point.collectionStatus) &&
         (point.weeklyRank === undefined ||
@@ -389,7 +393,8 @@ function isDailyHistory(value: unknown): value is DailyHistory {
       !isNullableNumber(day.dailyReturnRate) ||
       !isNullableNumber(day.cumulativeReturnRate) ||
       !(day.reason === null || typeof day.reason === 'string') ||
-      !['CALCULATED', 'PENDING', 'EXCLUDED', 'NOT_PARTICIPATING'].includes(String(day.status))
+      typeof day.status !== 'string' ||
+      !['CALCULATED', 'PENDING', 'EXCLUDED', 'NOT_PARTICIPATING'].includes(day.status)
     )
       return false;
     previousDate = day.baseDate;
@@ -398,7 +403,14 @@ function isDailyHistory(value: unknown): value is DailyHistory {
     if (calculated) begun = true;
     if (!calculated && (begun || day.status !== 'NOT_PARTICIPATING')) complete = false;
     if ((complete && calculated) !== (day.cumulativeReturnRate !== null)) return false;
-    if (calculated) {
+    if (calculated && day.reason === 'MARKET_CLOSED') {
+      if (
+        !asOfDate ||
+        day.dailyReturnRate !== 0 ||
+        day.cumulativeReturnRate !== latestCumulativeReturnRate
+      )
+        return false;
+    } else if (calculated && complete) {
       asOfDate = day.baseDate;
       latestCumulativeReturnRate = day.cumulativeReturnRate;
     }
@@ -460,6 +472,47 @@ export async function savePublication(input: {
   return response;
 }
 
+function isReminderDate(value: unknown): value is string {
+  return value !== null && isNullableInstant(value);
+}
+
+export async function claimReviewReminder(requestKey: string, signal?: AbortSignal) {
+  const response = await requestWithCsrf<unknown>('/api/users/me/league/review-reminder/claim', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ requestKey }),
+    signal,
+  });
+  if (
+    !isRecord(response) ||
+    !Array.isArray(response.transactions) ||
+    !response.transactions.every(isDecisionRecord) ||
+    !(response.nextNotificationAt === null || isReminderDate(response.nextNotificationAt)) ||
+    (response.transactions.length > 0
+      ? response.requestKey !== requestKey ||
+        !isReminderDate(response.nextNotificationAt) ||
+        response.transactions.some((record) => record.reviews.length > 0)
+      : response.requestKey !== null)
+  )
+    throw new Error('복기 알림 응답 형식이 올바르지 않습니다.');
+  return {
+    requestKey: response.requestKey as string | null,
+    transactions: response.transactions as InvestmentDecisionRecord[],
+    nextNotificationAt: response.nextNotificationAt as string | null,
+  };
+}
+
+export async function snoozeReviewReminder(requestKey: string) {
+  const response = await requestWithCsrf<unknown>('/api/users/me/league/review-reminder/snooze', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ requestKey }),
+  });
+  if (!isRecord(response) || !isReminderDate(response.nextNotificationAt))
+    throw new Error('복기 알림 응답 형식이 올바르지 않습니다.');
+  return response.nextNotificationAt;
+}
+
 export async function getInvestmentDecisions(signal?: AbortSignal) {
   const response = await request<unknown>('/api/users/me/portfolio/transactions', { signal });
   if (
@@ -515,6 +568,73 @@ export async function createReview(
   if (!isReview(response)) throw new Error('복기 응답 형식이 올바르지 않습니다.');
   trackLeagueEvent('save_investment_review', { origin: 'shared_portfolio' });
   return response;
+}
+
+export async function getReviewGuide(transactionId: number, signal?: AbortSignal) {
+  const response = await requestWithCsrf<unknown>(
+    `/api/users/me/portfolio/decisions/${transactionId}/review-guide`,
+    { method: 'POST', signal },
+  );
+  if (!isReviewGuide(response) || response.transactionId !== transactionId) {
+    throw new Error('AI 복기 질문 응답 형식이 올바르지 않습니다.');
+  }
+  return response;
+}
+
+function isReviewGuide(value: unknown): value is ReviewGuide {
+  if (!isRecord(value) || !isRecord(value.questions) || !Array.isArray(value.evidence))
+    return false;
+  if (
+    typeof value.retrievalStatus !== 'string' ||
+    !['FOUND', 'NO_EVIDENCE'].includes(value.retrievalStatus) ||
+    value.evidence.length > 5 ||
+    (value.retrievalStatus === 'FOUND') !== value.evidence.length > 0
+  )
+    return false;
+  const evidence = value.evidence;
+  if (
+    !evidence.every(
+      (item) =>
+        isRecord(item) &&
+        typeof item.id === 'string' &&
+        /^NEWS:[1-9]\d*$/.test(item.id) &&
+        typeof item.title === 'string' &&
+        item.title.trim().length > 0 &&
+        typeof item.publishedAt === 'string' &&
+        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(item.publishedAt) &&
+        !Number.isNaN(Date.parse(item.publishedAt)) &&
+        typeof item.excerpt === 'string' &&
+        item.excerpt.length > 0 &&
+        item.excerpt.length <= 160 &&
+        item.href === `/news/${item.id.slice(5)}`,
+    )
+  )
+    return false;
+  const ids = evidence.map((item) => item.id);
+  if (new Set(ids).size !== ids.length) return false;
+  const questions = value.questions;
+  return (
+    Number.isInteger(value.transactionId) &&
+    (value.basis === null ||
+      (isRecord(value.basis) &&
+        isDate(value.basis.weekStart) &&
+        isDate(value.basis.asOfDate) &&
+        isNumber(value.basis.portfolioWeeklyReturnRate))) &&
+    ['actualResult', 'differenceFromExpectation', 'nextAction'].every(
+      (key) =>
+        isRecord(questions[key]) &&
+        typeof questions[key].text === 'string' &&
+        questions[key].text.trim().length > 0 &&
+        questions[key].text.length <= 160 &&
+        questions[key].text.endsWith('?') &&
+        Array.isArray(questions[key].evidenceIds) &&
+        questions[key].evidenceIds.length <= 2 &&
+        new Set(questions[key].evidenceIds).size === questions[key].evidenceIds.length &&
+        questions[key].evidenceIds.every(
+          (id: unknown) => typeof id === 'string' && ids.includes(id),
+        ),
+    )
+  );
 }
 
 export async function updateReview(

@@ -5,6 +5,7 @@ import type { SharedHolding } from './sharedPortfolioApi';
 import type { InvestmentDecisionRecord } from './types';
 import { InvestmentRecords } from './InvestmentRecords';
 import { IssuePagination } from '../news/issue/IssuePagination';
+import { stockCurrency } from '../stocks/types';
 import '../news/issue/issue.css';
 const messageOf = (error: unknown) =>
   error instanceof Error ? error.message : '저장하지 못했습니다. 다시 시도해 주세요.';
@@ -16,6 +17,7 @@ export function HoldingDecisions({
   onVisibilityChange,
   onRemove,
   onRecordsChange,
+  onDecisionSaved,
   refreshKey,
 }: {
   holdings: SharedHolding[];
@@ -24,6 +26,7 @@ export function HoldingDecisions({
   onVisibilityChange: (assetId: number, hidden: boolean) => void;
   onRemove: (assetId: number) => Promise<boolean>;
   onRecordsChange: (records: InvestmentDecisionRecord[] | null) => void;
+  onDecisionSaved?: () => void;
   refreshKey: number;
 }) {
   const [page, setPage] = useState(0);
@@ -133,6 +136,7 @@ export function HoldingDecisions({
       setWriting(false);
       setReason('');
       setMessage('투자 기록을 저장했습니다.');
+      onDecisionSaved?.();
     } catch (caught) {
       setError(messageOf(caught));
       trackLeagueEvent('league_action', {
@@ -279,16 +283,32 @@ export function HoldingDecisions({
                   <h3>{h.assetName}</h3>
                   <small>
                     {h.category === 'ETF' ? 'ETF' : '주식'} · {h.assetCode} ·{' '}
-                    {h.hidden ? '공개 제외' : publicationStatus}
+                    {h.hidden ? '비공개' : publicationStatus}
                   </small>
                 </div>
-                {!completed ? (
+                {!completed && !h.hidden ? (
                   <strong className="shared-reason-required">보유 이유 미작성</strong>
                 ) : null}
               </header>
               <p className="shared-holding-meta">
                 {h.quantity.toLocaleString()}주 · 평균 매수가{' '}
                 {h.averagePurchasePrice.toLocaleString()}원
+              </p>
+              <p className="shared-holding-meta">
+                {h.baseDate && h.closePrice !== null ? (
+                  <>
+                    {h.baseDate} 종가{' '}
+                    {stockCurrency(h) === 'USD'
+                      ? `$${h.closePrice.toLocaleString('en-US', { maximumFractionDigits: 2 })}`
+                      : `${h.closePrice.toLocaleString('ko-KR')}원`}
+                    {' · '}평가액{' '}
+                    {h.evaluationAmount === null
+                      ? '환율 확인 중'
+                      : `${h.evaluationAmount.toLocaleString('ko-KR')}원`}
+                  </>
+                ) : (
+                  '종가 확인 중'
+                )}
               </p>
               <div className="holding-card-content">
                 {ownRecords.length === 0 && h.reason ? (
@@ -330,25 +350,31 @@ export function HoldingDecisions({
                 <button
                   type="button"
                   aria-label={`${h.assetName} ${h.hidden ? '공개하기' : '숨기기'}`}
-                  disabled={locked}
+                  disabled={locked || h.pendingReason}
                   onClick={() => onVisibilityChange(h.assetId, !h.hidden)}
                 >
                   {h.hidden ? '공개하기' : '숨기기'}
                 </button>
-                <button
-                  type="button"
-                  className="shared-remove-button"
-                  aria-label={`${h.assetName} 리그에서 삭제`}
-                  disabled={locked || writing}
-                  onClick={(event) => {
-                    removeTrigger.current = event.currentTarget;
-                    setRemoving(h.assetId);
-                  }}
-                >
-                  삭제
-                </button>
+                {h.sourceManaged ? (
+                  <a href="/portfolio" aria-label={`${h.assetName} 원본에서 관리`}>
+                    원본에서 관리
+                  </a>
+                ) : (
+                  <button
+                    type="button"
+                    className="shared-remove-button"
+                    aria-label={`${h.assetName} 리그에서 삭제`}
+                    disabled={locked || writing}
+                    onClick={(event) => {
+                      removeTrigger.current = event.currentTarget;
+                      setRemoving(h.assetId);
+                    }}
+                  >
+                    삭제
+                  </button>
+                )}
               </div>
-              {removing === h.assetId ? (
+              {!h.sourceManaged && removing === h.assetId ? (
                 <div
                   className="shared-remove-confirm"
                   role="group"
@@ -358,7 +384,8 @@ export function HoldingDecisions({
                     {holdings.length === 1
                       ? '마지막 종목을 삭제하면 리그 참여가 종료됩니다.'
                       : '이 종목을 리그에서 삭제할까요?'}{' '}
-                    원본과 투자 기록은 유지됩니다.
+                    원본과 투자 기록은 유지됩니다. 원본에 보유 중인 종목은 원본 포트폴리오에서
+                    삭제해 주세요.
                   </p>
                   <button
                     disabled={locked}

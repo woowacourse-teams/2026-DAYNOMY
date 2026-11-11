@@ -1,6 +1,7 @@
 package org.grit.daynomy.portfolio.service;
 
 import java.time.DayOfWeek;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -25,6 +26,7 @@ import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.external.ExternalErrorCode;
 import org.grit.daynomy.external.eodhd.EodhdClient;
 import org.grit.daynomy.external.krx.KrxCalendarClient;
+import org.grit.daynomy.external.nyse.NyseCalendarClient;
 import org.grit.daynomy.investmentcalendar.external.InvestmentCalendarHistoricalPriceClient;
 import org.grit.daynomy.investmentcalendar.external.InvestmentCalendarHistoricalPriceClient.HistoricalPrice;
 import org.grit.daynomy.portfolio.domain.PortfolioHoldingHistory;
@@ -52,6 +54,7 @@ public class PortfolioPriceHistoryService {
   private final InvestmentCalendarHistoricalPriceClient domesticClient;
   private final EodhdClient usClient;
   private final KrxCalendarClient krxCalendarClient;
+  private final NyseCalendarClient nyseCalendarClient;
   private final PortfolioSnapshotTransactionService snapshotService;
   private final ThreadPoolTaskExecutor portfolioPriceHistoryTaskExecutor;
   private final PlatformTransactionManager transactionManager;
@@ -63,6 +66,29 @@ public class PortfolioPriceHistoryService {
     READY,
     PROCESSING,
     FAILED
+  }
+
+  public void prepareLeagueUsPrices(List<Long> assetIds, LocalDate from, LocalDate to) {
+    if (assetIds.isEmpty()) return;
+    Map<Long, Target> targets = new LinkedHashMap<>();
+    for (Asset asset : assetRepository.findAllById(assetIds)) {
+      if (asset.getMarket() != null && asset.getMarket().isUs())
+        addTarget(targets, asset, from, to);
+    }
+    if (targets.isEmpty()) return;
+    portfolioPriceHistoryTaskExecutor.execute(
+        () -> {
+          for (Target target : targets.values()) {
+            try {
+              collect(target);
+            } catch (RuntimeException exception) {
+              log.warn(
+                  "League US price collection failed: assetId={}, errorType={}",
+                  target.assetId(),
+                  exception.getClass().getSimpleName());
+            }
+          }
+        });
   }
 
   public synchronized Status prepare(
@@ -320,6 +346,16 @@ public class PortfolioPriceHistoryService {
                       }
                     }
                     priceRepository.saveAll(additions);
+                    if (storedAsset.getMarket() != null && storedAsset.getMarket().isUs()) {
+                      List<LocalDate> collectedDates =
+                          fetched.stream()
+                              .map(HistoricalPrice::baseDate)
+                              .filter(java.util.Objects::nonNull)
+                              .distinct()
+                              .toList();
+                      if (!collectedDates.isEmpty())
+                        tradingDayRepository.markUsCollectedDates(collectedDates, Instant.now());
+                    }
                     List<LocalDate> missing =
                         tradingDates.stream().filter(date -> !present.contains(date)).toList();
                     LocalDate coveredFrom = fetchFrom;
@@ -353,8 +389,27 @@ public class PortfolioPriceHistoryService {
             .toList();
     if (weekdays.isEmpty()) return List.of();
     if (asset.getMarket() != null && asset.getMarket().isUs()) {
-      Set<LocalDate> holidays = usClient.getUsMarketHolidays(from, to);
-      return weekdays.stream().filter(date -> !holidays.contains(date)).toList();
+      Map<LocalDate, Boolean> known = new HashMap<>();
+      tradingDayRepository
+          .findAllByBaseDateBetweenOrderByBaseDate(from, to)
+          .forEach(
+              day -> {
+                if (day.getUsTrading() != null) known.put(day.getBaseDate(), day.getUsTrading());
+              });
+      Map<Integer, Set<LocalDate>> holidays =
+          weekdays.stream().allMatch(known::containsKey)
+              ? Map.of()
+              : nyseCalendarClient.annualHolidays();
+      return weekdays.stream()
+          .filter(
+              date -> {
+                if (known.containsKey(date)) return known.get(date);
+                Set<LocalDate> year = holidays.get(date.getYear());
+                if (year == null)
+                  throw new BusinessException(ExternalErrorCode.NYSE_CALENDAR_REQUEST_FAILED);
+                return !year.contains(date);
+              })
+          .toList();
     }
     Map<LocalDate, Boolean> calendar = new HashMap<>();
     for (MarketTradingDay day :

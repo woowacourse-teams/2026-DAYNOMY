@@ -55,7 +55,7 @@ public record PortfolioHoldingHistoryResponse(
         history.getId(),
         history.getAsset().getId(),
         history.getAsset().getAssetCode(),
-        history.getAsset().getName(),
+        history.getAsset().getDisplayName(),
         history.getChangeType(),
         history.getQuantity(),
         history.getAveragePurchasePrice(),

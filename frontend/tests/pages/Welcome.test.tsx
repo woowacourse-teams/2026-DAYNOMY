@@ -88,6 +88,32 @@ describe('첫 방문 서비스 소개', () => {
     expect(await revisit.findByRole('button', { name: '포트폴리오 만들기' })).toBeTruthy();
   });
 
+  it('서비스 소개에서 시작하면 진입 기록을 남기고 포트폴리오에서 설문을 표시한다', async () => {
+    const fetchMock = vi.mocked(fetch).mockImplementation(async (input) => {
+      if (String(input).endsWith('/api/pmf-surveys/current')) {
+        return response({
+          surveyId: 805,
+          eligible: true,
+          responseId: null,
+          isFirstVisit: true,
+          hiddenUntil: null,
+        });
+      }
+      return response({}, 401);
+    });
+    window.history.replaceState(null, '', '/welcome');
+    const view = render(<App />);
+    const start = await view.findByRole('button', { name: '시작하기' });
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/api/pmf-surveys/'))).toBe(
+      false,
+    );
+    fireEvent.click(start);
+    expect(await view.findByRole('heading', { name: '포트폴리오를 만들어 보세요' })).toBeTruthy();
+    expect(await view.findByRole('radio', { name: '매우 실망' })).toBeTruthy();
+    expect(localStorage.getItem(SERVICE_STARTED_KEY)).toBe('1');
+    expect(window.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'instant' });
+  });
+
   it('종목 등록을 누르면 기존 거래 기록 창을 바로 연다', async () => {
     const view = render(<App />);
     fireEvent.click(await view.findByRole('button', { name: '포트폴리오 만들기' }));

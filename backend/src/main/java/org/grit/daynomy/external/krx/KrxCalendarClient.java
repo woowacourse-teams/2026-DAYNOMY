@@ -37,6 +37,8 @@ public class KrxCalendarClient {
         restClientBuilder
             .baseUrl(properties.baseUrl())
             .defaultHeader("Referer", properties.baseUrl() + PAGE)
+            // KRX는 기본 Java User-Agent에 HTTP 200과 빈 본문을 반환한다.
+            .defaultHeader("User-Agent", "Mozilla/5.0")
             .requestFactory(factory)
             .build();
   }

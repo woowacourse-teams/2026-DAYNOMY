@@ -233,7 +233,48 @@ describe('소식 검색 화면', () => {
   it('검색 결과가 없으면 빈 상태를 표시한다', async () => {
     axios.defaults.adapter = (async (config) => response(config, [])) satisfies AxiosAdapter;
     const view = renderSearch('/search?q=없는소식&page=1');
-    expect(await view.findByText('검색된 소식이 없습니다.')).toBeTruthy();
+    expect(await view.findByText('검색된 소식이 없어요')).toBeTruthy();
+  });
+
+  it('빈 결과에서 검색어를 수정하면 첫 페이지로 검색하고 정렬을 유지한다', async () => {
+    const urls: URL[] = [];
+    axios.defaults.adapter = (async (config) => {
+      urls.push(new URL(config.url!, 'http://localhost'));
+      return response(config, []);
+    }) satisfies AxiosAdapter;
+    const view = renderSearch('/search?q=없는소식&page=3&sort=popular');
+    await view.findByText('검색된 소식이 없어요');
+    const input = view.getByRole('textbox', { name: '검색어' });
+    expect(input).toHaveProperty('value', '없는소식');
+    fireEvent.change(input, { target: { value: '   ' } });
+    fireEvent.submit(view.getByRole('form', { name: '검색어 수정' }));
+    expect(urls).toHaveLength(1);
+    fireEvent.change(input, { target: { value: ' 반도체 ' } });
+    fireEvent.submit(view.getByRole('form', { name: '검색어 수정' }));
+    await waitFor(() => expect(urls.at(-1)?.searchParams.get('q')).toBe('반도체'));
+    expect(urls.at(-1)?.searchParams.get('page')).toBe('1');
+    expect(urls.at(-1)?.searchParams.get('sort')).toBe('POPULAR');
+    await act(() => view.router.navigate(-1));
+    expect(await view.findByRole('textbox', { name: '검색어' })).toHaveProperty(
+      'value',
+      '없는소식',
+    );
+  });
+
+  it('특정 출처의 빈 결과에서 전체 출처로 확장하며 검색어와 정렬을 유지한다', async () => {
+    const urls: URL[] = [];
+    axios.defaults.adapter = (async (config) => {
+      urls.push(new URL(config.url!, 'http://localhost'));
+      return response(config, []);
+    }) satisfies AxiosAdapter;
+    const view = renderSearch('/search?q=금리&source=YOUTUBE&page=2&sort=popular');
+    await view.findByText('YouTube에서 찾은 소식이 없어요');
+    fireEvent.click(view.getByRole('button', { name: '전체 출처에서 찾기' }));
+    await view.findByText('검색된 소식이 없어요');
+    expect(urls.at(-1)?.searchParams.get('q')).toBe('금리');
+    expect(urls.at(-1)?.searchParams.has('source')).toBe(false);
+    expect(urls.at(-1)?.searchParams.get('page')).toBe('1');
+    expect(urls.at(-1)?.searchParams.get('sort')).toBe('POPULAR');
   });
 
   it('오류 후 같은 조건으로 다시 시도한다', async () => {
@@ -255,10 +296,8 @@ describe('소식 검색 화면', () => {
     }) satisfies AxiosAdapter;
 
     const view = renderSearch('/search?q=금리&sort=popular');
-    expect((await view.findByRole('alert')).textContent).toContain(
-      '검색 요청을 처리하지 못했습니다.',
-    );
-    fireEvent.click(view.getByRole('button', { name: '다시 시도' }));
+    expect((await view.findByRole('alert')).textContent).toContain('검색 결과를 불러오지 못했어요');
+    fireEvent.click(view.getByRole('button', { name: '다시 검색하기' }));
     await waitFor(() => expect(requestCount).toBe(2));
     expect(sorts).toEqual(['POPULAR', 'POPULAR']);
     expect(await view.findByRole('link', { name: /기준금리 동결 가능성 확대/ })).toBeTruthy();

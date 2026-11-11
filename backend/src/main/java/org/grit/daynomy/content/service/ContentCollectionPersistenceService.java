@@ -30,6 +30,7 @@ public class ContentCollectionPersistenceService {
   private final CollectedExternalContentReviewRepository reviewRepository;
   private final AssetRepository assetRepository;
   private final AssetMentionMatcher assetMentionMatcher;
+  private final ContentTranslationService contentTranslationService;
 
   @Transactional
   public ContentCollectionResultResponse persist(
@@ -40,20 +41,22 @@ public class ContentCollectionPersistenceService {
     int duplicateCount = 0;
     int linkedCount = 0;
     for (CollectedContentItem item : items) {
+      CollectedContentItem persistedItem = item;
       CollectedExternalContent collectedContent =
           collectedContentRepository.findByUrl(item.url()).orElse(null);
       if (collectedContent != null) {
         duplicateCount++;
       } else {
+        persistedItem = contentTranslationService.translateIfEnglish(item);
         collectedContent =
             collectedContentRepository.save(
                 new CollectedExternalContent(
                     source,
-                    fit(item.title(), 255),
-                    item.description(),
-                    item.url(),
-                    item.imageUrl(),
-                    item.publishedDate()));
+                    fit(persistedItem.title(), 255),
+                    persistedItem.description(),
+                    persistedItem.url(),
+                    persistedItem.imageUrl(),
+                    persistedItem.publishedDate()));
         savedCount++;
       }
       List<Asset> targets =
@@ -84,15 +87,16 @@ public class ContentCollectionPersistenceService {
     if (collectedContentRepository.findByUrl(item.url()).isPresent()) {
       throw new BusinessException(ContentErrorCode.CONTENT_COLLECTION_CONTENT_ALREADY_EXISTS);
     }
+    CollectedContentItem persistedItem = contentTranslationService.translateIfEnglish(item);
     CollectedExternalContent collectedContent =
         collectedContentRepository.save(
             new CollectedExternalContent(
                 source,
-                fit(item.title(), 255),
-                item.description(),
-                item.url(),
-                item.imageUrl(),
-                item.publishedDate()));
+                fit(persistedItem.title(), 255),
+                persistedItem.description(),
+                persistedItem.url(),
+                persistedItem.imageUrl(),
+                persistedItem.publishedDate()));
     List<Asset> targets = targets(source, item, matchableAssets(source));
     int linkedCount = createReviews(collectedContent, targets);
     return new ContentCollectionResultResponse(sourceId, 1, 1, 0, linkedCount);

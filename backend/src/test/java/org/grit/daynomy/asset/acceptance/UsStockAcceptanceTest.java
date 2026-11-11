@@ -14,6 +14,7 @@ import org.grit.daynomy.asset.repository.*;
 import org.grit.daynomy.auth.token.JwtTokenProvider;
 import org.grit.daynomy.member.domain.*;
 import org.grit.daynomy.member.repository.MemberRepository;
+import org.grit.daynomy.support.SharedDatabaseTest;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,12 +23,7 @@ import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
-import org.testcontainers.utility.DockerImageName;
 
-@Testcontainers
 @ActiveProfiles("test")
 @SpringBootTest(
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
@@ -36,10 +32,7 @@ import org.testcontainers.utility.DockerImageName;
       "stock.sync.enabled=false",
       "stock.price.sync.enabled=false"
     })
-class UsStockAcceptanceTest {
-  @Container
-  static final PostgreSQLContainer POSTGRESQL =
-      new PostgreSQLContainer(DockerImageName.parse("postgres:16-alpine"));
+class UsStockAcceptanceTest extends SharedDatabaseTest {
 
   static final MockWebServer EODHD = startServer();
   static final MockWebServer KIS = startServer();
@@ -62,10 +55,6 @@ class UsStockAcceptanceTest {
 
   @DynamicPropertySource
   static void properties(DynamicPropertyRegistry registry) {
-    registry.add("spring.datasource.url", POSTGRESQL::getJdbcUrl);
-    registry.add("spring.datasource.username", POSTGRESQL::getUsername);
-    registry.add("spring.datasource.password", POSTGRESQL::getPassword);
-    registry.add("spring.datasource.driver-class-name", POSTGRESQL::getDriverClassName);
     registry.add("external.eodhd.base-url", () -> EODHD.url("/api").toString());
     registry.add("external.eodhd.api-token", () -> "test-token");
     registry.add("external.kis.base-url", () -> KIS.url("/master").toString());
@@ -153,12 +142,26 @@ class UsStockAcceptanceTest {
         .then()
         .statusCode(200)
         .body("stocks.size()", equalTo(1))
+        .body("stocks[0].name", equalTo("애플"))
         .body("stocks[0].currency", equalTo("USD"));
+    for (String keyword : new String[] {"애플", "AAPL"}) {
+      given()
+          .port(port)
+          .queryParam("q", keyword)
+          .queryParam("country", "US")
+          .get("/api/stocks")
+          .then()
+          .statusCode(200)
+          .body("stocks.size()", equalTo(1))
+          .body("stocks[0].assetCode", equalTo("AAPL.US"))
+          .body("stocks[0].name", equalTo("애플"));
+    }
     given()
         .port(port)
         .get("/api/stocks/" + apple.getId() + "/price")
         .then()
         .statusCode(200)
+        .body("name", equalTo("애플"))
         .body("currency", equalTo("USD"))
         .body("baseDate", equalTo(date.toString()));
   }
@@ -175,6 +178,9 @@ class UsStockAcceptanceTest {
   }
 
   private RequestSpecification client(Member member, MemberRole role) {
+    var stored = members.findById(member.getId()).orElseThrow();
+    org.springframework.test.util.ReflectionTestUtils.setField(stored, "role", role);
+    members.saveAndFlush(stored);
     var csrf = given().port(port).get("/api/auth/csrf");
     return given()
         .port(port)

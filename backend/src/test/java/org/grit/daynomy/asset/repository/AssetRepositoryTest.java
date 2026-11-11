@@ -7,6 +7,7 @@ import java.util.Set;
 import org.grit.daynomy.asset.domain.Asset;
 import org.grit.daynomy.asset.domain.AssetCategory;
 import org.grit.daynomy.asset.domain.StockMarket;
+import org.grit.daynomy.support.SharedDatabaseTest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,33 +16,11 @@ import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabas
 import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
-import org.testcontainers.utility.DockerImageName;
 
-@Testcontainers
 @ActiveProfiles("test")
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-class AssetRepositoryTest {
-
-  @Container
-  static final PostgreSQLContainer POSTGRESQL =
-      new PostgreSQLContainer(DockerImageName.parse("postgres:16-alpine"))
-          .withDatabaseName("daynomy")
-          .withUsername("daynomy")
-          .withPassword("daynomy");
-
-  @DynamicPropertySource
-  static void configurePostgresql(DynamicPropertyRegistry registry) {
-    registry.add("spring.datasource.url", POSTGRESQL::getJdbcUrl);
-    registry.add("spring.datasource.username", POSTGRESQL::getUsername);
-    registry.add("spring.datasource.password", POSTGRESQL::getPassword);
-    registry.add("spring.datasource.driver-class-name", POSTGRESQL::getDriverClassName);
-  }
+class AssetRepositoryTest extends SharedDatabaseTest {
 
   @Autowired private TestEntityManager entityManager;
   @Autowired private AssetRepository assetRepository;
@@ -106,6 +85,72 @@ class AssetRepositoryTest {
                 "Apple", categories, StockMarket.usMarkets(), PageRequest.of(0, 20)))
         .extracting(Asset::getAssetCode)
         .containsExactly("AAPL.US", "AAPF.US");
+  }
+
+  @Test
+  @DisplayName("미국 한글명은 완전 일치와 접두어 순으로 검색하며 영문명·티커 검색도 유지한다")
+  void searchesKoreanNamesAndKeepsEnglishAndTickerSearch() {
+    LocalDate date = LocalDate.of(2026, 10, 30);
+    Asset apple = Asset.listedStock("Apple", "AAPL.US", StockMarket.NASDAQ, null, date);
+    apple.synchronizeKoreanName("애플");
+    Asset prefix =
+        Asset.listedSecurity("A ETF", AssetCategory.ETF, "AAPF.US", StockMarket.BATS, null, date);
+    prefix.synchronizeKoreanName("애플 ETF");
+    Asset contains = Asset.listedStock("B Fund", "FUND.US", StockMarket.NYSE, null, date);
+    contains.synchronizeKoreanName("슈퍼 애플");
+    Asset delisted = Asset.listedStock("Old Apple", "OLD.US", StockMarket.NASDAQ, null, date);
+    delisted.synchronizeKoreanName("애플");
+    delisted.delist();
+    Asset domestic = Asset.listedStock("애플", "123456", StockMarket.KOSPI, null, date);
+    Asset withoutKoreanName =
+        Asset.listedStock("Microsoft", "MSFT.US", StockMarket.NASDAQ, null, date);
+    for (Asset asset :
+        new Asset[] {prefix, contains, apple, delisted, domestic, withoutKoreanName}) {
+      entityManager.persist(asset);
+    }
+    entityManager.flush();
+    var categories = Set.of(AssetCategory.STOCK, AssetCategory.ETF);
+    var limit = PageRequest.of(0, 20);
+
+    assertThat(
+            assetRepository.searchListedSecurities(
+                "애플", categories, StockMarket.usMarkets(), limit))
+        .extracting(Asset::getAssetCode)
+        .containsExactly("AAPL.US", "AAPF.US", "FUND.US");
+    for (String keyword : new String[] {"apple", "aapl"}) {
+      assertThat(
+              assetRepository.searchListedSecurities(
+                  keyword, categories, StockMarket.usMarkets(), limit))
+          .singleElement()
+          .isSameAs(apple);
+    }
+    assertThat(
+            assetRepository.searchListedSecurities(
+                "msft", categories, StockMarket.usMarkets(), limit))
+        .singleElement()
+        .isSameAs(withoutKoreanName);
+  }
+
+  @Test
+  @DisplayName("한글명 검색에서도 LIKE 특수문자는 리터럴로 검색한다")
+  void koreanNameSearchPreservesEscapedLikeCharacters() {
+    LocalDate date = LocalDate.of(2026, 10, 30);
+    Asset literal = Asset.listedStock("Literal", "LITERAL.US", StockMarket.NASDAQ, null, date);
+    literal.synchronizeKoreanName("한글_100%!");
+    Asset other = Asset.listedStock("Other", "OTHER.US", StockMarket.NASDAQ, null, date);
+    other.synchronizeKoreanName("한글X100퍼센트!");
+    entityManager.persist(literal);
+    entityManager.persist(other);
+    entityManager.flush();
+
+    assertThat(
+            assetRepository.searchListedSecurities(
+                "한글!_100!%!!",
+                Set.of(AssetCategory.STOCK, AssetCategory.ETF),
+                StockMarket.usMarkets(),
+                PageRequest.of(0, 20)))
+        .singleElement()
+        .isSameAs(literal);
   }
 
   @Test

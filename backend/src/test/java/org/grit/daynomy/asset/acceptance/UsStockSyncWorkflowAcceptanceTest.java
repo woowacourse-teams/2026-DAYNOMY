@@ -216,6 +216,7 @@ class UsStockSyncWorkflowAcceptanceTest {
   }
 
   private RequestSpecification client(Member member) {
+    jdbc.update("UPDATE members SET role='ADMIN' WHERE id=?", member.getId());
     var csrf = given().port(port).get("/api/auth/csrf");
     return given()
         .port(port)

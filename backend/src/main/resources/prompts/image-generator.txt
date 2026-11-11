@@ -8,11 +8,18 @@ Do not create fake writing, pseudo-text, scribbles, or random glyphs.
 Only include a specific text element when the request explicitly identifies it as indispensable to
 the subject of the image. No such text is requested here, so use no text at all.
 
-Show a believable visual scene directly connected to the subject. Prefer relevant objects,
-machinery, buildings, landscapes, products, or materials over generic stock charts, abstract finance
-symbols, or meaningless decoration. When the subject is a specific industry or event, use concrete
-real-world details from that setting. When the subject is broad, use restrained abstract market and
-business imagery.
+Show a believable visual scene directly connected to the subject. Before composing, identify the
+central event and at least two concrete visual anchors specific to the supplied title and article
+context. Build one coherent scene around those anchors. Every prominent object must connect to the
+central event; an image that could be reused for an unrelated finance story is invalid.
+
+Never replace the subject with generic finance shorthand such as rising or falling arrows, stacks of
+coins, generic bar, line, or candlestick charts, bull or bear figures, floating currency symbols, or
+meaningless decoration. These remain prohibited even when the article discusses profit, prices,
+markets, growth, or decline. Prefer relevant objects, machinery, buildings, landscapes, products, or
+materials. When the subject is a specific industry or event, use concrete real-world details from
+that setting. When the subject is broad, use a restrained real-world business scene grounded in the
+article context.
 
 Compose an entirely unoccupied scene with no people first. Treat a people-free image as the default and
 strongest preference. A person may appear only when removing all people would make the central event

@@ -1,4 +1,9 @@
 /** @vitest-environment jsdom */
+import { trackPortfolioEvent } from '../../src/features/portfolio/analytics';
+vi.mock('../../src/features/portfolio/analytics', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../src/features/portfolio/analytics')>()),
+  trackPortfolioEvent: vi.fn(),
+}));
 import { act, cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { PortfolioBulkEditor } from '../../src/features/portfolio/components/PortfolioBulkEditor';
@@ -43,6 +48,7 @@ afterAll(() => {
 });
 afterEach(() => {
   cleanup();
+  vi.mocked(trackPortfolioEvent).mockClear();
   vi.restoreAllMocks();
 });
 const props = () => ({
@@ -520,4 +526,126 @@ describe('일괄 편집', () => {
     fireEvent.click(view.getByRole('button', { name: '1행 삭제' }));
     expect(view.queryByRole('button', { name: '2행 종목 검색' })).toBeNull();
   });
+});
+
+it('일괄 저장 실패·재시도를 각각 기록하고 성공 닫기를 중단으로 세지 않는다', async () => {
+  const callbacks = props();
+  callbacks.onSaveHoldings.mockRejectedValueOnce(new Error('private failure'));
+  const view = render(<PortfolioBulkEditor {...callbacks} />);
+  fireEvent.change(view.getByRole('textbox', { name: '삼성전자 수량' }), {
+    target: { value: '3' },
+  });
+  fireEvent.click(view.getByRole('button', { name: '변경사항 저장' }));
+  await view.findByText('private failure');
+  fireEvent.click(view.getByRole('button', { name: '변경사항 저장' }));
+  await waitFor(() => expect(callbacks.onClose).toHaveBeenCalledOnce());
+  expect(vi.mocked(trackPortfolioEvent).mock.calls.map(([name]) => name)).toEqual([
+    'portfolio_bulk_opened',
+    'portfolio_bulk_save_submitted',
+    'portfolio_bulk_save_result',
+    'portfolio_bulk_save_submitted',
+    'portfolio_bulk_save_result',
+  ]);
+  expect(trackPortfolioEvent).toHaveBeenCalledWith(
+    'portfolio_bulk_save_result',
+    expect.objectContaining({
+      mode: 'holdings',
+      row_count: 1,
+      status: 'success',
+      imported_count: 1,
+    }),
+  );
+  expect(JSON.stringify(vi.mocked(trackPortfolioEvent).mock.calls)).not.toMatch(
+    /삼성전자|70000|private failure/,
+  );
+});
+
+it.each([false, true])('CSV 중복 여부 %s에 따라 실제 반영 건수를 구분한다', async (duplicate) => {
+  vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+    new Response(JSON.stringify({ stocks: [first] }), { status: 200 }),
+  );
+  const callbacks = props();
+  callbacks.onSaveTransactions.mockResolvedValue(duplicate);
+  const view = render(<PortfolioBulkEditor {...callbacks} mode="csv" />);
+  fireEvent.click(view.getByRole('button', { name: '거래내역' }));
+  const file = new File([''], 'private.csv');
+  Object.defineProperty(file, 'text', {
+    value: async () =>
+      'assetCode,market,type,tradeDate,quantity,unitPrice,fee,tax,currency,exchangeRate\n005930,KOSPI,BUY,2026-01-02,3,70000,0,0,KRW,',
+  });
+  Object.defineProperty(file, 'arrayBuffer', {
+    value: async () => new TextEncoder().encode(await file.text()).buffer,
+  });
+  fireEvent.change(view.getByLabelText('CSV 파일 선택'), { target: { files: [file] } });
+  fireEvent.click(await view.findByRole('button', { name: '1건 가져오기' }));
+  await waitFor(() => expect(callbacks.onClose).toHaveBeenCalledOnce());
+  expect(trackPortfolioEvent).toHaveBeenCalledWith(
+    'portfolio_bulk_save_result',
+    expect.objectContaining({
+      csv_kind: 'transactions',
+      status: duplicate ? 'duplicate' : 'success',
+      imported_count: duplicate ? 0 : 1,
+    }),
+  );
+  expect(JSON.stringify(vi.mocked(trackPortfolioEvent).mock.calls)).not.toMatch(
+    /private|005930|70000/,
+  );
+});
+
+it('유효하지 않은 파일은 정규화된 사유만 기록한다', async () => {
+  const view = render(<PortfolioBulkEditor {...props()} mode="csv" />);
+  fireEvent.change(view.getByLabelText('CSV 파일 선택'), {
+    target: { files: [new File(['secret'], 'secret.xlsx')] },
+  });
+  await view.findByText('500KB 이하의 CSV 파일을 선택해 주세요.');
+  expect(trackPortfolioEvent).toHaveBeenCalledWith(
+    'portfolio_csv_read_result',
+    expect.objectContaining({ status: 'error', stage: 'file', reason: 'invalid_file' }),
+  );
+  expect(JSON.stringify(vi.mocked(trackPortfolioEvent).mock.calls)).not.toContain('secret');
+});
+
+it('변경 취소 확인에서 계속 편집은 세지 않고 종료만 한 번 기록한다', () => {
+  const callbacks = props();
+  const view = render(<PortfolioBulkEditor {...callbacks} />);
+  fireEvent.change(view.getByRole('textbox', { name: '삼성전자 수량' }), {
+    target: { value: '3' },
+  });
+  fireEvent.click(view.getByRole('button', { name: '취소' }));
+  fireEvent.click(view.getByRole('button', { name: '계속 편집' }));
+  expect(
+    vi.mocked(trackPortfolioEvent).mock.calls.filter(([name]) => name === 'portfolio_bulk_closed'),
+  ).toHaveLength(0);
+  fireEvent.click(view.getByRole('button', { name: '취소' }));
+  fireEvent.click(view.getByRole('button', { name: '변경 취소하고 닫기' }));
+  expect(trackPortfolioEvent).toHaveBeenCalledWith(
+    'portfolio_bulk_closed',
+    expect.objectContaining({ has_changes: true, mode: 'holdings', stage: 'input' }),
+  );
+  expect(callbacks.onClose).toHaveBeenCalledOnce();
+});
+
+it('파일 읽기 중 닫으면 늦게 끝난 CSV를 성공·실패로 집계하지 않는다', async () => {
+  let resolve!: (buffer: ArrayBuffer) => void;
+  const content = new Promise<ArrayBuffer>((done) => {
+    resolve = done;
+  });
+  const file = new File([''], 'secret.csv');
+  Object.defineProperty(file, 'arrayBuffer', { value: () => content });
+  const callbacks = props();
+  const view = render(<PortfolioBulkEditor {...callbacks} mode="csv" />);
+  fireEvent.change(view.getByLabelText('CSV 파일 선택'), { target: { files: [file] } });
+  fireEvent.click(view.getByRole('button', { name: '취소' }));
+  await act(async () =>
+    resolve(new TextEncoder().encode('종목,수량,평단가\n삼성전자,1,70000').buffer),
+  );
+  expect(callbacks.onClose).toHaveBeenCalledOnce();
+  expect(vi.mocked(trackPortfolioEvent).mock.calls.map(([name]) => name)).toEqual([
+    'portfolio_bulk_opened',
+    'portfolio_bulk_closed',
+  ]);
+  expect(trackPortfolioEvent).toHaveBeenCalledWith(
+    'portfolio_bulk_closed',
+    expect.objectContaining({ stage: 'file' }),
+  );
 });

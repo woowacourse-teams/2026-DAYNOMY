@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { trackEvent } from '../../../analytics';
+import { trackPortfolioEvent } from '../analytics';
 import { ApiError } from '../../../api/client';
 import {
   getGuestPortfolioAnalysis,
@@ -39,12 +40,46 @@ export function usePortfolioAnalysis(
     () => !isLoggedIn && hasGuestPortfolioAnalysisTrialBeenUsed(),
   );
   const active = useRef<AbortController | null>(null);
+  // 이 화면에서 시작한 작업만 측정하고 복원·자동 분석에는 시작 시간을 붙이지 않는다.
+  const pendingMeasurement = useRef<{
+    startedAt: number;
+    action: 'analyze' | 'refresh';
+    user_type: 'member' | 'guest';
+    asset_count: number;
+  } | null>(null);
+  const completeMeasurement = useCallback(
+    (
+      status:
+        | Exclude<SavedPortfolioAnalysisResponse['status'], 'PROCESSING'>
+        | 'ERROR'
+        | 'CONFLICT'
+        | 'TRIAL_EXHAUSTED'
+        | 'REFRESH_LIMIT_EXCEEDED',
+      summaryStatus?: string,
+      lastCheckOutcome?: SavedPortfolioAnalysisResponse['lastCheckOutcome'],
+    ) => {
+      const attempt = pendingMeasurement.current;
+      if (!attempt || summaryStatus === 'PENDING') return;
+      pendingMeasurement.current = null;
+      const { startedAt, ...properties } = attempt;
+      trackPortfolioEvent('portfolio_analysis_completed', {
+        ...properties,
+        status: summaryStatus === 'FAILED' ? 'FAILED' : status,
+        summary_status: summaryStatus,
+        last_check_outcome: lastCheckOutcome ?? undefined,
+        duration_ms: Math.max(0, Math.round(performance.now() - startedAt)),
+      });
+    },
+    [],
+  );
   const snapshotKey = createPortfolioSnapshotKey(assets);
   const processing = (isLoggedIn ? saved?.status : guest?.status) === 'PROCESSING';
   const summaryStatus = isLoggedIn ? saved?.summaryStatus : guest?.summaryStatus;
 
   const acceptGuest = useCallback(
     (response: GuestPortfolioAnalysisTaskResponse) => {
+      if (response.status !== 'PROCESSING' && response.status !== 'EMPTY')
+        completeMeasurement(response.status, response.summaryStatus ?? undefined);
       setGuest(response);
       setLoaded(true);
       if (response.analysis && matchesGuestPortfolioAnalysisHoldings(holdingsKey)) {
@@ -65,11 +100,17 @@ export function usePortfolioAnalysis(
         response.status === 'FAILED' && response.retryAllowed ? '분석을 완료하지 못했어요.' : null,
       );
     },
-    [holdingsKey],
+    [holdingsKey, completeMeasurement],
   );
 
   const accept = useCallback(
     (response: SavedPortfolioAnalysisResponse) => {
+      if (response.status !== 'PROCESSING' && response.status !== 'EMPTY')
+        completeMeasurement(
+          response.status,
+          response.summaryStatus ?? undefined,
+          response.lastCheckOutcome,
+        );
       setSaved(response);
       setAnalysis(response.analysis);
       setLoaded(true);
@@ -86,7 +127,7 @@ export function usePortfolioAnalysis(
           : null,
       );
     },
-    [snapshotKey],
+    [snapshotKey, completeMeasurement],
   );
 
   const restore = useCallback(
@@ -135,6 +176,7 @@ export function usePortfolioAnalysis(
     return () => {
       active.current?.abort();
       active.current = null;
+      pendingMeasurement.current = null;
     };
   }, [isLoggedIn, snapshotKey, restore, holdingsKey]);
 
@@ -153,7 +195,7 @@ export function usePortfolioAnalysis(
 
   const analyze = async () => {
     if (active.current) return;
-    if (processing) {
+    if (processing || summaryStatus === 'PENDING') {
       await restore();
       return;
     }
@@ -162,6 +204,7 @@ export function usePortfolioAnalysis(
       return;
     }
     if (assets.length === 0 || (!isLoggedIn && trialExhausted)) return;
+    if (isLoggedIn && analysis && !portfolioChanged && saved?.remainingRefreshCount === 0) return;
     const controller = new AbortController();
     active.current = controller;
     setLoading(true);
@@ -171,9 +214,17 @@ export function usePortfolioAnalysis(
       action: isLoggedIn && analysis && !portfolioChanged ? 'refresh' : 'analyze',
       user_type: isLoggedIn ? 'member' : 'guest',
       asset_count: assets.length,
-    };
+    } as const;
+    pendingMeasurement.current = { ...properties, startedAt };
     const recordResult = (status: string, outcome?: string | null) => {
       if (controller.signal.aborted) return;
+      if (
+        status === 'ERROR' ||
+        status === 'CONFLICT' ||
+        status === 'TRIAL_EXHAUSTED' ||
+        status === 'REFRESH_LIMIT_EXCEEDED'
+      )
+        completeMeasurement(status);
       trackEvent('portfolio_analysis_result', {
         ...properties,
         status,
@@ -189,8 +240,8 @@ export function usePortfolioAnalysis(
           controller.signal,
         );
         if (!controller.signal.aborted) {
-          accept(response);
           recordResult(response.status, response.lastCheckOutcome);
+          accept(response);
         }
       } else {
         // 서버 작업이 없는 경우에도 먼저 같은 세션 쿠키를 확보한다.
@@ -215,6 +266,19 @@ export function usePortfolioAnalysis(
         recordResult('TRIAL_EXHAUSTED');
         markGuestPortfolioAnalysisTrialUsed();
         setTrialExhausted(true);
+      } else if (
+        isLoggedIn &&
+        caught instanceof ApiError &&
+        caught.code === 'PORTFOLIO_ANALYSIS_REFRESH_LIMIT_EXCEEDED'
+      ) {
+        recordResult('REFRESH_LIMIT_EXCEEDED');
+        try {
+          const response = await getSavedPortfolioAnalysis(controller.signal);
+          if (!controller.signal.aborted) accept(response);
+        } catch {
+          if (!controller.signal.aborted)
+            setError('오늘 남은 확인 횟수를 불러오지 못했어요. 새로고침해 주세요.');
+        }
       } else if (isLoggedIn && caught instanceof ApiError && caught.status === 409) {
         recordResult('CONFLICT');
         // 다른 탭의 실행 여부와 자산 변경 상태를 서버에서 다시 확인한다.
@@ -232,8 +296,8 @@ export function usePortfolioAnalysis(
             const response = await getGuestPortfolioAnalysis(controller.signal);
             if (controller.signal.aborted) return;
             if (response.status !== 'EMPTY') {
-              acceptGuest(response);
               recordResult(response.status);
+              acceptGuest(response);
               return;
             }
           } catch {
@@ -251,8 +315,8 @@ export function usePortfolioAnalysis(
                 (response.analysisId !== saved?.analysisId ||
                   response.lastSucceededAt !== saved?.lastSucceededAt))
             ) {
-              accept(response);
               recordResult(response.status, response.lastCheckOutcome);
+              accept(response);
               return;
             }
           } catch {
@@ -273,6 +337,31 @@ export function usePortfolioAnalysis(
       }
     }
   };
+
+  useEffect(() => {
+    if (
+      !isLoggedIn ||
+      saved?.remainingRefreshCount === undefined ||
+      !saved.refreshResetAt ||
+      loading ||
+      processing ||
+      summaryStatus === 'PENDING'
+    )
+      return;
+    const timer = window.setTimeout(
+      () => void restore(true),
+      Math.max(1000, Date.parse(saved.refreshResetAt) - Date.now()),
+    );
+    return () => window.clearTimeout(timer);
+  }, [
+    isLoggedIn,
+    saved?.remainingRefreshCount,
+    saved?.refreshResetAt,
+    loading,
+    processing,
+    summaryStatus,
+    restore,
+  ]);
 
   return {
     analysis: portfolioChanged ? null : analysis,

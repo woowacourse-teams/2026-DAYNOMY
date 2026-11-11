@@ -66,6 +66,42 @@ class StockPricePersistenceServiceTest {
         .containsExactly("005930", "000660", "069500");
   }
 
+  @Test
+  void domesticBackfillStoresPastCloseForAnAlreadyDelistedEtf() {
+    LocalDate date = LocalDate.of(2026, 11, 2);
+    Asset delisted =
+        Asset.listedSecurity(
+            "HANARO 글로벌피지컬AI액티브",
+            AssetCategory.ETF,
+            "0040S0",
+            org.grit.daynomy.asset.domain.StockMarket.KOSPI,
+            "KR70040S0004",
+            date);
+    delisted.delist();
+    given(assetRepository.findAllByCategoryIn(Set.of(AssetCategory.STOCK, AssetCategory.ETF)))
+        .willReturn(List.of(delisted));
+    var entries =
+        List.of(new StockPriceEntry("0040S0", AssetCategory.ETF, date, new BigDecimal("21795")));
+
+    assertThat(persistenceService.synchronize(date, entries).createdCount()).isZero();
+    assertThat(persistenceService.backfillDomestic(date, entries).createdCount()).isEqualTo(1);
+
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<List<StockDailyPrice>> pricesCaptor = ArgumentCaptor.forClass(List.class);
+    then(stockDailyPriceRepository)
+        .should(org.mockito.Mockito.times(2))
+        .saveAll(pricesCaptor.capture());
+    assertThat(pricesCaptor.getAllValues().getFirst()).isEmpty();
+    assertThat(pricesCaptor.getValue())
+        .singleElement()
+        .satisfies(
+            price -> {
+              assertThat(price.getAsset()).isSameAs(delisted);
+              assertThat(price.getClosePrice()).isEqualByComparingTo("21795");
+            });
+    assertThat(delisted.isListed()).isFalse();
+  }
+
   private Asset stock(Long id, String code, boolean listed) {
     return asset(id, code, AssetCategory.STOCK, listed);
   }
@@ -104,7 +140,7 @@ class StockPricePersistenceServiceTest {
     assertThat(result.createdCount()).isZero();
     assertThat(result.updatedCount()).isZero();
     assertThat(result.skippedCount()).isEqualTo(2);
-    org.mockito.Mockito.verifyNoInteractions(tradingDayRepository);
+    org.mockito.Mockito.verify(tradingDayRepository).findByIdForUpdate(date);
   }
 
   @Test

@@ -23,36 +23,19 @@ import org.grit.daynomy.member.domain.Member;
 import org.grit.daynomy.portfolio.domain.*;
 import org.grit.daynomy.portfolio.repository.*;
 import org.grit.daynomy.portfolio.service.PortfolioLedgerCalculator;
+import org.grit.daynomy.support.SharedDatabaseTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.PlatformTransactionManager;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
-import org.testcontainers.utility.DockerImageName;
 
-@Testcontainers
 @ActiveProfiles("test")
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-class SharedHoldingHistoryRepositoryTest {
-  @Container
-  static final PostgreSQLContainer POSTGRESQL =
-      new PostgreSQLContainer(DockerImageName.parse("postgres:16-alpine"));
-
-  @DynamicPropertySource
-  static void database(DynamicPropertyRegistry registry) {
-    registry.add("spring.datasource.url", POSTGRESQL::getJdbcUrl);
-    registry.add("spring.datasource.username", POSTGRESQL::getUsername);
-    registry.add("spring.datasource.password", POSTGRESQL::getPassword);
-    registry.add("spring.datasource.driver-class-name", POSTGRESQL::getDriverClassName);
-  }
+class SharedHoldingHistoryRepositoryTest extends SharedDatabaseTest {
 
   @Autowired TestEntityManager entityManager;
   @Autowired SharedHoldingHistoryRepository histories;
@@ -69,7 +52,7 @@ class SharedHoldingHistoryRepositoryTest {
 
   @org.junit.jupiter.params.ParameterizedTest
   @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
-  void dashboardCopiesCalculateThisWeekAndRemainStableAfterOriginalEdits(boolean mondayMissing) {
+  void splitPurchasesRestoreFridayBasedReturnsAndKeepPrivateHoldingsFrozen(boolean mondayMissing) {
     var zone = ZoneId.of("Asia/Seoul");
     LocalDate monday = LocalDate.of(2026, 9, 21);
     var member =
@@ -83,7 +66,22 @@ class SharedHoldingHistoryRepositoryTest {
     var shared = entityManager.persist(SharedPortfolio.create(member));
     var holding =
         entityManager.persist(new SharedHolding(shared, asset, 2, BigDecimal.valueOf(100)));
+    holding.changeVisibility(true);
+    entityManager.persist(new PortfolioHolding(original, asset, 2, BigDecimal.valueOf(100)));
     entityManager.persist(new SharedHoldingHistory(holding, SharedHoldingHistory.ChangeType.ADDED));
+    var firstBuy =
+        entityManager.persist(
+            new PortfolioHoldingHistory(
+                original,
+                asset,
+                PortfolioHoldingChangeType.ADDED,
+                1,
+                BigDecimal.valueOf(100),
+                monday.minusWeeks(1),
+                null,
+                null,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO));
     var source =
         entityManager.persistAndFlush(
             new PortfolioHoldingHistory(
@@ -92,7 +90,7 @@ class SharedHoldingHistoryRepositoryTest {
                 PortfolioHoldingChangeType.ADDED,
                 2,
                 BigDecimal.valueOf(100),
-                monday,
+                monday.minusDays(4),
                 null,
                 null,
                 BigDecimal.ZERO,
@@ -100,11 +98,15 @@ class SharedHoldingHistoryRepositoryTest {
     entityManager
         .getEntityManager()
         .createNativeQuery(
-            "update portfolio_holding_histories set created_at=:at, updated_at=:at where id=:id")
-        .setParameter("at", monday.plusDays(1).atTime(10, 0).atZone(zone).toInstant())
-        .setParameter("id", source.getId())
+            "update portfolio_holding_histories set created_at=effective_date + TIME '10:00' AT TIME ZONE 'Asia/Seoul', updated_at=effective_date + TIME '10:00' AT TIME ZONE 'Asia/Seoul' where portfolio_id=:id")
+        .setParameter("id", original.getId())
         .executeUpdate();
     entityManager.refresh(source);
+    entityManager.refresh(firstBuy);
+    var friday = calendar.findById(monday.minusDays(3)).orElseThrow();
+    friday.reviseTrading(true);
+    friday.collected(friday.closesAt().plusSeconds(86400));
+    entityManager.persist(new StockDailyPrice(asset, friday.getBaseDate(), BigDecimal.valueOf(90)));
     var snapshot = new PortfolioDailySnapshot(original, monday);
     snapshot.update(
         BigDecimal.valueOf(200),
@@ -150,7 +152,8 @@ class SharedHoldingHistoryRepositoryTest {
             holdings,
             histories,
             calendar,
-            new PortfolioLedgerCalculator());
+            new PortfolioLedgerCalculator(),
+            snapshots);
     enrollment.includeCurrentWeek(profile);
     entityManager.flush();
     var calculation =
@@ -158,10 +161,12 @@ class SharedHoldingHistoryRepositoryTest {
             profiles,
             portfolios,
             histories,
+            mock(org.grit.daynomy.league.repository.SharedHoldingRepository.class),
             prices,
             returns,
             calendar,
             snapshots,
+            mock(org.grit.daynomy.exchangerate.repository.UsdKrwRateRepository.class),
             transactions,
             mock(LeagueCalculationMetrics.class),
             mock(LeagueService.class),
@@ -171,20 +176,15 @@ class SharedHoldingHistoryRepositoryTest {
     var first =
         returns.findLatestByPortfolioIdAndBaseDateBetween(
             shared.getId(), monday, monday.plusDays(1));
-    if (mondayMissing) {
-      assertThat(first.getFirst().getIneligibleReason()).isEqualTo("SNAPSHOT_PENDING");
-      assertThat(first.getLast().getDailyReturnRate()).isEqualByComparingTo("10");
-      entityManager.persistAndFlush(snapshot);
-      calculation.recalculatePending();
-      entityManager.flush();
-      first =
-          returns.findLatestByPortfolioIdAndBaseDateBetween(
-              shared.getId(), monday, monday.plusDays(1));
-    }
     assertThat(first)
         .extracting(v -> v.getDailyReturnRate())
-        .containsExactly(new BigDecimal("0.0000"), new BigDecimal("10.0000"));
-    assertThat(profile.getTrackingStartedOn()).isEqualTo(monday);
+        .containsExactlyElementsOf(
+            mondayMissing
+                ? java.util.List.of(new BigDecimal("10.0000"))
+                : java.util.List.of(new BigDecimal("11.1111"), new BigDecimal("10.0000")));
+    assertThat(profile.getTrackingStartedOn())
+        .isEqualTo(mondayMissing ? monday.plusDays(1) : monday);
+    assertThat(holding.isHidden()).isTrue();
 
     entityManager
         .getEntityManager()
@@ -198,7 +198,10 @@ class SharedHoldingHistoryRepositoryTest {
             returns.findLatestByPortfolioIdAndBaseDateBetween(
                 shared.getId(), monday, monday.plusDays(1)))
         .extracting(v -> v.getDailyReturnRate())
-        .containsExactly(new BigDecimal("0.0000"), new BigDecimal("10.0000"));
+        .containsExactlyElementsOf(
+            mondayMissing
+                ? java.util.List.of(new BigDecimal("10.0000"))
+                : java.util.List.of(new BigDecimal("11.1111"), new BigDecimal("10.0000")));
   }
 
   @Test

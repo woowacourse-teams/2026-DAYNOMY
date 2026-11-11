@@ -880,6 +880,21 @@
   gap: 8px;
 }
 
+.admin-keyword-generation-form {
+  display: flex;
+  width: min(100%, 460px);
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.admin-keyword-generation-form .admin-field {
+  flex: 1;
+}
+
+.admin-keyword-generation-form .admin-primary-button {
+  white-space: nowrap;
+}
+
 .admin-success-panel {
   padding: 18px 20px;
   border-color: #bfe7d0;
@@ -1732,6 +1747,32 @@
   gap: 8px;
 }
 
+.admin-ai-image-candidates {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.admin-ai-image-candidates > div {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.admin-ai-image-candidate-remove {
+  min-height: 32px;
+  border: 1px solid #d9dee8;
+  border-radius: 6px;
+  color: #526176;
+  background: #fff;
+  cursor: pointer;
+}
+
+.admin-ai-image-candidate-remove:hover {
+  color: #b42318;
+  border-color: #f0b7b2;
+}
+
 .admin-image-candidate {
   display: grid;
   gap: 5px;
@@ -1881,6 +1922,9 @@
   .admin-action-panel {
     align-items: stretch;
     flex-direction: column;
+  }
+  .admin-keyword-generation-form {
+    width: 100%;
   }
   .admin-toolbar select {
     width: 100%;
@@ -2681,7 +2725,8 @@
     flex-direction: column;
   }
 
-  .admin-image-candidates {
+  .admin-image-candidates,
+  .admin-ai-image-candidates {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .admin-form-actions {
@@ -2734,6 +2779,29 @@
 .admin-topbar strong {
   color: #202b3d;
   font-weight: 600;
+}
+.admin-image-generation-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 40px;
+  color: #24436f;
+  background: #edf4ff;
+  font-size: 13px;
+}
+.admin-image-generation-notice.is-success {
+  color: #185b40;
+  background: #edf8f3;
+}
+.admin-image-generation-notice.is-error {
+  color: #8b2c2c;
+  background: #fff1f1;
+}
+.admin-image-generation-notice a {
+  flex-shrink: 0;
+  color: inherit;
+  font-weight: 700;
 }
 .admin-service-link {
   display: flex;
@@ -2889,6 +2957,9 @@
   .admin-topbar {
     padding-inline: 24px;
   }
+  .admin-image-generation-notice {
+    padding-inline: 24px;
+  }
   .admin-news-form {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -2957,6 +3028,10 @@
   .admin-content {
     width: calc(100% - 32px);
     padding-top: 28px;
+  }
+  .admin-image-generation-notice {
+    align-items: flex-start;
+    padding-inline: 16px;
   }
   .admin-page-heading,
   .admin-form-heading {

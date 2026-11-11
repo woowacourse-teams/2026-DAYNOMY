@@ -78,16 +78,6 @@ function safeImage(value, siteOrigin) {
   }
 }
 
-function safeLink(value) {
-  if (typeof value !== 'string') return null;
-  try {
-    const url = new URL(value);
-    return ['http:', 'https:'].includes(url.protocol) ? url.href : null;
-  } catch {
-    return null;
-  }
-}
-
 function pageHtml(template, page, siteOrigin, indexable) {
   const canonical = `${siteOrigin}${page.path}`;
   const title = `${page.title} | DAYNOMY`;
@@ -132,15 +122,6 @@ function validNewsList(value) {
     value.items.every(
       (item) => Number.isSafeInteger(item.id) && item.id > 0 && typeof item.title === 'string',
     )
-  );
-}
-
-function validDiscoverableAssets(value) {
-  return (
-    value &&
-    Array.isArray(value.assetIds) &&
-    typeof value.hasNext === 'boolean' &&
-    value.assetIds.every((id) => Number.isSafeInteger(id) && id > 0)
   );
 }
 
@@ -195,35 +176,6 @@ async function publicPage(pathname, apiOrigin, siteOrigin) {
       body: `<main><article><h1>${escapeHtml(news.title)}</h1><img src="${escapeHtml(image)}" alt="" />${paragraphs}</article></main>`,
       article: true,
       indexable: true,
-    };
-  }
-  const stockMatch = /^\/stocks\/([^/]+)$/.exec(pathname);
-  if (stockMatch) {
-    if (!/^[1-9]\d*$/.test(stockMatch[1]) || !Number.isSafeInteger(Number(stockMatch[1])))
-      throw Object.assign(new Error('Not found'), { status: 404 });
-    const stock = await apiJson(apiOrigin, `/api/assets/${stockMatch[1]}/contents`);
-    if (
-      !stock ||
-      !Number.isSafeInteger(stock.assetId) ||
-      stock.assetId !== Number(stockMatch[1]) ||
-      typeof stock.assetName !== 'string' ||
-      !Array.isArray(stock.contents)
-    )
-      throw new Error('Invalid public stock');
-    const links = stock.contents
-      .filter((item) => typeof item.title === 'string' && safeLink(item.url))
-      .slice(0, 20)
-      .map(
-        (item) =>
-          `<li><a href="${escapeHtml(safeLink(item.url))}" rel="noopener noreferrer">${escapeHtml(item.title)}</a></li>`,
-      )
-      .join('');
-    return {
-      path: `/stocks/${stock.assetId}`,
-      title: `${stock.assetName} 소식`,
-      description: `${stock.assetName} 관련 경제·투자 소식을 확인하세요.`,
-      body: `<main><h1>${escapeHtml(stock.assetName)} 소식</h1><ul>${links}</ul></main>`,
-      indexable: Boolean(links),
     };
   }
   const profileMatch = /^\/league\/([^/]+)$/.exec(pathname);
@@ -317,33 +269,6 @@ export function createFrontendServer({
               urls.add(`${publicOrigin}/news/${item.id}`);
             }
             hasNext = news.hasNext;
-          }
-          page = 1;
-          hasNext = true;
-          while (hasNext && urls.size < 50000 && page <= 500) {
-            let assets;
-            const currentPage = page++;
-            try {
-              assets = await apiJson(
-                backendOrigin,
-                `/api/contents/assets?page=${currentPage}&size=100`,
-              );
-            } catch (error) {
-              if (error?.status !== 404 || currentPage !== 1) throw error;
-              // The frontend may deploy before the new public API; retry on the next sitemap refresh.
-              console.warn('Discoverable asset API is not available yet');
-              break;
-            }
-            if (
-              !validDiscoverableAssets(assets) ||
-              (assets.hasNext && assets.assetIds.length === 0)
-            )
-              throw new Error('Invalid discoverable asset list');
-            for (const id of assets.assetIds) {
-              if (urls.size >= 50000) break;
-              urls.add(`${publicOrigin}/stocks/${id}`);
-            }
-            hasNext = assets.hasNext;
           }
           sitemap = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${Array.from(urls, (url) => `<url><loc>${escapeHtml(url)}</loc></url>`).join('')}</urlset>`;
           sitemapExpiresAt = Date.now() + 5 * 60_000;

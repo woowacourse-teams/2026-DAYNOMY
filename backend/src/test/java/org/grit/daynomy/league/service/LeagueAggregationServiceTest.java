@@ -9,7 +9,6 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.stream.IntStream;
 import org.grit.daynomy.asset.domain.MarketTradingDay;
 import org.grit.daynomy.asset.repository.MarketTradingDayRepository;
@@ -26,30 +25,56 @@ class LeagueAggregationServiceTest {
       new LeagueAggregationService(
           repository,
           "0 30 14,18 * * MON-FRI",
-          "0 20 17 * * MON-FRI",
+          "0 20 17,19 * * MON-SAT",
           "0 30 7 * * TUE-SAT",
+          "0 0 7,16 * * MON-SAT",
           true,
           true,
           true);
   private final LocalDate monday = LocalDate.of(2026, 10, 19);
   private final ZoneId seoul = ZoneId.of("Asia/Seoul");
   private List<MarketTradingDay> calendar;
+  private List<MarketTradingDay> knownDays;
+
+  @Test
+  void usClosePendingUsesUsPreparationAndCalculationSchedules() {
+    for (MarketTradingDay day : calendar) {
+      day.reviseUsTrading(day.getBaseDate().getDayOfWeek().getValue() <= 5);
+      if (day.isTrading()) day.collected(day.closesAt().plusSeconds(1));
+    }
+    var result = service.ranking(monday, null, at(monday.plusDays(1), 8, 0), true, true);
+    assertThat(result.reason()).isEqualTo("PRICE_COLLECTION_PENDING");
+    assertThat(result.expectedAt()).isEqualTo(at(monday.plusDays(1), 17, 20));
+  }
+
+  @Test
+  void usOnlyRankingDoesNotWaitForDomesticPrices() {
+    for (MarketTradingDay day : calendar) {
+      day.reviseUsTrading(day.getBaseDate().getDayOfWeek().getValue() <= 5);
+      if (Boolean.TRUE.equals(day.getUsTrading())) day.usCollected(day.usClosesAt().plusSeconds(1));
+    }
+    assertThat(service.ranking(monday, null, true, false)).isNull();
+  }
 
   @BeforeEach
   void calendar() {
-    calendar =
-        IntStream.range(0, 7)
-            .mapToObj(i -> new MarketTradingDay(monday.plusDays(i), i < 5))
+    knownDays =
+        IntStream.range(0, 28)
+            .mapToObj(
+                i ->
+                    new MarketTradingDay(
+                        monday.plusDays(i), monday.plusDays(i).getDayOfWeek().getValue() <= 5))
             .toList();
-    given(repository.findAllByBaseDateBetweenOrderByBaseDate(monday, monday.plusDays(6)))
-        .willReturn(calendar);
-    given(repository.findFirstByTradingTrueAndBaseDateGreaterThanOrderByBaseDateAsc(any()))
+    calendar = knownDays.subList(0, 7);
+    given(repository.findAllByBaseDateBetweenOrderByBaseDate(any(), any()))
         .willAnswer(
             invocation -> {
-              LocalDate date = invocation.getArgument(0);
-              LocalDate next = date.plusDays(1);
-              while (next.getDayOfWeek().getValue() > 5) next = next.plusDays(1);
-              return Optional.of(new MarketTradingDay(next, true));
+              LocalDate from = invocation.getArgument(0);
+              LocalDate to = invocation.getArgument(1);
+              return knownDays.stream()
+                  .filter(
+                      day -> !day.getBaseDate().isBefore(from) && !day.getBaseDate().isAfter(to))
+                  .toList();
             });
   }
 
@@ -76,8 +101,7 @@ class LeagueAggregationServiceTest {
   void holidayAfterFridayMovesBaselineAndFirstReturnToFollowingTradingDays() {
     var friday = monday.plusDays(4);
     var nextTuesday = monday.plusDays(8);
-    given(repository.findFirstByTradingTrueAndBaseDateGreaterThanOrderByBaseDateAsc(friday))
-        .willReturn(Optional.of(new MarketTradingDay(nextTuesday, true)));
+    knownDays.get(7).reviseTrading(false);
     var result = service.estimate(monday, profile(friday), Map.of(), at(friday, 12, 0));
     assertThat(result.expectedAt()).isEqualTo(at(nextTuesday, 14, 30));
     assertThat(result.firstReturnExpectedAt()).isEqualTo(at(nextTuesday.plusDays(1), 14, 30));
@@ -126,8 +150,9 @@ class LeagueAggregationServiceTest {
         new LeagueAggregationService(
             repository,
             "0 30 14,18 * * MON-FRI",
-            "0 20 17 * * MON-FRI",
+            "0 20 17,19 * * MON-SAT",
             "0 30 7 * * TUE-SAT",
+            "0 0 7,16 * * MON-SAT",
             priceEnabled,
             calculationEnabled,
             snapshotEnabled);
@@ -233,8 +258,9 @@ class LeagueAggregationServiceTest {
         new LeagueAggregationService(
             repository,
             "0 30 14,18 * * MON-FRI",
-            "0 20 17 * * MON-FRI",
+            "0 20 17,19 * * MON-SAT",
             "0 30 7 * * TUE-SAT",
+            "0 0 7,16 * * MON-SAT",
             priceEnabled,
             calculationEnabled,
             true);
@@ -252,8 +278,9 @@ class LeagueAggregationServiceTest {
         new LeagueAggregationService(
             repository,
             "0 30 14,18 * * MON-FRI",
-            "0 20 17 * * MON-FRI",
+            "0 20 17,19 * * MON-SAT",
             "0 30 7 * * TUE-SAT",
+            "0 0 7,16 * * MON-SAT",
             false,
             true,
             true);
@@ -273,8 +300,9 @@ class LeagueAggregationServiceTest {
         new LeagueAggregationService(
             repository,
             "0 30 14,18 * * MON-FRI",
-            "0 20 17 * * MON-FRI",
+            "0 20 17,19 * * MON-SAT",
             "0 30 7 * * TUE-SAT",
+            "0 0 7,16 * * MON-SAT",
             true,
             false,
             true);
@@ -287,6 +315,164 @@ class LeagueAggregationServiceTest {
     assertThat(result.reason()).isEqualTo("COLLECTION_PAUSED");
     assertThat(result.expectedAt()).isNull();
     assertThat(result.firstReturnExpectedAt()).isNull();
+  }
+
+  @Test
+  void fridayUsCloseAnnouncesSaturdayInsteadOfWaitingUntilMonday() {
+    for (MarketTradingDay day : calendar) {
+      day.reviseUsTrading(day.getBaseDate().getDayOfWeek().getValue() <= 5);
+      if (day.getBaseDate().isBefore(monday.plusDays(4)) && Boolean.TRUE.equals(day.getUsTrading()))
+        day.usCollected(day.usClosesAt().plusSeconds(1));
+    }
+    var result = service.ranking(monday, null, at(monday.plusDays(5), 8, 0), true, false);
+    assertThat(result.baseDate()).isEqualTo(monday.plusDays(4));
+    assertThat(result.expectedAt()).isEqualTo(at(monday.plusDays(5), 17, 20));
+    assertThat(result.delayed()).isFalse();
+    var collecting = service.ranking(monday, null, at(monday.plusDays(5), 16, 30), true, false);
+    assertThat(collecting.expectedAt()).isEqualTo(at(monday.plusDays(5), 17, 20));
+    var delayed = service.ranking(monday, null, at(monday.plusDays(5), 18, 0), true, false);
+    assertThat(delayed.expectedAt()).isEqualTo(at(monday.plusDays(7), 17, 20));
+    assertThat(delayed.delayed()).isTrue();
+  }
+
+  @Test
+  void mixedFirstBaselineAndFirstReturnWaitForBothMarkets() {
+    for (MarketTradingDay day : calendar) day.reviseUsTrading(day.isTrading());
+    given(
+            repository.findAllByBaseDateBetweenOrderByBaseDate(
+                monday.plusDays(1), monday.plusDays(14)))
+        .willReturn(calendar.subList(1, calendar.size()));
+    var result = service.estimate(monday, profile(monday), Map.of(), at(monday, 12, 0), true, true);
+    assertThat(result.expectedAt()).isEqualTo(at(monday.plusDays(1), 17, 20));
+    assertThat(result.firstReturnExpectedAt()).isEqualTo(at(monday.plusDays(2), 17, 20));
+  }
+
+  @Test
+  void fxWaitAnnouncesTheUsRefreshSchedule() {
+    for (MarketTradingDay day : calendar) {
+      day.reviseUsTrading(day.isTrading());
+      if (day.isTrading()) day.usCollected(day.usClosesAt().plusSeconds(1));
+    }
+    var missing = new PortfolioDailyReturn(SharedPortfolio.create(mock(Member.class)), monday);
+    missing.exclude("EXCHANGE_RATE_PENDING", Instant.now());
+    var result =
+        service.estimate(
+            monday,
+            profile(monday.minusWeeks(1)),
+            Map.of(monday, missing),
+            at(monday.plusDays(1), 8, 0),
+            true,
+            false);
+    assertThat(result.reason()).isEqualTo("EXCHANGE_RATE_PENDING");
+    assertThat(result.expectedAt()).isEqualTo(at(monday.plusDays(1), 17, 20));
+  }
+
+  @Test
+  void missingLaterDatesDoNotHideAKnownFirstRankingSchedule() {
+    given(repository.findAllByBaseDateBetweenOrderByBaseDate(monday, monday.plusDays(6)))
+        .willReturn(calendar.subList(0, 2));
+    var result = service.ranking(monday, null, at(monday, 12, 0));
+    assertThat(result.reason()).isEqualTo("MARKET_CLOSE_PENDING");
+    assertThat(result.expectedAt()).isEqualTo(at(monday.plusDays(1), 14, 30));
+    assertThat(result.nextCollectionAt()).isEqualTo(result.expectedAt());
+    assertThat(result.delayed()).isFalse();
+  }
+
+  @Test
+  void missingDayBeforeTheNextKnownTradingDayCannotBeSkipped() {
+    given(
+            repository.findAllByBaseDateBetweenOrderByBaseDate(
+                monday.plusDays(1), monday.plusDays(14)))
+        .willReturn(knownDays.subList(2, 15));
+    var result = service.ranking(monday, null, at(monday, 12, 0));
+    assertThat(result.reason()).isEqualTo("CALENDAR_PENDING");
+    assertThat(result.expectedAt()).isNull();
+    assertThat(result.nextCollectionAt()).isNull();
+  }
+
+  @Test
+  void missingEarlierCalendarCannotBeHiddenByLaterPendingPrices() {
+    given(repository.findAllByBaseDateBetweenOrderByBaseDate(monday, monday.plusDays(6)))
+        .willReturn(calendar.subList(1, 7));
+    var result = service.ranking(monday, null, at(monday.plusDays(1), 12, 0));
+    assertThat(result.reason()).isEqualTo("CALENDAR_PENDING");
+    assertThat(result.baseDate()).isEqualTo(monday);
+    assertThat(result.expectedAt()).isNull();
+  }
+
+  @Test
+  void configuredCollectionTimeAndItsExactBoundaryAreUsed() {
+    var configured =
+        new LeagueAggregationService(
+            repository,
+            "0 45 15,20 * * MON-FRI",
+            "0 20 17,21 * * MON-SAT",
+            "0 30 7 * * TUE-SAT",
+            "0 0 7,16 * * MON-SAT",
+            true,
+            true,
+            true);
+    Instant first = at(monday.plusDays(1), 15, 45);
+    var waiting = configured.ranking(monday, null, first);
+    assertThat(waiting.delayed()).isFalse();
+    assertThat(waiting.expectedAt()).isEqualTo(first);
+    var delayed = configured.ranking(monday, null, first.plusSeconds(1));
+    assertThat(delayed.reason()).isEqualTo("PRICE_COLLECTION_DELAYED");
+    assertThat(delayed.delayed()).isTrue();
+    assertThat(delayed.nextCollectionAt()).isEqualTo(at(monday.plusDays(1), 20, 45));
+  }
+
+  @Test
+  void calculationPastItsFirstScheduleIsDelayedEvenAfterPricesWereCollected() {
+    calendar.getFirst().collected(at(monday.plusDays(1), 14, 30));
+    var result = service.ranking(monday, monday, at(monday.plusDays(1), 18, 0));
+    assertThat(result.reason()).isEqualTo("CALCULATION_PENDING");
+    assertThat(result.delayed()).isTrue();
+    assertThat(result.expectedAt()).isEqualTo(at(monday.plusDays(1), 19, 20));
+    assertThat(result.nextCollectionAt()).isNull();
+  }
+
+  @Test
+  void repeatedUsCollectionDoesNotResetCalculationDelay() {
+    for (var day : calendar) day.reviseUsTrading(day.isTrading());
+    var day = calendar.getFirst();
+    day.usCollected(at(monday.plusDays(1), 16, 0));
+    var profile = profile(monday.minusWeeks(1));
+    Instant firstCalculation = at(monday.plusDays(1), 17, 20);
+
+    assertThat(service.ranking(monday, monday, firstCalculation, true, false).delayed()).isFalse();
+    assertThat(
+            service.ranking(monday, monday, firstCalculation.plusSeconds(1), true, false).delayed())
+        .isTrue();
+
+    Instant retry = at(monday.plusDays(2), 7, 0);
+    day.usCollected(retry);
+    var ranking = service.ranking(monday, monday, retry, true, false);
+    var investor = service.estimate(monday, profile, Map.of(), retry, true, false);
+
+    assertThat(ranking.reason()).isEqualTo("CALCULATION_PENDING");
+    assertThat(ranking.delayed()).isTrue();
+    assertThat(ranking.expectedAt()).isEqualTo(at(monday.plusDays(2), 17, 20));
+    assertThat(investor.reason()).isEqualTo("CALCULATION_PENDING");
+    assertThat(investor.delayed()).isTrue();
+  }
+
+  @Test
+  void usRetryReportsCollectionSeparatelyFromCalculation() {
+    for (var day : calendar) day.reviseUsTrading(day.isTrading());
+    var result = service.ranking(monday, null, at(monday.plusDays(1), 18, 0), true, false);
+    assertThat(result.delayed()).isTrue();
+    assertThat(result.nextCollectionAt()).isEqualTo(at(monday.plusDays(2), 7, 0));
+    assertThat(result.expectedAt()).isEqualTo(at(monday.plusDays(2), 17, 20));
+  }
+
+  @Test
+  void mixedDelayShowsTheNextUpcomingCollectionRatherThanTheLastMarketToFinish() {
+    for (var day : calendar) day.reviseUsTrading(day.isTrading());
+    var result = service.ranking(monday, null, at(monday.plusDays(1), 16, 30), true, true);
+    assertThat(result.delayed()).isTrue();
+    assertThat(result.nextCollectionAt()).isEqualTo(at(monday.plusDays(1), 18, 30));
+    assertThat(result.expectedAt()).isEqualTo(at(monday.plusDays(1), 18, 30));
   }
 
   private InvestorProfile profile(LocalDate joined) {

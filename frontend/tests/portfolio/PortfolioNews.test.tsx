@@ -21,6 +21,33 @@ const content = {
   createdAt: '2026-10-12T10:00:00Z',
 };
 
+it('보유 종목의 소식이 없으면 다른 소식을 둘러볼 수 있다', async () => {
+  vi.mocked(getStockRelatedContents).mockResolvedValue({
+    assetId: 1,
+    assetCode: '1',
+    assetName: '종목1',
+    contents: [],
+  });
+  const view = render(<PortfolioNews holdings={[{ assetId: 1, name: '종목1' }]} />);
+  expect(await view.findByText('아직 보유 종목의 소식이 없어요')).toBeTruthy();
+  expect(view.getByRole('link', { name: '다른 소식 둘러보기' }).getAttribute('href')).toBe('/news');
+});
+
+it('소식 조회 중이거나 실패하면 빈 소식 안내를 표시하지 않는다', async () => {
+  let reject!: (reason: Error) => void;
+  vi.mocked(getStockRelatedContents).mockReturnValue(
+    new Promise((_, fail) => {
+      reject = fail;
+    }),
+  );
+  const view = render(<PortfolioNews holdings={[{ assetId: 1, name: '종목1' }]} />);
+  expect(view.getByRole('status')).toBeTruthy();
+  expect(view.queryByRole('link', { name: '다른 소식 둘러보기' })).toBeNull();
+  reject(new Error('조회 실패'));
+  expect(await view.findByRole('alert')).toBeTruthy();
+  expect(view.queryByRole('link', { name: '다른 소식 둘러보기' })).toBeNull();
+});
+
 it('소식 접기 동작을 글자로 표시한다', () => {
   const onClose = vi.fn();
   const view = render(<PortfolioNews holdings={[]} onClose={onClose} />);

@@ -41,6 +41,18 @@ public class SharedHolding extends BaseEntity {
   @Column(nullable = false, length = 500)
   private String reason = "";
 
+  @Column(name = "pending_reason", nullable = false)
+  private boolean pendingReason;
+
+  public void awaitReason() {
+    pendingReason = true;
+    hidden = true;
+  }
+
+  public void activate() {
+    pendingReason = false;
+  }
+
   public SharedHolding(SharedPortfolio portfolio, Asset asset, long quantity, BigDecimal price) {
     this.portfolio = Objects.requireNonNull(portfolio);
     this.asset = Objects.requireNonNull(asset);

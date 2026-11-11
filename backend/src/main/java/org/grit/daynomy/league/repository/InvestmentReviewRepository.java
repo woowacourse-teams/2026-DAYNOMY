@@ -8,6 +8,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
 public interface InvestmentReviewRepository extends JpaRepository<InvestmentReview, Long> {
+  boolean existsByTransactionId(Long transactionId);
+
   Optional<InvestmentReview> findByIdAndTransactionIdAndTransactionPortfolioMemberId(
       Long id, Long transactionId, Long memberId);
 

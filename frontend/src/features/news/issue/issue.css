@@ -273,9 +273,6 @@
 .issue-row-title[aria-expanded='true'] .issue-expand-chevron {
   transform: rotate(180deg);
 }
-.issue-story-meta {
-  margin-top: 10px;
-}
 .issue-state {
   color: var(--issue-muted);
   line-height: 1.8;
@@ -665,49 +662,6 @@
 .issue-briefing > section {
   min-width: 0;
 }
-.issue-today {
-  padding-bottom: 0;
-}
-.issue-story-card {
-  min-width: 0;
-  scroll-snap-align: start;
-}
-.issue-story-card img {
-  display: block;
-  width: 100%;
-  aspect-ratio: 16 / 9;
-  object-fit: cover;
-  border-radius: 4px;
-  background: #f4f6f8;
-}
-.issue-story-card h3 {
-  margin: 16px 0 12px;
-  font-size: 18px;
-  line-height: 1.5;
-  letter-spacing: -0.035em;
-  overflow-wrap: anywhere;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-.issue-story-note {
-  margin: -8px 0 16px;
-  color: var(--issue-muted);
-  font-size: 13px;
-  line-height: 1.6;
-}
-.issue-story-empty {
-  padding: 24px 0 12px;
-  color: var(--issue-muted);
-  font-size: 14px;
-  line-height: 1.8;
-}
-.issue-story-empty span {
-  display: block;
-  margin-top: 4px;
-  font-size: 13px;
-}
 .issue-people {
   padding: 0 0 0 32px;
   border-left: 1px solid var(--issue-line);
@@ -876,12 +830,6 @@
   background: white;
 }
 @media (max-width: 720px) {
-  .issue-story-card h3 {
-    font-size: 19px;
-  }
-  .issue-today .issue-section-heading {
-    flex-wrap: wrap;
-  }
   .issue-people-preview {
     grid-template-columns: 1fr;
     gap: 0;
@@ -927,36 +875,6 @@
   }
 }
 
-.issue-story-carousel .issue-story-card {
-  display: block;
-}
-.issue-story-carousel .issue-story-card img {
-  width: 100%;
-  height: auto;
-  aspect-ratio: 16 / 9;
-}
-.issue-story-carousel .issue-story-card h3 {
-  margin: 16px 0 0;
-  font-size: 20px;
-  -webkit-line-clamp: 2;
-}
-
-@keyframes issue-story-enter {
-  from {
-    opacity: 0.4;
-    transform: translateX(12px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-@media (prefers-reduced-motion: no-preference) {
-  .issue-story-carousel .issue-story-card {
-    animation: issue-story-enter 240ms ease-out;
-  }
-}
-
 /* Compact thumbnails keep each preview close to its title. */
 .issue-feed-row.issue-feed-row--news {
   grid-template-columns: 120px minmax(0, 1fr);
@@ -992,32 +910,11 @@
   }
 }
 
-.issue-story-card h3,
 .issue-person-title h3,
 .issue-row-title h3,
 .issue-post-title {
   word-break: keep-all;
   overflow-wrap: anywhere;
-}
-.issue-story-image {
-  position: relative;
-  display: grid;
-  place-items: center;
-  aspect-ratio: 16 / 9;
-  overflow: hidden;
-  border-radius: 4px;
-  background: #f1f3f5;
-  color: #667383;
-  font-size: 20px;
-  font-weight: 650;
-}
-.issue-story-carousel .issue-story-image > img {
-  position: absolute;
-  inset: 0;
-  height: 100%;
-}
-.issue-story-carousel .issue-story-image > img[hidden] {
-  display: none;
 }
 
 /* People: choose a person above, read their activity below. */

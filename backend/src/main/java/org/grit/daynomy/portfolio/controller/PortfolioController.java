@@ -13,7 +13,10 @@ import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.common.response.ErrorResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioCalculateRequest;
 import org.grit.daynomy.portfolio.dto.PortfolioCalculationResponse;
+import org.grit.daynomy.portfolio.dto.PortfolioHoldingRequest;
 import org.grit.daynomy.portfolio.service.PortfolioCalculationService;
+import org.grit.daynomy.portfolio.service.PortfolioDelayedQuoteService;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -26,11 +29,12 @@ import org.springframework.web.bind.annotation.RestController;
 public class PortfolioController {
 
   private final PortfolioCalculationService portfolioCalculationService;
+  private final ObjectProvider<PortfolioDelayedQuoteService> delayedQuotes;
 
   @Operation(
       summary = "포트폴리오 계산",
       description =
-          "로그인 없이 이용할 수 있습니다. 전달한 1~50개 보유자산을 최근 종가로 평가하며 서버에 저장하지 않습니다. 평균 매입가는 원화로 입력하고, 미국 종목 평가는 종가 기준일의 환율로 원화 환산합니다. 종가·환율이 없는 종목도 HTTP 200의 PARTIAL 결과에 포함하며 해당 종목의 평가값은 null입니다. 변경 요청은 GET /api/auth/csrf로 발급한 XSRF-TOKEN 쿠키와 동일한 값을 X-XSRF-TOKEN 헤더로 전송해야 합니다.")
+          "로그인 없이 이용할 수 있습니다. 전달한 1~50개 보유자산을 평가합니다. 지연 시세 기능이 활성화되면 당일 정규장 시세를 우선 사용합니다. 받아둔 당일 시세가 유효 시간을 지나면 갱신 대기로 표시하고, 받은 시세가 없으면 최근 확정 종가를 사용합니다. 평균 매입가는 원화로 입력하고, 미국 장중 가격은 저장된 최근 환율로 원화 환산합니다. 평가에 필요한 가격·환율이 없는 종목도 HTTP 200의 PARTIAL 결과에 포함하며 해당 종목의 평가값은 null입니다. 변경 요청은 GET /api/auth/csrf로 발급한 XSRF-TOKEN 쿠키와 동일한 값을 X-XSRF-TOKEN 헤더로 전송해야 합니다.")
   @Parameter(
       name = "X-XSRF-TOKEN",
       in = ParameterIn.HEADER,
@@ -84,6 +88,12 @@ public class PortfolioController {
   @PostMapping("/calculate")
   public PortfolioCalculationResponse calculate(
       @Valid @RequestBody PortfolioCalculateRequest request) {
-    return portfolioCalculationService.calculate(request);
+    var quoteService = delayedQuotes.getIfAvailable();
+    if (quoteService == null) return portfolioCalculationService.calculate(request);
+    return portfolioCalculationService.calculateDashboard(
+        request,
+        () ->
+            quoteService.requestQuotes(
+                request.holdings().stream().map(PortfolioHoldingRequest::assetId).toList()));
   }
 }

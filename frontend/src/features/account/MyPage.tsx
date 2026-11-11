@@ -1,6 +1,7 @@
 import { startTransition, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useLoginStatus';
+import { EmailSubscriptionSettings } from '../email-subscription/EmailSubscriptionSettings';
 import {
   ApiError,
   getMyProfile,
@@ -258,6 +259,9 @@ export function MyPage() {
           </section>
         </div>
       </div>
+      {profile && (
+        <EmailSubscriptionSettings key={profile.id} disabled={loggingOut || withdrawing} />
+      )}
       <section className="mypage-session" aria-labelledby="mypage-session-title">
         <div className="mypage-session-heading">
           <h2 id="mypage-session-title">계정 관리</h2>

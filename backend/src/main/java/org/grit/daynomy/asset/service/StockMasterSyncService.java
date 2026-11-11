@@ -32,6 +32,7 @@ public class StockMasterSyncService {
   private static final int PAGE_SIZE = 1000;
   private static final int LOOKBACK_DAYS = 10;
   private static final Pattern STOCK_CODE = Pattern.compile("(?:A)?\\d{6}");
+  private static final Pattern ETF_CODE = Pattern.compile("[0-9A-Z]{6}");
   private static final Pattern PREFERRED_STOCK_NAME = Pattern.compile(".*(?:\\d+)?우(?:[A-Z])?$");
 
   private final PublicDataListedStockClient listedStockClient;
@@ -176,10 +177,17 @@ public class StockMasterSyncService {
       PublicDataEtfPriceItem item, LocalDate requestedDate) {
     if (item == null
         || isBlank(item.srtnCd())
-        || !STOCK_CODE.matcher(item.srtnCd().trim().toUpperCase(Locale.ROOT)).matches()
         || isBlank(item.itmsNm())
         || isBlank(item.isinCd())
         || isBlank(item.basDt())) {
+      return Optional.empty();
+    }
+
+    String code = item.srtnCd().trim().toUpperCase(Locale.ROOT);
+    if (code.length() == 7 && STOCK_CODE.matcher(code).matches()) {
+      code = code.substring(1);
+    }
+    if (!ETF_CODE.matcher(code).matches()) {
       return Optional.empty();
     }
 
@@ -188,7 +196,6 @@ public class StockMasterSyncService {
       if (!requestedDate.equals(baseDate)) {
         return Optional.empty();
       }
-      String code = item.srtnCd().trim().toUpperCase(Locale.ROOT).replaceFirst("^A", "");
       return Optional.of(
           new StockMasterEntry(
               code,

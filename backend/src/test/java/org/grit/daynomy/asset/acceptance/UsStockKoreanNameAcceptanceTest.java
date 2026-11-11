@@ -19,6 +19,7 @@ import org.grit.daynomy.auth.token.JwtTokenProvider;
 import org.grit.daynomy.member.domain.Member;
 import org.grit.daynomy.member.domain.MemberRole;
 import org.grit.daynomy.member.repository.MemberRepository;
+import org.grit.daynomy.support.SharedDatabaseTest;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,20 +31,11 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
-import org.testcontainers.utility.DockerImageName;
 
-@Testcontainers
 @ActiveProfiles("test")
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-class UsStockKoreanNameAcceptanceTest {
+class UsStockKoreanNameAcceptanceTest extends SharedDatabaseTest {
   private static final String SYNC_URL = "/api/admin/stocks/us/korean-names/sync";
-
-  @Container
-  static final PostgreSQLContainer POSTGRESQL =
-      new PostgreSQLContainer(DockerImageName.parse("postgres:16-alpine"));
 
   private static final MockWebServer KIS = startServer();
 
@@ -64,10 +56,6 @@ class UsStockKoreanNameAcceptanceTest {
 
   @DynamicPropertySource
   static void properties(DynamicPropertyRegistry registry) {
-    registry.add("spring.datasource.url", POSTGRESQL::getJdbcUrl);
-    registry.add("spring.datasource.username", POSTGRESQL::getUsername);
-    registry.add("spring.datasource.password", POSTGRESQL::getPassword);
-    registry.add("spring.datasource.driver-class-name", POSTGRESQL::getDriverClassName);
     registry.add("external.kis.base-url", () -> KIS.url("/master").toString());
   }
 
@@ -178,6 +166,9 @@ class UsStockKoreanNameAcceptanceTest {
   }
 
   private RequestSpecification client(Member member, MemberRole role) {
+    var stored = members.findById(member.getId()).orElseThrow();
+    org.springframework.test.util.ReflectionTestUtils.setField(stored, "role", role);
+    members.saveAndFlush(stored);
     var csrf = given().port(port).get("/api/auth/csrf");
     return given()
         .port(port)

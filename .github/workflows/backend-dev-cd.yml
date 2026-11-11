@@ -46,7 +46,16 @@ jobs:
         run: ./gradlew spotlessCheck
 
       - name: Run tests and build
-        run: ./gradlew clean build --no-daemon
+        run: ./gradlew clean build -PciTestSuite=main --no-daemon
+
+      - name: Upload main test results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: backend-dev-test-results-main
+          path: backend/build/test-results/test/
+          retention-days: 7
+          if-no-files-found: warn
 
       - name: Prepare deployment JAR
         run: |
@@ -72,12 +81,48 @@ jobs:
           path: backend/build/libs/daynomy-${{ github.sha }}.jar
           retention-days: 7
 
+  heavy-tests:
+    name: Test heavy preparation tools
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Grant execute permission
+        run: chmod +x gradlew
+
+      - name: Run heavy preparation tool tests
+        run: ./gradlew test -PciTestSuite=heavy --no-daemon
+
+      - name: Upload heavy test results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: backend-dev-test-results-heavy
+          path: backend/build/test-results/test/
+          retention-days: 7
+          if-no-files-found: warn
+
   deploy:
     if: >
       github.ref == 'refs/heads/dev' &&
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     name: Deploy backend development
-    needs: build
+    needs: [build, heavy-tests]
 
     runs-on:
       - self-hosted
@@ -100,7 +145,7 @@ jobs:
         run: |
           set -Eeuo pipefail
 
-          APP_DIR="/home/ubuntu/backend"
+          APP_DIR="/home/ec2-user/backend"
           ARTIFACT="${RUNNER_TEMP}/daynomy-backend-dev/daynomy-${APP_VERSION}.jar"
           RELEASE="${APP_DIR}/releases/daynomy-${APP_VERSION}.jar"
           PREVIOUS="$(readlink -f "${APP_DIR}/current.jar" || true)"

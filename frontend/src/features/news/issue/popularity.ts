@@ -103,7 +103,8 @@ export async function getContentPopularity(signal?: AbortSignal): Promise<Popula
   for (const item of response.items) {
     if (
       !isRecord(item) ||
-      !['NEWS', 'PERSON_POST', 'ASSET_CONTENT'].includes(String(item.contentType)) ||
+      typeof item.contentType !== 'string' ||
+      !['NEWS', 'PERSON_POST', 'ASSET_CONTENT'].includes(item.contentType) ||
       !Number.isSafeInteger(item.contentId) ||
       Number(item.contentId) <= 0 ||
       !Number.isSafeInteger(item.score) ||

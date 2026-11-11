@@ -63,9 +63,11 @@ class KrxCalendarClientTest {
             LocalDate.of(2026, 5, 1), LocalDate.of(2026, 6, 3),
             LocalDate.of(2026, 7, 17), LocalDate.of(2026, 12, 31));
     var otp = server.takeRequest();
+    assertThat(otp.getHeader("User-Agent")).isEqualTo("Mozilla/5.0");
     assertThat(otp.getRequestUrl().queryParameter("bld"))
         .isEqualTo("MKD/01/0110/01100305/mkd01100305_01");
     var request = server.takeRequest();
+    assertThat(request.getHeader("User-Agent")).isEqualTo("Mozilla/5.0");
     assertThat(request.getMethod()).isEqualTo("POST");
     assertThat(request.getPath()).isEqualTo("/contents/OPN/99/OPN99000001.jspx");
     assertThat(request.getBody().readUtf8())
@@ -75,6 +77,7 @@ class KrxCalendarClientTest {
   @ParameterizedTest
   @ValueSource(
       strings = {
+        "",
         "{}",
         "{\"block1\":[]}",
         "<html>unavailable</html>",

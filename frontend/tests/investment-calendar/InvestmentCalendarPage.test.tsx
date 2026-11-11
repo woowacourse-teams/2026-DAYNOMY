@@ -3,6 +3,7 @@
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { trackEvent } from '../../src/analytics';
 import { AuthContext } from '../../src/auth/AuthContext';
 import { getInvestmentCalendar } from '../../src/features/investment-calendar/api';
 import { InvestmentCalendarPage } from '../../src/features/investment-calendar/InvestmentCalendarPage';
@@ -12,6 +13,7 @@ import { saveGuestPortfolioHoldings } from '../../src/features/portfolio/portfol
 vi.mock('../../src/features/investment-calendar/api', () => ({
   getInvestmentCalendar: vi.fn(),
 }));
+vi.mock('../../src/analytics', () => ({ trackEvent: vi.fn() }));
 
 const mockedGetInvestmentCalendar = vi.mocked(getInvestmentCalendar);
 
@@ -44,6 +46,104 @@ afterEach(() => {
 });
 
 describe('투자 캘린더 화면', () => {
+  it.each([false, true])(
+    '다가오는 일정 전용 캘린더는 현재 달 이전 조회를 막고 미래 달에서 돌아올 수 있다 (compact=%s)',
+    async (compact) => {
+      const view = renderCalendar(
+        <InvestmentCalendarPage embedded compact={compact} upcomingOnly />,
+      );
+      await waitFor(() => expect(mockedGetInvestmentCalendar).toHaveBeenCalledTimes(1));
+
+      const previous = view.getByRole('button', { name: '이전 달' });
+      expect(previous.hasAttribute('disabled')).toBe(true);
+      fireEvent.click(previous);
+      expect(mockedGetInvestmentCalendar).toHaveBeenCalledTimes(1);
+      expect(view.getByText('2026년 10월')).toBeTruthy();
+
+      fireEvent.click(view.getByRole('button', { name: '다음 달' }));
+      await waitFor(() =>
+        expect(mockedGetInvestmentCalendar).toHaveBeenLastCalledWith(
+          2026,
+          11,
+          'ALL',
+          expect.any(Object),
+        ),
+      );
+      expect(previous.hasAttribute('disabled')).toBe(false);
+
+      fireEvent.click(previous);
+      await waitFor(() => expect(mockedGetInvestmentCalendar).toHaveBeenCalledTimes(3));
+      expect(mockedGetInvestmentCalendar).toHaveBeenLastCalledWith(
+        2026,
+        10,
+        'ALL',
+        expect.any(Object),
+      );
+      expect(previous.hasAttribute('disabled')).toBe(true);
+      fireEvent.click(previous);
+      expect(mockedGetInvestmentCalendar).toHaveBeenCalledTimes(3);
+    },
+  );
+
+  it.each([false, true])(
+    '연도가 바뀌어도 현재 달까지만 돌아올 수 있다 (compact=%s)',
+    async (compact) => {
+      vi.setSystemTime(new Date('2026-12-06T09:00:00+09:00'));
+      const view = renderCalendar(
+        <InvestmentCalendarPage embedded compact={compact} upcomingOnly />,
+      );
+      await waitFor(() => expect(mockedGetInvestmentCalendar).toHaveBeenCalledTimes(1));
+
+      fireEvent.click(view.getByRole('button', { name: '다음 달' }));
+      await waitFor(() =>
+        expect(mockedGetInvestmentCalendar).toHaveBeenLastCalledWith(
+          2027,
+          1,
+          'ALL',
+          expect.any(Object),
+        ),
+      );
+      const previous = view.getByRole('button', { name: '이전 달' });
+      expect(previous.hasAttribute('disabled')).toBe(false);
+      fireEvent.click(previous);
+      await waitFor(() => expect(mockedGetInvestmentCalendar).toHaveBeenCalledTimes(3));
+      expect(view.getByText('2026년 12월')).toBeTruthy();
+      expect(previous.hasAttribute('disabled')).toBe(true);
+    },
+  );
+
+  it('화면을 열어둔 사이 달이 바뀌어도 이전 달 요청을 보내지 않는다', async () => {
+    const view = renderCalendar(<InvestmentCalendarPage embedded compact upcomingOnly />);
+    await waitFor(() => expect(mockedGetInvestmentCalendar).toHaveBeenCalledTimes(1));
+    fireEvent.click(view.getByRole('button', { name: '다음 달' }));
+    await waitFor(() => expect(mockedGetInvestmentCalendar).toHaveBeenCalledTimes(2));
+
+    const previous = view.getByRole('button', { name: '이전 달' });
+    expect(previous.hasAttribute('disabled')).toBe(false);
+    vi.setSystemTime(new Date(2026, 10, 1));
+    fireEvent.click(previous);
+
+    expect(mockedGetInvestmentCalendar).toHaveBeenCalledTimes(2);
+    expect(view.getByText('2026년 11월')).toBeTruthy();
+  });
+
+  it('과거 일정도 제공하는 캘린더에서는 이전 달 조회를 유지한다', async () => {
+    const view = renderCalendar();
+    await waitFor(() => expect(mockedGetInvestmentCalendar).toHaveBeenCalledTimes(1));
+
+    const previous = view.getByRole('button', { name: '이전 달' });
+    expect(previous.hasAttribute('disabled')).toBe(false);
+    fireEvent.click(previous);
+    await waitFor(() =>
+      expect(mockedGetInvestmentCalendar).toHaveBeenLastCalledWith(
+        2026,
+        9,
+        'PORTFOLIO',
+        expect.any(Object),
+      ),
+    );
+  });
+
   it('소식 홈용 캘린더는 월간 일정과 선택한 날짜의 일정 목록을 표시한다', async () => {
     const view = renderCalendar(<InvestmentCalendarPage embedded compact />);
 
@@ -107,6 +207,11 @@ describe('투자 캘린더 화면', () => {
     const impact = view.container.querySelector('details')!;
     expect(impact.open).toBe(false);
     impact.open = true;
+    fireEvent(impact, new Event('toggle'));
+    expect(trackEvent).toHaveBeenCalledWith('investment_calendar_action', {
+      surface: 'calendar',
+      action: 'expand_past_reaction',
+    });
 
     fireEvent.click(view.getByRole('button', { name: /두산 3분기 실적/ }));
 
@@ -120,6 +225,19 @@ describe('투자 캘린더 화면', () => {
     fireEvent.click(view.getByRole('button', { name: '달력으로 보기' }));
     expect(view.getByRole('button', { name: '목록으로 보기' })).toBeTruthy();
     fireEvent.click(view.getByRole('button', { name: '10월 22일 한국 기준금리 결정' }));
+
+    expect(trackEvent).toHaveBeenCalledWith('investment_calendar_action', {
+      surface: 'calendar',
+      action: 'change_view',
+      view: 'calendar',
+    });
+    expect(trackEvent).toHaveBeenCalledWith('investment_calendar_action', {
+      surface: 'calendar',
+      action: 'select_event',
+      scope: 'PORTFOLIO',
+      view: 'calendar',
+      position: expect.any(Number),
+    });
 
     expect(view.getByText('내 자산은 기준금리가 오른 뒤 약세였던 경우가 많았습니다.')).toBeTruthy();
     expect(view.getByText('금리 결정별 내 자산의 과거 움직임')).toBeTruthy();
@@ -203,6 +321,42 @@ describe('투자 캘린더 화면', () => {
 
     await waitFor(() => expect(mockedGetInvestmentCalendar).toHaveBeenCalledTimes(2));
     expect(await view.findByText('이번 달 예정된 일정이 없어요.')).toBeTruthy();
+    expect(trackEvent).toHaveBeenCalledWith('investment_calendar_action', {
+      surface: 'calendar',
+      action: 'retry',
+      attempt: 1,
+    });
+  });
+
+  it('조회 결과와 주요 탐색 동작을 투자 정보 없이 기록한다', async () => {
+    const view = renderCalendar(<InvestmentCalendarPage embedded compact />);
+    await view.findByRole('heading', { name: '투자 캘린더', level: 2 });
+    expect(trackEvent).toHaveBeenCalledWith(
+      'investment_calendar_load_result',
+      expect.objectContaining({
+        surface: 'news_home_calendar',
+        scope: 'PORTFOLIO',
+        status: 'success',
+        result_count: expect.any(Number),
+        attempt: 0,
+        is_logged_in: true,
+      }),
+    );
+    fireEvent.click(view.getByRole('button', { name: '다음 달' }));
+    fireEvent.click(view.getByRole('button', { name: '전체 일정' }));
+    expect(trackEvent).toHaveBeenCalledWith('investment_calendar_action', {
+      surface: 'news_home_calendar',
+      action: 'change_month',
+      direction: 'next',
+    });
+    expect(trackEvent).toHaveBeenCalledWith('investment_calendar_action', {
+      surface: 'news_home_calendar',
+      action: 'change_scope',
+      scope: 'ALL',
+    });
+    expect(JSON.stringify(vi.mocked(trackEvent).mock.calls)).not.toMatch(
+      /미국 소비자물가지수|두산|평가금액/,
+    );
   });
 
   it('표본이 부족하면 숫자 대신 제공 조건을 알려준다', async () => {

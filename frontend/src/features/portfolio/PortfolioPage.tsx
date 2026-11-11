@@ -7,7 +7,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProper
 import { PortfolioTour } from './components/PortfolioTour';
 import { PortfolioNews } from './components/PortfolioNews';
 import { calculatePortfolio } from './api';
-import { portfolioErrorType, trackPortfolioEvent } from './analytics';
+import { portfolioErrorType, portfolioMarketScope, trackPortfolioEvent } from './analytics';
 import { PortfolioAnalysis } from './components/PortfolioAnalysis';
 import { PortfolioIntro } from './components/PortfolioIntro';
 import { PortfolioEditor } from './components/PortfolioEditor';
@@ -25,7 +25,10 @@ import type {
 import type { AssetCategory } from '../stocks/types';
 import './portfolio.css';
 import './portfolioLedger.css';
-import { PortfolioTransactionEditor } from './components/PortfolioTransactionEditor';
+import {
+  PortfolioTransactionEditor,
+  type PortfolioTransactionEditorHandle,
+} from './components/PortfolioTransactionEditor';
 import { PortfolioHistory } from './components/PortfolioHistory';
 import { PortfolioEmptySearch } from './components/PortfolioEmptySearch';
 import { PortfolioDialog } from './components/PortfolioDialog';
@@ -881,6 +884,21 @@ function PortfolioTrendDialog({ onClose, ...chartProps }: PortfolioTrendDialogPr
   );
 }
 
+const delayedQuoteTimeFormatter = new Intl.DateTimeFormat('ko-KR', {
+  timeZone: 'Asia/Seoul',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+});
+
+function formatValuationPrice(holding: PortfolioHoldingResult, amountsHidden: boolean) {
+  const price = holding.delayedPrice ?? holding.closePrice;
+  if (price === null) return '가격 미확인';
+  if (!holding.assetCode.endsWith('.US')) return formatWon(price);
+  if (amountsHidden) return '•••••• USD';
+  return `${price.toLocaleString('ko-KR', { maximumFractionDigits: 4 })} USD`;
+}
+
 function compareHoldings(
   first: PortfolioHoldingResult,
   second: PortfolioHoldingResult,
@@ -897,8 +915,11 @@ function compareHoldings(
   };
   if (sort === 'DEFAULT') return 0;
   const key = sortValue[sort];
-  const firstValue = first[key] as number | null;
-  const secondValue = second[key] as number | null;
+  const firstValue = (sort === 'CLOSE' ? (first.delayedPrice ?? first.closePrice) : first[key]) as
+    number | null;
+  const secondValue = (
+    sort === 'CLOSE' ? (second.delayedPrice ?? second.closePrice) : second[key]
+  ) as number | null;
   if (firstValue === null) return secondValue === null ? 0 : 1;
   if (secondValue === null) return -1;
   return direction === 'descending' ? secondValue - firstValue : firstValue - secondValue;
@@ -1028,6 +1049,8 @@ export function PortfolioPage({
   const [trendDialogOpen, setTrendDialogOpen] = useState(false);
   const trendDialogTriggerRef = useRef<HTMLButtonElement | null>(null);
   const [selectedStock, setSelectedStock] = useState<StockSearchItem | null>(null);
+  const transactionEditorRef = useRef<PortfolioTransactionEditorHandle>(null);
+  const dashboardStartedAt = useRef(window.performance.now());
   const viewedRef = useRef(false);
   const loadedRef = useRef(false);
 
@@ -1055,14 +1078,37 @@ export function PortfolioPage({
     }
 
     const controller = new AbortController();
-    setLoading(true);
-    setError('');
-    calculatePortfolio(holdings, controller.signal)
-      .then((response) => {
-        if (!controller.signal.aborted) setCalculation(response);
-      })
-      .catch((caughtError: unknown) => {
+    let pending = false;
+    async function loadCalculation(initial: boolean) {
+      if (pending || controller.signal.aborted) return;
+      pending = true;
+      if (initial) {
+        setLoading(true);
+        setError('');
+      }
+      try {
+        const response = await calculatePortfolio(holdings, controller.signal);
+        if (!controller.signal.aborted) {
+          setCalculation(response);
+          setError('');
+        }
+      } catch (caughtError: unknown) {
         if (controller.signal.aborted) return;
+        if (!initial) {
+          setCalculation((current) =>
+            current?.holdings.some((holding) => holding.delayedPriceAsOf)
+              ? {
+                  ...current,
+                  dailyProfitLoss: null,
+                  dailyReturnRate: null,
+                  holdings: current.holdings.map((holding) =>
+                    holding.delayedPriceAsOf ? { ...holding, quoteRefreshPending: true } : holding,
+                  ),
+                }
+              : current,
+          );
+          return;
+        }
         setCalculation(null);
         trackPortfolioEvent('portfolio_dashboard_load_failed', {
           stage: 'calculation',
@@ -1071,12 +1117,24 @@ export function PortfolioPage({
         setError(
           caughtError instanceof Error ? caughtError.message : '포트폴리오를 계산하지 못했습니다.',
         );
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
+      } finally {
+        pending = false;
+        if (initial && !controller.signal.aborted) setLoading(false);
+      }
+    }
 
-    return () => controller.abort();
+    function refreshVisibleCalculation() {
+      if (document.visibilityState === 'visible') void loadCalculation(false);
+    }
+
+    void loadCalculation(true);
+    const timer = window.setInterval(refreshVisibleCalculation, 5 * 60 * 1000);
+    document.addEventListener('visibilitychange', refreshVisibleCalculation);
+    return () => {
+      controller.abort();
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', refreshVisibleCalculation);
+    };
   }, [holdings, holdingsLoading, retryCount]);
 
   const liveDashboardCalculation = useMemo<PortfolioCalculation | null>(
@@ -1111,6 +1169,11 @@ export function PortfolioPage({
 
   const dashboardCalculation =
     tourStep !== null && tourStep >= 8 ? tourCalculation : liveDashboardCalculation;
+  const delayedHoldingCount =
+    dashboardCalculation?.holdings.filter((holding) => holding.delayedPriceAsOf != null).length ??
+    0;
+  const pendingQuoteCount =
+    dashboardCalculation?.holdings.filter((holding) => holding.quoteRefreshPending).length ?? 0;
   const displayedTab = touring ? 'holdings' : activeTab;
   const displayedNewsOpen = (tourStep !== null && tourStep >= 10) || newsOpen;
   const displayedHoldings =
@@ -1195,13 +1258,25 @@ export function PortfolioPage({
     trackPortfolioEvent('portfolio_dashboard_loaded', {
       is_logged_in: isLoggedIn,
       has_holdings: holdings.length > 0,
+      market_scope: portfolioMarketScope(holdings),
       pricing_status: dashboardCalculation.pricingStatus,
+      duration_ms: Math.max(0, Math.round(window.performance.now() - dashboardStartedAt.current)),
+      holding_count_bucket:
+        holdings.length === 0
+          ? '0'
+          : holdings.length === 1
+            ? '1'
+            : holdings.length <= 5
+              ? '2_5'
+              : holdings.length <= 20
+                ? '6_20'
+                : '21_plus',
     });
   }, [
     calculation,
     dashboardCalculation,
     error,
-    holdings.length,
+    holdings,
     holdingsError,
     holdingsLoading,
     isLoggedIn,
@@ -1347,7 +1422,12 @@ export function PortfolioPage({
 
   async function save(nextHolding: PortfolioHoldingInput) {
     const operation = 'holding_update';
-    const properties = { operation, storage: isLoggedIn ? 'server' : 'temporary' } as const;
+    const properties = {
+      operation,
+      storage: isLoggedIn ? 'server' : 'temporary',
+      has_holdings: holdings.length > 0,
+      market_scope: portfolioMarketScope(holdings),
+    } as const;
     trackPortfolioEvent('portfolio_save_submitted', properties);
     try {
       await saveHolding(nextHolding);
@@ -1563,7 +1643,7 @@ export function PortfolioPage({
                       )}
                     </dd>
                     <dd className="portfolio-daily-performance">
-                      <span>최근 거래일 손익</span>
+                      <span>{delayedHoldingCount ? '오늘 손익' : '최근 거래일 손익'}</span>
                       <strong className={profitClass(dashboardCalculation.dailyProfitLoss)}>
                         {displayWon(dashboardCalculation.dailyProfitLoss, true)}{' '}
                         <small>{formatPercent(dashboardCalculation.dailyReturnRate, true)}</small>
@@ -1601,8 +1681,18 @@ export function PortfolioPage({
                     <p className="portfolio-field-note" role="status">
                       현재 보유 자산의 비중을 확인하고 있어요.
                     </p>
-                  ) : dashboardCalculation.pricingStatus ===
-                    'PARTIAL' ? null : dashboardCalculation.pricingStatus === 'MIXED_DATES' ? (
+                  ) : delayedHoldingCount > 0 ? (
+                    <p>
+                      <span className="portfolio-status-dot" />
+                      지연 시세 {delayedHoldingCount - pendingQuoteCount}종목 · 종가{' '}
+                      {dashboardCalculation.pricedHoldingCount - delayedHoldingCount}종목
+                      {pendingQuoteCount > 0 && ` · 갱신 대기 ${pendingQuoteCount}종목`}
+                      {dashboardCalculation.unpricedHoldingCount > 0 &&
+                        ` · 가격 미확인 ${dashboardCalculation.unpricedHoldingCount}종목 · 부분 평가`}
+                    </p>
+                  ) : dashboardCalculation.pricingStatus === 'PARTIAL' ? (
+                    <p>가격 미확인 {dashboardCalculation.unpricedHoldingCount}종목 · 부분 평가</p>
+                  ) : dashboardCalculation.pricingStatus === 'MIXED_DATES' ? (
                     <p>
                       <span className="portfolio-status-dot is-pending" />
                       종목별 가격 기준일이 달라요. 최근 거래일 손익은 표시하지 않아요.
@@ -1631,6 +1721,7 @@ export function PortfolioPage({
                   <PortfolioAnalysis
                     demoStep={tourStep ?? undefined}
                     assets={analysisAssets}
+                    pricingStatus={dashboardCalculation.pricingStatus}
                     onAddAsset={addEmptyStateAsset}
                     isLoggedIn={isLoggedIn}
                     holdingsKey={JSON.stringify(
@@ -1827,7 +1918,10 @@ export function PortfolioPage({
                                       [
                                         ['QUANTITY', '보유수량'],
                                         ['PURCHASE', '평균 매수가'],
-                                        ['CLOSE', '최근 종가'],
+                                        [
+                                          'CLOSE',
+                                          delayedHoldingCount ? '평가 기준가' : '최근 종가',
+                                        ],
                                         ['EVALUATION', '평가금액'],
                                       ] as const
                                     ).map(([key, label]) => (
@@ -1903,21 +1997,29 @@ export function PortfolioPage({
                                       <td data-label="평균 매수가">
                                         {displayWon(holding.averagePurchasePrice)}
                                       </td>
-                                      <td data-label="최근 종가">
-                                        <span>
-                                          {holding.closePrice === null
-                                            ? '-'
-                                            : holding.assetCode.endsWith('.US')
-                                              ? amountsHidden
-                                                ? '•••••• USD'
-                                                : `${holding.closePrice.toLocaleString('ko-KR', { maximumFractionDigits: 4 })} USD`
-                                              : formatWon(holding.closePrice)}
-                                        </span>
-                                        {holding.priceAvailable && holding.baseDate && (
+                                      <td
+                                        data-label={
+                                          delayedHoldingCount ? '평가 기준가' : '최근 종가'
+                                        }
+                                      >
+                                        <span>{formatValuationPrice(holding, amountsHidden)}</span>
+                                        {holding.delayedPriceAsOf ? (
                                           <small className="portfolio-price-date">
+                                            {holding.quoteRefreshPending
+                                              ? '갱신 대기'
+                                              : '지연 시세'}{' '}
+                                            ·{' '}
+                                            {delayedQuoteTimeFormatter.format(
+                                              new Date(holding.delayedPriceAsOf),
+                                            )}{' '}
+                                            KST 기준
+                                          </small>
+                                        ) : holding.priceAvailable && holding.baseDate ? (
+                                          <small className="portfolio-price-date">
+                                            {delayedHoldingCount > 0 && '최근 종가 · '}
                                             {holding.baseDate.replaceAll('-', '.')}
                                           </small>
-                                        )}
+                                        ) : null}
                                       </td>
                                       <td data-label="평가금액" className="portfolio-value">
                                         {holding.evaluationAmount === null
@@ -2062,7 +2164,7 @@ export function PortfolioPage({
           onClose={() => {
             if (removing) setRemoving(null);
             else if (editor) setEditor(null);
-            else if (transactionEditor) setTransactionEditor(null);
+            else if (transactionEditor) transactionEditorRef.current?.close();
             else setSelectedStock(null);
           }}
           className={
@@ -2109,6 +2211,7 @@ export function PortfolioPage({
             <div hidden={!!removing}>
               <PortfolioTransactionEditor
                 {...transactionEditor}
+                ref={transactionEditorRef}
                 onClose={() => setTransactionEditor(null)}
                 onDelete={
                   transactionEditor.transaction
@@ -2117,10 +2220,14 @@ export function PortfolioPage({
                 }
                 onSave={async (request, stock) => {
                   const transaction = transactionEditor.transaction;
+                  const targetStock =
+                    stock ?? holdings.find((holding) => holding.assetId === request.assetId);
                   const properties = {
                     operation: transaction ? 'transaction_update' : 'transaction_create',
                     storage: isLoggedIn ? 'server' : 'temporary',
                     transaction_type: request.type,
+                    has_holdings: holdings.length > 0,
+                    market_scope: targetStock ? portfolioMarketScope([targetStock]) : undefined,
                   } as const;
                   trackPortfolioEvent('portfolio_save_submitted', properties);
                   try {

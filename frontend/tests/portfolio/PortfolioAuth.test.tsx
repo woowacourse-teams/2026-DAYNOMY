@@ -166,7 +166,7 @@ describe('포트폴리오 로그인 접근', () => {
 
       const view = render(<App />);
 
-      expect(await view.findByText('아직 이 주차에 집계된 투자자가 없습니다')).toBeTruthy();
+      expect(await view.findByText('이번 주 첫 집계를 기다리고 있어요')).toBeTruthy();
       expect(view.getByRole('heading', { name: '주간 리그' })).toBeTruthy();
       expect(document.title).toBe('주간 리그 | DAYNOMY');
       expect(document.activeElement).toBe(view.getByRole('heading', { name: '주간 리그' }));

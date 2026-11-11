@@ -34,6 +34,9 @@ dependencies {
     implementation("org.jsoup:jsoup:1.21.2")
     implementation("org.apache.pdfbox:pdfbox:3.0.8")
     implementation("org.apache.httpcomponents.client5:httpclient5")
+    implementation("dev.langchain4j:langchain4j:1.22.0")
+    implementation("dev.langchain4j:langchain4j-open-ai:1.22.0")
+    implementation("dev.langchain4j:langchain4j-http-client-jdk:1.22.0")
     compileOnly("org.projectlombok:lombok")
     annotationProcessor("org.projectlombok:lombok")
     runtimeOnly("org.postgresql:postgresql")
@@ -57,8 +60,27 @@ dependencies {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+    systemProperty("spring.test.context.cache.maxSize", "8")
+    if (System.getenv("CI_DIAGNOSTICS") == "true") {
+        systemProperty("logging.level.org.springframework.test.context.cache", "DEBUG")
+    }
     maxHeapSize = "2g"
     if (System.getenv("LEAGUE_BENCHMARK") == "true") maxHeapSize = "3g"
+}
+
+// CI and development CD partition the existing test task; builds without the option run every test.
+val ciTestSuite = providers.gradleProperty("ciTestSuite").orElse("all")
+val heavyCiTests = listOf(
+    "org.grit.daynomy.loadtest.Portfolio1000LoadtestToolTest",
+    "org.grit.daynomy.league.acceptance.LeagueRankingsLoadtestSeedTest",
+)
+tasks.named<Test>("test") {
+    when (val suite = ciTestSuite.get()) {
+        "all" -> Unit
+        "main" -> filter { heavyCiTests.forEach { excludeTestsMatching(it) } }
+        "heavy" -> filter { heavyCiTests.forEach { includeTestsMatching(it) } }
+        else -> throw GradleException("Unknown ciTestSuite: $suite (expected all, main, or heavy)")
+    }
 }
 
 // Manual dev load-test preparation only; no Spring server or schedulers are started.
@@ -66,6 +88,13 @@ tasks.register<JavaExec>("portfolioLoadtest") {
     dependsOn(tasks.testClasses)
     classpath = sourceSets.test.get().runtimeClasspath
     mainClass.set("org.grit.daynomy.loadtest.PortfolioLoadtestTool")
+}
+
+tasks.register<JavaExec>("portfolio1000Loadtest") {
+    dependsOn(tasks.testClasses)
+    classpath = sourceSets.test.get().runtimeClasspath
+    mainClass.set("org.grit.daynomy.loadtest.Portfolio1000LoadtestTool")
+    maxHeapSize = "512m"
 }
 
 spotless {

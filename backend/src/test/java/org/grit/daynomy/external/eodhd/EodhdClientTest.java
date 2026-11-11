@@ -3,8 +3,9 @@ package org.grit.daynomy.external.eodhd;
 import static org.assertj.core.api.Assertions.*;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
-import java.util.Set;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
@@ -30,6 +31,35 @@ class EodhdClientTest {
   @AfterEach
   void tearDown() throws Exception {
     server.shutdown();
+  }
+
+  @Test
+  void delayedQuoteBatchKeepsIndividualTimestampsAndSkipsMissingPrices() throws Exception {
+    json(
+        """
+        [{"code":"005930.KO","close":72000,"timestamp":1794186000},
+         {"code":"069500.KO","close":40000,"timestamp":1794185940},
+         {"code":"000660.KO","close":"NA","timestamp":"NA"}]
+        """);
+
+    var response = client.getDelayedQuotes(List.of("005930.KO", "069500.KO", "000660.KO"));
+
+    assertThat(response.quotes())
+        .extracting(EodhdClient.DelayedQuote::asOf)
+        .containsExactly(Instant.ofEpochSecond(1794186000), Instant.ofEpochSecond(1794185940));
+    var request = server.takeRequest().getRequestUrl();
+    assertThat(request.encodedPath()).isEqualTo("/api/real-time/005930.KO");
+    assertThat(request.queryParameter("s")).isEqualTo("069500.KO,000660.KO");
+  }
+
+  @Test
+  void delayedQuoteRateLimitReturnsOnlyStatus() {
+    server.enqueue(new MockResponse().setResponseCode(402).setBody("test-key"));
+
+    var response = client.getDelayedQuotes(List.of("AAPL.US"));
+
+    assertThat(response.status()).isEqualTo(402);
+    assertThat(response.quotes()).isEmpty();
   }
 
   @Test
@@ -85,34 +115,6 @@ class EodhdClientTest {
     assertThat(request.getRequestUrl().encodedPath()).isEqualTo("/api/eod/AAPL");
     assertThat(request.getRequestUrl().queryParameter("from")).isEqualTo("2026-01-01");
     assertThat(request.getRequestUrl().queryParameter("to")).isEqualTo("2026-01-09");
-  }
-
-  @Test
-  void fetchesOnlyOfficialUsMarketClosures() throws Exception {
-    json(
-        """
-        {"Code":"US","ExchangeHolidays":{
-          "0":{"Date":"2026-01-01","Type":"official"},
-          "1":{"Date":"2026-01-02","Type":"Bank"},
-          "2":{"Date":"2026-01-05","Type":"EarlyClose"}
-        }}
-        """);
-
-    assertThat(client.getUsMarketHolidays(LocalDate.of(2026, 1, 1), LocalDate.of(2026, 1, 9)))
-        .isEqualTo(Set.of(LocalDate.of(2026, 1, 1)));
-    var request = server.takeRequest();
-    assertThat(request.getRequestUrl().encodedPath()).isEqualTo("/api/exchange-details/US");
-    assertThat(request.getRequestUrl().queryParameter("from")).isEqualTo("2026-01-01");
-    assertThat(request.getRequestUrl().queryParameter("to")).isEqualTo("2026-01-09");
-  }
-
-  @Test
-  void rejectsMissingUsHolidayCalendar() {
-    json("{\"Code\":\"US\"}");
-
-    assertThatThrownBy(
-            () -> client.getUsMarketHolidays(LocalDate.of(2026, 1, 1), LocalDate.of(2026, 1, 9)))
-        .isInstanceOf(BusinessException.class);
   }
 
   @ParameterizedTest

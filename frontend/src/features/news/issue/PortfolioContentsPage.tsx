@@ -5,6 +5,7 @@ import { trackEvent } from '../../../analytics';
 import { usePortfolioHoldings } from '../../portfolio/hooks/usePortfolioHoldings';
 import type { PortfolioHoldingInput } from '../../portfolio/types';
 import { getStockRelatedContents } from '../../stock-content/api';
+import { StockNewsEmptyState } from '../../stock-content/StockNewsEmptyState';
 import {
   STOCK_CONTENT_SOURCE_LABELS,
   type StockRelatedContent,
@@ -26,7 +27,6 @@ import threadsMark from '../../../assets/platform-threads.svg';
 import './issue.css';
 import './portfolioContentsNext.css';
 import { PortfolioReadingNext } from './PortfolioReadingNext';
-import { examplePortfolio, exampleResponses } from './portfolioContentsExample';
 
 const sources = [
   ['ALL', '전체'],
@@ -104,12 +104,9 @@ function CompanySidebar({
 
 export function PortfolioContentsPage() {
   const { isLoggedIn, loading } = useAuth();
-  const [params] = useSearchParams();
-  const example = import.meta.env.DEV && params.get('data') === 'example';
-  if (example) return <PortfolioContentsView portfolio={examplePortfolio} example />;
   if (loading)
     return (
-      <main className="issue-page">
+      <main className="issue-page portfolio-contents-page">
         <p role="status">보유 종목을 불러오는 중입니다.</p>
       </main>
     );
@@ -121,10 +118,8 @@ function PortfolioContents({ isLoggedIn }: { isLoggedIn: boolean }) {
   return <PortfolioContentsView portfolio={portfolio} />;
 }
 
-// Keep the example independent of saved holdings and their API requests.
 function PortfolioContentsView({
   portfolio,
-  example = false,
 }: {
   portfolio: {
     holdings: { assetId: number; name: string }[];
@@ -132,7 +127,6 @@ function PortfolioContentsView({
     error: string;
     retry: () => void;
   };
-  example?: boolean;
 }) {
   const [params, setParams] = useSearchParams();
   const selectedAsset = params.get('asset') ?? 'ALL';
@@ -174,12 +168,6 @@ function PortfolioContentsView({
 
   useEffect(() => {
     if (portfolio.loading || portfolio.error) return;
-    if (example) {
-      setResponses(exampleResponses);
-      setFailedIds([]);
-      setLoadedKey(assetKey);
-      return;
-    }
     const startedAt = performance.now();
     const controller = new AbortController();
     const ids: number[] = JSON.parse(assetKey);
@@ -216,10 +204,10 @@ function PortfolioContentsView({
       },
     );
     return () => controller.abort();
-  }, [assetKey, portfolio.loading, portfolio.error, attempt, selectedAsset, example]);
+  }, [assetKey, portfolio.loading, portfolio.error, attempt, selectedAsset]);
 
   useEffect(() => {
-    if (example || sort !== 'popular') {
+    if (sort !== 'popular') {
       setPopularityLoading(false);
       setPopularityError('');
       return;
@@ -239,7 +227,7 @@ function PortfolioContentsView({
         if (!controller.signal.aborted) setPopularityLoading(false);
       });
     return () => controller.abort();
-  }, [attempt, sort, example]);
+  }, [attempt, sort]);
 
   function filter(key: 'asset' | 'source' | 'page' | 'sort', value: string) {
     const next = new URLSearchParams(params);
@@ -326,34 +314,25 @@ function PortfolioContentsView({
       ? 'partial_error'
       : 'ready';
   const sourceType = source === 'INTERNAL_NEWS' ? 'DAYNOMY' : source;
-  useContentView(!example && settled, 'view_content_list', {
+  useContentView(settled, 'view_content_list', {
     surface: 'portfolio_contents',
     source_type: sourceType,
     result_count: items.length,
     page_number: currentPage,
     status: listStatus,
   });
-  useContentView(
-    !example && settled && listStatus === 'ready' && !items.length,
-    'view_content_empty',
-    {
-      surface: 'portfolio_contents',
-      source_type: sourceType,
-      reason: !portfolio.holdings.length
-        ? 'no_holdings'
-        : source !== 'ALL'
-          ? 'filter_empty'
-          : 'no_linked_content',
-    },
-  );
+  useContentView(settled && listStatus === 'ready' && !items.length, 'view_content_empty', {
+    surface: 'portfolio_contents',
+    source_type: sourceType,
+    reason: !portfolio.holdings.length
+      ? 'no_holdings'
+      : source !== 'ALL'
+        ? 'filter_empty'
+        : 'no_linked_content',
+  });
 
   return (
     <main className="issue-page portfolio-contents-page">
-      {example && (
-        <p className="portfolio-example-notice">
-          가상 시나리오 · 아래 기업 소식은 실제 사실이 아니며, 실제 보유 자산에 저장되지 않습니다.
-        </p>
-      )}
       <div className="portfolio-contents-layout">
         <CompanySidebar
           holdings={portfolio.holdings}
@@ -383,57 +362,57 @@ function PortfolioContentsView({
               </svg>
             </Link>
           </header>
-          {!portfolio.loading &&
-            !portfolio.error &&
-            portfolio.holdings.length > 0 &&
-            validSelection && (
-              <div className="portfolio-content-toolbar">
-                <div className="issue-source-filters" role="group" aria-label="콘텐츠 출처">
-                  {sources.map(([value, label]) => (
-                    <button
-                      key={value}
-                      type="button"
-                      aria-pressed={source === value}
-                      onClick={() => {
-                        if (value === source) return;
-                        if (!example)
-                          trackEvent('filter_content_source', {
-                            surface: 'portfolio_contents',
-                            previous_source: sourceType,
-                            source_type: value === 'INTERNAL_NEWS' ? 'DAYNOMY' : value,
-                            result_count: new Set(
-                              responses.flatMap((response) =>
-                                response.contents
-                                  .filter((item) => value === 'ALL' || item.sourceType === value)
-                                  .map((item) => item.url),
-                              ),
-                            ).size,
-                          });
-                        filter('source', value);
-                      }}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-                <div className="issue-sort-options" role="group" aria-label="콘텐츠 정렬">
+          {(portfolio.loading ||
+            (!portfolio.error && portfolio.holdings.length > 0 && validSelection)) && (
+            <div className="portfolio-content-toolbar">
+              <div className="issue-source-filters" role="group" aria-label="콘텐츠 출처">
+                {sources.map(([value, label]) => (
                   <button
+                    key={value}
                     type="button"
-                    aria-pressed={sort === 'latest'}
-                    onClick={() => filter('sort', 'latest')}
+                    disabled={portfolio.loading}
+                    aria-pressed={source === value}
+                    onClick={() => {
+                      if (value === source) return;
+                      trackEvent('filter_content_source', {
+                        surface: 'portfolio_contents',
+                        previous_source: sourceType,
+                        source_type: value === 'INTERNAL_NEWS' ? 'DAYNOMY' : value,
+                        result_count: new Set(
+                          responses.flatMap((response) =>
+                            response.contents
+                              .filter((item) => value === 'ALL' || item.sourceType === value)
+                              .map((item) => item.url),
+                          ),
+                        ).size,
+                      });
+                      filter('source', value);
+                    }}
                   >
-                    최신순
+                    {label}
                   </button>
-                  <button
-                    type="button"
-                    aria-pressed={sort === 'popular'}
-                    onClick={() => filter('sort', 'popular')}
-                  >
-                    인기순
-                  </button>
-                </div>
+                ))}
               </div>
-            )}
+              <div className="issue-sort-options" role="group" aria-label="콘텐츠 정렬">
+                <button
+                  type="button"
+                  disabled={portfolio.loading}
+                  aria-pressed={sort === 'latest'}
+                  onClick={() => filter('sort', 'latest')}
+                >
+                  최신순
+                </button>
+                <button
+                  type="button"
+                  disabled={portfolio.loading}
+                  aria-pressed={sort === 'popular'}
+                  onClick={() => filter('sort', 'popular')}
+                >
+                  인기순
+                </button>
+              </div>
+            </div>
+          )}
           {loading || popularityLoading ? (
             <p className="issue-state" role="status">
               보유 종목 소식을 불러오는 중입니다.
@@ -485,8 +464,16 @@ function PortfolioContentsView({
               )}
               {!portfolio.holdings.length ? (
                 <p className="issue-state">보유 종목을 등록하면 관련 소식을 볼 수 있습니다. </p>
-              ) : !items.length && !selectionFailed ? (
-                <p className="issue-state">선택한 조건에 연결된 소식이 없습니다.</p>
+              ) : !items.length && !selectionFailed && !popularityError ? (
+                <StockNewsEmptyState
+                  title={
+                    source !== 'ALL'
+                      ? '선택한 조건의 소식이 없어요'
+                      : selectedAsset === 'ALL'
+                        ? '아직 보유 종목의 소식이 없어요'
+                        : '아직 이 종목의 소식이 없어요'
+                  }
+                />
               ) : null}
               <ul className="issue-feed issue-feed--visual">
                 {items.slice((currentPage - 1) * 12, currentPage * 12).map((item, index) => {
@@ -544,7 +531,7 @@ function PortfolioContentsView({
                             aria-expanded={expanded === key}
                             aria-controls={`portfolio-post-${key}`}
                             onClick={() => {
-                              if (!example && expanded !== key) {
+                              if (expanded !== key) {
                                 trackEvent('expand_content', analytics);
                                 void recordContentInteraction(stockContentReference(item), 'OPEN');
                               }
@@ -555,11 +542,9 @@ function PortfolioContentsView({
                             <span className="issue-expand-label">
                               {expanded === key
                                 ? '접기'
-                                : example
-                                  ? '글 읽기'
-                                  : item.sourceType === 'YOUTUBE'
-                                    ? '영상 보기'
-                                    : '글 펼치기'}
+                                : item.sourceType === 'YOUTUBE'
+                                  ? '영상 보기'
+                                  : '글 펼치기'}
                               <svg
                                 className="issue-expand-chevron"
                                 viewBox="0 0 16 16"
@@ -577,7 +562,6 @@ function PortfolioContentsView({
                         ) : (
                           <a
                             onClick={() => {
-                              if (example) return;
                               trackEvent(
                                 item.sourceType === 'INTERNAL_NEWS'
                                   ? 'click_content'
@@ -685,14 +669,10 @@ function PortfolioContentsView({
                   page={currentPage}
                   totalPages={totalPages}
                   onChange={(next) => filter('page', String(next))}
-                  analytics={
-                    example
-                      ? undefined
-                      : {
-                          surface: 'portfolio_contents',
-                          source_type: sourceType,
-                        }
-                  }
+                  analytics={{
+                    surface: 'portfolio_contents',
+                    source_type: sourceType,
+                  }}
                 />
               )}
               {!portfolio.holdings.length && (

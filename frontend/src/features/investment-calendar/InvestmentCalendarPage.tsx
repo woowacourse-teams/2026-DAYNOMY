@@ -1,4 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { trackEvent } from '../../analytics';
 import { useAuth } from '../../hooks/useLoginStatus';
 import { loadGuestPortfolioHoldings } from '../portfolio/portfolioHoldingsStorage';
 import { getInvestmentCalendar } from './api';
@@ -54,6 +55,11 @@ function initialMonth() {
 function moveMonth(year: number, month: number, amount: number) {
   const target = new Date(year, month - 1 + amount, 1);
   return { year: target.getFullYear(), month: target.getMonth() + 1 };
+}
+
+function isBeforeCurrentMonth(year: number, month: number) {
+  const now = new Date();
+  return year * 12 + month < now.getFullYear() * 12 + now.getMonth() + 1;
 }
 
 function eventDateParts(announcedAt: string) {
@@ -281,6 +287,7 @@ function CalendarGrid({
 function BriefingCalendar({
   year,
   month,
+  canMovePreviousMonth,
   events,
   selectedEventId,
   scope,
@@ -294,6 +301,7 @@ function BriefingCalendar({
 }: {
   year: number;
   month: number;
+  canMovePreviousMonth: boolean;
   events: InvestmentCalendarEvent[];
   selectedEventId: number | null;
   scope: InvestmentCalendarScope;
@@ -318,7 +326,12 @@ function BriefingCalendar({
       </header>
 
       <div className="investment-calendar-briefing-month">
-        <button type="button" aria-label="이전 달" onClick={() => onChangeMonth(-1)}>
+        <button
+          type="button"
+          aria-label="이전 달"
+          disabled={!canMovePreviousMonth}
+          onClick={() => onChangeMonth(-1)}
+        >
           <ChevronIcon direction="left" />
         </button>
         <strong>
@@ -371,7 +384,13 @@ function BriefingCalendar({
   );
 }
 
-function EventDetail({ event }: { event: InvestmentCalendarEvent }) {
+function EventDetail({
+  event,
+  onExpandImpact,
+}: {
+  event: InvestmentCalendarEvent;
+  onExpandImpact: () => void;
+}) {
   const date = eventDateParts(event.announcedAt);
   const analysis = event.portfolioAnalysis;
   const copy = event.demoCopy ?? defaultCopy(event);
@@ -424,7 +443,12 @@ function EventDetail({ event }: { event: InvestmentCalendarEvent }) {
             <span>표본이 3회 이상 쌓이면 내 자산의 반응 범위를 보여드릴게요.</span>
           </div>
         ) : (
-          <details className="investment-calendar-impact">
+          <details
+            className="investment-calendar-impact"
+            onToggle={(toggleEvent) => {
+              if (toggleEvent.currentTarget.open) onExpandImpact();
+            }}
+          >
             <summary className="investment-calendar-impact-head">
               <div>
                 <h3>
@@ -519,6 +543,17 @@ export const InvestmentCalendarPage = memo(function InvestmentCalendarPage({
   const [reloadKey, setReloadKey] = useState(0);
   const requestedScope: InvestmentCalendarScope =
     compact || calendarView || upcomingOnly ? calendarScope : 'PORTFOLIO';
+  const surface = compact ? 'news_home_calendar' : embedded ? 'news_calendar' : 'calendar';
+  const previousMonth = moveMonth(year, month, -1);
+  const canMovePreviousMonth =
+    !upcomingOnly || !isBeforeCurrentMonth(previousMonth.year, previousMonth.month);
+
+  const trackCalendarAction = useCallback(
+    (action: string, params: Record<string, string | number | boolean> = {}) => {
+      trackEvent('investment_calendar_action', { surface, action, ...params });
+    },
+    [surface],
+  );
 
   useEffect(() => {
     if (authLoading) {
@@ -526,6 +561,7 @@ export const InvestmentCalendarPage = memo(function InvestmentCalendarPage({
       return;
     }
     const controller = new AbortController();
+    const startedAt = performance.now();
     setLoading(true);
     setError(false);
     const guestHoldings = isLoggedIn
@@ -547,6 +583,15 @@ export const InvestmentCalendarPage = memo(function InvestmentCalendarPage({
         setIsDemo(result.isDemo);
         setSelectedEventId(compact || !upcomingOnly ? (available[0]?.id ?? null) : null);
         setLoading(false);
+        trackEvent('investment_calendar_load_result', {
+          surface,
+          scope: requestedScope,
+          status: 'success',
+          result_count: available.length,
+          attempt: reloadKey,
+          duration_ms: Math.max(0, Math.round(performance.now() - startedAt)),
+          is_logged_in: isLoggedIn,
+        });
       },
       (requestError: unknown) => {
         if (requestError instanceof DOMException && requestError.name === 'AbortError') return;
@@ -554,10 +599,29 @@ export const InvestmentCalendarPage = memo(function InvestmentCalendarPage({
         setSelectedEventId(null);
         setError(true);
         setLoading(false);
+        trackEvent('investment_calendar_load_result', {
+          surface,
+          scope: requestedScope,
+          status: 'error',
+          result_count: 0,
+          attempt: reloadKey,
+          duration_ms: Math.max(0, Math.round(performance.now() - startedAt)),
+          is_logged_in: isLoggedIn,
+        });
       },
     );
     return () => controller.abort();
-  }, [authLoading, compact, isLoggedIn, month, reloadKey, requestedScope, year, upcomingOnly]);
+  }, [
+    authLoading,
+    compact,
+    isLoggedIn,
+    month,
+    reloadKey,
+    requestedScope,
+    surface,
+    year,
+    upcomingOnly,
+  ]);
 
   const selectedEvent = useMemo(
     () => events.find((event) => event.id === selectedEventId) ?? null,
@@ -567,17 +631,48 @@ export const InvestmentCalendarPage = memo(function InvestmentCalendarPage({
   const changeMonth = useCallback(
     (amount: number) => {
       const next = moveMonth(year, month, amount);
+      if (upcomingOnly && isBeforeCurrentMonth(next.year, next.month)) return;
+      trackCalendarAction('change_month', { direction: amount < 0 ? 'previous' : 'next' });
       setYear(next.year);
       setMonth(next.month);
     },
-    [month, year],
+    [month, trackCalendarAction, upcomingOnly, year],
   );
+
+  const changeScope = useCallback(
+    (nextScope: InvestmentCalendarScope) => {
+      if (calendarScope === nextScope) return;
+      trackCalendarAction('change_scope', { scope: nextScope });
+      setCalendarScope(nextScope);
+    },
+    [calendarScope, trackCalendarAction],
+  );
+
+  const selectEvent = useCallback(
+    (eventId: number) => {
+      if (selectedEventId === eventId) return;
+      const position = events.findIndex((event) => event.id === eventId) + 1;
+      trackCalendarAction('select_event', {
+        scope: requestedScope,
+        view: calendarView ? 'calendar' : 'list',
+        ...(position > 0 ? { position } : {}),
+      });
+      setSelectedEventId(eventId);
+    },
+    [calendarView, events, requestedScope, selectedEventId, trackCalendarAction],
+  );
+
+  const retry = useCallback(() => {
+    trackCalendarAction('retry', { attempt: reloadKey + 1 });
+    setReloadKey((key) => key + 1);
+  }, [reloadKey, trackCalendarAction]);
 
   if (compact) {
     return (
       <BriefingCalendar
         year={year}
         month={month}
+        canMovePreviousMonth={canMovePreviousMonth}
         events={events}
         selectedEventId={selectedEventId}
         scope={calendarScope}
@@ -585,9 +680,9 @@ export const InvestmentCalendarPage = memo(function InvestmentCalendarPage({
         error={error}
         isDemo={isDemo}
         onChangeMonth={changeMonth}
-        onChangeScope={setCalendarScope}
-        onSelectEvent={setSelectedEventId}
-        onRetry={() => setReloadKey((key) => key + 1)}
+        onChangeScope={changeScope}
+        onSelectEvent={selectEvent}
+        onRetry={retry}
       />
     );
   }
@@ -624,7 +719,12 @@ export const InvestmentCalendarPage = memo(function InvestmentCalendarPage({
         <aside className="investment-calendar-schedule">
           <div className="investment-calendar-panel-head">
             <div className="investment-calendar-month-control">
-              <button type="button" aria-label="이전 달" onClick={() => changeMonth(-1)}>
+              <button
+                type="button"
+                aria-label="이전 달"
+                disabled={!canMovePreviousMonth}
+                onClick={() => changeMonth(-1)}
+              >
                 <ChevronIcon direction="left" />
               </button>
               <strong>
@@ -638,7 +738,11 @@ export const InvestmentCalendarPage = memo(function InvestmentCalendarPage({
               className="investment-calendar-view-button"
               type="button"
               aria-pressed={calendarView}
-              onClick={() => setCalendarView((current) => !current)}
+              onClick={() => {
+                const nextView = calendarView ? 'list' : 'calendar';
+                trackCalendarAction('change_view', { view: nextView });
+                setCalendarView((current) => !current);
+              }}
             >
               {calendarView ? '목록으로 보기' : '달력으로 보기'}
             </button>
@@ -649,14 +753,14 @@ export const InvestmentCalendarPage = memo(function InvestmentCalendarPage({
               <button
                 type="button"
                 aria-pressed={calendarScope === 'PORTFOLIO'}
-                onClick={() => setCalendarScope('PORTFOLIO')}
+                onClick={() => changeScope('PORTFOLIO')}
               >
                 내 일정
               </button>
               <button
                 type="button"
                 aria-pressed={calendarScope === 'ALL'}
-                onClick={() => setCalendarScope('ALL')}
+                onClick={() => changeScope('ALL')}
               >
                 전체 일정
               </button>
@@ -670,7 +774,7 @@ export const InvestmentCalendarPage = memo(function InvestmentCalendarPage({
           ) : error ? (
             <div className="investment-calendar-side-state">
               <p>일정을 불러오지 못했어요.</p>
-              <button type="button" onClick={() => setReloadKey((key) => key + 1)}>
+              <button type="button" onClick={retry}>
                 다시 시도
               </button>
             </div>
@@ -687,7 +791,7 @@ export const InvestmentCalendarPage = memo(function InvestmentCalendarPage({
               month={month}
               events={events}
               selectedEventId={selectedEventId}
-              onSelect={setSelectedEventId}
+              onSelect={selectEvent}
             />
           ) : (
             <div className="investment-calendar-event-list">
@@ -700,7 +804,7 @@ export const InvestmentCalendarPage = memo(function InvestmentCalendarPage({
                     type="button"
                     key={event.id}
                     aria-pressed={event.id === selectedEventId}
-                    onClick={() => setSelectedEventId(event.id)}
+                    onClick={() => selectEvent(event.id)}
                   >
                     <span className="investment-calendar-date">
                       <strong>{date.day}</strong>
@@ -729,7 +833,10 @@ export const InvestmentCalendarPage = memo(function InvestmentCalendarPage({
         {upcomingOnly && !selectedEvent ? null : loading ? (
           <div className="investment-calendar-detail-state" aria-busy="true" />
         ) : selectedEvent ? (
-          <EventDetail event={selectedEvent} />
+          <EventDetail
+            event={selectedEvent}
+            onExpandImpact={() => trackCalendarAction('expand_past_reaction')}
+          />
         ) : (
           <div className="investment-calendar-detail-state">
             <p>일정을 선택하면 내 자산의 과거 반응을 보여드려요.</p>

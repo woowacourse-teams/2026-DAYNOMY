@@ -19,6 +19,7 @@ import org.grit.daynomy.news.domain.News;
 import org.grit.daynomy.news.domain.NewsStatus;
 import org.grit.daynomy.news.dto.AdminNewsCreateRequest;
 import org.grit.daynomy.news.dto.AdminNewsGenerationResponse;
+import org.grit.daynomy.news.dto.AdminNewsKeywordGenerationRequest;
 import org.grit.daynomy.news.dto.AdminNewsPageResponse;
 import org.grit.daynomy.news.dto.AdminNewsResponse;
 import org.grit.daynomy.news.dto.AdminNewsUpdateRequest;
@@ -35,6 +36,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
@@ -77,10 +79,16 @@ public class AdminNewsController {
   }
 
   @Operation(summary = "한국 뉴스 초안 생성 실행", description = "한국 뉴스 초안 생성을 즉시 실행합니다.")
-  @ApiResponse(
-      responseCode = "200",
-      description = "생성 실행 성공",
-      content = @Content(schema = @Schema(implementation = AdminNewsGenerationResponse.class)))
+  @ApiResponses({
+    @ApiResponse(
+        responseCode = "200",
+        description = "생성 실행 성공",
+        content = @Content(schema = @Schema(implementation = AdminNewsGenerationResponse.class))),
+    @ApiResponse(
+        responseCode = "409",
+        description = "같은 시장의 주제 생성이 이미 진행 중",
+        content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+  })
   @PostMapping("/generate/economy/korea")
   public ResponseEntity<AdminNewsGenerationResponse> generateKoreanEconomicNewsDrafts() {
     int savedCount = newsGenerationService.generateKoreanEconomicNewsDrafts().size();
@@ -89,13 +97,43 @@ public class AdminNewsController {
   }
 
   @Operation(summary = "미국 뉴스 초안 생성 실행", description = "미국 뉴스 초안 생성을 즉시 실행합니다.")
-  @ApiResponse(
-      responseCode = "200",
-      description = "생성 실행 성공",
-      content = @Content(schema = @Schema(implementation = AdminNewsGenerationResponse.class)))
+  @ApiResponses({
+    @ApiResponse(
+        responseCode = "200",
+        description = "생성 실행 성공",
+        content = @Content(schema = @Schema(implementation = AdminNewsGenerationResponse.class))),
+    @ApiResponse(
+        responseCode = "409",
+        description = "같은 시장의 주제 생성이 이미 진행 중",
+        content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+  })
   @PostMapping("/generate/economy/us")
   public ResponseEntity<AdminNewsGenerationResponse> generateUsEconomicNewsDrafts() {
     int savedCount = newsGenerationService.generateUsEconomicNewsDrafts().size();
+
+    return ResponseEntity.ok(new AdminNewsGenerationResponse(savedCount));
+  }
+
+  @Operation(summary = "키워드 기반 뉴스 초안 생성", description = "입력한 키워드를 조사해 뉴스 초안 하나를 생성합니다.")
+  @ApiResponses({
+    @ApiResponse(
+        responseCode = "200",
+        description = "생성 성공",
+        content = @Content(schema = @Schema(implementation = AdminNewsGenerationResponse.class))),
+    @ApiResponse(
+        responseCode = "400",
+        description = "키워드 형식 오류",
+        content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+    @ApiResponse(
+        responseCode = "502",
+        description = "AI 뉴스 조사 또는 생성 실패",
+        content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+  })
+  @PostMapping("/generate/economy/keyword")
+  public ResponseEntity<AdminNewsGenerationResponse> generateEconomicNewsDraftByKeyword(
+      @Valid @RequestBody AdminNewsKeywordGenerationRequest request) {
+    int savedCount =
+        newsGenerationService.generateEconomicNewsDraftByKeyword(request.keyword()).size();
 
     return ResponseEntity.ok(new AdminNewsGenerationResponse(savedCount));
   }
@@ -144,6 +182,58 @@ public class AdminNewsController {
     News news = adminNewsService.generateImage(id);
 
     return ResponseEntity.ok(toResponse(news));
+  }
+
+  @Operation(summary = "AI 뉴스 이미지 후보 생성", description = "저장하지 않은 WebP 이미지 후보를 생성합니다.")
+  @ApiResponses({
+    @ApiResponse(
+        responseCode = "200",
+        description = "이미지 후보 생성 성공",
+        content =
+            @Content(
+                mediaType = "image/webp",
+                schema = @Schema(type = "string", format = "binary"))),
+    @ApiResponse(
+        responseCode = "404",
+        description = "뉴스를 찾을 수 없음",
+        content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+    @ApiResponse(
+        responseCode = "409",
+        description = "이미지를 생성할 수 없는 뉴스 상태",
+        content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+  })
+  @PostMapping(value = "/{id}/image-candidates", produces = "image/webp")
+  public ResponseEntity<byte[]> generateNewsImageCandidate(
+      @Parameter(description = "뉴스 ID", example = "1") @PathVariable Long id) {
+    return ResponseEntity.ok()
+        .contentType(MediaType.valueOf("image/webp"))
+        .body(adminNewsService.generateImageCandidate(id));
+  }
+
+  @Operation(summary = "AI 뉴스 이미지 선택", description = "선택한 WebP 이미지를 뉴스 대표 이미지로 저장합니다.")
+  @ApiResponses({
+    @ApiResponse(
+        responseCode = "200",
+        description = "대표 이미지 저장 성공",
+        content = @Content(schema = @Schema(implementation = AdminNewsResponse.class))),
+    @ApiResponse(
+        responseCode = "400",
+        description = "이미지 형식 또는 크기 오류",
+        content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+    @ApiResponse(
+        responseCode = "404",
+        description = "뉴스를 찾을 수 없음",
+        content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+    @ApiResponse(
+        responseCode = "409",
+        description = "이미지를 선택할 수 없는 뉴스 상태",
+        content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+  })
+  @PutMapping(value = "/{id}/image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+  public ResponseEntity<AdminNewsResponse> selectNewsImage(
+      @Parameter(description = "뉴스 ID", example = "1") @PathVariable Long id,
+      @RequestPart("image") MultipartFile image) {
+    return ResponseEntity.ok(toResponse(adminNewsService.selectImage(id, image)));
   }
 
   @Operation(

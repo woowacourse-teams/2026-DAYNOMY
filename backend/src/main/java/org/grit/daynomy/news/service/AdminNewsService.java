@@ -136,6 +136,26 @@ public class AdminNewsService {
 
   @Transactional
   public News generateImage(Long id) {
+    News news = findImageTarget(id);
+    byte[] image =
+        openAiImageGenerator.generateEconomicNewsImage(
+            news.getTitle(), news.getContent(), news.getCategory());
+    return replaceWithGeneratedImage(news, image);
+  }
+
+  public byte[] generateImageCandidate(Long id) {
+    News news = findImageTarget(id);
+    return openAiImageGenerator.generateEconomicNewsImage(
+        news.getTitle(), news.getContent(), news.getCategory());
+  }
+
+  @Transactional
+  public News selectImage(Long id, MultipartFile image) {
+    News news = findImageTarget(id);
+    return replaceWithGeneratedImage(news, readWebpImage(image));
+  }
+
+  private News findImageTarget(Long id) {
     News news =
         newsRepository
             .findById(id)
@@ -143,11 +163,11 @@ public class AdminNewsService {
     if (!news.isDraft() && !news.isPublished()) {
       throw new BusinessException(NewsErrorCode.NEWS_IMAGE_GENERATION_NOT_ALLOWED);
     }
+    return news;
+  }
 
+  private News replaceWithGeneratedImage(News news, byte[] image) {
     String previousImageUrl = news.getImageUrl();
-    byte[] image =
-        openAiImageGenerator.generateEconomicNewsImage(
-            news.getTitle(), news.getContent(), news.getCategory());
     S3ImageStorage.StoredImage uploadedImage = s3ImageStorage.upload(image, "webp", "image/webp");
     try {
       news.updateImage(uploadedImage.publicUrl(), ImageSourceInfo.aiGenerated());
@@ -164,6 +184,37 @@ public class AdminNewsService {
       deleteUploadedImage(uploadedImage);
       throw exception;
     }
+  }
+
+  private byte[] readWebpImage(MultipartFile image) {
+    if (image == null
+        || image.isEmpty()
+        || image.getSize() > MAX_IMAGE_SIZE_BYTES
+        || !"image/webp".equalsIgnoreCase(image.getContentType())) {
+      throw new BusinessException(NewsErrorCode.INVALID_IMAGE_FILE);
+    }
+
+    try {
+      byte[] content = image.getBytes();
+      if (content.length > MAX_IMAGE_SIZE_BYTES || !isWebp(content)) {
+        throw new BusinessException(NewsErrorCode.INVALID_IMAGE_FILE);
+      }
+      return content;
+    } catch (IOException exception) {
+      throw new BusinessException(NewsErrorCode.INVALID_IMAGE_FILE);
+    }
+  }
+
+  private boolean isWebp(byte[] content) {
+    return content.length >= 12
+        && content[0] == 'R'
+        && content[1] == 'I'
+        && content[2] == 'F'
+        && content[3] == 'F'
+        && content[8] == 'W'
+        && content[9] == 'E'
+        && content[10] == 'B'
+        && content[11] == 'P';
   }
 
   @Transactional

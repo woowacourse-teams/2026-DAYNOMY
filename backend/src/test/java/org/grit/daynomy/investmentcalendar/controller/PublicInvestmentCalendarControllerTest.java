@@ -78,4 +78,27 @@ class PublicInvestmentCalendarControllerTest {
 
     then(investmentCalendarService).shouldHaveNoInteractions();
   }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(
+      strings = {
+        "{}",
+        "{\"holdings\":null}",
+        "{\"holdings\":[null]}",
+        "{\"holdings\":[{\"assetId\":0,\"quantity\":1}]}",
+        "{\"holdings\":[{\"assetId\":1,\"quantity\":0}]}",
+        "{\"holdings\":[{\"assetId\":1}]}"
+      })
+  void rejectsInvalidGuestHoldingsBeforeResolvingAssets(String body) throws Exception {
+    mockMvc
+        .perform(
+            post("/api/investment-calendar")
+                .param("year", "2026")
+                .param("month", "10")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+    then(investmentCalendarService).shouldHaveNoInteractions();
+  }
 }

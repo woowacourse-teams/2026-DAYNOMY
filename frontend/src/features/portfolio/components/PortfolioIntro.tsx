@@ -1,16 +1,18 @@
 import { ArrowDownIcon } from '@phosphor-icons/react/dist/csr/ArrowDown';
 import { PawPrintIcon } from '@phosphor-icons/react/dist/csr/PawPrint';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import analysisMascot from '../../../assets/portfolio-analysis-mascot.png';
 import mascot from '../../../assets/portfolio-mascot.png';
 import './portfolioIntro.css';
 
 export function PortfolioIntro({ onRegister }: { onRegister: () => void }) {
+  const headingRef = useRef<HTMLHeadingElement>(null);
   const [analysisVisible, setAnalysisVisible] = useState(false);
 
   useEffect(() => {
     const previousTitle = document.title;
     document.title = '포트폴리오 만들기 | DAYNOMY';
+    headingRef.current?.focus({ preventScroll: true });
     return () => {
       document.title = previousTitle;
     };
@@ -26,7 +28,9 @@ export function PortfolioIntro({ onRegister }: { onRegister: () => void }) {
           width={200}
           height={174}
         />
-        <h1 id="portfolio-intro-title">포트폴리오를 만들어 보세요</h1>
+        <h1 id="portfolio-intro-title" ref={headingRef} tabIndex={-1}>
+          포트폴리오를 만들어 보세요
+        </h1>
         <p className="portfolio-intro-description">
           보유 종목을 추가하면
           <br />

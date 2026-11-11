@@ -8,18 +8,9 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { PortfolioContentsPage } from './PortfolioContentsPage';
 import { useFeaturedPeople } from '../../people/useFeaturedPeople';
 import { InvestmentCalendarPage } from '../../investment-calendar/InvestmentCalendarPage';
-import type { NewsListItem } from '../newslist/types';
-import { createFeed, feedDate, isToday, sourceLabel, type FeedItem } from './feed';
-import { getAllContents } from './contents';
-import type { ExternalContent } from './feed';
-import { getAllNews } from './todayNews';
+import { getNewsFeed } from './feedApi';
+import { feedDate, isToday, sourceLabel, type FeedItem } from './feed';
 import { IssueFeed } from './IssueFeed';
-import {
-  feedContentReference,
-  getContentPopularity,
-  sortByPopularity,
-  type PopularityScores,
-} from './popularity';
 import '../../people/people.css';
 import './issue.css';
 import { lazy, Suspense } from 'react';
@@ -54,36 +45,45 @@ function PublicIssueHomePage({ fullFeed }: { fullFeed: boolean }) {
     };
   }, [fullFeed]);
   const surface = fullFeed ? 'news_contents' : 'news_home';
-  const people = useFeaturedPeople(surface);
-  const [contents, setContents] = useState<ExternalContent[]>([]);
-  const [contentsLoading, setContentsLoading] = useState(true);
-  const [contentsError, setContentsError] = useState('');
-  const [news, setNews] = useState<NewsListItem[]>([]);
+  const pageSize = fullFeed ? 12 : 6;
+  const people = useFeaturedPeople(surface, 1, fullFeed ? 1 : 100);
+  const [items, setItems] = useState<FeedItem[]>([]);
+  const [totalElements, setTotalElements] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [attempt, setAttempt] = useState(0);
   const [page, setPage] = useState(1);
   const [source, setSource] = useState<'ALL' | FeedItem['source']>('ALL');
-  const [popularity, setPopularity] = useState<PopularityScores>(new Map());
-  const [popularityLoading, setPopularityLoading] = useState(false);
-  const [popularityError, setPopularityError] = useState('');
   const sort = params.get('sort') === 'popular' ? 'popular' : 'latest';
 
   useEffect(() => {
     const startedAt = performance.now();
     let ignore = false;
+    const controller = new AbortController();
     setLoading(true);
     setError('');
-    getAllNews()
+    getNewsFeed(
+      source,
+      page,
+      pageSize,
+      sort === 'popular' ? 'POPULAR' : 'LATEST',
+      controller.signal,
+    )
       .then((result) => {
         if (ignore) return;
-        setNews(result.content);
-        trackLoadResult(surface, 'news', startedAt, 'success', result.content.length, attempt);
+        setItems(result.items);
+        setTotalElements(result.totalElements);
+        setTotalPages(result.totalPages);
+        trackLoadResult(surface, 'feed', startedAt, 'success', result.items.length, attempt);
       })
       .catch(() => {
-        if (!ignore) {
-          setError('데이노미 이슈를 불러오지 못했습니다.');
-          trackLoadResult(surface, 'news', startedAt, 'error', 0, attempt);
+        if (!ignore && !controller.signal.aborted) {
+          setItems([]);
+          setTotalElements(0);
+          setTotalPages(0);
+          setError('콘텐츠를 불러오지 못했습니다.');
+          trackLoadResult(surface, 'feed', startedAt, 'error', 0, attempt);
         }
       })
       .finally(() => {
@@ -91,78 +91,11 @@ function PublicIssueHomePage({ fullFeed }: { fullFeed: boolean }) {
       });
     return () => {
       ignore = true;
+      controller.abort();
     };
-  }, [attempt, fullFeed, surface]);
+  }, [attempt, page, pageSize, sort, source, surface]);
 
-  useEffect(() => {
-    const startedAt = performance.now();
-    const controller = new AbortController();
-    setContentsLoading(true);
-    setContentsError('');
-    getAllContents(controller.signal)
-      .then((result) => {
-        if (controller.signal.aborted) return;
-        setContents(result.items);
-        trackLoadResult(surface, 'external', startedAt, 'success', result.items.length, attempt);
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) {
-          setContentsError('YouTube·Threads·X 자료를 불러오지 못했습니다.');
-          trackLoadResult(surface, 'external', startedAt, 'error', 0, attempt);
-        }
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setContentsLoading(false);
-      });
-    return () => controller.abort();
-  }, [attempt, fullFeed, surface]);
-
-  useEffect(() => {
-    if (sort !== 'popular') {
-      setPopularityLoading(false);
-      setPopularityError('');
-      return;
-    }
-    const controller = new AbortController();
-    setPopularityLoading(true);
-    setPopularityError('');
-    setPopularity(new Map());
-    getContentPopularity(controller.signal)
-      .then((scores) => {
-        if (!controller.signal.aborted) setPopularity(scores);
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) setPopularityError('인기순을 불러오지 못했습니다.');
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setPopularityLoading(false);
-      });
-    return () => controller.abort();
-  }, [attempt, sort]);
-
-  // shortcut: full archive is merged client-side; use a unified paginated API when the archive grows.
-  const allItems = useMemo(
-    () => createFeed(news, people.people, contents),
-    [news, people.people, contents],
-  );
-  const latestItems = useMemo(
-    () => allItems.filter((item) => source === 'ALL' || item.source === source),
-    [allItems, source],
-  );
-  const items = useMemo(
-    () =>
-      sort === 'popular'
-        ? sortByPopularity(latestItems, feedContentReference, popularity)
-        : latestItems,
-    [latestItems, sort, popularity],
-  );
-  const pageSize = fullFeed ? 12 : 6;
-  const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
-  const currentPage = Math.min(page, totalPages);
-  const visibleItems = useMemo(
-    () => items.slice((currentPage - 1) * pageSize, currentPage * pageSize),
-    [items, currentPage, pageSize],
-  );
+  const currentPage = page;
   const featured = useMemo(
     () =>
       people.people
@@ -175,18 +108,15 @@ function PublicIssueHomePage({ fullFeed }: { fullFeed: boolean }) {
         .slice(0, 3),
     [people.people],
   );
-  const settled = !loading && !contentsLoading && !people.loading && !popularityLoading;
-  const failedAreas = [error, contentsError, people.error, popularityError].filter(Boolean).length;
-  const contentFailedAreas = [error, contentsError, people.error].filter(Boolean).length;
-  const listStatus = contentFailedAreas === 3 ? 'error' : failedAreas ? 'partial_error' : 'ready';
-  useContentView(settled, 'view_content_list', {
+  useContentView(!loading, 'view_content_list', {
     surface,
     source_type: source,
-    result_count: items.length,
+    sort,
+    result_count: totalElements,
     page_number: currentPage,
-    status: listStatus,
+    status: error ? 'error' : 'ready',
   });
-  useContentView(settled && listStatus === 'ready' && !items.length, 'view_content_empty', {
+  useContentView(!loading && !error && !items.length, 'view_content_empty', {
     surface,
     source_type: source,
     reason: source !== 'ALL' ? 'filter_empty' : 'no_content',
@@ -203,10 +133,11 @@ function PublicIssueHomePage({ fullFeed }: { fullFeed: boolean }) {
   const retry = () => {
     trackEvent('retry_content_load', { surface, area: 'all', attempt: attempt + 1 });
     setAttempt((value) => value + 1);
-    people.retry();
+    if (!fullFeed) people.retry();
   };
   const selectSort = (nextSort: 'latest' | 'popular') => {
     if (sort === nextSort) return;
+    trackEvent('sort_content', { surface, sort: nextSort });
     const next = new URLSearchParams(params);
     if (nextSort === 'popular') next.set('sort', 'popular');
     else next.delete('sort');
@@ -350,9 +281,6 @@ function PublicIssueHomePage({ fullFeed }: { fullFeed: boolean }) {
                       surface,
                       previous_source: source,
                       source_type: value,
-                      result_count: allItems.filter(
-                        (item) => value === 'ALL' || item.source === value,
-                      ).length,
                     });
                     setSource(value);
                     setPage(1);
@@ -380,57 +308,32 @@ function PublicIssueHomePage({ fullFeed }: { fullFeed: boolean }) {
             </div>
           </div>
         </div>
-        {contentsError && (
-          <p className="issue-state" role="alert">
-            {contentsError} <button onClick={retry}>다시 시도</button>
-          </p>
-        )}
         {error && (
           <p className="issue-state" role="alert">
             {error} <button onClick={retry}>다시 시도</button>
           </p>
         )}
-        {fullFeed && people.error && (
-          <p className="issue-state" role="alert">
-            {people.error} <button onClick={retryPeople}>다시 시도</button>
-          </p>
-        )}
-        {popularityError && (
-          <p className="issue-state" role="alert">
-            {popularityError} <button onClick={retry}>다시 시도</button>
-          </p>
-        )}
-        {loading || people.loading || contentsLoading || popularityLoading ? (
+        {loading ? (
           <p className="issue-state" role="status">
             콘텐츠를 불러오는 중입니다.
           </p>
         ) : (
-          !items.length &&
-          !error &&
-          !people.error &&
-          !contentsError && <p className="issue-state">표시할 콘텐츠가 없습니다.</p>
+          !items.length && !error && <p className="issue-state">표시할 콘텐츠가 없습니다.</p>
         )}
         <IssueFeed
           surface={surface}
           offset={(currentPage - 1) * pageSize}
           key={`${source}-${currentPage}`}
-          items={visibleItems}
+          items={items}
         />
-        {!loading &&
-          !contentsLoading &&
-          !people.loading &&
-          !popularityLoading &&
-          !error &&
-          !contentsError &&
-          !people.error &&
-          items.length > 0 && (
-            <IssuePagination
-              analytics={{ surface, source_type: source }}
-              page={currentPage}
-              totalPages={totalPages}
-              onChange={setPage}
-            />
-          )}
+        {!loading && !error && items.length > 0 && (
+          <IssuePagination
+            analytics={{ surface, source_type: source }}
+            page={currentPage}
+            totalPages={totalPages}
+            onChange={setPage}
+          />
+        )}
       </section>
     </main>
   );
