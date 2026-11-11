@@ -8,7 +8,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { PortfolioContentsPage } from './PortfolioContentsPage';
 import { useFeaturedPeople } from '../../people/useFeaturedPeople';
 import { InvestmentCalendarPage } from '../../investment-calendar/InvestmentCalendarPage';
-import { getNewsFeed } from './feedApi';
+import { getIndustries, getNewsFeed, type Industry } from './feedApi';
 import { feedDate, isToday, sourceLabel, type FeedItem } from './feed';
 import { IssueFeed } from './IssueFeed';
 import '../../people/people.css';
@@ -53,9 +53,40 @@ function PublicIssueHomePage({ fullFeed }: { fullFeed: boolean }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [attempt, setAttempt] = useState(0);
+  const [industries, setIndustries] = useState<Industry[]>([]);
+  const [industriesLoading, setIndustriesLoading] = useState(true);
+  const [industriesError, setIndustriesError] = useState('');
+  const [industriesAttempt, setIndustriesAttempt] = useState(0);
   const [page, setPage] = useState(1);
   const [source, setSource] = useState<'ALL' | FeedItem['source']>('ALL');
   const sort = params.get('sort') === 'popular' ? 'popular' : 'latest';
+  const industryParam = params.get('industry');
+  const industry =
+    industryParam && /^[A-Z][A-Z0-9_]{0,49}$/.test(industryParam) ? industryParam : '';
+
+  useEffect(() => {
+    let ignore = false;
+    const controller = new AbortController();
+    setIndustriesLoading(true);
+    setIndustriesError('');
+    getIndustries(controller.signal)
+      .then((result) => {
+        if (!ignore) setIndustries(result);
+      })
+      .catch(() => {
+        if (!ignore && !controller.signal.aborted) {
+          setIndustries([]);
+          setIndustriesError('업종을 불러오지 못했습니다.');
+        }
+      })
+      .finally(() => {
+        if (!ignore) setIndustriesLoading(false);
+      });
+    return () => {
+      ignore = true;
+      controller.abort();
+    };
+  }, [industriesAttempt]);
 
   useEffect(() => {
     const startedAt = performance.now();
@@ -69,6 +100,7 @@ function PublicIssueHomePage({ fullFeed }: { fullFeed: boolean }) {
       pageSize,
       sort === 'popular' ? 'POPULAR' : 'LATEST',
       controller.signal,
+      industry || undefined,
     )
       .then((result) => {
         if (ignore) return;
@@ -93,7 +125,7 @@ function PublicIssueHomePage({ fullFeed }: { fullFeed: boolean }) {
       ignore = true;
       controller.abort();
     };
-  }, [attempt, page, pageSize, sort, source, surface]);
+  }, [attempt, industry, page, pageSize, sort, source, surface]);
 
   const currentPage = page;
   const featured = useMemo(
@@ -111,6 +143,7 @@ function PublicIssueHomePage({ fullFeed }: { fullFeed: boolean }) {
   useContentView(!loading, 'view_content_list', {
     surface,
     source_type: source,
+    industry_code: industry || 'ALL',
     sort,
     result_count: totalElements,
     page_number: currentPage,
@@ -119,7 +152,7 @@ function PublicIssueHomePage({ fullFeed }: { fullFeed: boolean }) {
   useContentView(!loading && !error && !items.length, 'view_content_empty', {
     surface,
     source_type: source,
-    reason: source !== 'ALL' ? 'filter_empty' : 'no_content',
+    reason: source !== 'ALL' || industry ? 'filter_empty' : 'no_content',
   });
   useContentView(
     !people.loading && !people.error && !featured.length && !fullFeed,
@@ -141,6 +174,19 @@ function PublicIssueHomePage({ fullFeed }: { fullFeed: boolean }) {
     const next = new URLSearchParams(params);
     if (nextSort === 'popular') next.set('sort', 'popular');
     else next.delete('sort');
+    setParams(next);
+    setPage(1);
+  };
+  const selectIndustry = (nextIndustry: string) => {
+    if (industry === nextIndustry) return;
+    trackEvent('filter_content_industry', {
+      surface,
+      previous_industry: industry || 'ALL',
+      industry_code: nextIndustry || 'ALL',
+    });
+    const next = new URLSearchParams(params);
+    if (nextIndustry) next.set('industry', nextIndustry);
+    else next.delete('industry');
     setParams(next);
     setPage(1);
   };
@@ -260,6 +306,35 @@ function PublicIssueHomePage({ fullFeed }: { fullFeed: boolean }) {
       <section aria-labelledby="issue-feed-heading">
         <div className="issue-section-heading issue-feed-heading">
           <h2 id="issue-feed-heading">{fullFeed ? '콘텐츠 목록' : '최근 올라온 콘텐츠'}</h2>
+          <div className="issue-industry-filter">
+            <strong>업종</strong>
+            {industriesLoading ? (
+              <span role="status">업종을 불러오는 중입니다.</span>
+            ) : industriesError ? (
+              <span role="alert">
+                {industriesError}{' '}
+                <button onClick={() => setIndustriesAttempt((value) => value + 1)}>
+                  다시 시도
+                </button>
+              </span>
+            ) : (
+              <div className="issue-industry-options" role="group" aria-label="콘텐츠 업종">
+                <button type="button" aria-pressed={!industry} onClick={() => selectIndustry('')}>
+                  전체
+                </button>
+                {industries.map((item) => (
+                  <button
+                    key={item.code}
+                    type="button"
+                    aria-pressed={industry === item.code}
+                    onClick={() => selectIndustry(item.code)}
+                  >
+                    {item.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <div className="issue-feed-controls">
             <div className="issue-source-filters" role="group" aria-label="콘텐츠 출처">
               {(
@@ -323,7 +398,7 @@ function PublicIssueHomePage({ fullFeed }: { fullFeed: boolean }) {
         <IssueFeed
           surface={surface}
           offset={(currentPage - 1) * pageSize}
-          key={`${source}-${currentPage}`}
+          key={`${industry}-${source}-${currentPage}`}
           items={items}
         />
         {!loading && !error && items.length > 0 && (
