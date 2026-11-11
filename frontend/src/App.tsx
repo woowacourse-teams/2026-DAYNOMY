@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useLayoutEffect, useState, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, useLayoutEffect, type ReactNode } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import NotFoundPage from './features/pages/components/NotFoundPage';
 import { trackPageView } from './analytics';
@@ -12,8 +12,7 @@ import { AdminShell } from './features/admin/components/AdminShell';
 import { AdminNewsImageGenerationProvider } from './features/admin/AdminNewsImageGeneration';
 import { FeedbackWidget } from './features/feedback/FeedbackWidget';
 import { PmfSurveyPrompt } from './features/pmf-survey/PmfSurveyPrompt';
-import { hasStartedService, rememberServiceStart } from './features/landing/startedService';
-import { loadGuestPortfolioHoldings } from './features/portfolio/portfolioHoldingsStorage';
+import { rememberServiceStart } from './features/landing/startedService';
 import { isAdminOnlyHostname, isUserHostname } from './serviceDomain';
 import { EmailSubscriptionPrompt } from './features/email-subscription/EmailSubscriptionPrompt';
 import './App.css';
@@ -247,7 +246,11 @@ function PortfolioRoute() {
 
   return (
     <>
-      <PortfolioPage key={isLoggedIn ? `member:${memberId}` : 'guest'} isLoggedIn={isLoggedIn} />
+      <PortfolioPage
+        key={isLoggedIn ? `member:${memberId}` : 'guest'}
+        isLoggedIn={isLoggedIn}
+        showIntroWhenEmpty
+      />
       <PmfSurveyPrompt />
     </>
   );
@@ -260,19 +263,6 @@ function NewsHomeRoute() {
   const preview =
     import.meta.env.DEV && new URLSearchParams(location.search).get('preview') === 'briefing';
   return <NewsHomePage preview={preview} />;
-}
-
-function HomeRoute({ hasStarted, onStart }: { hasStarted: boolean; onStart: () => void }) {
-  const { isLoggedIn, loading } = useAuth();
-
-  if (!hasStarted && loading) return <main aria-busy="true" aria-label="서비스 확인 중" />;
-  if (!hasStarted && !isLoggedIn)
-    return (
-      <Suspense fallback={<main aria-busy="true" aria-label="서비스 소개 불러오는 중" />}>
-        <LandingPage onStart={onStart} />
-      </Suspense>
-    );
-  return <PortfolioRoute />;
 }
 
 function PostLoginRedirect() {
@@ -346,25 +336,16 @@ function AppContent() {
   const location = useLocation();
   const navigate = useNavigate();
   const { isLoggedIn } = useAuth();
-  const [hasStarted, setHasStarted] = useState(
-    () => hasStartedService() || loadGuestPortfolioHoldings().length > 0,
-  );
   const directServiceVisit =
     /^\/(?:news|league|stocks|people|search|portfolio|mypage|finance)(?:\/|$)/.test(
       location.pathname,
     );
-  const awaitingWelcome = location.pathname === '/' && !hasStarted && !isLoggedIn;
-
   useEffect(() => {
-    if (hasStarted || isLoggedIn || directServiceVisit) {
-      rememberServiceStart();
-      setHasStarted(true);
-    }
-  }, [directServiceVisit, hasStarted, isLoggedIn]);
+    if (isLoggedIn || directServiceVisit) rememberServiceStart();
+  }, [directServiceVisit, isLoggedIn]);
 
   function startService() {
     rememberServiceStart();
-    setHasStarted(true);
     window.scrollTo({ top: 0, behavior: 'instant' });
     navigate('/', { replace: true });
   }
@@ -376,7 +357,7 @@ function AppContent() {
       <PostLoginRedirect />
       <EmailSubscriptionPrompt />
       <div className="app-shell">
-        {!awaitingWelcome && <AppHeader />}
+        <AppHeader />
         <LeagueNavigation />
         <div className="app-content">
           <Suspense
@@ -387,10 +368,7 @@ function AppContent() {
             }
           >
             <Routes>
-              <Route
-                path="/"
-                element={<HomeRoute hasStarted={hasStarted} onStart={startService} />}
-              />
+              <Route path="/" element={<PortfolioRoute />} />
               <Route
                 path="/welcome"
                 element={
@@ -573,7 +551,7 @@ function AppContent() {
             </Routes>
           </Suspense>
         </div>
-        {!awaitingWelcome && <AppFooter />}
+        <AppFooter />
       </div>
     </>
   );

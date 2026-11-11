@@ -20,7 +20,8 @@ for (const width of [1440, 390]) {
     page,
   }) => {
     await page.setViewportSize({ width, height: 900 });
-    await page.goto('/');
+    await page.goto('/welcome');
+    await expect(page).toHaveURL('/welcome');
     await expect(page.getByRole('heading', { level: 1 })).toContainText('AI로 한눈에.');
     await expect(page).toHaveTitle('서비스 소개 | DAYNOMY');
     await expect(page.getByRole('banner')).toHaveCount(1);
@@ -29,14 +30,35 @@ for (const width of [1440, 390]) {
     await expect(page.locator('.hero .primary-cta')).toBeInViewport({ ratio: 1 });
     await page.locator('.hero .primary-cta').click();
     await expect(page).toHaveURL('/');
+    const example = page.getByRole('region', { name: '예시 포트폴리오' });
+    const analyze = page.getByRole('button', { name: '분석해 보기' });
+    const result = page.getByRole('region', { name: '반도체 수요가 회복된다면' });
+    await analyze.scrollIntoViewIfNeeded();
+    const examplePosition = await example.boundingBox();
+    expect(examplePosition).not.toBeNull();
+    await expect(result).toBeHidden();
+    await analyze.click();
+    await expect(result).toBeVisible();
+    expect(await example.boundingBox()).toEqual(examplePosition);
+    await page.getByRole('button', { name: '분석 결과 접기' }).click();
+    await expect(result).toBeHidden();
+    expect(await example.boundingBox()).toEqual(examplePosition);
+    await page.getByRole('button', { name: '포트폴리오 만들기', exact: true }).click();
+    await page
+      .getByRole('dialog', { name: '거래 기록' })
+      .getByRole('button', { name: '닫기', exact: true })
+      .click();
     await expect(page.getByRole('heading', { name: '내 포트폴리오', exact: true })).toBeFocused();
     await expect(page.getByRole('button', { name: '종목 추가', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: '사용 가이드', exact: true })).toHaveCount(0);
     await expect(page.getByRole('complementary', { name: '처음 이용 안내' })).toHaveCount(0);
     expect(await page.evaluate(() => localStorage.getItem('daynomy:service-started:v1'))).toBe('1');
     await page.reload();
+    await expect(page.getByRole('region', { name: '포트폴리오 사용 안내' })).toHaveCount(0);
+    await expect(
+      page.getByRole('button', { name: '포트폴리오 만들기', exact: true }),
+    ).toBeVisible();
     await expect(page.locator('.landing-page')).toHaveCount(0);
-    await expect(page.getByRole('button', { name: '종목 추가', exact: true })).toBeVisible();
     await page.getByRole('link', { name: '서비스 소개', exact: true }).click();
     await expect(page).toHaveURL('/welcome');
     await expect(page.getByRole('heading', { level: 1 })).toContainText('AI로 한눈에.');
@@ -296,6 +318,11 @@ test('키보드로 본문·시작하기·거래 기록을 사용하고 닫으면
   await expect(page.getByRole('button', { name: '메뉴 열기' })).toHaveCount(0);
   await page.locator('.hero .primary-cta').focus();
   await page.keyboard.press('Enter');
+  await page.getByRole('button', { name: '포트폴리오 만들기', exact: true }).press('Enter');
+  await page
+    .getByRole('dialog', { name: '거래 기록' })
+    .getByRole('button', { name: '닫기', exact: true })
+    .press('Enter');
   await expect(page.getByRole('heading', { name: '내 포트폴리오', exact: true })).toBeFocused();
   const add = page.getByRole('button', { name: '종목 추가', exact: true });
   await add.focus();
@@ -371,7 +398,9 @@ for (const width of [1440, 390]) {
       true,
     );
     await page.locator('.welcome-start .primary-cta').click();
-    await expect(page.getByRole('heading', { name: '내 포트폴리오', exact: true })).toBeFocused();
+    await expect(
+      page.getByRole('heading', { name: '포트폴리오를 만들어 보세요', exact: true }),
+    ).toBeFocused();
   });
 }
 
@@ -478,7 +507,22 @@ test('공유 뉴스 상세는 소개를 거치지 않고 쿼리·해시를 보�
   await expect(page).toHaveURL('/news/7?source=share#analysis');
   await expect(page.locator('.landing-page')).toHaveCount(0);
   await page.getByRole('link', { name: '포트폴리오', exact: true }).click();
-  await expect(page.getByRole('button', { name: '종목 추가', exact: true })).toBeVisible();
+  await expect(page).toHaveURL('/');
+  await expect(page.getByRole('button', { name: '포트폴리오 만들기', exact: true })).toBeVisible();
+});
+
+test('거래 이력이 없는 방문자는 새로고침 후에도 자산 비중 예시를 바로 본다', async ({ page }) => {
+  await page.goto('/');
+  const register = page.getByRole('button', { name: '포트폴리오 만들기', exact: true });
+  const example = page.getByRole('heading', { name: '예시 포트폴리오' });
+  await expect(register).toBeVisible();
+  await expect(example).toBeVisible();
+  await expect(page.getByRole('list', { name: '예시 자산 비중' })).toBeVisible();
+  await page.reload();
+  await expect(register).toBeVisible();
+  await expect(example).toBeVisible();
+  await register.click();
+  await expect(page.getByRole('searchbox', { name: '종목 검색' })).toBeFocused();
 });
 
 test('목업 재생 중에도 연속 휠 입력은 다음 한 단계만 보여준다', async ({ page }) => {

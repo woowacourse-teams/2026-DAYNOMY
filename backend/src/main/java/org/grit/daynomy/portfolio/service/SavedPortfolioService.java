@@ -218,9 +218,13 @@ public class SavedPortfolioService {
         .findByMemberId(memberId)
         .map(
             portfolio -> {
-              PortfolioLedgerCalculator.LedgerResult ledger = replay(portfolio.getId());
+              List<PortfolioHoldingHistory> history =
+                  historyRepository.findAllByPortfolioIdOrderByEffectiveDateAscCreatedAtAscIdAsc(
+                      portfolio.getId());
+              PortfolioLedgerCalculator.LedgerResult ledger = ledgerCalculator.replay(history);
+              var holdings = holdingRepository.findAllByPortfolioIdOrderById(portfolio.getId());
               return new SavedPortfolioResponse(
-                  holdingRepository.findAllByPortfolioIdOrderById(portfolio.getId()).stream()
+                  holdings.stream()
                       .map(
                           holding ->
                               SavedPortfolioHoldingResponse.from(
@@ -232,7 +236,8 @@ public class SavedPortfolioService {
                                           .nativeAveragePurchasePrice()
                                       : holding.getNativeAveragePurchasePrice()))
                       .toList(),
-                  ledger.realizedProfitLoss());
+                  ledger.realizedProfitLoss(),
+                  !history.isEmpty() || !holdings.isEmpty());
             })
         .orElseGet(SavedPortfolioResponse::empty);
   }

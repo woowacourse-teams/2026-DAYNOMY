@@ -153,7 +153,72 @@ it('보유 종목이 없으면 분석 대신 포트폴리오 등록 안내를 �
   const view = show();
   expect(await view.findByRole('link', { name: '포트폴리오로 이동' })).toBeTruthy();
   expect(view.queryByRole('link', { name: '내 포트폴리오 AI 분석 보기' })).toBeNull();
+  expect(view.queryByRole('link', { name: '다른 소식 둘러보기' })).toBeNull();
 });
+
+it('선택한 종목의 조회가 끝난 뒤 소식이 없으면 소식 홈 링크를 표시한다', async () => {
+  state.holdings = [{ assetId: 1, name: '종목1' }];
+  let resolve!: (value: StockRelatedContentsResponse) => void;
+  vi.mocked(getStockRelatedContents).mockReturnValue(
+    new Promise((done) => {
+      resolve = done;
+    }),
+  );
+  const view = render(
+    <MemoryRouter initialEntries={['/news/contents?scope=portfolio&asset=1']}>
+      <Routes>
+        <Route path="/news/contents" element={<IssueHomePage fullFeed />} />
+        <Route path="/news" element={<h1>소식 홈 도착</h1>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+  expect(view.getByRole('status').textContent).toContain('불러오는 중');
+  expect(view.queryByText('아직 이 종목의 소식이 없어요')).toBeNull();
+  await act(async () => resolve({ ...response(1), contents: [] }));
+  expect(await view.findByText('아직 이 종목의 소식이 없어요')).toBeTruthy();
+  expect(view.getByRole('link', { name: '다른 소식 둘러보기' }).getAttribute('href')).toBe('/news');
+});
+
+it('전체 보유 종목의 빈 소식은 전체 종목에 맞는 안내를 표시한다', async () => {
+  state.holdings = [{ assetId: 1, name: '종목1' }];
+  vi.mocked(getStockRelatedContents).mockResolvedValue({ ...response(1), contents: [] });
+  const view = show();
+  expect(await view.findByText('아직 보유 종목의 소식이 없어요')).toBeTruthy();
+});
+
+it.each(['&asset=1', ''])(
+  '출처 필터의 빈 결과도 고양이 안내를 표시하고 전체로 돌아갈 수 있다 (%s)',
+  async (asset) => {
+    state.holdings = [{ assetId: 1, name: '종목1' }];
+    vi.mocked(getStockRelatedContents).mockResolvedValue(response(1));
+    const view = show(`${asset}&source=YOUTUBE`);
+    expect(await view.findByText('선택한 조건의 소식이 없어요')).toBeTruthy();
+    expect(view.container.querySelector('.stock-news-empty img')).toBeTruthy();
+    expect(view.getByRole('link', { name: '다른 소식 둘러보기' }).getAttribute('href')).toBe(
+      '/news',
+    );
+    fireEvent.click(view.getByRole('button', { name: '전체' }));
+    expect(await view.findByRole('button', { name: /종목1 소식/ })).toBeTruthy();
+    expect(view.queryByRole('link', { name: '다른 소식 둘러보기' })).toBeNull();
+  },
+);
+
+it.each([false, true])(
+  '조회 실패를 빈 소식으로 표시하지 않는다 (부분 실패: %s)',
+  async (partial) => {
+    state.holdings = [
+      { assetId: 1, name: '종목1' },
+      { assetId: 2, name: '종목2' },
+    ];
+    vi.mocked(getStockRelatedContents).mockImplementation(async (id) => {
+      if (!partial || id === 1) throw new Error('조회 실패');
+      return { ...response(id), contents: [] };
+    });
+    const view = show();
+    expect(await view.findByRole('alert')).toBeTruthy();
+    expect(view.queryByRole('link', { name: '다른 소식 둘러보기' })).toBeNull();
+  },
+);
 
 it('데이노미 기사 상세로 이동해도 포트폴리오에서 온 맥락을 유지한다', async () => {
   state.holdings = [{ assetId: 1, name: '종목1' }];

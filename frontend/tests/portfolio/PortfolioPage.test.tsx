@@ -776,6 +776,7 @@ describe('포트폴리오 화면', () => {
       for (const tab of ['보유 자산 0', '거래 내역']) {
         fireEvent.click(within(tabs).getByRole('button', { name: tab }));
         fireEvent.click(add);
+        fireEvent.click(view.getByRole('button', { name: '한 종목 추가' }));
         const dialog = view.getByRole('dialog', { name: '거래 기록' });
         expect(within(dialog).getByRole('searchbox', { name: '종목 검색' })).toBeTruthy();
         fireEvent.click(within(dialog).getByRole('button', { name: '닫기' }));
@@ -799,8 +800,7 @@ describe('포트폴리오 화면', () => {
     expect(view.getByRole('button', { name: '보유 자산 0' })).toBeTruthy();
     const emptyHoldings = within(view.getByRole('region', { name: '보유 자산' }));
     expect(emptyHoldings.getByRole('heading', { name: '보유 중인 자산이 없어요' })).toBeTruthy();
-    expect(emptyHoldings.queryByRole('button')).toBeNull();
-    expect(view.getByRole('region', { name: '보유 자산' }).querySelector('p')).toBeNull();
+    expect(emptyHoldings.getByRole('button', { name: '종목명 또는 티커 검색' })).toBeTruthy();
     expect(emptyHoldings.queryByRole('table')).toBeNull();
     expect(emptyHoldings.queryByRole('combobox')).toBeNull();
     const summary = within(view.getByLabelText('자산 요약'));
@@ -855,7 +855,7 @@ describe('포트폴리오 화면', () => {
     expect(newsTab.getAttribute('aria-expanded')).toBe('true');
     expect(newsTab.getAttribute('aria-controls')).toBe(newsPanel.id);
     expect(view.queryByRole('dialog', { name: '보유 자산 소식' })).toBeNull();
-    await within(newsPanel).findByText('보유 자산에 등록된 소식이 없습니다.');
+    await within(newsPanel).findByText('아직 보유 종목의 소식이 없어요');
     expect(
       vi
         .mocked(fetch)
@@ -899,7 +899,7 @@ describe('포트폴리오 화면', () => {
     await view.findAllByText('750,000원');
     const tab = view.getByRole('button', { name: /^소식$/ });
     await within(view.getByRole('complementary', { name: '보유 자산 소식' })).findByText(
-      '보유 자산에 등록된 소식이 없습니다.',
+      '아직 보유 종목의 소식이 없어요',
     );
     expect(document.body.style.overflow).not.toBe('hidden');
     fireEvent.click(view.getByRole('button', { name: '자산 분석 접기' }));
