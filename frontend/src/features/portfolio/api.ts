@@ -239,7 +239,9 @@ export async function getSavedPortfolio(signal?: AbortSignal) {
     !isRecord(response) ||
     !Array.isArray(response.holdings) ||
     !response.holdings.every(isSavedPortfolioHolding) ||
-    !hasNumber(response, 'totalRealizedProfitLoss')
+    !hasNumber(response, 'totalRealizedProfitLoss') ||
+    (response.hasPortfolioHistory !== undefined &&
+      typeof response.hasPortfolioHistory !== 'boolean')
   ) {
     throw new Error('포트폴리오 응답 형식이 올바르지 않습니다.');
   }

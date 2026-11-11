@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useLayoutEffect, useState, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, useLayoutEffect, type ReactNode } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import LoginPage from './features/pages/components/LoginPage';
 import NotFoundPage from './features/pages/components/NotFoundPage';
@@ -39,8 +39,7 @@ import { PeoplePage } from './features/people/PeoplePage';
 import { StockContentPage } from './features/stock-content/StockContentPage';
 import { CardDesignPreviewPage } from './features/stock-content/CardDesignPreviewPage';
 import { FeedbackWidget } from './features/feedback/FeedbackWidget';
-import { hasStartedService, rememberServiceStart } from './features/landing/startedService';
-import { loadGuestPortfolioHoldings } from './features/portfolio/portfolioHoldingsStorage';
+import { rememberServiceStart } from './features/landing/startedService';
 import { isStaffHostname, isUserHostname } from './serviceDomain';
 import './App.css';
 import './features/admin/admin.css';
@@ -161,7 +160,11 @@ function PortfolioRoute() {
   }
 
   return (
-    <PortfolioPage key={isLoggedIn ? `member:${memberId}` : 'guest'} isLoggedIn={isLoggedIn} />
+    <PortfolioPage
+      key={isLoggedIn ? `member:${memberId}` : 'guest'}
+      isLoggedIn={isLoggedIn}
+      showIntroWhenEmpty
+    />
   );
 }
 
@@ -172,19 +175,6 @@ function NewsHomeRoute() {
   const preview =
     import.meta.env.DEV && new URLSearchParams(location.search).get('preview') === 'briefing';
   return <NewsHomePage preview={preview} />;
-}
-
-function HomeRoute({ hasStarted, onStart }: { hasStarted: boolean; onStart: () => void }) {
-  const { isLoggedIn, loading } = useAuth();
-
-  if (!hasStarted && loading) return <main aria-busy="true" aria-label="서비스 확인 중" />;
-  if (!hasStarted && !isLoggedIn)
-    return (
-      <Suspense fallback={<main aria-busy="true" aria-label="서비스 소개 불러오는 중" />}>
-        <LandingPage onStart={onStart} />
-      </Suspense>
-    );
-  return <PortfolioRoute />;
 }
 
 function PostLoginRedirect() {
@@ -258,25 +248,16 @@ function AppContent() {
   const location = useLocation();
   const navigate = useNavigate();
   const { isLoggedIn } = useAuth();
-  const [hasStarted, setHasStarted] = useState(
-    () => hasStartedService() || loadGuestPortfolioHoldings().length > 0,
-  );
   const directServiceVisit =
     /^\/(?:news|league|stocks|people|search|portfolio|mypage|finance)(?:\/|$)/.test(
       location.pathname,
     );
-  const awaitingWelcome = location.pathname === '/' && !hasStarted && !isLoggedIn;
-
   useEffect(() => {
-    if (hasStarted || isLoggedIn || directServiceVisit) {
-      rememberServiceStart();
-      setHasStarted(true);
-    }
-  }, [directServiceVisit, hasStarted, isLoggedIn]);
+    if (isLoggedIn || directServiceVisit) rememberServiceStart();
+  }, [directServiceVisit, isLoggedIn]);
 
   function startService() {
     rememberServiceStart();
-    setHasStarted(true);
     window.scrollTo({ top: 0, behavior: 'instant' });
     navigate('/', { replace: true });
   }
@@ -287,14 +268,11 @@ function AppContent() {
       <ScrollToTop />
       <PostLoginRedirect />
       <div className="app-shell">
-        {!awaitingWelcome && <AppHeader />}
+        <AppHeader />
         <LeagueNavigation />
         <div className="app-content">
           <Routes>
-            <Route
-              path="/"
-              element={<HomeRoute hasStarted={hasStarted} onStart={startService} />}
-            />
+            <Route path="/" element={<PortfolioRoute />} />
             <Route
               path="/welcome"
               element={
@@ -476,7 +454,7 @@ function AppContent() {
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </div>
-        {!awaitingWelcome && <AppFooter />}
+        <AppFooter />
       </div>
     </>
   );

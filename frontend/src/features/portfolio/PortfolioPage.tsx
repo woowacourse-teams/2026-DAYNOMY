@@ -9,6 +9,7 @@ import { PortfolioNews } from './components/PortfolioNews';
 import { calculatePortfolio } from './api';
 import { portfolioErrorType, trackPortfolioEvent } from './analytics';
 import { PortfolioAnalysis } from './components/PortfolioAnalysis';
+import { PortfolioIntro } from './components/PortfolioIntro';
 import { PortfolioEditor } from './components/PortfolioEditor';
 import { PortfolioBulkEditor, type BulkEditorMode } from './components/PortfolioBulkEditor';
 import { usePortfolioHoldings } from './hooks/usePortfolioHoldings';
@@ -904,20 +905,24 @@ function compareHoldings(
 
 type PortfolioPageProps = {
   isLoggedIn?: boolean;
+  showIntroWhenEmpty?: boolean;
 };
 
-export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
+export function PortfolioPage({
+  isLoggedIn = true,
+  showIntroWhenEmpty = false,
+}: PortfolioPageProps) {
   const headingRef = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
     const previousTitle = document.title;
     document.title = '내 포트폴리오 | DAYNOMY';
-    headingRef.current?.focus({ preventScroll: true });
     return () => {
       document.title = previousTitle;
     };
   }, []);
   const {
     holdings,
+    hasPortfolioHistory,
     guestHistories,
     loading: holdingsLoading,
     saving: holdingsSaving,
@@ -934,6 +939,13 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
     updateTransaction,
     deleteTransaction,
   } = usePortfolioHoldings(isLoggedIn);
+  const [introDismissed, setIntroDismissed] = useState(false);
+  const checkingIntro = showIntroWhenEmpty && !introDismissed && holdingsLoading;
+  const showIntro =
+    showIntroWhenEmpty && !introDismissed && !holdingsError && hasPortfolioHistory === false;
+  useEffect(() => {
+    if (!checkingIntro && !showIntro) headingRef.current?.focus({ preventScroll: true });
+  }, [checkingIntro, showIntro]);
   const [calculation, setCalculation] = useState<PortfolioCalculation | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -996,10 +1008,10 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
   }, []);
 
   useEffect(() => {
-    if (viewedRef.current) return;
+    if (viewedRef.current || checkingIntro || showIntro) return;
     viewedRef.current = true;
     trackPortfolioEvent('portfolio_dashboard_viewed', { is_logged_in: isLoggedIn });
-  }, [isLoggedIn]);
+  }, [checkingIntro, isLoggedIn, showIntro]);
 
   useEffect(() => {
     if (holdingsLoading) return;
@@ -1138,6 +1150,7 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
   useEffect(() => {
     if (
       loadedRef.current ||
+      showIntro ||
       holdingsLoading ||
       loading ||
       holdingsError ||
@@ -1161,6 +1174,7 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
     holdingsLoading,
     isLoggedIn,
     loading,
+    showIntro,
   ]);
 
   function openHoldingEditor(
@@ -1179,7 +1193,13 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
     (
       next: NonNullable<typeof transactionEditor>,
       entryPoint:
-        'header' | 'empty_state' | 'ledger' | 'history' | 'holding_detail' | 'editor_switch',
+        | 'intro'
+        | 'header'
+        | 'empty_state'
+        | 'ledger'
+        | 'history'
+        | 'holding_detail'
+        | 'editor_switch',
     ) => {
       trackPortfolioEvent('portfolio_editor_opened', {
         mode: next.transaction ? 'transaction_update' : 'transaction_create',
@@ -1192,7 +1212,7 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
   );
 
   const openAdd = useCallback(
-    (entryPoint: 'header' | 'empty_state' | 'ledger') => {
+    (entryPoint: 'intro' | 'header' | 'empty_state' | 'ledger') => {
       openTransactionEditor({}, entryPoint);
     },
     [openTransactionEditor],
@@ -1267,6 +1287,26 @@ export function PortfolioPage({ isLoggedIn = true }: PortfolioPageProps) {
     if (amountsHidden && !touring) return HIDDEN_AMOUNT;
     if (value === null) return '—';
     return signed ? formatSignedWon(value) : formatWon(value);
+  }
+
+  if (checkingIntro) {
+    return <main className="portfolio-page" aria-busy="true" aria-label="포트폴리오 불러오는 중" />;
+  }
+
+  if (showIntro) {
+    const dismissIntro = () => {
+      setIntroDismissed(true);
+      window.scrollTo({ top: 0, behavior: 'instant' });
+    };
+    return (
+      <PortfolioIntro
+        onBrowse={dismissIntro}
+        onRegister={() => {
+          dismissIntro();
+          openAdd('intro');
+        }}
+      />
+    );
   }
 
   return (

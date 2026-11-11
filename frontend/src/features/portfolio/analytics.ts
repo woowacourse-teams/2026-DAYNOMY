@@ -59,7 +59,7 @@ type PortfolioEventParams = {
   tab?: 'holdings' | 'history';
   mode?: Operation;
   entry_point?:
-    'header' | 'empty_state' | 'ledger' | 'history' | 'holding_detail' | 'editor_switch';
+    'intro' | 'header' | 'empty_state' | 'ledger' | 'history' | 'holding_detail' | 'editor_switch';
   operation?: Operation;
   storage?: 'server' | 'temporary';
   transaction_type?: 'BUY' | 'SELL';
