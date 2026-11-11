@@ -146,9 +146,6 @@ body:has(.portfolio-page) .daynomy-footer {
   outline: 2px solid var(--button-primary);
   outline-offset: 3px;
 }
-.portfolio-page[data-input-modality='pointer'] .portfolio-page-actions > button:focus-visible {
-  outline: none;
-}
 .portfolio-save-notice {
   min-height: 20px;
   font-size: 12px;
@@ -415,6 +412,9 @@ body:has(.portfolio-page) .daynomy-footer {
   margin-bottom: 0;
   border-bottom: 0;
 }
+.portfolio-page .portfolio-dashboard-layout:has(.portfolio-ledger-actions .portfolio-add-menu) {
+  overflow: visible;
+}
 .portfolio-page .portfolio-ledger-toolbar .portfolio-ledger-add {
   display: inline-flex;
   align-items: center;
@@ -543,12 +543,6 @@ body:has(.portfolio-page) .daynomy-footer {
   line-height: 1.7;
   margin-bottom: 20px;
 }
-.portfolio-ledger-empty > .portfolio-secondary-button.is-primary {
-  min-height: 40px;
-  padding-inline: 16px;
-  border: 0;
-  font-size: 14px;
-}
 .portfolio-empty-mark {
   display: inline-grid;
   place-items: center;
@@ -642,19 +636,32 @@ body:has(.portfolio-page) .daynomy-footer {
   letter-spacing: -0.02em;
   text-wrap: balance;
 }
-.portfolio-history-empty p {
-  margin: 8px auto 18px;
-  max-width: 38ch;
-  color: #52647f;
-  font-size: 14px;
-  line-height: 1.6;
-  word-break: keep-all;
-}
-.portfolio-history-empty button {
+.portfolio-history-create {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   min-height: 44px;
-  padding: 0 20px;
+  margin-top: 4px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #52647f;
+  font: inherit;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 500;
+  cursor: pointer;
+}
+.portfolio-history-create span {
+  text-decoration: underline;
+  text-decoration-color: #a7b1bf;
+  text-underline-offset: 4px;
+}
+.portfolio-history-create:hover {
+  color: #263348;
+}
+.portfolio-history-create:hover span {
+  text-decoration-color: currentColor;
 }
 .portfolio-history-row {
   border-bottom: 1px solid #edf0f5;
@@ -3710,4 +3717,16 @@ body:has(.portfolio-page) .daynomy-footer {
 .portfolio-category-menu button:focus-visible {
   outline: 2px solid #3182f6;
   outline-offset: -2px;
+}
+
+:root:has(.portfolio-page)
+  :is(.portfolio-page, .portfolio-sheet, .portfolio-category-menu, .portfolio-tour)
+  button:focus-visible {
+  outline-color: #4b4b4b;
+}
+
+:root:has(.portfolio-page[data-input-modality='pointer'])
+  :is(.portfolio-page, .portfolio-sheet, .portfolio-category-menu, .portfolio-tour)
+  button:focus {
+  outline: none;
 }
