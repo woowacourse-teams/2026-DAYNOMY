@@ -28,7 +28,11 @@ for (const width of [1440, 390]) {
     expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
     await start.click();
     await expect(page).toHaveURL('/');
-    await page.getByRole('button', { name: '포트폴리오 바로 보기', exact: true }).click();
+    await page.getByRole('button', { name: '포트폴리오 만들기', exact: true }).click();
+    await page
+      .getByRole('dialog', { name: '거래 기록' })
+      .getByRole('button', { name: '닫기', exact: true })
+      .click();
     await expect(page.getByRole('heading', { name: '내 포트폴리오', exact: true })).toBeFocused();
     await expect(page.getByRole('complementary', { name: '처음 이용 안내' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: '사용 가이드', exact: true })).toHaveCount(0);
@@ -236,7 +240,11 @@ test('키보드로 메뉴·FAQ·시작하기·거래 기록을 사용하고 닫�
   await expect(page.locator('details').first()).toHaveAttribute('open', '');
   await page.locator('.hero .primary-cta').focus();
   await page.keyboard.press('Enter');
-  await page.getByRole('button', { name: '포트폴리오 바로 보기', exact: true }).press('Enter');
+  await page.getByRole('button', { name: '포트폴리오 만들기', exact: true }).press('Enter');
+  await page
+    .getByRole('dialog', { name: '거래 기록' })
+    .getByRole('button', { name: '닫기', exact: true })
+    .press('Enter');
   await expect(page.getByRole('heading', { name: '내 포트폴리오', exact: true })).toBeFocused();
   await expect(page.getByRole('button', { name: '사용 가이드', exact: true })).toHaveCount(0);
   const add = page.getByRole('button', { name: '종목 추가', exact: true });
@@ -319,12 +327,10 @@ test('공유 뉴스 상세는 소개를 거치지 않고 원래 주소로 열린
   await expect(page.getByRole('button', { name: '포트폴리오 만들기', exact: true })).toBeVisible();
 });
 
-test('거래 이력이 없는 방문자는 새로고침 후에도 그래프와 분석 예시를 바로 본다', async ({
-  page,
-}) => {
+test('거래 이력이 없는 방문자는 새로고침 후에도 자산 비중 예시를 바로 본다', async ({ page }) => {
   await page.goto('/');
   const register = page.getByRole('button', { name: '포트폴리오 만들기', exact: true });
-  const example = page.getByRole('heading', { name: '반도체 수요가 회복된다면' });
+  const example = page.getByRole('heading', { name: '예시 포트폴리오' });
   await expect(register).toBeVisible();
   await expect(example).toBeVisible();
   await expect(page.getByRole('list', { name: '예시 자산 비중' })).toBeVisible();

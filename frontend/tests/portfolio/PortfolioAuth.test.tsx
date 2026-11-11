@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 
-import { cleanup, render, waitFor } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, render, waitFor, within } from '@testing-library/react';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../../src/App';
 import { SERVICE_STARTED_KEY } from '../../src/features/landing/startedService';
 
@@ -11,6 +11,21 @@ function jsonResponse(body: unknown, status = 200) {
     headers: { 'content-type': 'application/json' },
   });
 }
+
+const originalShowModal = HTMLDialogElement.prototype.showModal;
+const originalClose = HTMLDialogElement.prototype.close;
+beforeAll(() => {
+  HTMLDialogElement.prototype.showModal = function () {
+    this.open = true;
+  };
+  HTMLDialogElement.prototype.close = function () {
+    this.open = false;
+  };
+});
+afterAll(() => {
+  HTMLDialogElement.prototype.showModal = originalShowModal;
+  HTMLDialogElement.prototype.close = originalClose;
+});
 
 beforeEach(() => {
   localStorage.setItem('daynomy:portfolio-tour:v1', 'done');
@@ -49,7 +64,9 @@ describe('포트폴리오 로그인 접근', () => {
 
     const view = render(<App />);
 
-    (await view.findByRole('button', { name: '포트폴리오 바로 보기' })).click();
+    (await view.findByRole('button', { name: '포트폴리오 만들기' })).click();
+    const editor = await view.findByRole('dialog', { name: '거래 기록' });
+    within(editor).getByRole('button', { name: '닫기' }).click();
     expect(await view.findByRole('button', { name: '종목 추가' })).toBeTruthy();
     expect(view.getByRole('heading', { name: '내 포트폴리오' })).toBeTruthy();
     expect(view.queryByText('로그인해야 볼 수 있습니다')).toBeNull();

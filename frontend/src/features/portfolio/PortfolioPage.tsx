@@ -915,6 +915,7 @@ export function PortfolioPage({
 }: PortfolioPageProps) {
   const pageRef = useRef<HTMLElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
+  const introEditorOpened = useRef(false);
   useEffect(() => {
     const previousTitle = document.title;
     document.title = '내 포트폴리오 | DAYNOMY';
@@ -1001,6 +1002,11 @@ export function PortfolioPage({
     type?: PortfolioTransactionType;
     transaction?: PortfolioHoldingHistory;
   } | null>(null);
+  useEffect(() => {
+    if (transactionEditor || !introEditorOpened.current) return;
+    introEditorOpened.current = false;
+    headingRef.current?.focus({ preventScroll: true });
+  }, [transactionEditor]);
   const [removing, setRemoving] = useState<{
     holding?: PortfolioHoldingInput;
     transaction?: PortfolioHoldingHistory;
@@ -1368,15 +1374,12 @@ export function PortfolioPage({
   }
 
   if (showIntro) {
-    const dismissIntro = () => {
-      setIntroDismissed(true);
-      window.scrollTo({ top: 0, behavior: 'instant' });
-    };
     return (
       <PortfolioIntro
-        onBrowse={dismissIntro}
         onRegister={() => {
-          dismissIntro();
+          introEditorOpened.current = true;
+          setIntroDismissed(true);
+          window.scrollTo({ top: 0, behavior: 'instant' });
           openAdd('intro');
         }}
       />

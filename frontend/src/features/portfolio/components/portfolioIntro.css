@@ -1,13 +1,10 @@
 .portfolio-intro {
   display: grid;
-  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
-  align-items: center;
-  gap: clamp(28px, 4vw, 64px);
-  width: min(100%, 1280px);
+  gap: 18px;
+  width: min(100%, 1080px);
   margin-inline: auto;
-  padding: clamp(32px, 5vw, 72px) clamp(24px, 4vw, 56px);
+  padding: 0 clamp(20px, 4vw, 48px) clamp(36px, 5vw, 68px);
   color: var(--color-text, #111827);
-  text-align: center;
   word-break: keep-all;
 }
 
@@ -15,17 +12,27 @@
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   min-width: 0;
+  min-height: min(64svh, 600px);
+  padding-block: 28px 12px;
+  text-align: center;
 }
 
-.portfolio-intro-mascot {
+.portfolio-intro-start-mascot {
   display: block;
-  width: 156px;
+  width: clamp(116px, 14vw, 156px);
   height: auto;
   aspect-ratio: 200 / 174;
   object-fit: cover;
   object-position: center 28%;
   mix-blend-mode: multiply;
+}
+
+.portfolio-intro-mascot {
+  display: block;
+  width: 100%;
+  height: auto;
 }
 
 .portfolio-intro h1 {
@@ -38,10 +45,9 @@
 }
 
 .portfolio-intro-description {
-  max-width: 32ch;
-  margin: 14px 0 0;
+  margin: 12px 0 0;
   color: #52627b;
-  font-size: clamp(15px, 1.65vw, 18px);
+  font-size: 15px;
   line-height: 1.65;
   text-wrap: pretty;
 }
@@ -64,36 +70,148 @@
   background: #1c4eb4;
 }
 
-.portfolio-intro-example {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  align-items: center;
-  gap: 28px;
-  width: 100%;
-  margin: 0;
-  padding: clamp(20px, 3vw, 28px);
-  border-radius: 12px;
-  background: #eef5fc;
-}
-
-.portfolio-intro-browse {
+.portfolio-intro-scroll {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   min-height: 44px;
-  padding-inline: 8px;
-  border: 0;
-  border-radius: 4px;
-  background: transparent;
+  margin-top: 16px;
   color: #52627b;
-  font: inherit;
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.portfolio-intro-scroll:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.portfolio-intro-demo {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  align-items: center;
+  gap: 24px clamp(20px, 3.5vw, 40px);
+  padding: clamp(18px, 3vw, 32px);
+  border: 1px solid #e5ebf2;
+  border-radius: 16px;
+  background: #f6f8fb;
+  scroll-margin-top: 88px;
+}
+
+.portfolio-intro-guide {
+  display: grid;
+  grid-template-columns: clamp(54px, 6vw, 84px) minmax(0, 1fr);
+  align-items: start;
+  gap: 12px 14px;
+}
+
+.portfolio-intro-bubble {
+  position: relative;
+  padding: 14px 16px;
+  border: 1px solid #dce6f4;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.portfolio-intro-bubble::before {
+  position: absolute;
+  top: 24px;
+  left: -6px;
+  width: 10px;
+  height: 10px;
+  transform: rotate(45deg);
+  border-bottom: 1px solid #dce6f4;
+  border-left: 1px solid #dce6f4;
+  background: #fff;
+  content: '';
+}
+
+.portfolio-intro-bubble h2 {
+  margin: 0;
+  font-size: clamp(17px, 1.8vw, 21px);
+  letter-spacing: -0.035em;
+}
+
+.portfolio-intro-bubble p {
+  margin-top: 6px;
   font-size: 14px;
+}
+
+.portfolio-intro-analyze {
+  display: inline-flex;
+  grid-column: 2;
+  justify-self: start;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid #c9daf6;
+  border-radius: 999px;
+  background: #e8f0ff;
+  color: #2354a5;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
 }
 
-.portfolio-intro-browse:hover {
-  text-decoration: underline;
-  text-underline-offset: 3px;
+.portfolio-intro-analyze:hover {
+  background: #dce9ff;
+}
+
+.portfolio-intro-analyze[aria-expanded='true'] .portfolio-intro-analyze-arrow {
+  transform: rotate(180deg);
+}
+
+.portfolio-intro-example {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: center;
+  gap: 20px;
+  width: 100%;
+  margin: 0;
+  padding: clamp(18px, 3vw, 28px);
+  border: 1px solid #e5ebf2;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.portfolio-intro-example h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.portfolio-intro-result {
+  grid-column: 1 / -1;
+  padding: 18px 20px;
+  border-left: 3px solid #235fd5;
+  border-radius: 8px;
+  background: #eaf1fc;
+}
+
+.portfolio-intro-result h3 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.portfolio-intro-result h4 {
+  margin: 18px 0 0;
+  font-size: 15px;
+}
+
+.portfolio-intro-result p,
+.portfolio-intro-result ul {
+  margin: 6px 0 0;
+  color: #41536d;
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.portfolio-intro-result ul {
+  display: grid;
+  gap: 4px;
+  padding-inline-start: 20px;
 }
 
 .portfolio-intro button:focus-visible {
@@ -101,13 +219,9 @@
   outline-offset: 3px;
 }
 
-.portfolio-intro-analysis {
-  text-align: left;
-}
-
 .portfolio-intro-allocation {
   display: grid;
-  grid-template-columns: 156px minmax(0, 1fr);
+  grid-template-columns: 128px minmax(0, 1fr);
   align-items: center;
   gap: clamp(18px, 3vw, 36px);
   margin: 0;
@@ -116,7 +230,7 @@
 .portfolio-intro-donut {
   display: grid;
   place-items: center;
-  width: 156px;
+  width: 128px;
   aspect-ratio: 1;
   margin: 0;
   border-radius: 50%;
@@ -129,7 +243,7 @@
   width: 64%;
   aspect-ratio: 1;
   border-radius: 50%;
-  background: #eef5fc;
+  background: #fff;
   font-size: 14px;
   font-weight: 650;
 }
@@ -169,45 +283,23 @@
   background: #c4d4eb;
 }
 
-@media (max-width: 860px) {
-  .portfolio-intro {
-    grid-template-columns: minmax(0, 1fr);
-    max-width: 600px;
-  }
-}
-
 @media (max-width: 600px) {
-  .portfolio-intro-allocation {
-    grid-template-columns: 116px minmax(0, 1fr);
+  .portfolio-intro-demo {
+    grid-template-columns: minmax(0, 1fr);
     gap: 18px;
   }
 
-  .portfolio-intro-donut {
-    width: 116px;
-    margin: 0;
+  .portfolio-intro-allocation {
+    grid-template-columns: minmax(72px, 96px) minmax(0, 1fr);
+    gap: 12px;
   }
-}
 
-.portfolio-intro-analysis h2 {
-  margin: 0;
-  font-size: 18px;
-  letter-spacing: -0.025em;
-}
+  .portfolio-intro-donut {
+    width: 100%;
+  }
 
-.portfolio-intro-analysis p,
-.portfolio-intro-analysis dd {
-  margin: 6px 0 0;
-  color: #52627b;
-  font-size: 14px;
-  line-height: 1.65;
-}
-
-.portfolio-intro-analysis dl {
-  margin: 0;
-}
-
-.portfolio-intro-analysis dt {
-  margin-top: 14px;
-  font-size: 14px;
-  font-weight: 700;
+  .portfolio-intro-allocation li {
+    gap: 5px;
+    font-size: 12px;
+  }
 }

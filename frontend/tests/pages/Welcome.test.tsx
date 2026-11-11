@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 
-import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../../src/App';
 import {
@@ -67,11 +67,18 @@ afterEach(() => {
 });
 
 describe('첫 방문 서비스 소개', () => {
-  it('거래 이력이 없는 비회원은 재방문해도 그래프와 분석 예시를 바로 본다', async () => {
+  it('거래 이력이 없는 비회원은 재방문해도 자산 비중 예시를 바로 본다', async () => {
     const view = render(<App />);
     expect(await view.findByRole('heading', { name: '포트폴리오를 만들어 보세요' })).toBeTruthy();
     expect(view.getByRole('list', { name: '예시 자산 비중' })).toBeTruthy();
-    expect(view.getByRole('heading', { name: '반도체 수요가 회복된다면' })).toBeTruthy();
+    expect(view.getByRole('heading', { name: '예시 포트폴리오' })).toBeTruthy();
+    expect(
+      view.queryByRole('heading', { name: '삼성전자만 10% 오르면 전체는 5% 올라요' }),
+    ).toBeNull();
+    fireEvent.click(view.getByRole('button', { name: '분석해 보기' }));
+    expect(
+      view.getByRole('heading', { name: '삼성전자만 10% 오르면 전체는 5% 올라요' }),
+    ).toBeTruthy();
     expect(window.location.pathname).toBe('/');
     expect(view.container.querySelector('.service-header')).not.toBeNull();
     expect(view.queryByRole('button', { name: '종목 추가' })).toBeNull();
@@ -170,7 +177,7 @@ describe('첫 방문 서비스 소개', () => {
     expect(await view.findByRole('button', { name: '포트폴리오 만들기' })).toBeTruthy();
   });
 
-  it('모든 브라우저 저장소가 차단되어도 등록 창 없이 포트폴리오를 둘러볼 수 있다', async () => {
+  it('모든 브라우저 저장소가 차단되어도 등록 창을 열고 포트폴리오로 돌아갈 수 있다', async () => {
     const blocked = {
       getItem: () => {
         throw new Error('blocked');
@@ -182,7 +189,9 @@ describe('첫 방문 서비스 소개', () => {
     vi.stubGlobal('localStorage', blocked);
     vi.stubGlobal('sessionStorage', blocked);
     const view = render(<App />);
-    fireEvent.click(await view.findByRole('button', { name: '포트폴리오 바로 보기' }));
+    fireEvent.click(await view.findByRole('button', { name: '포트폴리오 만들기' }));
+    const editor = await view.findByRole('dialog', { name: '거래 기록' });
+    fireEvent.click(within(editor).getByRole('button', { name: '닫기' }));
     expect(await view.findByRole('button', { name: '종목 추가' })).toBeTruthy();
     expect(view.queryByRole('dialog', { name: '거래 기록' })).toBeNull();
     expect(window.location.pathname).toBe('/');
