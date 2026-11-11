@@ -24,20 +24,31 @@ Sentry 소스맵 업로드는 빌드 job에서 실행하고, 소스맵을 제거
 | Patch | 기존 기능의 오류 수정                                    |
 
 1. `dev` 기준의 작업 브랜치에서 `package.json`·`package-lock.json` 버전을 올리고
-   [CHANGELOG.md](CHANGELOG.md)를 갱신합니다. 이번 릴리스 대상은 `2.0.8`입니다.
+   [CHANGELOG.md](CHANGELOG.md)를 갱신합니다. 이번 릴리스 대상은 `2.0.9`입니다.
 
    ```bash
    cd frontend
-   npm version 2.0.8 --no-git-tag-version
+   npm version 2.0.9 --no-git-tag-version
    ```
 
 2. `dev`에서 확인한 뒤 `main`에 병합합니다. 포맷·린트·타입 검사·테스트·빌드와
-   배포 검증이 모두 성공하면 해당 커밋에 `v2.0.8` Git tag를 생성합니다.
+   배포 검증이 모두 성공하면 해당 커밋에 `v2.0.9` Git tag를 생성합니다.
 3. Git tag·이미지 버전·Sentry release가 일치하는지 확인하고 공개 기능을 직접 확인합니다.
    자동 검사는 프론트 HTML, `/api/news`, `/api/auth/csrf`, Google 로그인 리디렉션까지입니다.
 
 실패하면 Git tag를 만들지 않습니다. 재시도 시 같은 커밋의 기존 버전 이미지를 재사용합니다.
 버전은 개발자가 올리며, 이미 태그가 있는 버전의 후속 변경은 SHA 이미지로 배포합니다.
+
+## v2.0.9 반영 순서
+
+이번 버전 준비 작업은 이슈 #895와 `chore/FE/#895` 브랜치에서 진행합니다.
+
+1. `package.json`과 `package-lock.json`의 최상위·루트 패키지 버전이 모두 `2.0.9`인지 확인하고, `CHANGELOG.md`의 v2.0.9 변경 내용을 검토합니다. `Unreleased`는 다음 릴리스용으로 유지합니다.
+2. 작업 브랜치에서 포맷·린트·타입 검사·테스트·빌드와 릴리스 스크립트 검사를 완료하고, `chore/FE/#895 → dev` PR의 CI 결과를 확인합니다.
+3. 포트폴리오 분석의 반대 근거·가격 흐름·최신 사실과 정정 근거가 응답에 반영되고, 분석 갱신 상태가 화면에 표시되는지 확인합니다. 거래 이력이 없는 계정에서는 시작 화면과 예시 분석 체험을 확인합니다.
+4. 소식 홈의 최신순·인기순 전환과 종목·출처별 빈 화면을 확인하고, 검색의 빈 결과와 오류 안내를 확인합니다.
+5. 투자 리그의 주차 이동·날짜 표시·빈 순위·잠정 순위를 확인하고, NYSE 공식 거래일 동기화와 달력 재집계가 정상 동작하는지 확인합니다.
+6. `dev → main` 릴리스 PR에 실제 검증 결과를 적고 운영 배포 후 `v2.0.9` 태그·GHCR 이미지·Sentry release가 같은 배포 커밋을 가리키는지 확인합니다.
 
 ## v2.0.8 반영 순서
 
@@ -144,11 +155,11 @@ bash scripts/test-deploy-frontend.sh
 
 일반 `npm run build`의 정적 파일에는 릴리스 버전이 별도로 표시되지 않습니다. 운영 CI는
 `resolve-release-version.sh`의 `image_tag`를 Docker 이미지 태그·`org.opencontainers.image.version`
-라벨과 `SENTRY_RELEASE`에 공통으로 사용합니다. 새 릴리스에서는 세 값이 `v2.0.8`인지 확인합니다.
+라벨과 `SENTRY_RELEASE`에 공통으로 사용합니다. 새 릴리스에서는 세 값이 `v2.0.9`인지 확인합니다.
 HTML의 `daynomy-deployment` 메타 태그는 버전 대신 환경·커밋을 기록하므로 같은 이미지의
 `org.opencontainers.image.revision`과 커밋이 일치하는지 대조합니다.
 
-프론트 `v2.0.8` 버전은 백엔드 Gradle 버전, OpenAPI 버전, 분석 스키마·알고리즘 버전,
+프론트 `v2.0.9` 버전은 백엔드 Gradle 버전, OpenAPI 버전, 분석 스키마·알고리즘 버전,
 브라우저 저장 키 버전과 독립적입니다. 이 값들은 단순 릴리스 번호 변경에 맞춰 올리지 않습니다.
 
 ## 무중단 배포와 자동 롤백
