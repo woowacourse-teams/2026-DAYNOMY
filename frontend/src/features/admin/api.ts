@@ -737,11 +737,12 @@ export async function getAdminContentCollectionReviews(signal?: AbortSignal) {
 export async function approveAdminContentCollectionReview(
   contentId: number,
   assetIds: number[],
+  industryIds: number[],
   publishedDate: string | null,
 ) {
   await requestWithCsrf<void>(`/api/admin/content-collection-reviews/${contentId}/approve`, {
     method: 'POST',
-    body: JSON.stringify({ assetIds, publishedDate }),
+    body: JSON.stringify({ assetIds, industryIds, publishedDate }),
     headers: { 'Content-Type': 'application/json' },
   });
 }
@@ -753,7 +754,12 @@ export async function rejectAdminContentCollectionReview(contentId: number) {
 }
 
 export async function approveAdminContentCollectionReviews(
-  items: { contentId: number; assetIds: number[]; publishedDate: string | null }[],
+  items: {
+    contentId: number;
+    assetIds: number[];
+    industryIds: number[];
+    publishedDate: string | null;
+  }[],
 ) {
   await requestWithCsrf<void>('/api/admin/content-collection-reviews/bulk-approve', {
     method: 'POST',
