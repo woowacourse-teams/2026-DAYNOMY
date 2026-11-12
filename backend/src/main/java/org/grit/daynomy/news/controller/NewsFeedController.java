@@ -9,6 +9,8 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.common.response.ErrorResponse;
 import org.grit.daynomy.news.domain.NewsFeedSort;
@@ -49,7 +51,12 @@ public class NewsFeedController {
       @Parameter(description = "페이지 번호(1부터 시작)") @RequestParam(defaultValue = "1") @Min(1) int page,
       @Parameter(description = "페이지 크기(1~100)") @RequestParam(defaultValue = "8") @Min(1) @Max(100)
           int size,
-      @RequestParam(defaultValue = "LATEST") NewsFeedSort sort) {
-    return service.getFeed(source, page, size, sort);
+      @RequestParam(defaultValue = "LATEST") NewsFeedSort sort,
+      @Parameter(description = "업종 코드. 생략하면 전체 조회", example = "SEMICONDUCTOR")
+          @RequestParam(required = false)
+          @Size(max = 50)
+          @Pattern(regexp = "[A-Z][A-Z0-9_]*")
+          String industry) {
+    return service.getFeed(source, page, size, sort, industry);
   }
 }

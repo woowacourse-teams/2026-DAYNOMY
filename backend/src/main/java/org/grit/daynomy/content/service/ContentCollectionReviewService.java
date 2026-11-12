@@ -2,17 +2,18 @@ package org.grit.daynomy.content.service;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.asset.domain.Asset;
 import org.grit.daynomy.asset.domain.AssetCategory;
 import org.grit.daynomy.asset.exception.AssetErrorCode;
 import org.grit.daynomy.asset.repository.AssetRepository;
+import org.grit.daynomy.asset.repository.IndustryRepository;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.content.domain.AssetContent;
 import org.grit.daynomy.content.domain.CollectedExternalContentReview;
@@ -40,6 +41,7 @@ public class ContentCollectionReviewService {
   private final CollectedExternalContentRepository collectedContentRepository;
   private final CollectedExternalContentReviewRepository reviewRepository;
   private final AssetRepository assetRepository;
+  private final IndustryRepository industryRepository;
   private final AssetContentRepository assetContentRepository;
   private final AssetMentionMatcher assetMentionMatcher;
 
@@ -83,13 +85,17 @@ public class ContentCollectionReviewService {
   }
 
   @Transactional
-  public void approve(Long contentId, List<Long> assetIds, LocalDate publishedDate) {
-    approveContent(contentId, assetIds, publishedDate);
+  public void approve(
+      Long contentId, List<Long> assetIds, List<Long> industryIds, LocalDate publishedDate) {
+    approveContent(contentId, assetIds, industryIds, publishedDate);
   }
 
   @Transactional
   public void approveAll(List<ContentCollectionReviewBulkApproveRequest.Item> items) {
-    items.forEach(item -> approveContent(item.contentId(), item.assetIds(), item.publishedDate()));
+    items.forEach(
+        item ->
+            approveContent(
+                item.contentId(), item.assetIds(), item.industryIds(), item.publishedDate()));
   }
 
   @Transactional
@@ -132,15 +138,34 @@ public class ContentCollectionReviewService {
   }
 
   private void approveContent(
-      Long contentId, List<Long> requestedAssetIds, LocalDate publishedDate) {
+      Long contentId,
+      List<Long> requestedAssetIds,
+      List<Long> requestedIndustryIds,
+      LocalDate publishedDate) {
     List<CollectedExternalContentReview> reviews = getPending(contentId);
     List<Long> assetIds = new LinkedHashSet<>(requestedAssetIds).stream().toList();
-    Map<Long, Asset> assetsById =
-        assetRepository.findAllById(assetIds).stream()
-            .collect(Collectors.toMap(Asset::getId, Function.identity()));
+    Map<Long, Asset> assetsById = new LinkedHashMap<>();
+    assetRepository.findAllById(assetIds).forEach(asset -> assetsById.put(asset.getId(), asset));
     if (assetsById.size() != assetIds.size()) {
       throw new BusinessException(AssetErrorCode.ASSET_NOT_FOUND);
     }
+    Set<Long> industryIds = new LinkedHashSet<>(requestedIndustryIds);
+    if (!industryIds.isEmpty()) {
+      var industries = industryRepository.findAllById(industryIds);
+      if (industries.size() != industryIds.size()) {
+        throw new BusinessException(AssetErrorCode.INDUSTRY_ID_NOT_FOUND);
+      }
+      if (industries.stream().anyMatch(industry -> !industry.isActive())) {
+        throw new BusinessException(AssetErrorCode.INDUSTRY_NOT_FOUND);
+      }
+      assetRepository
+          .findListedSecuritiesByIndustryIds(industryIds, LINKABLE_CATEGORIES)
+          .forEach(asset -> assetsById.putIfAbsent(asset.getId(), asset));
+    }
+    if (assetsById.isEmpty()) {
+      throw new BusinessException(ContentErrorCode.CONTENT_COLLECTION_REVIEW_TARGET_NOT_FOUND);
+    }
+    assetIds = List.copyOf(assetsById.keySet());
     var content = reviews.getFirst().getCollectedContent();
     content.confirmPublishedDate(publishedDate);
     for (Long assetId : assetIds) {

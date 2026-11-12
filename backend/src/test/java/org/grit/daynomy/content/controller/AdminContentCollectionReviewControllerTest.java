@@ -90,12 +90,13 @@ class AdminContentCollectionReviewControllerTest {
         .perform(
             post("/api/admin/content-collection-reviews/3/approve")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"assetIds\": [10, 20], \"publishedDate\": \"2026-10-26\"}"))
+                .content(
+                    "{\"assetIds\": [], \"industryIds\": [5], \"publishedDate\": \"2026-10-26\"}"))
         .andExpect(status().isNoContent());
 
     then(reviewService)
         .should()
-        .approve(3L, List.of(10L, 20L), java.time.LocalDate.of(2026, 10, 26));
+        .approve(3L, List.of(), List.of(5L), java.time.LocalDate.of(2026, 10, 26));
   }
 
   @Test
@@ -132,8 +133,8 @@ class AdminContentCollectionReviewControllerTest {
                     """
                     {
                       "items": [
-                        {"contentId": 3, "assetIds": [10, 20], "publishedDate": "2026-10-26"},
-                        {"contentId": 4, "assetIds": [30], "publishedDate": null}
+                        {"contentId": 3, "assetIds": [10, 20], "industryIds": [5], "publishedDate": "2026-10-26"},
+                        {"contentId": 4, "assetIds": [30], "industryIds": [], "publishedDate": null}
                       ]
                     }
                     """))
@@ -144,8 +145,9 @@ class AdminContentCollectionReviewControllerTest {
         .approveAll(
             List.of(
                 new ContentCollectionReviewBulkApproveRequest.Item(
-                    3L, List.of(10L, 20L), java.time.LocalDate.of(2026, 10, 26)),
-                new ContentCollectionReviewBulkApproveRequest.Item(4L, List.of(30L), null)));
+                    3L, List.of(10L, 20L), List.of(5L), java.time.LocalDate.of(2026, 10, 26)),
+                new ContentCollectionReviewBulkApproveRequest.Item(
+                    4L, List.of(30L), List.of(), null)));
   }
 
   @Test

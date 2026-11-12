@@ -56,7 +56,8 @@ public class AdminContentCollectionReviewController {
   public ResponseEntity<Void> approve(
       @PathVariable @Positive Long contentId,
       @Valid @RequestBody ContentCollectionReviewApproveRequest request) {
-    reviewService.approve(contentId, request.assetIds(), request.publishedDate());
+    reviewService.approve(
+        contentId, request.assetIds(), request.industryIds(), request.publishedDate());
     return ResponseEntity.noContent().build();
   }
 

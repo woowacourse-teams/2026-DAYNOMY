@@ -6,6 +6,7 @@ import java.time.LocalDate;
 import java.util.Set;
 import org.grit.daynomy.asset.domain.Asset;
 import org.grit.daynomy.asset.domain.AssetCategory;
+import org.grit.daynomy.asset.domain.Industry;
 import org.grit.daynomy.asset.domain.StockMarket;
 import org.grit.daynomy.support.SharedDatabaseTest;
 import org.junit.jupiter.api.DisplayName;
@@ -24,6 +25,35 @@ class AssetRepositoryTest extends SharedDatabaseTest {
 
   @Autowired private TestEntityManager entityManager;
   @Autowired private AssetRepository assetRepository;
+
+  @Test
+  void findsListedStocksInAnyRequestedIndustryWithoutDuplicates() {
+    LocalDate date = LocalDate.of(2026, 11, 11);
+    Industry semiconductor = Industry.create("TEST_SEMICONDUCTOR", "반도체 테스트", 100);
+    Industry ai = Industry.create("TEST_AI", "AI 테스트", 101);
+    entityManager.persist(semiconductor);
+    entityManager.persist(ai);
+    Asset stock = Asset.listedStock("Industry stock", "987654", StockMarket.KOSPI, null, date);
+    stock.addIndustry(semiconductor);
+    stock.addIndustry(ai);
+    Asset etf =
+        Asset.listedSecurity(
+            "Industry ETF", AssetCategory.ETF, "987655", StockMarket.KOSPI, null, date);
+    etf.addIndustry(semiconductor);
+    entityManager.persist(stock);
+    entityManager.persist(etf);
+    entityManager.flush();
+
+    assertThat(
+            assetRepository.findListedStocksByIndustryCodes(
+                Set.of("TEST_SEMICONDUCTOR", "TEST_AI")))
+        .containsExactly(stock);
+    assertThat(
+            assetRepository.findListedSecuritiesByIndustryIds(
+                Set.of(semiconductor.getId(), ai.getId()),
+                Set.of(AssetCategory.STOCK, AssetCategory.ETF)))
+        .containsExactly(stock, etf);
+  }
 
   @Test
   @DisplayName("국내 주식·ETF 검색은 상장 종목의 종목명과 종목코드만 검색한다")
