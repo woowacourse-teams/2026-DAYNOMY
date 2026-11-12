@@ -30,6 +30,20 @@ public interface AssetRepository extends JpaRepository<Asset, Long> {
       SELECT DISTINCT asset
       FROM Asset asset
       JOIN asset.industries industry
+      WHERE asset.category IN :categories
+        AND asset.listed = true
+        AND industry.id IN :industryIds
+      ORDER BY asset.id
+      """)
+  List<Asset> findListedSecuritiesByIndustryIds(
+      @Param("industryIds") Set<Long> industryIds,
+      @Param("categories") Set<AssetCategory> categories);
+
+  @Query(
+      """
+      SELECT DISTINCT asset
+      FROM Asset asset
+      JOIN asset.industries industry
       WHERE asset.category = org.grit.daynomy.asset.domain.AssetCategory.STOCK
         AND asset.listed = true
         AND industry.active = true

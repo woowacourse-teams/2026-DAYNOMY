@@ -1,15 +1,21 @@
 package org.grit.daynomy.content.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Set;
 import org.grit.daynomy.asset.domain.Asset;
 import org.grit.daynomy.asset.domain.AssetCategory;
+import org.grit.daynomy.asset.domain.Industry;
+import org.grit.daynomy.asset.exception.AssetErrorCode;
 import org.grit.daynomy.asset.repository.AssetRepository;
+import org.grit.daynomy.asset.repository.IndustryRepository;
+import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.content.domain.AssetContent;
 import org.grit.daynomy.content.domain.CollectedExternalContent;
 import org.grit.daynomy.content.domain.CollectedExternalContentReview;
@@ -17,6 +23,7 @@ import org.grit.daynomy.content.domain.ContentCollectionReviewStatus;
 import org.grit.daynomy.content.domain.ContentCollectionSource;
 import org.grit.daynomy.content.domain.ContentSourceType;
 import org.grit.daynomy.content.dto.ContentCollectionReviewUpdateRequest;
+import org.grit.daynomy.content.exception.ContentErrorCode;
 import org.grit.daynomy.content.repository.AssetContentRepository;
 import org.grit.daynomy.content.repository.CollectedExternalContentRepository;
 import org.grit.daynomy.content.repository.CollectedExternalContentReviewRepository;
@@ -33,6 +40,7 @@ class ContentCollectionReviewServiceTest {
   @Mock private CollectedExternalContentRepository collectedContentRepository;
   @Mock private CollectedExternalContentReviewRepository reviewRepository;
   @Mock private AssetRepository assetRepository;
+  @Mock private IndustryRepository industryRepository;
   @Mock private AssetContentRepository assetContentRepository;
   @Mock private AssetMentionMatcher assetMentionMatcher;
 
@@ -72,7 +80,7 @@ class ContentCollectionReviewServiceTest {
     given(assetRepository.findAllById(List.of(1L, 2L))).willReturn(List.of(samsung, hynix));
     given(assetContentRepository.existsByAssetIdAndUrl(any(), any())).willReturn(false);
 
-    service().approve(3L, List.of(1L, 2L), LocalDate.of(2026, 10, 26));
+    service().approve(3L, List.of(1L, 2L), List.of(), LocalDate.of(2026, 10, 26));
 
     assertThat(samsungReview.getStatus()).isEqualTo(ContentCollectionReviewStatus.APPROVED);
     assertThat(hynixReview.getStatus()).isEqualTo(ContentCollectionReviewStatus.APPROVED);
@@ -104,7 +112,7 @@ class ContentCollectionReviewServiceTest {
     given(assetContentRepository.existsByAssetIdAndUrl(2L, content.getUrl())).willReturn(false);
     given(reviewRepository.existsByCollectedContentIdAndSuggestedAssetId(3L, 2L)).willReturn(false);
 
-    service().approve(3L, List.of(2L), null);
+    service().approve(3L, List.of(2L), List.of(), null);
 
     assertThat(review.getStatus()).isEqualTo(ContentCollectionReviewStatus.APPROVED);
     assertThat(review.getSuggestedAsset()).isEqualTo(selected);
@@ -124,7 +132,7 @@ class ContentCollectionReviewServiceTest {
     given(assetContentRepository.existsByAssetIdAndUrl(2L, content.getUrl())).willReturn(false);
     given(reviewRepository.existsByCollectedContentIdAndSuggestedAssetId(3L, 2L)).willReturn(true);
 
-    service().approve(3L, List.of(2L), null);
+    service().approve(3L, List.of(2L), List.of(), null);
 
     assertThat(review.getStatus()).isEqualTo(ContentCollectionReviewStatus.REJECTED);
     assertThat(review.getSuggestedAsset()).isEqualTo(suggested);
@@ -146,6 +154,67 @@ class ContentCollectionReviewServiceTest {
     assertThat(first.getStatus()).isEqualTo(ContentCollectionReviewStatus.REJECTED);
     assertThat(second.getStatus()).isEqualTo(ContentCollectionReviewStatus.REJECTED);
     then(assetContentRepository).shouldHaveNoInteractions();
+  }
+
+  @Test
+  void approvalExpandsIndustryAssets() {
+    Asset samsung = asset(1L, "삼성전자", "005930");
+    Asset hynix = asset(2L, "SK하이닉스", "000660");
+    Industry semiconductor = Industry.create("SEMICONDUCTOR", "반도체", 1);
+    ReflectionTestUtils.setField(semiconductor, "id", 5L);
+    CollectedExternalContent content = content("반도체 업종 전망");
+    CollectedExternalContentReview review = new CollectedExternalContentReview(content, samsung);
+    given(
+            reviewRepository.findAllByCollectedContentIdAndStatusOrderByIdAsc(
+                3L, ContentCollectionReviewStatus.PENDING))
+        .willReturn(List.of(review));
+    given(industryRepository.findAllById(Set.of(5L))).willReturn(List.of(semiconductor));
+    given(
+            assetRepository.findListedSecuritiesByIndustryIds(
+                Set.of(5L), Set.of(AssetCategory.STOCK, AssetCategory.ETF)))
+        .willReturn(List.of(samsung, hynix));
+    given(assetContentRepository.existsByAssetIdAndUrl(any(), any())).willReturn(false);
+
+    service().approve(3L, List.of(), List.of(5L), null);
+
+    ArgumentCaptor<AssetContent> published = ArgumentCaptor.forClass(AssetContent.class);
+    then(assetContentRepository).should(org.mockito.Mockito.times(2)).save(published.capture());
+    assertThat(published.getAllValues())
+        .extracting(contentItem -> contentItem.getAsset().getId())
+        .containsExactly(1L, 2L);
+  }
+
+  @Test
+  void approvalRejectsUnknownIndustry() {
+    CollectedExternalContent content = content("반도체 업종 전망");
+    CollectedExternalContentReview review = new CollectedExternalContentReview(content, null);
+    given(
+            reviewRepository.findAllByCollectedContentIdAndStatusOrderByIdAsc(
+                3L, ContentCollectionReviewStatus.PENDING))
+        .willReturn(List.of(review));
+
+    assertThatThrownBy(() -> service().approve(3L, List.of(), List.of(5L), null))
+        .isInstanceOf(BusinessException.class)
+        .extracting(exception -> ((BusinessException) exception).errorCode())
+        .isEqualTo(AssetErrorCode.INDUSTRY_ID_NOT_FOUND);
+  }
+
+  @Test
+  void approvalRejectsIndustryWithoutListedAssets() {
+    Industry semiconductor = Industry.create("SEMICONDUCTOR", "반도체", 1);
+    ReflectionTestUtils.setField(semiconductor, "id", 5L);
+    CollectedExternalContent content = content("반도체 업종 전망");
+    CollectedExternalContentReview review = new CollectedExternalContentReview(content, null);
+    given(
+            reviewRepository.findAllByCollectedContentIdAndStatusOrderByIdAsc(
+                3L, ContentCollectionReviewStatus.PENDING))
+        .willReturn(List.of(review));
+    given(industryRepository.findAllById(Set.of(5L))).willReturn(List.of(semiconductor));
+
+    assertThatThrownBy(() -> service().approve(3L, List.of(), List.of(5L), null))
+        .isInstanceOf(BusinessException.class)
+        .extracting(exception -> ((BusinessException) exception).errorCode())
+        .isEqualTo(ContentErrorCode.CONTENT_COLLECTION_REVIEW_TARGET_NOT_FOUND);
   }
 
   @Test
@@ -197,6 +266,7 @@ class ContentCollectionReviewServiceTest {
         collectedContentRepository,
         reviewRepository,
         assetRepository,
+        industryRepository,
         assetContentRepository,
         assetMentionMatcher);
   }

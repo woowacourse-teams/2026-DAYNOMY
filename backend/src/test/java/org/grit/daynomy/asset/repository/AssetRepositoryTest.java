@@ -48,6 +48,11 @@ class AssetRepositoryTest extends SharedDatabaseTest {
             assetRepository.findListedStocksByIndustryCodes(
                 Set.of("TEST_SEMICONDUCTOR", "TEST_AI")))
         .containsExactly(stock);
+    assertThat(
+            assetRepository.findListedSecuritiesByIndustryIds(
+                Set.of(semiconductor.getId(), ai.getId()),
+                Set.of(AssetCategory.STOCK, AssetCategory.ETF)))
+        .containsExactly(stock, etf);
   }
 
   @Test
