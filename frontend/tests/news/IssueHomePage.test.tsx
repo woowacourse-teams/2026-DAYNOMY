@@ -13,7 +13,9 @@ import {
 } from '../../src/features/news/issue/popularity';
 import { getNewsFeed } from '../../src/features/news/issue/feedApi';
 
-vi.mock('../../src/features/news/issue/feedApi', () => ({ getNewsFeed: vi.fn() }));
+vi.mock('../../src/features/news/issue/feedApi', () => ({
+  getNewsFeed: vi.fn(),
+}));
 
 vi.mock('../../src/features/investment-calendar/InvestmentCalendarPage', () => ({
   InvestmentCalendarPage: () => (

@@ -12,7 +12,9 @@ import { ArticleCard } from '../../src/features/news/newslist/components/Article
 import type { NewsListItem } from '../../src/features/news/newslist/types';
 import { getNewsFeed } from '../../src/features/news/issue/feedApi';
 
-vi.mock('../../src/features/news/issue/feedApi', () => ({ getNewsFeed: vi.fn() }));
+vi.mock('../../src/features/news/issue/feedApi', () => ({
+  getNewsFeed: vi.fn(),
+}));
 
 const article = {
   id: 7,

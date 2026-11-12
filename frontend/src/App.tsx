@@ -92,6 +92,11 @@ const AdminStockSyncPage = lazy(() =>
     default: module.AdminStockSyncPage,
   })),
 );
+const AdminIndustriesPage = lazy(() =>
+  import('./features/admin/AdminIndustriesPage').then((module) => ({
+    default: module.AdminIndustriesPage,
+  })),
+);
 const AdminPeoplePage = lazy(() =>
   import('./features/admin/AdminPeoplePage').then((module) => ({
     default: module.AdminPeoplePage,
@@ -511,6 +516,14 @@ function AppContent() {
                 element={
                   <AdminRoute>
                     <AdminStockContentsPage />
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="/admin/industries"
+                element={
+                  <AdminRoute>
+                    <AdminIndustriesPage />
                   </AdminRoute>
                 }
               />
