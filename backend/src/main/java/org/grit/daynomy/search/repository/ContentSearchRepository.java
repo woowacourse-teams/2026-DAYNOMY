@@ -41,8 +41,10 @@ public class ContentSearchRepository {
             CAST(:industry AS text) IS NULL OR EXISTS (
               SELECT 1
               FROM asset_industries ai
+              JOIN assets a ON a.id = ai.asset_id
               JOIN industries i ON i.id = ai.industry_id
               WHERE ai.asset_id = c.asset_id
+                AND a.category IN ('STOCK', 'ETF')
                 AND i.code = :industry
                 AND i.active = TRUE
             )
@@ -114,8 +116,10 @@ public class ContentSearchRepository {
               SELECT 1
               FROM stock_related_contents related
               JOIN asset_industries ai ON ai.asset_id = related.asset_id
+              JOIN assets a ON a.id = ai.asset_id
               JOIN industries i ON i.id = ai.industry_id
               WHERE related.news_id = n.id
+                AND a.category IN ('STOCK', 'ETF')
                 AND i.code = :industry
                 AND i.active = TRUE
             )

@@ -75,7 +75,7 @@ public class AdminIndustryService {
   @Transactional
   public void addIndustryAsset(Long industryId, Long assetId) {
     Industry industry = getIndustry(industryId);
-    getAsset(assetId).addIndustry(industry);
+    getIndustryAsset(assetId).addIndustry(industry);
   }
 
   @Transactional
@@ -93,7 +93,7 @@ public class AdminIndustryService {
   @Transactional
   public AdminAssetIndustriesResponse updateAssetIndustries(
       Long assetId, AdminAssetIndustriesUpdateRequest request) {
-    Asset asset = getAsset(assetId);
+    Asset asset = getIndustryAsset(assetId);
     List<Long> industryIds = new LinkedHashSet<>(request.industryIds()).stream().toList();
     List<Industry> industries = industryRepository.findAllById(industryIds);
     if (industries.size() != industryIds.size()) {
@@ -114,6 +114,14 @@ public class AdminIndustryService {
     return assetRepository
         .findById(assetId)
         .orElseThrow(() -> new BusinessException(AssetErrorCode.ASSET_NOT_FOUND));
+  }
+
+  private Asset getIndustryAsset(Long assetId) {
+    Asset asset = getAsset(assetId);
+    if (!SECURITY_CATEGORIES.contains(asset.getCategory())) {
+      throw new BusinessException(AssetErrorCode.ASSET_INDUSTRY_UNSUPPORTED);
+    }
+    return asset;
   }
 
   private List<Industry> sorted(Iterable<Industry> industries) {

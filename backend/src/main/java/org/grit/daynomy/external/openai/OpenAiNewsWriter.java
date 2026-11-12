@@ -253,8 +253,6 @@ public class OpenAiNewsWriter {
                                 "array",
                                 "items",
                                 industryItems,
-                                "uniqueItems",
-                                true,
                                 "maxItems",
                                 industries.size())),
                         "required",

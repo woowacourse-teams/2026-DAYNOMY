@@ -2,6 +2,7 @@ package org.grit.daynomy.asset.controller;
 
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -112,6 +113,18 @@ class AdminIndustryControllerTest {
     then(adminIndustryService)
         .should()
         .updateAssetIndustries(7L, new AdminAssetIndustriesUpdateRequest(List.of(1L, 2L)));
+  }
+
+  @Test
+  void rejectsNullIndustryId() throws Exception {
+    mockMvc
+        .perform(
+            put("/api/admin/assets/7/industries")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"industryIds\":[null]}"))
+        .andExpect(status().isBadRequest());
+
+    verifyNoInteractions(adminIndustryService);
   }
 
   @Test

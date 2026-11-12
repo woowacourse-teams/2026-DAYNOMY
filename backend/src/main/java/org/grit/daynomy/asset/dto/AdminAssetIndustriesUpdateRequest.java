@@ -6,4 +6,4 @@ import jakarta.validation.constraints.Size;
 import java.util.List;
 
 public record AdminAssetIndustriesUpdateRequest(
-    @NotNull @Size(max = 100) List<@Positive Long> industryIds) {}
+    @NotNull @Size(max = 100) List<@NotNull @Positive Long> industryIds) {}

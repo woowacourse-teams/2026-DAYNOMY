@@ -282,21 +282,19 @@ class OpenAiNewsGeneratorTest {
         .contains("활성 업종 목록")
         .contains("SEMICONDUCTOR")
         .contains("반도체");
-    assertThat(
-            request
-                .path("text")
-                .path("format")
-                .path("schema")
-                .path("properties")
-                .path("articles")
-                .path("items")
-                .path("properties")
-                .path("industries")
-                .path("items")
-                .path("enum")
-                .get(0)
-                .asText())
+    JsonNode industriesSchema =
+        request
+            .path("text")
+            .path("format")
+            .path("schema")
+            .path("properties")
+            .path("articles")
+            .path("items")
+            .path("properties")
+            .path("industries");
+    assertThat(industriesSchema.path("items").path("enum").get(0).asText())
         .isEqualTo("SEMICONDUCTOR");
+    assertThat(industriesSchema.has("uniqueItems")).isFalse();
   }
 
   @Test

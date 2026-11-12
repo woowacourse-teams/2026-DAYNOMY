@@ -22,6 +22,7 @@ public enum AssetErrorCode implements ErrorCode {
   INDUSTRY_NOT_FOUND(HttpStatus.BAD_REQUEST, "활성 업종을 찾을 수 없습니다."),
   INDUSTRY_ID_NOT_FOUND(HttpStatus.NOT_FOUND, "업종을 찾을 수 없습니다."),
   INDUSTRY_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 사용 중인 업종 코드입니다."),
+  ASSET_INDUSTRY_UNSUPPORTED(HttpStatus.BAD_REQUEST, "주식·ETF 자산만 업종에 연결할 수 있습니다."),
   STOCK_PRICE_NOT_FOUND(HttpStatus.NOT_FOUND, "주식·ETF 종가를 찾을 수 없습니다.");
 
   private final HttpStatus status;

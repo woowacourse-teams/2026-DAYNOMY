@@ -84,6 +84,7 @@ class AdminIndustryServiceTest {
     Industry later = industry(2L, "BIO", 20);
     Industry earlier = industry(1L, "SEMICONDUCTOR", 10);
     given(assetRepository.findById(7L)).willReturn(Optional.of(asset));
+    given(asset.getCategory()).willReturn(AssetCategory.STOCK);
     given(industryRepository.findAllById(List.of(2L, 1L))).willReturn(List.of(later, earlier));
 
     var response =
@@ -100,6 +101,7 @@ class AdminIndustryServiceTest {
     Industry industry = org.mockito.Mockito.mock(Industry.class);
     given(industryRepository.findById(1L)).willReturn(Optional.of(industry));
     given(assetRepository.findById(7L)).willReturn(Optional.of(asset));
+    given(asset.getCategory()).willReturn(AssetCategory.STOCK);
     given(
             assetRepository.findAllByIndustries_IdAndCategoryInAndListedTrueOrderByNameAscIdAsc(
                 1L, Set.of(AssetCategory.STOCK, AssetCategory.ETF), PageRequest.of(1, 20)))
@@ -116,6 +118,27 @@ class AdminIndustryServiceTest {
 
     then(asset).should().addIndustry(industry);
     then(asset).should().removeIndustry(industry);
+  }
+
+  @Test
+  void rejectsIndustryConnectionsForNonSecurityAssets() {
+    Asset asset = org.mockito.Mockito.mock(Asset.class);
+    Industry industry = org.mockito.Mockito.mock(Industry.class);
+    given(industryRepository.findById(1L)).willReturn(Optional.of(industry));
+    given(assetRepository.findById(7L)).willReturn(Optional.of(asset));
+    given(asset.getCategory()).willReturn(AssetCategory.GOLD);
+
+    assertThatThrownBy(() -> service.addIndustryAsset(1L, 7L))
+        .isInstanceOf(BusinessException.class)
+        .extracting(exception -> ((BusinessException) exception).errorCode())
+        .isEqualTo(AssetErrorCode.ASSET_INDUSTRY_UNSUPPORTED);
+    assertThatThrownBy(
+            () ->
+                service.updateAssetIndustries(
+                    7L, new AdminAssetIndustriesUpdateRequest(List.of(1L))))
+        .isInstanceOf(BusinessException.class)
+        .extracting(exception -> ((BusinessException) exception).errorCode())
+        .isEqualTo(AssetErrorCode.ASSET_INDUSTRY_UNSUPPORTED);
   }
 
   private Industry industry(long id, String code, int displayOrder) {

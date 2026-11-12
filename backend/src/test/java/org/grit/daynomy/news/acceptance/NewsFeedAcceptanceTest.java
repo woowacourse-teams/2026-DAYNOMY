@@ -10,6 +10,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import org.grit.daynomy.asset.domain.Asset;
+import org.grit.daynomy.asset.domain.AssetCategory;
 import org.grit.daynomy.asset.domain.Industry;
 import org.grit.daynomy.asset.domain.StockMarket;
 import org.grit.daynomy.asset.repository.AssetRepository;
@@ -122,6 +123,35 @@ class NewsFeedAcceptanceTest {
         .body("items", hasSize(1))
         .body("items[0].id", equalTo(semiconductorNews.getId().intValue()))
         .body("totalElements", equalTo(1));
+  }
+
+  @Test
+  void excludesNonSecurityAssetsFromIndustryFeed() {
+    Industry semiconductor =
+        industryRepository.findByCodeAndActiveTrue("SEMICONDUCTOR").orElseThrow();
+    Asset gold = new Asset("금", AssetCategory.GOLD, "GOLD-INDUSTRY");
+    gold.addIndustry(semiconductor);
+    gold = assetRepository.save(gold);
+    News news = published("금 소식", "2026-10-20T00:00:00Z");
+    assetContentService.syncNewsContents(news, List.of(gold.getId()));
+    assetContentService.createContent(
+        gold.getId(),
+        new AssetContentRequest(
+            ContentSourceType.X,
+            "금 외부 소식",
+            "https://x.com/example/status/gold",
+            null,
+            LocalDate.of(2026, 10, 20)));
+
+    given()
+        .port(port)
+        .queryParam("industry", "SEMICONDUCTOR")
+        .when()
+        .get("/api/news/feed")
+        .then()
+        .statusCode(200)
+        .body("items", hasSize(0))
+        .body("totalElements", equalTo(0));
   }
 
   @Test
