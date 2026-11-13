@@ -211,8 +211,9 @@ class SavedPortfolioAnalysisAcceptanceTest extends SharedDatabaseTest {
         .body("analysis.impacts[0].direction", equalTo("NEGATIVE"));
   }
 
-  @Test
-  void fallingPricesAreSavedAndRefreshedWithoutChangingPositiveBusinessJudgment() {
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+  void fallingPricesAreSavedAndRefreshedWithoutChangingPositiveBusinessJudgment(boolean noNews) {
     var member = member();
     var portfolio = portfolio(member);
     hold(portfolio, "삼성전자");
@@ -255,9 +256,27 @@ class SavedPortfolioAnalysisAcceptanceTest extends SharedDatabaseTest {
     when(ai.refresh(anyList(), anyString()))
         .thenAnswer(
             invocation ->
-                verifiedResult(
-                    invocation.getArgument(0), List.of(source), ImpactDirection.POSITIVE));
-
+                noNews
+                    ? new PortfolioAnalysisResult(
+                        "",
+                        List.of(
+                            new PortfolioAnalysisResult.AssetImpactResult(
+                                "삼성전자",
+                                null,
+                                null,
+                                "",
+                                "",
+                                "",
+                                "",
+                                "",
+                                List.of(),
+                                1,
+                                "NOT_FOUND",
+                                true)),
+                        List.of())
+                    : verifiedResult(
+                        invocation.getArgument(0), List.of(source), ImpactDirection.POSITIVE));
+    clearInvocations(narrative);
     client(member)
         .post(API + "/refresh")
         .then()
@@ -266,6 +285,12 @@ class SavedPortfolioAnalysisAcceptanceTest extends SharedDatabaseTest {
         .body("lastCheckOutcome", equalTo("UNCHANGED"))
         .body("analysis.impacts[0].direction", equalTo("POSITIVE"))
         .body("analysis.priceContexts.삼성전자.changeRate", equalTo(-20.0f));
+    verify(narrative)
+        .summarize(
+            org.mockito.ArgumentMatchers.argThat(
+                value ->
+                    value.priceContexts().get("삼성전자").price().compareTo(new BigDecimal("80"))
+                        == 0));
     client(member)
         .get(API + "/history")
         .then()

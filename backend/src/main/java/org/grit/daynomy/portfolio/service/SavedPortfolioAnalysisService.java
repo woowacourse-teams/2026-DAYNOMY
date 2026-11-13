@@ -132,20 +132,34 @@ public class SavedPortfolioAnalysisService {
           !result.impacts().isEmpty()
               && result.impacts().stream().allMatch(impact -> impact.noNewNews());
       var revision =
-          prepared.previous() == null || noNewNews
+          prepared.previous() == null
               ? null
-              : PortfolioAnalysisRefresh.compare(prepared.previous(), result);
-      if (revision != null
+              : noNewNews
+                  ? PortfolioAnalysisRefresh.compareSelected(
+                      prepared.previous(),
+                      result,
+                      prepared.assets(),
+                      prepared.previous().impacts().stream()
+                          .map(
+                              org.grit.daynomy.portfolio.dto.PortfolioAssetImpactResponse
+                                  ::assetName)
+                          .collect(java.util.stream.Collectors.toSet()))
+                  : PortfolioAnalysisRefresh.compare(prepared.previous(), result);
+      if (!noNewNews
+          && revision != null
           && revision.outcome()
               == org.grit.daynomy.portfolio.domain.PortfolioAnalysisCheck.Outcome.UPDATED)
         result = revision.analysis();
-      if (!noNewNews
-          && (revision == null
-              || revision.outcome()
-                  == org.grit.daynomy.portfolio.domain.PortfolioAnalysisCheck.Outcome.UPDATED
-              || !java.util.Objects.equals(
-                  prepared.previous().personalContext(), prepared.personalContext())))
-        result = analysisService.summarize(result);
+      if ((revision == null
+          || revision.outcome()
+              == org.grit.daynomy.portfolio.domain.PortfolioAnalysisCheck.Outcome.UPDATED
+          || !java.util.Objects.equals(
+              prepared.previous().personalContext(), prepared.personalContext())))
+        result =
+            result.withOverallImpact(
+                analysisService
+                    .summarize(noNewNews && revision != null ? revision.analysis() : result)
+                    .overallImpact());
       return transactions.complete(memberId, prepared.token(), prepared.assets(), result);
     } catch (RuntimeException exception) {
       fail(memberId, prepared, exception);

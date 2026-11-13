@@ -60,7 +60,8 @@ class PortfolioAnalysisNarrativeTest {
     enqueue(Map.of("impact", "사업 영향과 가격 흐름을 함께 확인해야 해요.", "priority", "확인한 가격의 기준일을 살펴봐야 해요."));
     var original = analysis();
     var result = client.summarize(original.withPriceContexts(Map.of("삼성전자", prices)));
-    assertThat(result).contains("가격 흐름");
+    assertThat(result)
+        .contains("가격 흐름", "삼성전자의 USD 기준 가격은 2026-10-20 대비 2026-11-10 종가 기준 10% 하락했어요.");
     var request = mapper.readTree(server.takeRequest().getBody().readUtf8());
     var input = mapper.readTree(request.path("input").get(1).path("content").asText());
     assertThat(input.path("priceContexts").path("삼성전자").path("changeRate").decimalValue())
