@@ -31,8 +31,8 @@ import org.springframework.web.client.RestClient;
 
 class OpenAiPortfolioRiskSourceTest {
   @ParameterizedTest
-  @ValueSource(ints = {0, 1})
-  void acceptsTodayAndYesterdayPublications(int daysAgo) {
+  @ValueSource(ints = {0, 1, 2, 30, 89})
+  void initialAnalysisAcceptsPublicationsWithinNinetyDays(int daysAgo) {
     originals.put(
         MAIN, new PortfolioAnalysisSourceDocument("실적", FAVORABLE, today().minusDays(daysAgo)));
     assertThat(client.analyze(targets()).impacts().getFirst().direction())
@@ -43,12 +43,59 @@ class OpenAiPortfolioRiskSourceTest {
   void oldPublicationsDoNotProduceANewJudgmentOrAnotherSummary() {
     originals.put(MAIN, new PortfolioAnalysisSourceDocument("실적", FAVORABLE, today().minusDays(2)));
     originals.put(RISK, new PortfolioAnalysisSourceDocument("위험", ADVERSE, today().minusDays(2)));
-    var result = client.analyze(targets());
+    var result = client.refresh(targets(), "[]");
+    assertThat(result.impacts().getFirst().noNewNews()).isTrue();
     assertThat(result.impacts().getFirst().direction()).isNull();
     assertThat(result.impacts().getFirst().sources()).isEmpty();
     assertThat(result.impacts().getFirst().riskSearchStatus()).isEqualTo("NOT_FOUND");
     assertThat(analysisInput).isNull();
     assertThat(server.getRequestCount()).isEqualTo(2);
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {90, 91})
+  void initialAnalysisRejectsExpiredPublications(int daysAgo) {
+    originals.put(
+        MAIN, new PortfolioAnalysisSourceDocument("실적", FAVORABLE, today().minusDays(daysAgo)));
+    originals.put(
+        RISK, new PortfolioAnalysisSourceDocument("위험", ADVERSE, today().minusDays(daysAgo)));
+    var result = client.analyze(targets());
+    assertThat(result.impacts().getFirst().direction()).isNull();
+    assertThat(result.impacts().getFirst().noNewNews()).isFalse();
+    assertThat(analysisInput).isNull();
+  }
+
+  @Test
+  void initialAnalysisRejectsFuturePublications() {
+    originals.put(MAIN, new PortfolioAnalysisSourceDocument("실적", FAVORABLE, today().plusDays(1)));
+    assertThatThrownBy(() -> client.analyze(targets())).isInstanceOf(BusinessException.class);
+    assertThat(analysisInput).isNull();
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {0, 1})
+  void refreshAcceptsTodayAndYesterday(int daysAgo) throws Exception {
+    originals.put(
+        MAIN, new PortfolioAnalysisSourceDocument("실적", FAVORABLE, today().minusDays(daysAgo)));
+    assertThat(client.refresh(targets(), "[]").impacts().getFirst().direction())
+        .isEqualTo(ImpactDirection.NEUTRAL);
+    assertSearchWindow(positiveRequest, today().minusDays(1));
+    assertSearchWindow(riskRequest, today().minusDays(1));
+  }
+
+  @Test
+  void initialPositiveAndRiskSearchUseTheSameNinetyDayWindow() throws Exception {
+    client.analyze(targets());
+    assertSearchWindow(positiveRequest, today().minusDays(89));
+    assertSearchWindow(riskRequest, today().minusDays(89));
+  }
+
+  private void assertSearchWindow(JsonNode request, LocalDate from) throws Exception {
+    var content = mapper.readTree(request.path("input").get(1).path("content").asText());
+    assertThat(content.path("recentFromDate").asText()).isEqualTo(from.toString());
+    assertThat(content.path("asOfDate").asText()).isEqualTo(today().toString());
+    assertThat(content.path("assets").get(0).path("recentQuery").asText())
+        .contains("before:" + today().plusDays(1));
   }
 
   @Test
