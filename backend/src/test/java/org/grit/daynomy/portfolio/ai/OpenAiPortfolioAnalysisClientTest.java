@@ -821,10 +821,15 @@ class OpenAiPortfolioAnalysisClientTest {
     var result = client.analyze(targets());
     assertThat(result.sources()).isEmpty();
     assertThat(riskSearch.nonRiskRequestCount(server)).isEqualTo(1);
-    assertThat(result.overallImpact()).contains("새 소식을 찾지 못했어요");
+    assertThat(result.overallImpact()).contains("최근 90일 자료에서 판단 근거를 확인하지 못했어요");
     assertThat(result.impacts())
         .hasSize(2)
-        .allSatisfy(impact -> assertThat(impact.direction()).isNull());
+        .allSatisfy(
+            impact -> {
+              assertThat(impact.direction()).isNull();
+              assertThat(impact.impactLevel()).isNull();
+              assertThat(impact.noNewNews()).isFalse();
+            });
   }
 
   @Test
