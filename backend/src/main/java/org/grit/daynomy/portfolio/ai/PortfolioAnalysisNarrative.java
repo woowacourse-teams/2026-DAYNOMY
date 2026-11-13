@@ -39,9 +39,38 @@ public class PortfolioAnalysisNarrative {
     this.model = model;
   }
 
+  private String priceDeclines(PortfolioAnalysisResponse analysis) {
+    return analysis.priceContexts().entrySet().stream()
+        .filter(entry -> "AVAILABLE".equals(entry.getValue().status()))
+        .filter(
+            entry ->
+                entry.getValue().changeRate() != null && entry.getValue().changeRate().signum() < 0)
+        .sorted(Map.Entry.comparingByKey())
+        .map(
+            entry -> {
+              var price = entry.getValue();
+              return " "
+                  + entry.getKey()
+                  + "의 "
+                  + price.currency()
+                  + " 기준 가격은 "
+                  + price.comparisonDate()
+                  + " 대비 "
+                  + price.baseDate()
+                  + " "
+                  + ("DELAYED".equals(price.priceType())
+                      ? "지연 시세" + (price.asOf() == null ? "" : "(" + price.asOf() + ")")
+                      : "종가")
+                  + " 기준 "
+                  + price.changeRate().abs().stripTrailingZeros().toPlainString()
+                  + "% 하락했어요.";
+            })
+        .collect(java.util.stream.Collectors.joining());
+  }
+
   public String summarize(PortfolioAnalysisResponse analysis) {
     if (analysis.impacts().isEmpty()) return "";
-    String composition = composition(analysis);
+    String composition = composition(analysis) + priceDeclines(analysis);
     var supported = analysis.impacts().stream().filter(i -> i.direction() != null).toList();
     if (supported.isEmpty()) {
       if (!analysis.impacts().isEmpty()
@@ -139,6 +168,7 @@ public class PortfolioAnalysisNarrative {
               분석 범위와 전체 판단 보류 안내는 서버가 붙이므로 반복하지 마세요.
               산업 분류·종목 간 상관관계·분산 효과·손실 상쇄·변동성 감소는 입력으로 입증되지 않으면 추측하지 마세요.
               overallDirection 및 개별 판단과 상충하지 마세요. 영향 점수·방향은 예상 수익률이 아니에요.
+              AVAILABLE인 priceContexts에 음수 changeRate가 있으면 해당 종목의 가격 하락과 비교 기간을 impact에 반드시 반영하세요. 새 뉴스가 없어도 가격 변화는 생략하지 마세요.
               priceContexts는 종목 통화 기준 실제 시장 가격이며 개인 매수가·수익률이 아닙니다. 사업상 유리·불리한 근거와 최근 가격 흐름을 구분해 설명하세요. 가격 하락만으로 사업 영향을 부정으로 바꾸거나 특정 뉴스가 하락 원인이라고 단정하지 마세요.
               personalContext가 있으면 분석 당시 회원의 원화 매수가·손익·수익률과 보유 비중을 연결해 설명하세요. 종목 통화의 시장 가격 등락과 원화 개인 수익률은 다릅니다. 개인 손실을 기업의 부정 영향으로 바꾸거나 매수가에 따라 종목 방향·점수를 바꾸지 마세요. personalContext가 비어 있으면 개인 손익을 추측하지 마세요.
               가격·등락률은 서버가 제공한 값만 사용하고 직접 계산하지 마세요. 실제 비교일·가격 기준일과 통화, CLOSE(종가)·DELAYED(지연 시세)를 구분하세요. 비교 기간은 실제 확보한 두 날짜 사이이며 관측값이 적다고 최근 한 달 전체를 확인한 것처럼 설명하지 마세요.

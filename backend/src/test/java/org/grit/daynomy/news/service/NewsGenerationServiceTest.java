@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Supplier;
+import org.grit.daynomy.asset.service.IndustryService;
 import org.grit.daynomy.external.openai.EconomicNewsResearch;
 import org.grit.daynomy.external.openai.OpenAiNewsGenerator;
 import org.grit.daynomy.external.openai.OpenAiNewsTopicDeduplicator;
@@ -39,6 +40,7 @@ class NewsGenerationServiceTest {
   @Mock private NewsGenerationTopicService topicService;
   @Mock private NewsGenerationDiscoveryLock discoveryLock;
   @Mock private NewsPersistenceService newsPersistenceService;
+  @Mock private IndustryService industryService;
 
   @InjectMocks private NewsGenerationService newsGenerationService;
 
@@ -48,14 +50,14 @@ class NewsGenerationServiceTest {
     GeneratedEconomicNews article =
         new GeneratedEconomicNews("keyword", "미국 중간선거", "본문", Category.STOCK, List.of());
     News savedNews = org.mockito.Mockito.mock(News.class);
-    given(openAiNewsGenerator.generateEconomicNewsByKeyword("미국 중간선거"))
+    given(openAiNewsGenerator.generateEconomicNewsByKeyword("미국 중간선거", List.of()))
         .willReturn(List.of(article));
     given(newsPersistenceService.saveDrafts(List.of(article))).willReturn(List.of(savedNews));
 
     List<News> drafts = newsGenerationService.generateEconomicNewsDraftByKeyword("미국 중간선거");
 
     assertThat(drafts).containsExactly(savedNews);
-    verify(openAiNewsGenerator).generateEconomicNewsByKeyword("미국 중간선거");
+    verify(openAiNewsGenerator).generateEconomicNewsByKeyword("미국 중간선거", List.of());
     verify(newsPersistenceService).saveDrafts(List.of(article));
     verifyNoInteractions(topicService, topicDeduplicator, discoveryLock);
   }
@@ -70,7 +72,9 @@ class NewsGenerationServiceTest {
     News savedNews = org.mockito.Mockito.mock(News.class);
     given(topicService.reserveReady(eq(NewsGenerationType.KOREA), eq(5), any(UUID.class)))
         .willReturn(topics);
-    given(openAiNewsGenerator.write(topics.stream().map(NewsGenerationTopic::toResearch).toList()))
+    given(
+            openAiNewsGenerator.write(
+                topics.stream().map(NewsGenerationTopic::toResearch).toList(), List.of()))
         .willReturn(List.of(article));
     given(
             newsPersistenceService.saveDrafts(
@@ -105,7 +109,8 @@ class NewsGenerationServiceTest {
     given(openAiNewsGenerator.researchEconomicNews()).willReturn(List.of(research));
     given(topicDeduplicator.removeDuplicates(List.of(research), List.of()))
         .willReturn(List.of(research));
-    given(openAiNewsGenerator.write(List.of(topic.toResearch()))).willReturn(List.of(article));
+    given(openAiNewsGenerator.write(List.of(topic.toResearch()), List.of()))
+        .willReturn(List.of(article));
     given(newsPersistenceService.saveDrafts(eq(List.of(article)), eq(List.of(1L)), any(UUID.class)))
         .willReturn(List.of());
 
@@ -126,7 +131,7 @@ class NewsGenerationServiceTest {
     RuntimeException failure = new RuntimeException("generation failed");
     given(topicService.reserveReady(eq(NewsGenerationType.US), eq(5), any(UUID.class)))
         .willReturn(topics);
-    given(openAiNewsGenerator.write(research)).willThrow(failure);
+    given(openAiNewsGenerator.write(research, List.of())).willThrow(failure);
 
     assertThatThrownBy(newsGenerationService::generateUsEconomicNewsDrafts).isSameAs(failure);
 

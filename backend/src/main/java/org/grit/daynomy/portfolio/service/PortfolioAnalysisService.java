@@ -79,6 +79,14 @@ public class PortfolioAnalysisService {
     var revision = refreshAssets(request, previous);
     if (revision.outcome()
         != org.grit.daynomy.portfolio.domain.PortfolioAnalysisCheck.Outcome.UPDATED) {
+      if (previous != null
+          && revision.analysis().impacts().stream().allMatch(impact -> impact.noNewNews())) {
+        var merged = PortfolioAnalysisRefresh.compare(previous, revision.analysis());
+        return merged.outcome()
+                == org.grit.daynomy.portfolio.domain.PortfolioAnalysisCheck.Outcome.UPDATED
+            ? summarize(merged.analysis())
+            : merged.analysis();
+      }
       return revision.analysis();
     }
     return summarize(revision.analysis());

@@ -45,6 +45,10 @@ const emptyReviews = {
   hasNext: false,
 };
 
+const industries = {
+  industries: [{ id: 5, code: 'SEMICONDUCTOR', name: '반도체', displayOrder: 1, active: true }],
+};
+
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
@@ -196,6 +200,9 @@ describe('관리자 소식 출처·검수 화면', () => {
           approved = true;
           return new Response(null, { status: 204 });
         }
+        if (url.endsWith('/api/admin/industries')) {
+          return jsonResponse(industries);
+        }
         if (url.includes('/api/admin/content-collection-reviews')) {
           return jsonResponse({
             ...emptyReviews,
@@ -215,6 +222,12 @@ describe('관리자 소식 출처·검수 화면', () => {
     expect(view.getByText('SK하이닉스 · 000660 ×')).toBeTruthy();
     expect(view.getByText('날짜 미확인')).toBeTruthy();
 
+    fireEvent.click(view.getByLabelText('삼성전자 실적 발표 삼성전자 연결 해제'));
+    fireEvent.click(view.getByLabelText('삼성전자 실적 발표 SK하이닉스 연결 해제'));
+    fireEvent.click(view.getByLabelText('삼성전자 실적 발표 반도체 업종 선택'));
+    expect(view.getByText('연결 종목 0개')).toBeTruthy();
+    expect(view.getByText('연결 업종 1개')).toBeTruthy();
+
     fireEvent.change(view.getByLabelText('삼성전자 실적 발표 게시일'), {
       target: { value: '2026-10-26' },
     });
@@ -223,7 +236,11 @@ describe('관리자 소식 출처·검수 화면', () => {
 
     expect(await view.findByText('수집 콘텐츠를 승인해 종목 소식에 공개했습니다.')).toBeTruthy();
     expect(view.queryByText('삼성전자 실적 발표')).toBeNull();
-    expect(approveBody).toEqual({ assetIds: [10, 20], publishedDate: '2026-10-26' });
+    expect(approveBody).toEqual({
+      assetIds: [],
+      industryIds: [5],
+      publishedDate: '2026-10-26',
+    });
   });
 
   it('게시물 URL을 등록하고 자동 연결된 종목 수를 표시한다', async () => {
@@ -247,6 +264,9 @@ describe('관리자 소식 출처·검수 화면', () => {
             },
             201,
           );
+        }
+        if (url.endsWith('/api/admin/industries')) {
+          return jsonResponse(industries);
         }
         if (url.includes('/api/admin/content-collection-reviews')) {
           return jsonResponse(emptyReviews);
@@ -295,6 +315,9 @@ describe('관리자 소식 출처·검수 화면', () => {
           rejectedBody = JSON.parse(String(init?.body));
           rejected = true;
           return new Response(null, { status: 204 });
+        }
+        if (url.endsWith('/api/admin/industries')) {
+          return jsonResponse(industries);
         }
         if (url.includes('/api/admin/content-collection-reviews')) {
           return jsonResponse({

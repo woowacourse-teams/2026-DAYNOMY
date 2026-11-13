@@ -144,7 +144,6 @@ function PublicIssueHomePage({ fullFeed }: { fullFeed: boolean }) {
     setParams(next);
     setPage(1);
   };
-
   return (
     <main className="issue-page">
       {fullFeed && (

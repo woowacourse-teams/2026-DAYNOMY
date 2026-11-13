@@ -124,6 +124,32 @@ export type AdminStockPriceBackfillResponse = {
   skippedCount: number;
 };
 
+export type AdminIndustry = {
+  id: number;
+  code: string;
+  name: string;
+  displayOrder: number;
+  active: boolean;
+};
+
+export type AdminIndustryCreateRequest = Pick<AdminIndustry, 'code' | 'name' | 'displayOrder'>;
+export type AdminIndustryUpdateRequest = Pick<AdminIndustry, 'name' | 'displayOrder' | 'active'>;
+
+export type AdminAssetIndustries = {
+  assetId: number;
+  industries: AdminIndustry[];
+};
+
+export type AdminIndustryAssets = {
+  industryId: number;
+  items: StockSearchItem[];
+  page: number;
+  size: number;
+  totalPages: number;
+  totalElements: number;
+  hasNext: boolean;
+};
+
 export type AdminLeagueRecalculationResponse = {
   calculatedCount: number;
 };

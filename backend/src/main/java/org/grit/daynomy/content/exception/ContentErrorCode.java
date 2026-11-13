@@ -14,6 +14,7 @@ public enum ContentErrorCode implements ErrorCode {
   CONTENT_COLLECTION_POST_INVALID(HttpStatus.BAD_REQUEST, "등록한 출처와 게시물 URL이 일치하지 않습니다."),
   CONTENT_COLLECTION_REVIEW_NOT_FOUND(HttpStatus.NOT_FOUND, "수집 콘텐츠 검수 항목을 찾을 수 없습니다."),
   CONTENT_COLLECTION_REVIEW_NOT_PENDING(HttpStatus.CONFLICT, "이미 처리된 수집 콘텐츠입니다."),
+  CONTENT_COLLECTION_REVIEW_TARGET_NOT_FOUND(HttpStatus.BAD_REQUEST, "승인할 종목을 찾을 수 없습니다."),
   CONTENT_NOT_AVAILABLE(HttpStatus.NOT_FOUND, "공개된 콘텐츠를 찾을 수 없습니다."),
   CONTENT_INTERACTION_RATE_LIMITED(
       HttpStatus.TOO_MANY_REQUESTS, "콘텐츠 반응 요청이 많습니다. 잠시 후 다시 시도해 주세요.");

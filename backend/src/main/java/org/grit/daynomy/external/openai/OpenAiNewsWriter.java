@@ -7,7 +7,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
+import org.grit.daynomy.asset.domain.Industry;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.common.logging.LogEvent;
 import org.grit.daynomy.external.ExternalErrorCode;
@@ -50,6 +52,11 @@ public class OpenAiNewsWriter {
   }
 
   public List<GeneratedEconomicNews> write(List<NewsGenerationTopicResearch> research) {
+    return write(research, List.of());
+  }
+
+  public List<GeneratedEconomicNews> write(
+      List<NewsGenerationTopicResearch> research, List<Industry> industries) {
     log.atInfo()
         .addKeyValue("event", LogEvent.AI_NEWS_GENERATION_REQUESTED.code())
         .addKeyValue("api", "OpenAI")
@@ -70,7 +77,10 @@ public class OpenAiNewsWriter {
     for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       try {
         ParsedWriting parsedWriting =
-            parseContents(requestContent(pendingResearch, attempt, retryReason), pendingResearch);
+            parseContents(
+                requestContent(pendingResearch, industries, attempt, retryReason),
+                pendingResearch,
+                industries);
         for (Map.Entry<Integer, GeneratedEconomicNews> entry :
             parsedWriting.generatedNews().entrySet()) {
           generatedNews.set(pendingIndexes.get(entry.getKey()), entry.getValue());
@@ -137,8 +147,16 @@ public class OpenAiNewsWriter {
   }
 
   private String requestContent(
-      List<NewsGenerationTopicResearch> research, int attempt, String validationFailureReason) {
-    String instruction = PROMPT + "\n\n조사 자료 묶음:\n" + researchJson(research);
+      List<NewsGenerationTopicResearch> research,
+      List<Industry> industries,
+      int attempt,
+      String validationFailureReason) {
+    String instruction =
+        PROMPT
+            + "\n\n활성 업종 목록:\n"
+            + industryJson(industries)
+            + "\n\n조사 자료 묶음:\n"
+            + researchJson(research);
     if (attempt > 1) {
       instruction += RETRY_INSTRUCTION + "\n이전 검증 결과: " + validationFailureReason;
     }
@@ -156,7 +174,7 @@ public class OpenAiNewsWriter {
                 "input",
                 instruction,
                 "text",
-                Map.of("format", responseFormat())))
+                Map.of("format", responseFormat(industries))))
         .retrieve()
         .body(String.class);
   }
@@ -183,7 +201,23 @@ public class OpenAiNewsWriter {
     }
   }
 
-  private Map<String, Object> responseFormat() {
+  private String industryJson(List<Industry> industries) {
+    try {
+      return OBJECT_MAPPER.writeValueAsString(
+          industries.stream()
+              .map(industry -> Map.of("code", industry.getCode(), "name", industry.getName()))
+              .toList());
+    } catch (Exception exception) {
+      throw new IllegalStateException("Industry data could not be serialized.", exception);
+    }
+  }
+
+  private Map<String, Object> responseFormat(List<Industry> industries) {
+    Map<String, Object> industryItems = new HashMap<>();
+    industryItems.put("type", "string");
+    if (!industries.isEmpty()) {
+      industryItems.put("enum", industries.stream().map(Industry::getCode).toList());
+    }
     return Map.of(
         "type",
         "json_schema",
@@ -210,14 +244,25 @@ public class OpenAiNewsWriter {
                         "additionalProperties",
                         false,
                         "properties",
-                        Map.of("content", Map.of("type", "string")),
+                        Map.of(
+                            "content",
+                            Map.of("type", "string"),
+                            "industries",
+                            Map.of(
+                                "type",
+                                "array",
+                                "items",
+                                industryItems,
+                                "maxItems",
+                                industries.size())),
                         "required",
-                        List.of("content")))),
+                        List.of("content", "industries")))),
             "required",
             List.of("articles")));
   }
 
-  private ParsedWriting parseContents(String response, List<NewsGenerationTopicResearch> research) {
+  private ParsedWriting parseContents(
+      String response, List<NewsGenerationTopicResearch> research, List<Industry> industries) {
     try {
       JsonNode responseJson = OBJECT_MAPPER.readTree(response);
       JsonNode articles = OBJECT_MAPPER.readTree(extractOutputText(responseJson)).path("articles");
@@ -228,15 +273,24 @@ public class OpenAiNewsWriter {
 
       Map<Integer, GeneratedEconomicNews> generatedNews = new HashMap<>();
       List<ValidationFailure> failures = new ArrayList<>();
+      Set<String> activeIndustryCodes =
+          industries.stream().map(Industry::getCode).collect(java.util.stream.Collectors.toSet());
       for (int index = 0; index < articles.size(); index++) {
         String content = articles.get(index).path("content").asText().strip();
         NewsGenerationTopicResearch item = research.get(index);
         try {
           validateContent(content);
+          List<String> industryCodes =
+              parseIndustryCodes(articles.get(index).path("industries"), activeIndustryCodes);
           generatedNews.put(
               index,
               new GeneratedEconomicNews(
-                  item.topicKey(), item.title(), content, item.category(), item.sources()));
+                  item.topicKey(),
+                  item.title(),
+                  content,
+                  item.category(),
+                  item.sources(),
+                  industryCodes));
         } catch (IllegalArgumentException exception) {
           failures.add(new ValidationFailure(index, item, exception.getMessage()));
         }
@@ -245,6 +299,22 @@ public class OpenAiNewsWriter {
     } catch (Exception exception) {
       throw new InvalidWritingException(exception.getMessage(), exception);
     }
+  }
+
+  private List<String> parseIndustryCodes(JsonNode industries, Set<String> activeIndustryCodes) {
+    if (!industries.isArray()) {
+      if (activeIndustryCodes.isEmpty() && industries.isMissingNode()) return List.of();
+      throw new IllegalArgumentException("Industries must be an array.");
+    }
+    List<String> result = new ArrayList<>();
+    for (JsonNode industry : industries) {
+      String code = industry.asText();
+      if (!activeIndustryCodes.contains(code) || result.contains(code)) {
+        throw new IllegalArgumentException("Industries contain an unsupported code.");
+      }
+      result.add(code);
+    }
+    return List.copyOf(result);
   }
 
   private void validateContent(String content) {

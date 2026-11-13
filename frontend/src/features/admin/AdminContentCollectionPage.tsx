@@ -10,6 +10,7 @@ import {
   createAdminContentCollectionSource,
   getAdminContentCollectionReviews,
   getAdminContentCollectionSources,
+  getAdminIndustries,
   rematchAdminContentCollectionReviews,
   rejectAdminContentCollectionReview,
   rejectAdminContentCollectionReviews,
@@ -20,6 +21,7 @@ import type {
   AdminContentCollectionBatchResult,
   AdminContentCollectionReview,
   AdminContentCollectionSource,
+  AdminIndustry,
   ContentCollectionSourceType,
 } from './types';
 import './admin.css';
@@ -97,6 +99,8 @@ function AdminContentCollectionPage({ view }: { view: AdminContentCollectionView
   const [reviewLoading, setReviewLoading] = useState(true);
   const [reviewingId, setReviewingId] = useState<number | null>(null);
   const [reviewAssetIds, setReviewAssetIds] = useState<Record<number, number[]>>({});
+  const [reviewIndustryIds, setReviewIndustryIds] = useState<Record<number, number[]>>({});
+  const [industries, setIndustries] = useState<AdminIndustry[]>([]);
   const [reviewPublishedDates, setReviewPublishedDates] = useState<Record<number, string>>({});
   const [selectedReviewIds, setSelectedReviewIds] = useState<number[]>([]);
   const [reviewBulkAction, setReviewBulkAction] = useState<'approve' | 'reject' | 'rematch' | null>(
@@ -121,6 +125,7 @@ function AdminContentCollectionPage({ view }: { view: AdminContentCollectionView
     } else {
       void loadReviews(controller.signal);
       void loadManualSources(controller.signal);
+      void loadReviewIndustries(controller.signal);
     }
     return () => controller.abort();
   }, [view]);
@@ -167,6 +172,9 @@ function AdminContentCollectionPage({ view }: { view: AdminContentCollectionView
       setReviewPublishedDates(
         Object.fromEntries(response.items.map((review) => [review.id, review.publishedDate ?? ''])),
       );
+      setReviewIndustryIds((current) =>
+        Object.fromEntries(response.items.map((review) => [review.id, current[review.id] ?? []])),
+      );
       setSelectedReviewIds((current) =>
         current.filter((id) => response.items.some((review) => review.id === id)),
       );
@@ -176,6 +184,16 @@ function AdminContentCollectionPage({ view }: { view: AdminContentCollectionView
       }
     } finally {
       if (!signal?.aborted) setReviewLoading(false);
+    }
+  }
+
+  async function loadReviewIndustries(signal?: AbortSignal) {
+    try {
+      setIndustries((await getAdminIndustries(signal)).filter((industry) => industry.active));
+    } catch (caughtError) {
+      if (!signal?.aborted) {
+        setError(getErrorMessage(caughtError, '업종 목록을 불러오지 못했습니다.'));
+      }
     }
   }
 
@@ -350,8 +368,13 @@ function AdminContentCollectionPage({ view }: { view: AdminContentCollectionView
 
   async function approveReview(review: AdminContentCollectionReview) {
     const assetIds = reviewAssetIds[review.id] ?? [];
-    if (assetIds.length === 0 || reviewingId !== null || reviewBulkAction !== null) {
-      setError('승인할 종목을 먼저 선택해 주세요.');
+    const industryIds = reviewIndustryIds[review.id] ?? [];
+    if (
+      (assetIds.length === 0 && industryIds.length === 0) ||
+      reviewingId !== null ||
+      reviewBulkAction !== null
+    ) {
+      setError('승인할 종목 또는 업종을 먼저 선택해 주세요.');
       return;
     }
     setReviewingId(review.id);
@@ -361,6 +384,7 @@ function AdminContentCollectionPage({ view }: { view: AdminContentCollectionView
       await approveAdminContentCollectionReview(
         review.id,
         assetIds,
+        industryIds,
         review.publishedDate === null ? reviewPublishedDates[review.id] || null : null,
       );
       setNotice('수집 콘텐츠를 승인해 종목 소식에 공개했습니다.');
@@ -405,6 +429,18 @@ function AdminContentCollectionPage({ view }: { view: AdminContentCollectionView
     });
   }
 
+  function toggleReviewIndustry(reviewId: number, industryId: number) {
+    setReviewIndustryIds((current) => {
+      const selected = current[reviewId] ?? [];
+      return {
+        ...current,
+        [reviewId]: selected.includes(industryId)
+          ? selected.filter((id) => id !== industryId)
+          : [...selected, industryId],
+      };
+    });
+  }
+
   function toggleReviewSelection(reviewId: number) {
     setSelectedReviewIds((current) =>
       current.includes(reviewId) ? current.filter((id) => id !== reviewId) : [...current, reviewId],
@@ -420,9 +456,11 @@ function AdminContentCollectionPage({ view }: { view: AdminContentCollectionView
 
   async function approveSelectedReviews() {
     if (selectedReviewIds.length === 0 || reviewBulkAction !== null || reviewingId !== null) return;
-    const missing = selectedReviewIds.filter((id) => (reviewAssetIds[id] ?? []).length === 0);
+    const missing = selectedReviewIds.filter(
+      (id) => (reviewAssetIds[id] ?? []).length === 0 && (reviewIndustryIds[id] ?? []).length === 0,
+    );
     if (missing.length > 0) {
-      setError(`선택한 콘텐츠 중 ${missing.length}건은 연결 종목이 없습니다.`);
+      setError(`선택한 콘텐츠 중 ${missing.length}건은 연결 종목 또는 업종이 없습니다.`);
       return;
     }
     if (!window.confirm(`선택한 ${selectedReviewIds.length}건을 승인하고 공개할까요?`)) return;
@@ -434,6 +472,7 @@ function AdminContentCollectionPage({ view }: { view: AdminContentCollectionView
         selectedReviewIds.map((contentId) => ({
           contentId,
           assetIds: reviewAssetIds[contentId],
+          industryIds: reviewIndustryIds[contentId] ?? [],
           publishedDate:
             reviews.find((review) => review.id === contentId)?.publishedDate === null
               ? reviewPublishedDates[contentId] || null
@@ -730,6 +769,7 @@ function AdminContentCollectionPage({ view }: { view: AdminContentCollectionView
                 <ul className="admin-collection-review-list">
                   {reviews.map((review) => {
                     const selectedAssetIds = reviewAssetIds[review.id] ?? [];
+                    const selectedIndustryIds = reviewIndustryIds[review.id] ?? [];
                     const availableAssets = new Map(
                       [
                         ...review.suggestedAssets,
@@ -773,6 +813,32 @@ function AdminContentCollectionPage({ view }: { view: AdminContentCollectionView
                         </div>
                         <div className="admin-collection-review-controls">
                           <strong>연결 종목 {selectedAssets.length}개</strong>
+                          <strong>연결 업종 {selectedIndustryIds.length}개</strong>
+                          {industries.length > 0 ? (
+                            <div
+                              className="admin-collection-review-results"
+                              aria-label={`${review.title} 업종 선택`}
+                            >
+                              {industries.map((industry) => (
+                                <button
+                                  key={industry.id}
+                                  type="button"
+                                  aria-pressed={selectedIndustryIds.includes(industry.id)}
+                                  aria-label={`${review.title} ${industry.name} 업종 선택`}
+                                  onClick={() => toggleReviewIndustry(review.id, industry.id)}
+                                >
+                                  {industry.name}
+                                </button>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="admin-field-hint">
+                              선택 가능한 활성 업종이 없습니다.
+                            </span>
+                          )}
+                          <span className="admin-field-hint">
+                            선택한 업종의 모든 상장 주식·ETF에 연결됩니다.
+                          </span>
                           {review.publishedDate === null ? (
                             <label className="admin-field admin-collection-review-date-field">
                               <span>원문 게시일 (선택)</span>
@@ -795,7 +861,7 @@ function AdminContentCollectionPage({ view }: { view: AdminContentCollectionView
                                 <button
                                   key={asset.id}
                                   type="button"
-                                  aria-label={`${asset.name} 연결 해제`}
+                                  aria-label={`${review.title} ${asset.name} 연결 해제`}
                                   onClick={() => toggleReviewAsset(review.id, asset.id)}
                                 >
                                   {asset.name} · {asset.assetCode} ×
@@ -846,7 +912,8 @@ function AdminContentCollectionPage({ view }: { view: AdminContentCollectionView
                               type="button"
                               className="admin-primary-button"
                               disabled={
-                                selectedAssetIds.length === 0 ||
+                                (selectedAssetIds.length === 0 &&
+                                  selectedIndustryIds.length === 0) ||
                                 reviewingId !== null ||
                                 reviewBulkAction !== null
                               }

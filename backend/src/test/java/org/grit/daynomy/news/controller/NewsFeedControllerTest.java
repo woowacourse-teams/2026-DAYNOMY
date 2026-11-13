@@ -36,7 +36,7 @@ class NewsFeedControllerTest {
 
   @Test
   void usesNewsHomeDefaults() throws Exception {
-    given(service.getFeed(NewsFeedSource.ALL, 1, 8, NewsFeedSort.LATEST))
+    given(service.getFeed(NewsFeedSource.ALL, 1, 8, NewsFeedSort.LATEST, null))
         .willReturn(new NewsFeedResponse(List.of(), 1, 8, 0, 0));
 
     mockMvc
@@ -46,12 +46,12 @@ class NewsFeedControllerTest {
         .andExpect(jsonPath("$.page").value(1))
         .andExpect(jsonPath("$.size").value(8));
 
-    then(service).should().getFeed(NewsFeedSource.ALL, 1, 8, NewsFeedSort.LATEST);
+    then(service).should().getFeed(NewsFeedSource.ALL, 1, 8, NewsFeedSort.LATEST, null);
   }
 
   @Test
   void appliesSourcePageAndPopularitySort() throws Exception {
-    given(service.getFeed(NewsFeedSource.DAYNOMY, 2, 4, NewsFeedSort.POPULAR))
+    given(service.getFeed(NewsFeedSource.DAYNOMY, 2, 4, NewsFeedSort.POPULAR, "SEMICONDUCTOR"))
         .willReturn(new NewsFeedResponse(List.of(), 2, 4, 0, 0));
 
     mockMvc
@@ -60,11 +60,14 @@ class NewsFeedControllerTest {
                 .param("source", "DAYNOMY")
                 .param("page", "2")
                 .param("size", "4")
+                .param("industry", "SEMICONDUCTOR")
                 .param("sort", "POPULAR"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.page").value(2));
 
-    then(service).should().getFeed(NewsFeedSource.DAYNOMY, 2, 4, NewsFeedSort.POPULAR);
+    then(service)
+        .should()
+        .getFeed(NewsFeedSource.DAYNOMY, 2, 4, NewsFeedSort.POPULAR, "SEMICONDUCTOR");
   }
 
   @Test
@@ -76,6 +79,9 @@ class NewsFeedControllerTest {
         .andExpect(status().isBadRequest());
     mockMvc
         .perform(get("/api/news/feed").param("sort", "UNKNOWN"))
+        .andExpect(status().isBadRequest());
+    mockMvc
+        .perform(get("/api/news/feed").param("industry", "semiconductor"))
         .andExpect(status().isBadRequest());
 
     verifyNoInteractions(service);

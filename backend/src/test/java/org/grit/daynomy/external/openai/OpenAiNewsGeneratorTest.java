@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
+import org.grit.daynomy.asset.domain.Industry;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.news.ai.GeneratedEconomicNews;
 import org.grit.daynomy.news.ai.NewsGenerationTopicResearch;
@@ -262,6 +263,41 @@ class OpenAiNewsGeneratorTest {
   }
 
   @Test
+  void writerClassifiesArticlesWithActiveIndustryCodes() throws Exception {
+    server.enqueue(
+        jsonResponse(
+            writerResponse(List.of(validContent("반도체 뉴스")), List.of(List.of("SEMICONDUCTOR")))));
+    Industry semiconductor = Industry.create("SEMICONDUCTOR", "반도체", 1);
+
+    List<GeneratedEconomicNews> generated =
+        new OpenAiNewsWriter(properties(), org.springframework.web.client.RestClient.builder())
+            .write(List.of(topicResearch("반도체 뉴스")), List.of(semiconductor));
+
+    assertThat(generated)
+        .singleElement()
+        .extracting(GeneratedEconomicNews::industryCodes)
+        .isEqualTo(List.of("SEMICONDUCTOR"));
+    JsonNode request = new ObjectMapper().readTree(server.takeRequest().getBody().readUtf8());
+    assertThat(request.path("input").asText())
+        .contains("활성 업종 목록")
+        .contains("SEMICONDUCTOR")
+        .contains("반도체");
+    JsonNode industriesSchema =
+        request
+            .path("text")
+            .path("format")
+            .path("schema")
+            .path("properties")
+            .path("articles")
+            .path("items")
+            .path("properties")
+            .path("industries");
+    assertThat(industriesSchema.path("items").path("enum").get(0).asText())
+        .isEqualTo("SEMICONDUCTOR");
+    assertThat(industriesSchema.has("uniqueItems")).isFalse();
+  }
+
+  @Test
   void writerDoesNotReturnArticlesWhenRepairStillFails() throws Exception {
     server.enqueue(jsonResponse(writerResponse(List.of(" "))));
     server.enqueue(jsonResponse(writerResponse(List.of("\n"))));
@@ -506,6 +542,24 @@ class OpenAiNewsGeneratorTest {
     ObjectMapper objectMapper = new ObjectMapper();
     List<Map<String, String>> articles =
         contents.stream().map(content -> Map.of("content", content)).toList();
+    String writerJson = objectMapper.writeValueAsString(Map.of("articles", articles));
+    return objectMapper.writeValueAsString(
+        Map.of(
+            "output",
+            List.of(
+                Map.of("content", List.of(Map.of("type", "output_text", "text", writerJson))))));
+  }
+
+  private String writerResponse(List<String> contents, List<List<String>> industries)
+      throws Exception {
+    ObjectMapper objectMapper = new ObjectMapper();
+    List<Map<String, Object>> articles =
+        java.util.stream.IntStream.range(0, contents.size())
+            .mapToObj(
+                index ->
+                    Map.<String, Object>of(
+                        "content", contents.get(index), "industries", industries.get(index)))
+            .toList();
     String writerJson = objectMapper.writeValueAsString(Map.of("articles", articles));
     return objectMapper.writeValueAsString(
         Map.of(

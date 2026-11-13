@@ -38,7 +38,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Service
 public class SavedPortfolioAnalysisTransactionService {
 
-  private static final String ANALYSIS_VERSION = "portfolio-v14-yesterday-today";
+  private static final String ANALYSIS_VERSION = "portfolio-v15-initial-90-days-price";
   private static final int RETAINED_ANALYSES = 10;
 
   private final PortfolioRepository portfolios;
@@ -379,7 +379,10 @@ public class SavedPortfolioAnalysisTransactionService {
       result =
           revision
               .analysis()
-              .withOverallImpact(noNewNews ? old.overallImpact() : result.overallImpact());
+              .withOverallImpact(
+                  noNewNews && result.overallImpact().isBlank()
+                      ? old.overallImpact()
+                      : result.overallImpact());
       var currentByName =
           result.impacts().stream()
               .collect(
@@ -398,7 +401,6 @@ public class SavedPortfolioAnalysisTransactionService {
                   })) checkOutcome = PortfolioAnalysisCheck.Outcome.UNCHANGED;
       reason = revision.reason();
     }
-    if (noNewNews && previous != null) deferSummary = false;
     PortfolioAnalysis analysis =
         PortfolioAnalysis.create(
             portfolio,

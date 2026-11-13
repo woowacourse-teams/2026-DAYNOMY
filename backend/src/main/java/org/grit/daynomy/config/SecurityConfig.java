@@ -57,6 +57,7 @@ public class SecurityConfig {
       "/api/contents/assets",
       "/api/content-rankings",
       "/api/exchange-rates/usd-krw",
+      "/api/industries",
       "/api/people",
       "/api/league/weeks",
       "/api/league/rankings",

@@ -4,8 +4,12 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.grit.daynomy.asset.domain.Asset;
+import org.grit.daynomy.asset.repository.AssetRepository;
+import org.grit.daynomy.content.service.AssetContentService;
 import org.grit.daynomy.news.ai.GeneratedEconomicNews;
 import org.grit.daynomy.news.domain.News;
 import org.grit.daynomy.news.domain.NewsGenerationTopic;
@@ -20,10 +24,15 @@ public class NewsPersistenceService {
 
   private final NewsRepository newsRepository;
   private final NewsGenerationTopicRepository topicRepository;
+  private final AssetRepository assetRepository;
+  private final AssetContentService assetContentService;
 
   @Transactional
   public List<News> saveDrafts(List<GeneratedEconomicNews> generatedNews) {
-    return newsRepository.saveAll(generatedNews.stream().map(this::toDraft).toList());
+    List<News> savedDrafts =
+        newsRepository.saveAll(generatedNews.stream().map(this::toDraft).toList());
+    connectIndustryAssets(generatedNews, savedDrafts);
+    return savedDrafts;
   }
 
   @Transactional
@@ -49,6 +58,7 @@ public class NewsPersistenceService {
       drafts.add(toDraft(article));
     }
     List<News> savedDrafts = newsRepository.saveAll(drafts);
+    connectIndustryAssets(generatedNews, savedDrafts);
     for (int index = 0; index < generatedNews.size(); index++) {
       topicsByKey
           .get(generatedNews.get(index).topicKey())
@@ -63,5 +73,18 @@ public class NewsPersistenceService {
   private News toDraft(GeneratedEconomicNews article) {
     return News.createDraft(
         article.title(), article.content(), null, article.sources(), article.category());
+  }
+
+  private void connectIndustryAssets(
+      List<GeneratedEconomicNews> generatedNews, List<News> savedDrafts) {
+    for (int index = 0; index < generatedNews.size(); index++) {
+      Set<String> industryCodes = Set.copyOf(generatedNews.get(index).industryCodes());
+      if (industryCodes.isEmpty()) continue;
+      List<Long> assetIds =
+          assetRepository.findListedStocksByIndustryCodes(industryCodes).stream()
+              .map(Asset::getId)
+              .toList();
+      assetContentService.syncNewsContents(savedDrafts.get(index), assetIds);
+    }
   }
 }

@@ -3552,6 +3552,245 @@
   padding-top: 24px;
 }
 
+.admin-industries-page .admin-alert,
+.admin-industries-page .admin-success-panel {
+  margin-top: 20px;
+}
+
+.admin-industry-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  margin-top: 24px;
+}
+
+.admin-industry-panel {
+  min-width: 0;
+  padding: 24px;
+  border: 1px solid #e1e5eb;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.admin-industry-panel h2 {
+  color: #111827;
+  font-size: 20px;
+}
+
+.admin-industry-panel > div:first-child > p {
+  margin-top: 7px;
+  color: #6b7280;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.admin-industry-create,
+.admin-industry-stock-search {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 120px auto;
+  gap: 10px;
+  align-items: end;
+  margin-top: 22px;
+}
+
+.admin-industry-stock-search {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.admin-industry-editor {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.8fr) minmax(240px, 1.2fr);
+  gap: 18px;
+  margin-top: 24px;
+}
+
+.admin-industry-list,
+.admin-industry-stock-results {
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.admin-industry-list {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.admin-industry-list button {
+  position: relative;
+  display: grid;
+  width: 100%;
+  gap: 3px;
+  padding: 12px 14px;
+  border: 1px solid #e1e5eb;
+  border-radius: 8px;
+  background: #fff;
+  color: #202b3d;
+  text-align: left;
+  cursor: pointer;
+}
+
+.admin-industry-list button[aria-pressed='true'] {
+  border-color: #8daee0;
+  background: #edf3fc;
+}
+
+.admin-industry-list span {
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.admin-industry-list em {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  color: #a83232;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 650;
+}
+
+.admin-industry-edit {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  padding: 18px;
+  border-radius: 10px;
+  background: #f7f8fa;
+}
+
+.admin-industry-active {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: #374151;
+  font-size: 13px;
+}
+
+.admin-industry-active input {
+  width: 18px;
+  height: 18px;
+  accent-color: #2459b9;
+}
+
+.admin-industry-stock-results {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  max-height: 240px;
+  margin-top: 16px;
+  overflow-y: auto;
+}
+
+.admin-industry-assets-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 22px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e1e5eb;
+}
+
+.admin-industry-assets-heading strong {
+  color: #111827;
+  font-size: 17px;
+}
+
+.admin-industry-assets-heading span {
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.admin-industry-linked-assets {
+  max-height: 360px;
+  padding: 0;
+  margin: 12px 0 0;
+  list-style: none;
+  overflow-y: auto;
+}
+
+.admin-industry-linked-assets li,
+.admin-industry-stock-results li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 12px;
+  border: 1px solid #e1e5eb;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.admin-industry-linked-assets li + li {
+  margin-top: 8px;
+}
+
+.admin-industry-linked-assets li > div,
+.admin-industry-stock-results li > div {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.admin-industry-linked-assets strong,
+.admin-industry-stock-results strong {
+  color: #202b3d;
+  font-size: 14px;
+}
+
+.admin-industry-linked-assets span,
+.admin-industry-stock-results span {
+  overflow: hidden;
+  color: #6b7280;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-industry-linked-assets button,
+.admin-industry-stock-results button {
+  flex: 0 0 auto;
+}
+
+.admin-industry-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.admin-industry-pagination span {
+  min-width: 56px;
+  color: #626e80;
+  font-size: 13px;
+  text-align: center;
+}
+
+@media (max-width: 1200px) {
+  .admin-industry-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 720px) {
+  .admin-industry-panel {
+    padding: 18px;
+  }
+  .admin-industry-create,
+  .admin-industry-stock-search,
+  .admin-industry-editor {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .admin-industry-stock-results {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .admin-daynomy-search h3 {
   margin: 0 0 10px;
   font-size: 16px;
