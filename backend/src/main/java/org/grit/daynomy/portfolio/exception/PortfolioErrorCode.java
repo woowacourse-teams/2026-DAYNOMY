@@ -21,6 +21,17 @@ public enum PortfolioErrorCode implements ErrorCode {
   PORTFOLIO_ANALYSIS_REQUEST_EXPIRED(HttpStatus.CONFLICT, "분석 요청이 만료되었습니다. 다시 시도해주세요."),
   PORTFOLIO_ANALYSIS_ASSETS_CHANGED(HttpStatus.CONFLICT, "분석 대상 자산이 변경되었습니다. 다시 시도해주세요."),
   PORTFOLIO_ANALYSIS_ASSETS_UNAVAILABLE(HttpStatus.CONFLICT, "저장된 보유 자산과 가격이 있어야 분석할 수 있습니다."),
+  PORTFOLIO_ANALYSIS_SHARE_NOT_READY(HttpStatus.CONFLICT, "완료된 포트폴리오 분석만 공유할 수 있습니다."),
+  PORTFOLIO_ANALYSIS_SHARE_INVALID_ASSETS(HttpStatus.BAD_REQUEST, "공개할 분석 종목을 올바르게 선택해 주세요."),
+  PORTFOLIO_ANALYSIS_SHARE_NOT_FOUND(HttpStatus.NOT_FOUND, "공유된 포트폴리오 분석을 찾을 수 없습니다."),
+  PORTFOLIO_ANALYSIS_SHARE_EXPIRED(HttpStatus.GONE, "공유 링크가 만료되었습니다."),
+  PORTFOLIO_ANALYSIS_SHARE_REVOKED(HttpStatus.GONE, "공유가 중단된 링크입니다."),
+  PORTFOLIO_ANALYSIS_SHARE_OWNER_COMMENT_FORBIDDEN(
+      HttpStatus.FORBIDDEN, "본인이 공유한 분석에는 댓글을 작성할 수 없습니다."),
+  PORTFOLIO_ANALYSIS_COMMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "작성한 댓글을 찾을 수 없습니다."),
+  PORTFOLIO_ANALYSIS_COMMENT_REPLY_NOT_FOUND(HttpStatus.NOT_FOUND, "작성한 대댓글을 찾을 수 없습니다."),
+  PORTFOLIO_ANALYSIS_SHARE_RATE_LIMITED(
+      HttpStatus.TOO_MANY_REQUESTS, "공유 분석 요청이 많습니다. 잠시 후 다시 시도해 주세요."),
   PORTFOLIO_ANALYSIS_NOT_FOUND(HttpStatus.NOT_FOUND, "해당 뉴스의 포트폴리오 분석을 찾을 수 없습니다."),
   PORTFOLIO_NOT_FOUND(HttpStatus.NOT_FOUND, "포트폴리오를 찾을 수 없습니다."),
   PORTFOLIO_HOLDING_NOT_FOUND(HttpStatus.NOT_FOUND, "포트폴리오 보유자산을 찾을 수 없습니다."),
