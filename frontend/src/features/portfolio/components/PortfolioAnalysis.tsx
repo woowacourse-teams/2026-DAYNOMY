@@ -3,11 +3,13 @@ import { trackEvent } from '../../../analytics';
 import { useContentImpression } from '../../news/issue/analytics';
 import { memo, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type Ref } from 'react';
 import { usePortfolioAnalysis } from '../hooks/usePortfolioAnalysis';
+import { PortfolioAnalysisSharePanel } from '../../portfolio-review/PortfolioAnalysisSharePanel';
 import type {
   PortfolioAsset,
   PortfolioAnalysisSource,
   PortfolioAnalysisResponse,
   PortfolioAssetImpactResponse,
+  PortfolioHoldingResult,
   PortfolioImpactDirection,
   PortfolioImpactLevel,
 } from '../types';
@@ -786,6 +788,7 @@ function PortfolioImpactDetail({
 type PortfolioAnalysisProps = {
   demoStep?: number;
   assets: PortfolioAsset[];
+  shareHoldings?: PortfolioHoldingResult[];
   isLoggedIn?: boolean;
   memberId?: number;
   holdingsKey?: string;
@@ -826,6 +829,7 @@ function PortfolioAnalysisContent(props: PortfolioAnalysisProps) {
 }
 function PortfolioAnalysisView({
   assets,
+  shareHoldings = [],
   isLoggedIn = true,
   demoStep,
   onAddAsset,
@@ -879,6 +883,18 @@ function PortfolioAnalysisView({
   };
 
   const hasAnalysis = Boolean(analysis && sortedImpacts.length > 0 && !hideAnalysis);
+  const shareableAnalysisId =
+    hasAnalysis && !portfolioChanged && summaryStatus === 'READY'
+      ? (saved?.analysisId ?? null)
+      : null;
+  const canSharePortfolio = isLoggedIn && demoStep === undefined && assets.length > 0;
+  const shareableAssets = useMemo(
+    () =>
+      shareableAnalysisId === null
+        ? assets
+        : sortedImpacts.map(({ assetName, weight }) => ({ assetName, weight })),
+    [assets, shareableAnalysisId, sortedImpacts],
+  );
   const resultRef = useRef<HTMLDivElement>(null);
   useContentImpression(
     resultRef,
@@ -1032,7 +1048,18 @@ function PortfolioAnalysisView({
         <div>
           <h2 id="portfolio-ai-analysis-title">AI 분석</h2>
         </div>
-        {!showIntroduction ? analysisAction : null}
+        {canSharePortfolio || !showIntroduction ? (
+          <div className="portfolio-analysis-actions">
+            {canSharePortfolio ? (
+              <PortfolioAnalysisSharePanel
+                analysisId={shareableAnalysisId}
+                assets={shareableAssets}
+                holdings={shareHoldings}
+              />
+            ) : null}
+            {!showIntroduction ? analysisAction : null}
+          </div>
+        ) : null}
       </div>
 
       <div className="portfolio-analysis-meta">

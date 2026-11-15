@@ -1721,6 +1721,7 @@ export function PortfolioPage({
                   <PortfolioAnalysis
                     demoStep={tourStep ?? undefined}
                     assets={analysisAssets}
+                    shareHoldings={dashboardCalculation.holdings}
                     pricingStatus={dashboardCalculation.pricingStatus}
                     onAddAsset={addEmptyStateAsset}
                     isLoggedIn={isLoggedIn}
