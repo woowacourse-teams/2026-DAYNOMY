@@ -9,6 +9,7 @@ const privateRoutes = new Set([
   '/',
   '/index.html',
   '/portfolio',
+  '/portfolio/analysis/share',
   '/portfolio/records',
   '/portfolio/publication',
   '/investment-calendar',
