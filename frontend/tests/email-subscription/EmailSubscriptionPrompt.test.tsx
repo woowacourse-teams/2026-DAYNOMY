@@ -42,7 +42,8 @@ function installApi(value = subscription) {
 }
 
 function Location() {
-  return <p data-testid="path">{useLocation().pathname}</p>;
+  const { pathname, search, hash } = useLocation();
+  return <p data-testid="path">{`${pathname}${search}${hash}`}</p>;
 }
 function renderPrompt(auth = account, path = '/news') {
   return render(
@@ -204,6 +205,30 @@ describe('최초 이메일 구독 안내', () => {
       expect(init?.body).toBeUndefined();
     },
   );
+
+  describe.each([
+    '/portfolio/analysis/share?from=review#test-share-token',
+    '/portfolio/analysis/share/#test-share-token',
+  ])('리뷰 링크 %s', (path) => {
+    it.each(['지금은 괜찮아요', '구독 안내 닫기', 'Escape'])(
+      '%s로 건너뛰면 선택을 저장하고 리뷰 링크를 그대로 유지한다',
+      async (action) => {
+        const fetchMock = installApi();
+        const view = renderPrompt(account, path);
+        const dialog = await view.findByRole('dialog');
+        if (action === 'Escape') fireEvent(dialog, new Event('cancel', { cancelable: true }));
+        else fireEvent.click(view.getByRole('button', { name: action }));
+        await waitFor(() => expect(view.queryByRole('dialog')).toBeNull());
+        expect(view.getByTestId('path').textContent).toBe(path);
+        expect(
+          fetchMock.mock.calls.filter(
+            ([url, init]) =>
+              String(url).endsWith('/email-subscription/dismiss') && init?.method === 'POST',
+          ),
+        ).toHaveLength(1);
+      },
+    );
+  });
 
   it('선택 저장이 실패하면 팝업과 현재 경로를 유지하고 재시도한다', async () => {
     const fetchMock = installApi();
