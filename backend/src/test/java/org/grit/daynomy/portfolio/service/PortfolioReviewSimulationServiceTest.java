@@ -11,6 +11,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.grit.daynomy.asset.domain.Asset;
 import org.grit.daynomy.asset.domain.AssetCategory;
@@ -32,6 +33,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionStatus;
 
 class PortfolioReviewSimulationServiceTest {
   private final PortfolioAnalysisShareRepository shares =
@@ -41,6 +44,7 @@ class PortfolioReviewSimulationServiceTest {
   private final PortfolioAnalysisShareRateLimiter limiter =
       mock(PortfolioAnalysisShareRateLimiter.class);
   private final PortfolioAnalysisService analysis = mock(PortfolioAnalysisService.class);
+  private final PlatformTransactionManager transactions = transactionManager();
   private final Instant now = Instant.parse("2026-11-14T00:00:00Z");
   private final PortfolioAnalysisShareService access =
       new PortfolioAnalysisShareService(
@@ -53,7 +57,8 @@ class PortfolioReviewSimulationServiceTest {
           null,
           null,
           limiter,
-          Clock.fixed(now, ZoneOffset.UTC));
+          Clock.fixed(now, ZoneOffset.UTC),
+          transactions);
   private final PortfolioReviewSimulationService service =
       new PortfolioReviewSimulationService(access, analysis, limiter);
 
@@ -91,7 +96,10 @@ class PortfolioReviewSimulationServiceTest {
     when(response.evaluationAmount()).thenReturn(new BigDecimal(amount));
     var calculated = mock(PortfolioCalculationResponse.class);
     when(calculated.holdings()).thenReturn(List.of(response));
-    when(calculation.calculate(any())).thenReturn(calculated);
+    var prepared =
+        new PortfolioCalculationService.PreparedPrices(Map.of(), Map.of(), System.nanoTime());
+    when(calculation.preparePrices(any())).thenReturn(prepared);
+    when(calculation.calculate(any(), eq(prepared))).thenReturn(calculated);
     var snapshots =
         new PortfolioAnalysisShareService(
             shares,
@@ -103,7 +111,8 @@ class PortfolioReviewSimulationServiceTest {
             calculation,
             null,
             limiter,
-            Clock.fixed(now, ZoneOffset.UTC));
+            Clock.fixed(now, ZoneOffset.UTC),
+            transactions);
     if (new BigDecimal(amount).signum() <= 0) {
       assertThatThrownBy(() -> snapshots.simulationAssets(1L, 3L, 9L))
           .isInstanceOf(BusinessException.class);
@@ -211,5 +220,11 @@ class PortfolioReviewSimulationServiceTest {
   private PortfolioAnalysisRequest validRequest() {
     return new PortfolioAnalysisRequest(
         List.of(new PortfolioAssetRequest("삼성전자", new BigDecimal("100"))));
+  }
+
+  private static PlatformTransactionManager transactionManager() {
+    var transactions = mock(PlatformTransactionManager.class);
+    when(transactions.getTransaction(any())).thenReturn(mock(TransactionStatus.class));
+    return transactions;
   }
 }

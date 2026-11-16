@@ -26,6 +26,7 @@ import org.grit.daynomy.portfolio.domain.PortfolioAnalysis;
 import org.grit.daynomy.portfolio.domain.PortfolioAnalysisComment;
 import org.grit.daynomy.portfolio.domain.PortfolioAnalysisPublicSnapshot;
 import org.grit.daynomy.portfolio.domain.PortfolioAnalysisShare;
+import org.grit.daynomy.portfolio.domain.PortfolioHolding;
 import org.grit.daynomy.portfolio.domain.PortfolioHoldingChangeType;
 import org.grit.daynomy.portfolio.dto.PortfolioAnalysisResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioAnalysisShareDto;
@@ -41,7 +42,9 @@ import org.grit.daynomy.portfolio.repository.PortfolioAnalysisShareRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioHoldingHistoryRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioHoldingRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @RequiredArgsConstructor
 @Service
@@ -60,10 +63,19 @@ public class PortfolioAnalysisShareService {
   private final MemberRepository members;
   private final PortfolioAnalysisShareRateLimiter rateLimiter;
   private final Clock clock;
+  private final PlatformTransactionManager transactionManager;
 
-  @Transactional
   public PortfolioAnalysisShareDto.CreatedResponse create(
       Long memberId, PortfolioAnalysisShareDto.CreateRequest request) {
+    var prices = prepareShareablePrices(memberId, request.analysisId() == null);
+    var transaction = new TransactionTemplate(transactionManager);
+    return transaction.execute(status -> create(memberId, request, prices));
+  }
+
+  private PortfolioAnalysisShareDto.CreatedResponse create(
+      Long memberId,
+      PortfolioAnalysisShareDto.CreateRequest request,
+      PortfolioCalculationService.PreparedPrices prices) {
     PortfolioAnalysis analysis =
         request.analysisId() == null
             ? null
@@ -82,7 +94,7 @@ public class PortfolioAnalysisShareService {
             .orElseThrow(() -> new BusinessException(MemberErrorCode.MEMBER_NOT_FOUND));
     Instant now = clock.instant();
     String rawToken = newToken();
-    ShareablePortfolio portfolio = shareablePortfolio(memberId, analysis == null);
+    ShareablePortfolio portfolio = shareablePortfolio(memberId, analysis == null, prices);
     PortfolioAnalysisPublicSnapshot publicSnapshot =
         analysis == null
             ? portfolioSnapshot(portfolio, request.assetNames())
@@ -298,11 +310,22 @@ public class PortfolioAnalysisShareService {
             () -> new BusinessException(PortfolioErrorCode.PORTFOLIO_ANALYSIS_COMMENT_NOT_FOUND));
   }
 
-  @Transactional(readOnly = true)
   public List<PortfolioAnalysisShareDto.SimulationAssetResponse> simulationAssets(
       Long memberId, Long shareId, Long commentId) {
+    readTransaction()
+        .executeWithoutResult(status -> requireSimulationAccess(memberId, shareId, commentId));
+    var prices = prepareShareablePrices(memberId, false);
+    return readTransaction()
+        .execute(status -> simulationAssets(memberId, shareId, commentId, prices));
+  }
+
+  private List<PortfolioAnalysisShareDto.SimulationAssetResponse> simulationAssets(
+      Long memberId,
+      Long shareId,
+      Long commentId,
+      PortfolioCalculationService.PreparedPrices prices) {
     requireSimulationAccess(memberId, shareId, commentId);
-    var portfolio = shareablePortfolio(memberId, false);
+    var portfolio = shareablePortfolio(memberId, false, prices);
     if (portfolio.holdings().isEmpty()
         || portfolio.holdings().stream()
             .anyMatch(
@@ -512,7 +535,24 @@ public class PortfolioAnalysisShareService {
         List.of());
   }
 
-  private ShareablePortfolio shareablePortfolio(Long memberId, boolean required) {
+  private PortfolioCalculationService.PreparedPrices prepareShareablePrices(
+      Long memberId, boolean required) {
+    var request =
+        readTransaction()
+            .execute(
+                status -> {
+                  var savedHoldings = holdings.findAllByPortfolioMemberId(memberId);
+                  if (savedHoldings.isEmpty() && required) {
+                    throw new BusinessException(
+                        PortfolioErrorCode.PORTFOLIO_ANALYSIS_SHARE_INVALID_ASSETS);
+                  }
+                  return calculationRequest(savedHoldings);
+                });
+    return calculation.preparePrices(request);
+  }
+
+  private ShareablePortfolio shareablePortfolio(
+      Long memberId, boolean required, PortfolioCalculationService.PreparedPrices prices) {
     var savedHoldings = holdings.findAllByPortfolioMemberId(memberId);
     if (savedHoldings.isEmpty()) {
       if (required) {
@@ -520,17 +560,7 @@ public class PortfolioAnalysisShareService {
       }
       return new ShareablePortfolio(List.of(), Map.of());
     }
-    var calculated =
-        calculation.calculate(
-            new PortfolioCalculateRequest(
-                savedHoldings.stream()
-                    .map(
-                        holding ->
-                            new PortfolioHoldingRequest(
-                                holding.getAsset().getId(),
-                                holding.getQuantity(),
-                                holding.getAveragePurchasePrice()))
-                    .toList()));
+    var calculated = calculation.calculate(calculationRequest(savedHoldings), prices);
     Map<Long, LocalDate> firstPurchasedOn =
         firstPurchasedOn(savedHoldings.getFirst().getPortfolio().getId());
     Map<String, PortfolioAnalysisPublicSnapshot.HoldingContext> details = new HashMap<>();
@@ -551,6 +581,24 @@ public class PortfolioAnalysisShareService {
               holding.returnRate()));
     }
     return new ShareablePortfolio(calculated.holdings(), Map.copyOf(details));
+  }
+
+  private PortfolioCalculateRequest calculationRequest(List<PortfolioHolding> savedHoldings) {
+    return new PortfolioCalculateRequest(
+        savedHoldings.stream()
+            .map(
+                holding ->
+                    new PortfolioHoldingRequest(
+                        holding.getAsset().getId(),
+                        holding.getQuantity(),
+                        holding.getAveragePurchasePrice()))
+            .toList());
+  }
+
+  private TransactionTemplate readTransaction() {
+    var transaction = new TransactionTemplate(transactionManager);
+    transaction.setReadOnly(true);
+    return transaction;
   }
 
   private Map<Long, LocalDate> firstPurchasedOn(Long portfolioId) {
