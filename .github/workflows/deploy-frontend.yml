@@ -321,10 +321,26 @@ jobs:
       - name: Download frontend image
         id: pull
         timeout-minutes: 5
+        env:
+          GHCR_TOKEN: ${{ github.token }}
         run: |
           echo "Starting frontend image download: $FRONTEND_IMAGE"
-          docker pull "$FRONTEND_IMAGE"
-          echo 'Frontend image download completed'
+          for attempt in 1 2 3; do
+            if docker pull "$FRONTEND_IMAGE"; then
+              echo 'Frontend image download completed'
+              exit 0
+            fi
+
+            if [ "$attempt" -eq 3 ]; then
+              echo 'Frontend image download failed after 3 attempts' >&2
+              exit 1
+            fi
+
+            echo "Frontend image download failed; reauthenticating before retry $((attempt + 1)) of 3"
+            docker logout ghcr.io >/dev/null 2>&1 || true
+            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+            sleep $((attempt * 5))
+          done
 
       - name: Deploy frontend
         id: deployment

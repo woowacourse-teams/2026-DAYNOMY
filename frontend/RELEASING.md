@@ -294,11 +294,13 @@ AWS IAM·SSH 없이 개발·운영 서버 상태를 확인하려면 Actions의 *
 ### GHCR 이미지 다운로드 거부
 
 `docker login`이 성공한 뒤 `docker pull`이 `denied`로 끝나면 이미지가 없거나 EC2 네트워크가
-끊긴 문제가 아니라 package의 Actions 접근 권한을 먼저 확인합니다. GitHub 조직의
-`2026-daynomy-frontend` package 설정에서 **Manage Actions access**에 `2026-DAYNOMY` 저장소를
-`Read` 역할로 추가합니다. workflow의 `GITHUB_TOKEN`과 `packages: read` 권한은 유지하며,
-장기 PAT로 대체하지 않습니다. 권한을 적용한 뒤 실패한 deployment job을 재실행해 pull 성공을
-확인합니다.
+끊긴 문제는 아닙니다. 먼저 GitHub 조직의 `2026-daynomy-frontend` package 설정에서
+**Manage Actions access**의 `2026-DAYNOMY` 역할이 `Read` 이상인지 확인합니다. 이미 `Read`,
+`Write`, `Admin`이면 권한을 변경하지 않습니다. workflow의 `GITHUB_TOKEN`과 `packages: read`
+권한은 유지하며 장기 PAT로 대체하지 않습니다. 같은 이미지의 직전 성공 deployment와 비교한 뒤
+실패한 deployment job을 재실행해 새 job token으로 pull 성공을 확인합니다. 배포 workflow는 pull
+실패 시 GHCR에 다시 인증한 뒤 최대 세 번 시도합니다. 세 번 모두 실패하면 배포를 시작하지 않고,
+실패 시각·이미지 태그·job 로그를 보존해 GitHub Packages 지원 또는 조직 권한 설정을 점검합니다.
 
 EC2에서는 upstream·응답 포트·이미지 라벨·공개 HTML을 대조합니다. 운영은 도메인을 바꿉니다.
 
