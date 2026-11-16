@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useMatch, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useLoginStatus';
 import { isStaffHostname } from '../../serviceDomain';
 import { PortfolioDialog } from '../portfolio/components/PortfolioDialog';
@@ -27,6 +27,7 @@ export function EmailSubscriptionPrompt() {
 
 function EmailSubscriptionDialog() {
   const navigate = useNavigate();
+  const isReviewLink = useMatch('/portfolio/analysis/share') !== null;
   const [subscription, setSubscription] = useState<EmailSubscriptionResponse | null>(null);
   const [confirmation, setConfirmation] = useState(false);
   const [pending, setPending] = useState<'subscribe' | 'dismiss' | null>(null);
@@ -79,7 +80,7 @@ function EmailSubscriptionDialog() {
       recordResult('success');
       setSubscription(value);
       if (action === 'subscribe') setConfirmation(true);
-      else navigate('/', { replace: true });
+      else if (!isReviewLink) navigate('/', { replace: true });
     } catch {
       if (!controller.signal.aborted) {
         recordResult('error');
