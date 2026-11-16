@@ -4,10 +4,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import org.grit.daynomy.asset.domain.Asset;
 import org.grit.daynomy.asset.domain.AssetCategory;
+import org.grit.daynomy.asset.domain.StockMarket;
 import org.grit.daynomy.content.domain.AssetContent;
 import org.grit.daynomy.content.domain.ContentSourceType;
 import org.grit.daynomy.news.domain.Category;
@@ -59,6 +61,142 @@ class ContentSearchRepositoryTest {
   @Autowired private TestEntityManager em;
   @Autowired private JdbcTemplate jdbc;
   @Autowired private ContentSearchRepository repository;
+
+  @ParameterizedTest
+  @EnumSource(ContentSearchSort.class)
+  void searchesBothAssetNamesAcrossAllSourcesBeforePaging(ContentSearchSort sort) {
+    Asset nvidia = usAsset("NVIDIA Corporation", "앤비디아", "NVDA.US", AssetCategory.STOCK);
+    published("NVIDIA 앤비디아 실적 발표", "본문");
+    published("앤비디아 실적 전망", "본문");
+    published("미국 기업 소식", "NVIDIA 실적 분석");
+    published("NVIDIA 신제품 행사", "본문");
+    em.persist(News.createDraft("앤비디아 실적 비공개", "본문", null, List.of(), Category.STOCK));
+    FeaturedPerson person = em.persist(FeaturedPerson.create("연구원", null, null, null, null));
+    em.persist(
+        FeaturedPersonPost.create(
+            person, ContentSourceType.X, "앤비디아 실적 게시물", "https://x.com/example/status/910", null));
+    em.persist(
+        AssetContent.create(
+            nvidia,
+            ContentSourceType.THREADS,
+            "NVIDIA 실적 Threads",
+            "https://threads.com/@example/post/910"));
+    em.persist(
+        AssetContent.create(
+            nvidia, ContentSourceType.YOUTUBE, "앤비디아 실적 영상", "https://youtu.be/abcdefghijk"));
+    em.flush();
+
+    for (String keyword : List.of("앤비디아", "nvidia", "NvIdIa", "NVIDIA Corporation")) {
+      List<String> keys = new ArrayList<>();
+      for (int page = 1; page <= 3; page++) {
+        var result =
+            repository.search(
+                NewsSearchTerms.from(keyword + " 실적"),
+                ContentSearchSource.ALL,
+                page,
+                2,
+                sort,
+                FROM_DATE);
+        assertThat(result.totalElements()).isEqualTo(6);
+        assertThat(result.totalPages()).isEqualTo(3);
+        assertThat(result.items()).hasSize(2);
+        result.items().forEach(item -> keys.add(item.kind() + ":" + item.id()));
+      }
+      assertThat(keys).doesNotHaveDuplicates();
+    }
+    var filtered =
+        repository.search(
+            NewsSearchTerms.from("앤비디아 실적"), ContentSearchSource.YOUTUBE, 1, 10, sort, FROM_DATE);
+    assertThat(filtered.items())
+        .extracting(ContentSearchItemResponse::title)
+        .containsExactly("앤비디아 실적 영상");
+    assertThat(filtered.totalElements()).isEqualTo(1);
+  }
+
+  @Test
+  void expandsMultiwordStockAndEtfNamesWithoutExpandingOtherQueryWords() {
+    usAsset("Bank of America Corporation", "뱅크 오브 아메리카", "BAC.US", AssetCategory.STOCK);
+    usAsset("Vanguard Total Stock Market ETF", "뱅가드 토탈 스톡", "VTI.US", AssetCategory.ETF);
+    News bank = published("뱅크 오브 아메리카 실적", "본문");
+    News etf = published("뱅가드 토탈 스톡 전망", "본문");
+    em.flush();
+
+    var stock =
+        repository.search(
+            NewsSearchTerms.from("Bank of America 실적"),
+            ContentSearchSource.ALL,
+            1,
+            10,
+            ContentSearchSort.LATEST,
+            FROM_DATE);
+    assertThat(stock.items())
+        .extracting(ContentSearchItemResponse::id)
+        .containsExactly(bank.getId());
+    var fund =
+        repository.search(
+            NewsSearchTerms.from("Vanguard Total Stock Market ETF 전망"),
+            ContentSearchSource.ALL,
+            1,
+            10,
+            ContentSearchSort.LATEST,
+            FROM_DATE);
+    assertThat(fund.items()).extracting(ContentSearchItemResponse::id).containsExactly(etf.getId());
+    var generalWord =
+        repository.search(
+            NewsSearchTerms.from("stock"),
+            ContentSearchSource.ALL,
+            1,
+            10,
+            ContentSearchSort.LATEST,
+            FROM_DATE);
+    assertThat(generalWord.items()).isEmpty();
+  }
+
+  @Test
+  void treatsAliasWildcardsLiterallyAndExcludesDomesticAndDelistedAliases() {
+    usAsset("A_%! Inc.", "특수 종목", "LITERAL.US", AssetCategory.STOCK);
+    Asset delisted = usAsset("Hidden Corporation", "숨김기업", "HIDDEN.US", AssetCategory.STOCK);
+    delisted.delist();
+    Asset domestic = Asset.listedStock("Domestic", "005930", StockMarket.KOSPI, null, FROM_DATE);
+    domestic.synchronizeKoreanName("국내기업");
+    em.persist(domestic);
+    News literal = published("A_%! 실적", "본문");
+    published("AX100 실적", "본문");
+    published("숨김기업 소식", "본문");
+    published("국내기업 소식", "본문");
+    em.flush();
+
+    var result =
+        repository.search(
+            NewsSearchTerms.from("특수 종목"),
+            ContentSearchSource.ALL,
+            1,
+            10,
+            ContentSearchSort.LATEST,
+            FROM_DATE);
+    assertThat(result.items())
+        .extracting(ContentSearchItemResponse::id)
+        .containsExactly(literal.getId());
+    for (String keyword : List.of("hidden", "domestic")) {
+      assertThat(
+              repository
+                  .search(
+                      NewsSearchTerms.from(keyword),
+                      ContentSearchSource.ALL,
+                      1,
+                      10,
+                      ContentSearchSort.LATEST,
+                      FROM_DATE)
+                  .items())
+          .isEmpty();
+    }
+  }
+
+  private Asset usAsset(String name, String nameKo, String code, AssetCategory category) {
+    Asset asset = Asset.listedSecurity(name, category, code, StockMarket.NASDAQ, null, FROM_DATE);
+    asset.synchronizeKoreanName(nameKo);
+    return em.persist(asset);
+  }
 
   @ParameterizedTest
   @ValueSource(

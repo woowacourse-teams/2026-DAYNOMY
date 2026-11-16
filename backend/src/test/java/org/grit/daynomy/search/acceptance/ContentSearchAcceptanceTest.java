@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.UUID;
 import org.grit.daynomy.asset.domain.Asset;
 import org.grit.daynomy.asset.domain.AssetCategory;
+import org.grit.daynomy.asset.domain.StockMarket;
 import org.grit.daynomy.asset.repository.AssetRepository;
 import org.grit.daynomy.content.domain.AssetContent;
 import org.grit.daynomy.content.domain.ContentSourceType;
@@ -28,6 +29,8 @@ import org.grit.daynomy.person.repository.FeaturedPersonRepository;
 import org.grit.daynomy.support.SharedDatabaseTest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
@@ -123,6 +126,28 @@ class ContentSearchAcceptanceTest extends SharedDatabaseTest {
         .body("totalElements", equalTo(1))
         .body("items[0].kind", equalTo("ASSET_CONTENT"))
         .body("items[0].source", equalTo("YOUTUBE"));
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"앤비디아", "nvidia"})
+  void headerSearchFindsKoreanAndEnglishNewsForEitherAssetName(String keyword) {
+    Asset nvidia =
+        Asset.listedStock(
+            "NVIDIA Corporation", "NVDA.US", StockMarket.NASDAQ, null, LocalDate.of(2026, 10, 21));
+    nvidia.synchronizeKoreanName("앤비디아");
+    assetRepository.saveAndFlush(nvidia);
+    published("NVIDIA 실적 발표", "2026-10-20T00:00:00Z");
+    published("앤비디아 실적 전망", "2026-10-19T00:00:00Z");
+    published("애플 실적 전망", "2026-10-18T00:00:00Z");
+
+    given()
+        .port(port)
+        .queryParam("q", keyword)
+        .get("/api/search/contents")
+        .then()
+        .statusCode(200)
+        .body("totalElements", equalTo(2))
+        .body("items.title", equalTo(List.of("NVIDIA 실적 발표", "앤비디아 실적 전망")));
   }
 
   @Test
