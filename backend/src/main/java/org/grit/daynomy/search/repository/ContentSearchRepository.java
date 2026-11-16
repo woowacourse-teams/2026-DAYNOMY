@@ -213,16 +213,23 @@ public class ContentSearchRepository {
       int aliasIndex = 0;
       for (String alternative : alternatives.get(terms.values().get(index))) {
         if (aliasIndex > 0) conditions.append(" OR ");
-        String name = "term" + index + "_alias" + aliasIndex++;
-        String pattern =
-            "%" + alternative.replace("!", "!!").replace("%", "!%").replace("_", "!_") + "%";
-        params.addValue(name, pattern);
-        conditions
-            .append("lower(title) LIKE :")
-            .append(name)
-            .append(" ESCAPE '!' OR lower(body) LIKE :")
-            .append(name)
-            .append(" ESCAPE '!'");
+        String alias = "term" + index + "_alias" + aliasIndex++;
+        conditions.append("(");
+        int wordIndex = 0;
+        for (String word : NewsSearchTerms.from(alternative).values()) {
+          if (wordIndex > 0) conditions.append(" AND ");
+          String name = alias + "_word" + wordIndex++;
+          String pattern =
+              "%" + word.replace("!", "!!").replace("%", "!%").replace("_", "!_") + "%";
+          params.addValue(name, pattern);
+          conditions
+              .append("(lower(title) LIKE :")
+              .append(name)
+              .append(" ESCAPE '!' OR lower(body) LIKE :")
+              .append(name)
+              .append(" ESCAPE '!')");
+        }
+        conditions.append(")");
       }
       conditions.append(")");
     }

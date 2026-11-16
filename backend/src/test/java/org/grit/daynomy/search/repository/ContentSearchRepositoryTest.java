@@ -192,6 +192,28 @@ class ContentSearchRepositoryTest {
     }
   }
 
+  @ParameterizedTest
+  @EnumSource(ContentSearchSort.class)
+  void multiwordAliasesMatchAcrossTitleAndBody(ContentSearchSort sort) {
+    usAsset("Bank of America Corporation", "뱅크 오브 아메리카", "BAC.US", AssetCategory.STOCK);
+    News english = published("Bank of", "America 실적");
+    News korean = published("뱅크 오브", "아메리카 실적");
+    published("Bank of", "실적");
+    published("뱅크 오브", "실적");
+    published("Bank of America", "신제품 행사");
+    em.flush();
+
+    for (String keyword : List.of("Bank of America 실적", "뱅크 오브 아메리카 실적")) {
+      var result =
+          repository.search(
+              NewsSearchTerms.from(keyword), ContentSearchSource.ALL, 1, 10, sort, FROM_DATE);
+      assertThat(result.items())
+          .extracting(ContentSearchItemResponse::id)
+          .containsExactlyInAnyOrder(english.getId(), korean.getId());
+      assertThat(result.totalElements()).isEqualTo(2);
+    }
+  }
+
   private Asset usAsset(String name, String nameKo, String code, AssetCategory category) {
     Asset asset = Asset.listedSecurity(name, category, code, StockMarket.NASDAQ, null, FROM_DATE);
     asset.synchronizeKoreanName(nameKo);
