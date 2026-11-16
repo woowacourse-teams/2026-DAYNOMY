@@ -276,6 +276,30 @@ AWS IAM·SSH 없이 개발·운영 서버 상태를 확인하려면 Actions의 *
 익명 연결 검사는 인증된 이미지·아티팩트 다운로드 성공을 보장하지 않습니다.
 진단과 시간 제한 추가 후에도 실제 배포 성공 여부와 별개로 당시 지연 원인을 확인해야 합니다.
 
+### Runner OOM 자동 복구
+
+`mode`의 기본값은 `diagnose`이며 서버를 변경하지 않습니다. OOM 또는 runner 종료가 확인되면,
+진단에서 `Read runner service supervision`이 정확히 하나의 Actions runner systemd 서비스를 찾는지
+먼저 확인한 뒤 같은 workflow를 `mode=repair`로 한 번 실행합니다. 복구 모드는 다음만 적용합니다.
+
+- `/swapfile` 2 GiB를 만들고 `/etc/fstab`에 등록해 재부팅 뒤에도 사용합니다. 파일시스템 여유가
+  3 GiB 미만이거나 기존 `/swapfile` 크기가 다르면 중단합니다.
+- runner systemd 서비스에 `Restart=always`, 5초 재시작 간격, 부팅 시 활성화를 설정합니다.
+
+실행 중인 runner 서비스는 재시작하지 않으므로 진행 중인 배포를 끊지 않습니다. 복구 완료 후
+같은 workflow를 기본 `diagnose` 모드로 다시 실행해 `SwapTotal`, `Restart=always`,
+`UnitFileState=enabled`를 확인합니다. 커널 자체가 중단되거나 swap을 반복 사용한다면 임시 복구가
+아니라 EC2 메모리 증설이 필요합니다.
+
+### GHCR 이미지 다운로드 거부
+
+`docker login`이 성공한 뒤 `docker pull`이 `denied`로 끝나면 이미지가 없거나 EC2 네트워크가
+끊긴 문제가 아니라 package의 Actions 접근 권한을 먼저 확인합니다. GitHub 조직의
+`2026-daynomy-frontend` package 설정에서 **Manage Actions access**에 `2026-DAYNOMY` 저장소를
+`Read` 역할로 추가합니다. workflow의 `GITHUB_TOKEN`과 `packages: read` 권한은 유지하며,
+장기 PAT로 대체하지 않습니다. 권한을 적용한 뒤 실패한 deployment job을 재실행해 pull 성공을
+확인합니다.
+
 EC2에서는 upstream·응답 포트·이미지 라벨·공개 HTML을 대조합니다. 운영은 도메인을 바꿉니다.
 
 ```bash

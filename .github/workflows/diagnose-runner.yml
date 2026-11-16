@@ -1,5 +1,5 @@
 name: Diagnose deployment runner
-run-name: Diagnose ${{ inputs.target_environment }} runner
+run-name: ${{ inputs.mode == 'repair' && 'Repair' || 'Diagnose' }} ${{ inputs.target_environment }} runner
 
 on:
   workflow_dispatch:
@@ -20,6 +20,14 @@ on:
         options:
           - last-hour
           - incident-2026-10-06
+      mode:
+        description: Diagnose only, or apply the runner recovery configuration
+        type: choice
+        required: true
+        default: diagnose
+        options:
+          - diagnose
+          - repair
 
 permissions: {}
 
@@ -35,7 +43,7 @@ jobs:
       DIAGNOSTIC_ENVIRONMENT: ${{ inputs.target_environment }}
       DIAGNOSTIC_LOG_PERIOD: ${{ inputs.log_period }}
     steps:
-      # No checkout, environment gate, secrets, deployment or server changes.
+      # No checkout, environment gate, or secrets. The default mode is read-only.
       - name: Read server health, connectivity and incident logs
         shell: bash
         run: |
@@ -200,3 +208,69 @@ jobs:
               print(f"{source}: query_exit={code} inspected_lines={len(output.splitlines())}")
               summarize(source, output.splitlines())
           PY
+
+      - name: Read runner service supervision
+        id: runner-service
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mapfile -t runner_services < <(
+            systemctl list-unit-files 'actions.runner*' --type=service --no-legend --plain \
+              | awk '$1 ~ /^actions\.runner\.[[:alnum:]_.@-]+\.service$/ {print $1}'
+          )
+          if [ "${#runner_services[@]}" -ne 1 ]; then
+            printf 'Expected one GitHub Actions runner service, found: %s\n' "${runner_services[*]:-none}" >&2
+            exit 1
+          fi
+          runner_service="${runner_services[0]}"
+          echo "name=$runner_service" >> "$GITHUB_OUTPUT"
+          systemctl show "$runner_service" \
+            --property=LoadState,UnitFileState,ActiveState,SubState,Result,NRestarts,Restart,RestartUSec,MainPID,ExecMainStatus
+
+      - name: Configure runner recovery
+        if: inputs.mode == 'repair'
+        shell: bash
+        env:
+          RUNNER_SERVICE: ${{ steps.runner-service.outputs.name }}
+        run: |
+          set -Eeuo pipefail
+          sudo -n true
+
+          swap_file=/swapfile
+          swap_bytes=$((2 * 1024 * 1024 * 1024))
+          available_bytes="$(df --block-size=1 --output=avail / | tail -n 1 | tr -d '[:space:]')"
+          [[ "$available_bytes" =~ ^[0-9]+$ ]] || { echo 'Cannot determine free disk space' >&2; exit 1; }
+
+          if ! sudo -n swapon --show=NAME --noheadings | grep -Fxq "$swap_file"; then
+            if sudo -n test -e "$swap_file"; then
+              test "$(sudo -n stat --format=%s "$swap_file")" -eq "$swap_bytes" \
+                || { echo "$swap_file exists with an unexpected size" >&2; exit 1; }
+            else
+              test "$available_bytes" -ge $((swap_bytes + 1024 * 1024 * 1024)) \
+                || { echo 'Insufficient disk space for the persistent 2 GiB swap file' >&2; exit 1; }
+              sudo -n fallocate --length 2G "$swap_file"
+            fi
+            sudo -n chmod 600 "$swap_file"
+            sudo -n mkswap "$swap_file" >/dev/null
+            sudo -n swapon "$swap_file"
+          fi
+
+          if ! sudo -n grep -Eq '^[[:space:]]*/swapfile[[:space:]]+' /etc/fstab; then
+            printf '%s\n' '/swapfile none swap defaults 0 0' | sudo -n tee -a /etc/fstab >/dev/null
+          fi
+          printf '%s\n' 'vm.swappiness=10' | sudo -n tee /etc/sysctl.d/99-daynomy-runner-memory.conf >/dev/null
+          sudo -n sysctl --load /etc/sysctl.d/99-daynomy-runner-memory.conf >/dev/null
+
+          sudo -n install --directory --mode 755 "/etc/systemd/system/$RUNNER_SERVICE.d"
+          sudo -n tee "/etc/systemd/system/$RUNNER_SERVICE.d/recovery.conf" >/dev/null <<'EOF'
+          [Unit]
+          StartLimitIntervalSec=0
+
+          [Service]
+          Restart=always
+          RestartSec=5s
+          EOF
+          sudo -n systemctl daemon-reload
+          sudo -n systemctl enable "$RUNNER_SERVICE"
+          sudo -n systemctl show "$RUNNER_SERVICE" \
+            --property=UnitFileState,ActiveState,SubState,Result,NRestarts,Restart,RestartUSec
