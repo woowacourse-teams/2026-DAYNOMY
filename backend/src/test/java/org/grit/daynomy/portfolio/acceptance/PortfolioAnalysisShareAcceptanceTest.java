@@ -13,6 +13,9 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
 import org.grit.daynomy.asset.domain.Asset;
 import org.grit.daynomy.asset.domain.StockDailyPrice;
 import org.grit.daynomy.asset.domain.StockMarket;
@@ -35,6 +38,7 @@ import org.grit.daynomy.portfolio.domain.PortfolioHoldingHistory;
 import org.grit.daynomy.portfolio.domain.PortfolioImpactSummary;
 import org.grit.daynomy.portfolio.repository.PortfolioAnalysisEvidenceRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioAnalysisRepository;
+import org.grit.daynomy.portfolio.repository.PortfolioAnalysisShareRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioHoldingHistoryRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioHoldingRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioRepository;
@@ -57,6 +61,7 @@ class PortfolioAnalysisShareAcceptanceTest extends SharedDatabaseTest {
   @Autowired MemberRepository members;
   @Autowired PortfolioRepository portfolios;
   @Autowired PortfolioAnalysisRepository analyses;
+  @Autowired PortfolioAnalysisShareRepository shares;
   @Autowired PortfolioAnalysisEvidenceRepository evidence;
   @Autowired PortfolioHoldingRepository holdings;
   @Autowired PortfolioHoldingHistoryRepository holdingHistories;
@@ -87,6 +92,21 @@ class PortfolioAnalysisShareAcceptanceTest extends SharedDatabaseTest {
             .extract();
     String token = created.path("token");
     int shareId = created.path("share.id");
+
+    client(reviewer)
+        .body(Map.of("content", " a "))
+        .header(SHARE_TOKEN_HEADER, token)
+        .post(PUBLIC_API + "/comments")
+        .then()
+        .statusCode(400)
+        .body("code", equalTo("INVALID_REQUEST"));
+    client(reviewer)
+        .body(Map.of("content", "😀"))
+        .header(SHARE_TOKEN_HEADER, token)
+        .post(PUBLIC_API + "/comments")
+        .then()
+        .statusCode(400)
+        .body("code", equalTo("INVALID_REQUEST"));
 
     Map<String, Object> publicAnalysis =
         given()
@@ -297,6 +317,16 @@ class PortfolioAnalysisShareAcceptanceTest extends SharedDatabaseTest {
                 LocalDate.now().minusDays(2)));
     PortfolioHolding holding =
         holdings.save(new PortfolioHolding(portfolio, asset, 10, new BigDecimal("70000")));
+    String unpricedCode = UUID.randomUUID().toString();
+    Asset unpricedAsset =
+        assets.save(
+            Asset.listedStock(
+                "가격 없는 종목",
+                unpricedCode,
+                StockMarket.KOSPI,
+                "KR" + unpricedCode.replace("-", "").substring(0, 10),
+                LocalDate.now().minusDays(2)));
+    holdings.save(new PortfolioHolding(portfolio, unpricedAsset, 1, new BigDecimal("10000")));
     LocalDate firstPurchasedOn = LocalDate.now().minusMonths(2);
     holdingHistories.save(
         new PortfolioHoldingHistory(
@@ -330,6 +360,7 @@ class PortfolioAnalysisShareAcceptanceTest extends SharedDatabaseTest {
             .then()
             .statusCode(200)
             .body("analysis.hasAnalysis", equalTo(false))
+            .body("analysis.allAssetsShared", equalTo(false))
             .body("analysis.analyzedAssetCount", equalTo(0))
             .body("analysis.impacts[0].assetName", equalTo("삼성전자"))
             .body("analysis.impacts[0].weight", equalTo(100.0F))
@@ -342,6 +373,42 @@ class PortfolioAnalysisShareAcceptanceTest extends SharedDatabaseTest {
         .contains("returnRate")
         .doesNotContain(
             "quantity", "evaluationAmount", "profitLoss", "averagePurchasePrice", "currentPrice");
+  }
+
+  @Test
+  void serializesConcurrentSharesWithoutAnAnalysisForTheSameOwner() {
+    Member owner = member("동시 공유 작성자");
+    Portfolio portfolio = portfolios.save(Portfolio.create(owner));
+    String code = UUID.randomUUID().toString();
+    Asset asset =
+        assets.save(
+            Asset.listedStock(
+                "동시 공유 종목",
+                code,
+                StockMarket.KOSPI,
+                "KR" + code.replace("-", "").substring(0, 10),
+                LocalDate.now().minusDays(2)));
+    holdings.save(new PortfolioHolding(portfolio, asset, 1, new BigDecimal("70000")));
+    prices.saveAndFlush(
+        new StockDailyPrice(asset, LocalDate.now().minusDays(1), new BigDecimal("80000")));
+    Map<String, Object> request =
+        Map.of("question", "동시에 공유해도 링크가 하나만 남아야 해요.", "assetNames", List.of("동시 공유 종목"));
+    var first = client(owner).body(request);
+    var second = client(owner).body(request);
+    var start = new CountDownLatch(1);
+    try (var executor = Executors.newFixedThreadPool(2)) {
+      var firstRequest =
+          CompletableFuture.supplyAsync(() -> createShareAfter(start, first), executor);
+      var secondRequest =
+          CompletableFuture.supplyAsync(() -> createShareAfter(start, second), executor);
+      start.countDown();
+
+      assertThat(List.of(firstRequest.join(), secondRequest.join())).doesNotContainNull();
+    }
+    assertThat(
+            shares.findAllByOwnerIdOrderByCreatedAtDescIdDesc(owner.getId()).stream()
+                .filter(share -> share.getAnalysisId() == null))
+        .hasSize(1);
   }
 
   private PortfolioAnalysis analysis(Member owner) {
@@ -425,5 +492,15 @@ class PortfolioAnalysisShareAcceptanceTest extends SharedDatabaseTest {
         .cookie(
             "access_token", tokens.createTokenPair(member.getId(), MemberRole.USER).accessToken())
         .header(csrf.jsonPath().getString("headerName"), csrf.jsonPath().getString("token"));
+  }
+
+  private Integer createShareAfter(CountDownLatch start, RequestSpecification request) {
+    try {
+      start.await();
+      return request.post(OWNER_API).then().statusCode(200).extract().path("share.id");
+    } catch (InterruptedException exception) {
+      Thread.currentThread().interrupt();
+      throw new IllegalStateException(exception);
+    }
   }
 }

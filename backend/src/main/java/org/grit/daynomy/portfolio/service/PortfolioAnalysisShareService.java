@@ -20,6 +20,7 @@ import java.util.stream.IntStream;
 import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.member.domain.Member;
+import org.grit.daynomy.member.exception.MemberErrorCode;
 import org.grit.daynomy.member.repository.MemberRepository;
 import org.grit.daynomy.portfolio.domain.PortfolioAnalysis;
 import org.grit.daynomy.portfolio.domain.PortfolioAnalysisComment;
@@ -75,7 +76,10 @@ public class PortfolioAnalysisShareService {
     if (analysis != null && analysis.getSummaryStatus() != PortfolioAnalysis.SummaryStatus.READY) {
       throw new BusinessException(PortfolioErrorCode.PORTFOLIO_ANALYSIS_SHARE_NOT_READY);
     }
-    Member owner = members.getReferenceById(memberId);
+    Member owner =
+        members
+            .findByIdForUpdate(memberId)
+            .orElseThrow(() -> new BusinessException(MemberErrorCode.MEMBER_NOT_FOUND));
     Instant now = clock.instant();
     String rawToken = newToken();
     ShareablePortfolio portfolio = shareablePortfolio(memberId, analysis == null);
@@ -495,7 +499,7 @@ public class PortfolioAnalysisShareService {
     return new PortfolioAnalysisPublicSnapshot(
         impacts.size(),
         0,
-        impacts.size() == available.size(),
+        impacts.size() == portfolio.holdings().size(),
         false,
         null,
         null,

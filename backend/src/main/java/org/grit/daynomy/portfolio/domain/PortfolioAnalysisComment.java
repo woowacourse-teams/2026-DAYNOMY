@@ -71,11 +71,16 @@ public class PortfolioAnalysisComment extends BaseEntity {
   }
 
   public void update(String content) {
+    this.content = normalizeContent(content);
+  }
+
+  public static String normalizeContent(String content) {
     String normalized = Objects.requireNonNull(content).strip();
-    if (normalized.length() < 2 || normalized.length() > 1000 || containsMarkup(normalized)) {
+    int length = normalized.codePointCount(0, normalized.length());
+    if (length < 2 || length > 1000 || containsMarkup(normalized)) {
       throw new IllegalArgumentException("댓글은 2자 이상 1000자 이하의 일반 텍스트여야 합니다.");
     }
-    this.content = normalized;
+    return normalized;
   }
 
   private static boolean containsMarkup(String value) {

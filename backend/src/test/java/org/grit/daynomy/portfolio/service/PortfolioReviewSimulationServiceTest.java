@@ -23,6 +23,7 @@ import org.grit.daynomy.portfolio.dto.PortfolioAnalysisRequest;
 import org.grit.daynomy.portfolio.dto.PortfolioAssetRequest;
 import org.grit.daynomy.portfolio.dto.PortfolioCalculationResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioHoldingResponse;
+import org.grit.daynomy.portfolio.exception.PortfolioErrorCode;
 import org.grit.daynomy.portfolio.repository.PortfolioAnalysisCommentRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioAnalysisShareRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioHoldingHistoryRepository;
@@ -142,9 +143,17 @@ class PortfolioReviewSimulationServiceTest {
   @Test
   void otherMemberCannotReadTheSnapshotOrStartAnalysis() {
     assertThatThrownBy(() -> access.simulationAssets(2L, 3L, 9L))
-        .isInstanceOf(BusinessException.class);
-    assertThatThrownBy(() -> service.analyze(2L, 3L, 9L, new PortfolioAnalysisRequest(List.of())))
-        .isInstanceOf(BusinessException.class);
+        .isInstanceOfSatisfying(
+            BusinessException.class,
+            exception ->
+                assertThat(exception.errorCode())
+                    .isEqualTo(PortfolioErrorCode.PORTFOLIO_ANALYSIS_SHARE_NOT_FOUND));
+    assertThatThrownBy(() -> service.analyze(2L, 3L, 9L, validRequest()))
+        .isInstanceOfSatisfying(
+            BusinessException.class,
+            exception ->
+                assertThat(exception.errorCode())
+                    .isEqualTo(PortfolioErrorCode.PORTFOLIO_ANALYSIS_SHARE_NOT_FOUND));
     verifyNoInteractions(analysis);
   }
 
@@ -152,8 +161,12 @@ class PortfolioReviewSimulationServiceTest {
   void commentFromAnotherShareCannotBeUsed() {
     allow();
     when(comments.findByIdAndShareId(9L, 3L)).thenReturn(Optional.empty());
-    assertThatThrownBy(() -> service.analyze(1L, 3L, 9L, new PortfolioAnalysisRequest(List.of())))
-        .isInstanceOf(BusinessException.class);
+    assertThatThrownBy(() -> service.analyze(1L, 3L, 9L, validRequest()))
+        .isInstanceOfSatisfying(
+            BusinessException.class,
+            exception ->
+                assertThat(exception.errorCode())
+                    .isEqualTo(PortfolioErrorCode.PORTFOLIO_ANALYSIS_COMMENT_NOT_FOUND));
     verifyNoInteractions(analysis);
   }
 
@@ -161,8 +174,12 @@ class PortfolioReviewSimulationServiceTest {
   void expiredShareCannotBeUsed() {
     var share = allow();
     when(share.status(now)).thenReturn(PortfolioAnalysisShare.Status.EXPIRED);
-    assertThatThrownBy(() -> service.analyze(1L, 3L, 9L, new PortfolioAnalysisRequest(List.of())))
-        .isInstanceOf(BusinessException.class);
+    assertThatThrownBy(() -> service.analyze(1L, 3L, 9L, validRequest()))
+        .isInstanceOfSatisfying(
+            BusinessException.class,
+            exception ->
+                assertThat(exception.errorCode())
+                    .isEqualTo(PortfolioErrorCode.PORTFOLIO_ANALYSIS_SHARE_EXPIRED));
     verifyNoInteractions(analysis);
   }
 
@@ -189,5 +206,10 @@ class PortfolioReviewSimulationServiceTest {
     assertThatThrownBy(() -> service.analyze(1L, 3L, 9L, new PortfolioAnalysisRequest(List.of())))
         .isInstanceOf(BusinessException.class);
     verifyNoInteractions(analysis);
+  }
+
+  private PortfolioAnalysisRequest validRequest() {
+    return new PortfolioAnalysisRequest(
+        List.of(new PortfolioAssetRequest("삼성전자", new BigDecimal("100"))));
   }
 }

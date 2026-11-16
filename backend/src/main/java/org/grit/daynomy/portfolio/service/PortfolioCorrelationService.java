@@ -63,15 +63,15 @@ public class PortfolioCorrelationService {
                 weeklyReturns(weeklyPrices.getOrDefault(assetId, Map.of()), asset, rates)));
 
     List<Long> assetIds = assets.keySet().stream().sorted().toList();
-    List<PortfolioCorrelationResponse> result = new ArrayList<>();
+    List<RankedCorrelation> result = new ArrayList<>();
     for (int left = 0; left < assetIds.size(); left++) {
       for (int right = left + 1; right < assetIds.size(); right++) {
         Long leftId = assetIds.get(left);
         Long rightId = assetIds.get(right);
         Correlation correlation = correlation(returns.get(leftId), returns.get(rightId));
-        if (correlation == null || correlation.value().signum() >= 0) continue;
+        if (correlation == null || correlation.value() >= 0) continue;
         result.add(
-            new PortfolioCorrelationResponse(
+            new RankedCorrelation(
                 leftId,
                 assets.get(leftId).getDisplayName(),
                 rightId,
@@ -82,10 +82,11 @@ public class PortfolioCorrelationService {
     }
     return result.stream()
         .sorted(
-            Comparator.comparing(PortfolioCorrelationResponse::correlation)
-                .thenComparing(PortfolioCorrelationResponse::firstAssetName)
-                .thenComparing(PortfolioCorrelationResponse::secondAssetName))
+            Comparator.comparingDouble(RankedCorrelation::correlation)
+                .thenComparing(RankedCorrelation::firstAssetName)
+                .thenComparing(RankedCorrelation::secondAssetName))
         .limit(RESULT_LIMIT)
+        .map(RankedCorrelation::toResponse)
         .toList();
   }
 
@@ -146,10 +147,27 @@ public class PortfolioCorrelationService {
     }
     if (leftVariance == 0 || rightVariance == 0) return null;
     double value = covariance / Math.sqrt(leftVariance * rightVariance);
-    BigDecimal rounded =
-        BigDecimal.valueOf(Math.max(-1, Math.min(1, value))).setScale(2, RoundingMode.HALF_UP);
-    return new Correlation(rounded, commonWeeks.size());
+    return new Correlation(Math.max(-1, Math.min(1, value)), commonWeeks.size());
   }
 
-  private record Correlation(BigDecimal value, int sampleCount) {}
+  private record Correlation(double value, int sampleCount) {}
+
+  private record RankedCorrelation(
+      Long firstAssetId,
+      String firstAssetName,
+      Long secondAssetId,
+      String secondAssetName,
+      double correlation,
+      int sampleCount) {
+
+    private PortfolioCorrelationResponse toResponse() {
+      return new PortfolioCorrelationResponse(
+          firstAssetId,
+          firstAssetName,
+          secondAssetId,
+          secondAssetName,
+          BigDecimal.valueOf(correlation).setScale(2, RoundingMode.HALF_UP),
+          sampleCount);
+    }
+  }
 }

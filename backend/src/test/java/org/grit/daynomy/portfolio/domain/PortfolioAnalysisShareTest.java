@@ -73,8 +73,11 @@ class PortfolioAnalysisShareTest {
     assertThatThrownBy(() -> PortfolioAnalysisComment.reply(reply, commenter, "대대댓글"))
         .isInstanceOf(IllegalArgumentException.class);
     assertThatThrownBy(() -> reply.update("한")).isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> reply.update("😀")).isInstanceOf(IllegalArgumentException.class);
     assertThatThrownBy(() -> reply.update("<b>수정</b>"))
         .isInstanceOf(IllegalArgumentException.class);
+    reply.update("  😀😀  ");
+    assertThat(reply.getContent()).isEqualTo("😀😀");
   }
 
   private PortfolioAnalysisShare share() {

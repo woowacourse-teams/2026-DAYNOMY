@@ -12,6 +12,7 @@ import java.util.List;
 import org.grit.daynomy.asset.domain.AssetCategory;
 import org.grit.daynomy.market.domain.asset.ImpactDirection;
 import org.grit.daynomy.market.domain.asset.ImpactLevel;
+import org.grit.daynomy.portfolio.domain.PortfolioAnalysisComment;
 import org.grit.daynomy.portfolio.domain.PortfolioAnalysisPublicSnapshot;
 import org.grit.daynomy.portfolio.domain.PortfolioAnalysisShare;
 
@@ -29,11 +30,11 @@ public final class PortfolioAnalysisShareDto {
           String question,
       @NotEmpty @Size(max = 100) List<@NotBlank @Size(max = 255) String> assetNames) {}
 
-  public record CommentRequest(
-      @NotBlank
-          @Size(min = 2, max = 1000)
-          @Pattern(regexp = "^[^<>]*$", message = "HTML 형식은 입력할 수 없습니다.")
-          String content) {}
+  public record CommentRequest(String content) {
+    public CommentRequest {
+      content = PortfolioAnalysisComment.normalizeContent(content);
+    }
+  }
 
   public record CreatedResponse(OwnerResponse share, String token) {}
 
