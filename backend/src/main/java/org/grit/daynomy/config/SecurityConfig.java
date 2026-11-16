@@ -44,6 +44,7 @@ public class SecurityConfig {
       "/api/pmf-surveys/current",
       "/api/portfolio/analysis/tasks",
       "/api/portfolio/analysis/tasks/*",
+      "/api/portfolio/analysis/shares",
       "/api/news",
       "/api/news/*",
       "/api/news/*/keywords",
