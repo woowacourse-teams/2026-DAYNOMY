@@ -22,6 +22,7 @@ import org.grit.daynomy.portfolio.domain.PortfolioAnalysisShare;
 import org.grit.daynomy.portfolio.domain.PortfolioHolding;
 import org.grit.daynomy.portfolio.dto.PortfolioAnalysisRequest;
 import org.grit.daynomy.portfolio.dto.PortfolioAssetRequest;
+import org.grit.daynomy.portfolio.dto.PortfolioCalculateRequest;
 import org.grit.daynomy.portfolio.dto.PortfolioCalculationResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioHoldingResponse;
 import org.grit.daynomy.portfolio.exception.PortfolioErrorCode;
@@ -129,6 +130,17 @@ class PortfolioReviewSimulationServiceTest {
       assertThatThrownBy(() -> snapshots.simulationAssets(1L, 3L, 9L))
           .isInstanceOf(BusinessException.class);
     }
+    int calculationCount = new BigDecimal(amount).signum() <= 0 ? 1 : 3;
+    var preparedRequests = ArgumentCaptor.forClass(PortfolioCalculateRequest.class);
+    var calculatedRequests = ArgumentCaptor.forClass(PortfolioCalculateRequest.class);
+    verify(calculation, times(calculationCount)).preparePrices(preparedRequests.capture());
+    verify(calculation, times(calculationCount))
+        .calculate(calculatedRequests.capture(), eq(prepared));
+    for (int index = 0; index < calculationCount; index++) {
+      assertThat(calculatedRequests.getAllValues().get(index))
+          .isSameAs(preparedRequests.getAllValues().get(index));
+    }
+    verify(holdings, times(calculationCount)).findAllByPortfolioMemberId(1L);
     verify(holdings, never()).save(any());
     verifyNoInteractions(analysis);
   }
