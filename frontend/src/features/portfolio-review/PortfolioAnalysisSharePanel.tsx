@@ -2,6 +2,7 @@ import { CopyIcon } from '@phosphor-icons/react/dist/csr/Copy';
 import { LinkSimpleIcon } from '@phosphor-icons/react/dist/csr/LinkSimple';
 import { ShieldCheckIcon } from '@phosphor-icons/react/dist/csr/ShieldCheck';
 import { XIcon } from '@phosphor-icons/react/dist/csr/X';
+import { UserIcon } from '@phosphor-icons/react/dist/csr/User';
 import { useEffect, useRef, useState } from 'react';
 import { trackEvent } from '../../analytics';
 import { ApiError } from '../../api/client';
@@ -15,8 +16,10 @@ import {
   savePortfolioAnalysisOwnerReply,
 } from './api';
 import { PortfolioAnalysisReplyThread } from './PortfolioAnalysisReplyThread';
+import { PortfolioShareExplanation } from './PortfolioShareExplanation';
 import type { PortfolioAnalysisOwnerShare } from './types';
 import './portfolioAnalysisShare.css';
+import './portfolioPublicDocument.css';
 
 const MAX_QUESTION_LENGTH = 200;
 const PREVIEW_COLORS = ['#ef464d', '#31588a', '#e9a23b', '#6f63b7', '#2a8a72'];
@@ -401,12 +404,12 @@ function ShareDialog({
                       ? '새 링크 만들기'
                       : '7일 링크 만들기'}
                 </button>
+                {current?.status === 'ACTIVE' && !shareUrl ? (
+                  <p className="portfolio-share-hint">
+                    새 링크를 발급하면 이전 링크는 바로 사용할 수 없어요.
+                  </p>
+                ) : null}
               </div>
-              {current?.status === 'ACTIVE' && !shareUrl ? (
-                <p className="portfolio-share-hint">
-                  새 링크를 발급하면 이전 링크는 바로 사용할 수 없어요.
-                </p>
-              ) : null}
 
               {shareUrl ? (
                 <div className="portfolio-share-link">
@@ -442,7 +445,12 @@ function ShareDialog({
                       <span>만료 {formatDate(share.expiresAt)}</span>
                       <span>받은 댓글 {share.comments.length}건</span>
                     </div>
-                    <p>{share.question}</p>
+                    <p className="portfolio-share-history-question">{share.question}</p>
+                    <PortfolioShareExplanation
+                      share={share}
+                      disabled={saving}
+                      onChange={(updated) => setShares((values) => replaceShare(values, updated))}
+                    />
                     <p className="portfolio-share-shared-assets">
                       공개 종목: {share.sharedAssets.map((asset) => asset.assetName).join(', ')}
                     </p>
@@ -469,12 +477,25 @@ function ShareDialog({
                       </button>
                     </div>
                     {share.comments.length ? (
-                      <div className="portfolio-share-reviews">
-                        <h4>받은 댓글</h4>
-                        <ul>
+                      <section
+                        className="portfolio-public-review is-owner"
+                        aria-labelledby={`portfolio-share-comments-${share.id}`}
+                      >
+                        <header className="portfolio-public-review-heading">
+                          <h3 id={`portfolio-share-comments-${share.id}`}>
+                            받은 의견 {share.comments.length}개
+                          </h3>
+                          <p className="portfolio-public-owner-note">
+                            댓글 작성자와 나만 볼 수 있는 대화예요.
+                          </p>
+                        </header>
+                        <ul className="portfolio-share-reviews" aria-label="받은 의견 목록">
                           {share.comments.map((comment) => (
                             <li key={comment.id}>
                               <div className="portfolio-review-meta">
+                                <span className="portfolio-comment-avatar" aria-hidden="true">
+                                  <UserIcon size={18} />
+                                </span>
                                 <strong>{comment.authorNickname}</strong>
                                 <time dateTime={comment.updatedAt}>
                                   {formatDate(comment.updatedAt)}
@@ -496,7 +517,7 @@ function ShareDialog({
                             </li>
                           ))}
                         </ul>
-                      </div>
+                      </section>
                     ) : (
                       <p className="portfolio-share-empty">아직 받은 댓글이 없어요.</p>
                     )}

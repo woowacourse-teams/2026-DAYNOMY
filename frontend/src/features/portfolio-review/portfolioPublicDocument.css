@@ -1,0 +1,610 @@
+/* Holdings supply context beside the analysis; discussion follows both. */
+.portfolio-public-share-page {
+  padding-block: 32px;
+}
+.portfolio-public-share-hero {
+  padding: 0 0 24px;
+  border-bottom: 1px solid #e4e7ec;
+}
+.portfolio-public-share-owner {
+  margin-bottom: 16px;
+  gap: 10px;
+}
+.portfolio-public-expiry {
+  margin-left: 8px;
+  padding: 0;
+  border: 0;
+}
+.portfolio-public-share-hero h1 {
+  max-width: 800px;
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.6;
+}
+.portfolio-public-explanation {
+  max-width: 840px;
+  margin-top: 24px;
+  padding: 16px 20px;
+  border-radius: 8px;
+  background: #f2f6fa;
+}
+.portfolio-public-explanation > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+}
+.portfolio-public-explanation h2,
+.portfolio-share-explanation-editor h3 {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.5;
+  color: #213e65;
+}
+.portfolio-public-explanation time {
+  color: #52677e;
+  font-size: 0.75rem;
+}
+.portfolio-public-explanation > p,
+.portfolio-share-explanation-copy {
+  margin: 12px 0 0;
+  color: #344054;
+  font-size: 0.9375rem;
+  line-height: 1.8;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.portfolio-share-explanation-editor {
+  padding: 16px 20px;
+  border: 1px solid #dce5ef;
+  border-radius: 8px;
+  background: #f7f9fc;
+}
+.portfolio-share-explanation-editor > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.portfolio-share-explanation-editor > header p {
+  margin: 4px 0 0;
+  color: #52677e;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+}
+.portfolio-share-explanation-editor > header > button {
+  flex-shrink: 0;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid #c6d3e2;
+  border-radius: 6px;
+  background: #fff;
+  color: #213e65;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.portfolio-share-explanation-editor > header > button:hover:not(:disabled) {
+  background: #edf3f9;
+}
+.portfolio-share-explanation-editor form {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+}
+.portfolio-share-explanation-editor label {
+  color: #344054;
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+.portfolio-share-explanation-editor textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 120px;
+  resize: vertical;
+  border: 1px solid #c6d3e2;
+  border-radius: 6px;
+  padding: 12px;
+  background: #fff;
+  color: #344054;
+  font: inherit;
+  font-size: 1rem;
+  line-height: 1.7;
+}
+.portfolio-share-explanation-editor textarea:focus-visible {
+  border-color: #31588a;
+  outline: 2px solid #31588a;
+  outline-offset: -1px;
+}
+.portfolio-share-explanation-editor textarea::placeholder {
+  color: #667085;
+}
+.portfolio-share-explanation-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 12px;
+  color: #667085;
+}
+.portfolio-share-explanation-meta .is-error {
+  color: #b42318;
+}
+.portfolio-share-explanation-editor .portfolio-share-actions {
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+.portfolio-share-explanation-editor .portfolio-share-actions button {
+  border-radius: 6px;
+  font-size: 0.8125rem;
+}
+.portfolio-public-content {
+  margin-top: 24px;
+  gap: 32px;
+}
+.portfolio-public-main {
+  grid-template-columns: minmax(280px, 0.85fr) minmax(0, 1.85fr);
+  align-items: start;
+  gap: 40px;
+}
+.portfolio-public-main:not(:has(> .portfolio-review-result)) {
+  grid-template-columns: minmax(0, 1fr);
+}
+.portfolio-public-main:not(:has(> .portfolio-review-result)) .portfolio-public-asset-list article {
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
+  align-items: center;
+  gap: 24px;
+  padding-block: 18px;
+}
+.portfolio-public-main:not(:has(> .portfolio-review-result)) .portfolio-public-holding-metrics {
+  grid-template-columns: 0.8fr 1.2fr 0.8fr;
+  text-align: right;
+}
+.portfolio-public-assets {
+  padding: 24px;
+  border: 0;
+  border-radius: 12px;
+  background: #f6f7f9;
+}
+.portfolio-public-section-heading h2,
+.portfolio-public-main > .portfolio-review-result .portfolio-analysis-heading h2,
+.portfolio-public-review h2:not(.portfolio-review-result *) {
+  font-size: 1rem;
+  font-weight: 650;
+  line-height: 1.5;
+}
+.portfolio-public-section-heading h2 {
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.portfolio-public-section-heading .portfolio-public-count {
+  font-size: 0.8125rem;
+}
+.portfolio-public-allocation {
+  margin-block: 20px 4px;
+}
+.portfolio-public-allocation-bar {
+  height: 6px;
+  border-radius: 2px;
+}
+.portfolio-public-privacy-note {
+  margin-top: 12px;
+  font-size: 0.8125rem;
+  line-height: 1.7;
+}
+.portfolio-public-asset-list article {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+  padding-block: 20px;
+}
+.portfolio-public-asset-list article:last-child {
+  border-bottom: 0;
+  padding-bottom: 12px;
+}
+.portfolio-public-asset-list h3 {
+  font-size: 0.9375rem;
+  word-break: keep-all;
+}
+.portfolio-public-holding-metrics {
+  grid-template-columns: repeat(auto-fit, minmax(82px, 1fr));
+  gap: 12px 8px;
+  text-align: left;
+}
+.portfolio-public-holding-metrics dd {
+  font-size: 0.8125rem;
+}
+.portfolio-public-share-analyzed {
+  border-top: 1px solid #e4e7ec;
+  margin-top: 8px;
+  padding-top: 12px;
+  line-height: 1.7;
+}
+.portfolio-public-main > .portfolio-review-result {
+  padding: 0;
+  border: 0;
+  container-type: normal;
+}
+.portfolio-public-main > .portfolio-review-result .portfolio-analysis-heading {
+  margin-bottom: 20px;
+}
+.portfolio-public-main > .portfolio-review-result .portfolio-analysis-layout {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 24px;
+}
+.portfolio-public-main > .portfolio-review-result .portfolio-analysis-overview {
+  display: block;
+  padding: 0 0 16px;
+  background: transparent;
+  border-radius: 0;
+  border-bottom: 1px solid #e4e7ec;
+}
+/* The buttons retain chart selection without duplicating the holdings list. */
+.portfolio-public-main > .portfolio-review-result .portfolio-analysis-donut-wrap,
+.portfolio-public-main > .portfolio-review-result .portfolio-analysis-overview-heading,
+.portfolio-public-main > .portfolio-review-result .portfolio-weight-caption,
+.portfolio-public-main > .portfolio-review-result .portfolio-asset-analysis {
+  display: none;
+}
+.portfolio-public-main > .portfolio-review-result .portfolio-asset-selector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.portfolio-public-main > .portfolio-review-result .portfolio-asset-list {
+  display: contents;
+}
+.portfolio-public-main > .portfolio-review-result .portfolio-overall-option {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.portfolio-public-main > .portfolio-review-result .portfolio-asset-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid #e4e7ec;
+  border-radius: 6px;
+  background: #fff;
+  color: #475467;
+}
+.portfolio-public-main > .portfolio-review-result .portfolio-asset-row.is-selected {
+  border-color: #31588a;
+  background: #edf3f9;
+  color: #213e65;
+}
+.portfolio-public-main > .portfolio-review-result .portfolio-asset-row:hover:not(:disabled) {
+  background: #f2f4f7;
+}
+.portfolio-public-main > .portfolio-review-result .portfolio-asset-dot {
+  flex: 0 0 6px;
+  width: 6px;
+  height: 6px;
+}
+.portfolio-public-main > .portfolio-review-result .portfolio-asset-name {
+  display: block;
+  max-width: 180px;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+.portfolio-public-main > .portfolio-review-result .portfolio-asset-row strong {
+  min-width: 0;
+  font-size: 0.75rem;
+}
+.portfolio-public-main > .portfolio-review-result .portfolio-impact-detail {
+  padding: 0;
+}
+.portfolio-public-main > .portfolio-review-result .portfolio-detail-header {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+.portfolio-public-main > .portfolio-review-result .portfolio-detail-header h3 {
+  margin-top: 6px;
+  font-size: 1.125rem;
+  overflow-wrap: anywhere;
+}
+.portfolio-public-main > .portfolio-review-result .portfolio-detail-badge-group {
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-self: start;
+  align-items: center;
+}
+.portfolio-public-main > .portfolio-review-result .portfolio-detail-copy p {
+  font-size: 0.9375rem;
+  line-height: 1.85;
+}
+.portfolio-public-review {
+  padding-block: 24px 0;
+  gap: 12px;
+  border-top: 1px solid #d0d5dd;
+}
+.portfolio-public-review > * {
+  width: 100%;
+}
+.portfolio-public-review > * {
+  max-width: 840px;
+}
+.portfolio-public-review-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 16px;
+  margin-bottom: 0;
+}
+.portfolio-public-review-heading > h3 {
+  margin: 0;
+  color: #182230;
+  font-size: 1rem;
+  font-weight: 650;
+  line-height: 1.5;
+}
+.portfolio-public-review-heading .portfolio-public-owner-note {
+  margin: 0;
+  font-size: 0.8125rem;
+}
+.portfolio-public-review .portfolio-share-reviews > li {
+  position: relative;
+  padding-left: 44px;
+}
+.portfolio-comment-avatar {
+  position: absolute;
+  top: 20px;
+  left: 0;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #f2f4f7;
+  color: #667085;
+}
+.portfolio-share-reviews > li:first-child .portfolio-comment-avatar {
+  top: 0;
+}
+.portfolio-public-review .portfolio-share-reviews {
+  margin-top: 0;
+}
+.portfolio-public-review :is(.portfolio-review-meta, .portfolio-reply-meta) strong {
+  font-size: 0.8125rem;
+  overflow-wrap: anywhere;
+}
+.portfolio-public-review .portfolio-share-reviews li p:not(.portfolio-review-result *) {
+  margin-top: 8px;
+  font-size: 0.875rem;
+  line-height: 1.75;
+}
+.portfolio-public-review .portfolio-reply-thread > ul {
+  margin-left: 0;
+  padding-left: 20px;
+  gap: 20px;
+}
+.portfolio-public-review .portfolio-reply-thread > ul > li {
+  position: relative;
+  padding: 0;
+  background: transparent;
+}
+.portfolio-public-review
+  .portfolio-share-reviews
+  li:has(> .portfolio-reply-controls)
+  > :is(.portfolio-review-meta, .portfolio-reply-meta) {
+  padding-right: 88px;
+  min-height: 28px;
+}
+.portfolio-public-review .portfolio-reply-controls {
+  position: absolute;
+  top: 0;
+  right: 0;
+  margin-top: 0;
+  gap: 4px;
+}
+.portfolio-public-review .portfolio-reply-controls button {
+  min-height: 28px;
+  min-width: 36px;
+  padding: 4px;
+}
+.portfolio-public-review .portfolio-share-reviews > li + li > .portfolio-reply-controls {
+  top: 20px;
+}
+.portfolio-public-review .portfolio-reply-compose {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+}
+.portfolio-public-review .portfolio-reply-compose label {
+  grid-column: 1 / -1;
+  gap: 8px;
+}
+.portfolio-public-review .portfolio-reply-compose > button {
+  grid-column: 2;
+  margin: 0;
+  border-radius: 6px;
+  min-height: 36px;
+  padding: 8px 12px;
+}
+.portfolio-public-review .portfolio-reply-compose textarea {
+  min-height: 64px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  line-height: 1.6;
+}
+.portfolio-public-review .portfolio-reply-compose textarea:focus {
+  outline: none;
+  border: 0;
+  box-shadow: none;
+}
+.portfolio-public-review .portfolio-reply-actions {
+  gap: 4px 16px;
+}
+.portfolio-public-review textarea {
+  font-size: 0.9375rem;
+}
+.portfolio-public-comment-form {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid #d0d5dd;
+  border-radius: 8px;
+  background: #fff;
+}
+.portfolio-public-comment-form:focus-within {
+  outline: 2px solid #31588a;
+  outline-offset: -1px;
+}
+.portfolio-public-comment-form .portfolio-public-comment-compose textarea {
+  min-height: 96px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  outline: none;
+}
+.portfolio-public-comment-form .portfolio-public-comment-meta {
+  align-items: baseline;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+.portfolio-public-comment-form .portfolio-public-comment-meta small {
+  font-size: inherit;
+}
+.portfolio-public-comment-meta > small:last-child {
+  flex-shrink: 0;
+}
+.portfolio-public-comment-footer {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+.portfolio-public-comment-footer .portfolio-share-notice {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: #1b5e3b;
+}
+.portfolio-public-comment-footer .portfolio-share-actions {
+  margin-left: auto;
+}
+.portfolio-public-comment-footer .portfolio-share-actions button {
+  width: auto;
+  border-radius: 6px;
+  font-size: 0.8125rem;
+}
+.portfolio-public-comment-form > .portfolio-share-error {
+  margin: 0;
+  font-size: 0.8125rem;
+}
+.portfolio-public-comment-form + .portfolio-share-reviews {
+  padding-top: 12px;
+}
+.portfolio-public-review .portfolio-share-reviews > li:first-child {
+  padding-top: 0;
+}
+.portfolio-public-review .portfolio-reply-compose {
+  border: 1px solid #d0d5dd;
+  border-radius: 8px;
+  padding: 12px 16px;
+  background: #fff;
+}
+.portfolio-public-review .portfolio-reply-compose:focus-within {
+  border-color: #31588a;
+  outline: 2px solid #31588a;
+  outline-offset: -1px;
+}
+@media (max-width: 1000px) {
+  .portfolio-public-main {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 32px;
+  }
+  .portfolio-public-asset-list article {
+    grid-template-columns: minmax(0, 1fr) 300px;
+    align-items: center;
+    gap: 20px;
+  }
+}
+@media (max-width: 640px) {
+  .portfolio-public-share-page {
+    padding-block: 24px 32px;
+  }
+  .portfolio-public-share-hero {
+    padding-bottom: 24px;
+  }
+  .portfolio-public-share-owner {
+    margin-bottom: 16px;
+  }
+  .portfolio-public-expiry {
+    flex-basis: 100%;
+    margin-left: 0;
+    padding-left: 42px;
+    font-size: 0.75rem;
+  }
+  .portfolio-public-share-hero h1 {
+    font-size: 1.125rem;
+  }
+  .portfolio-public-content {
+    margin-top: 24px;
+    gap: 28px;
+  }
+  .portfolio-public-assets {
+    padding: 20px 16px;
+  }
+  .portfolio-public-asset-list article {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+    padding-block: 16px;
+  }
+  .portfolio-public-main:not(:has(> .portfolio-review-result))
+    .portfolio-public-asset-list
+    article {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+    padding-block: 16px;
+  }
+  .portfolio-public-main:not(:has(> .portfolio-review-result)) .portfolio-public-holding-metrics {
+    grid-template-columns: repeat(auto-fit, minmax(82px, 1fr));
+    text-align: left;
+  }
+  .portfolio-public-review textarea {
+    font-size: 1rem;
+  }
+  .portfolio-public-review .portfolio-reply-compose {
+    padding: 12px;
+    gap: 8px;
+  }
+  .portfolio-public-review .portfolio-reply-compose small {
+    grid-column: 1 / -1;
+  }
+  .portfolio-public-review .portfolio-reply-compose > button {
+    grid-column: 2;
+  }
+  .portfolio-public-review .portfolio-share-reviews > li {
+    padding-left: 0;
+  }
+  .portfolio-public-review .portfolio-review-meta {
+    padding-left: 44px;
+    min-height: 36px;
+  }
+  .portfolio-public-review-heading {
+    display: grid;
+    gap: 4px;
+  }
+  .portfolio-public-review .portfolio-reply-meta strong {
+    min-width: 0;
+  }
+  .portfolio-public-review .portfolio-reply-controls button {
+    min-height: 36px;
+  }
+  .portfolio-public-main > .portfolio-review-result .portfolio-asset-row {
+    padding-inline: 10px;
+  }
+  .portfolio-public-main > .portfolio-review-result .portfolio-asset-name {
+    max-width: 160px;
+  }
+}
