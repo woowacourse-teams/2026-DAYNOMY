@@ -22,6 +22,8 @@ import org.grit.daynomy.asset.domain.StockMarket;
 import org.grit.daynomy.asset.repository.AssetRepository;
 import org.grit.daynomy.asset.repository.StockDailyPriceRepository;
 import org.grit.daynomy.auth.token.JwtTokenProvider;
+import org.grit.daynomy.exchangerate.domain.UsdKrwRate;
+import org.grit.daynomy.exchangerate.repository.UsdKrwRateRepository;
 import org.grit.daynomy.market.domain.asset.ImpactDirection;
 import org.grit.daynomy.market.domain.asset.ImpactLevel;
 import org.grit.daynomy.member.domain.Member;
@@ -67,6 +69,7 @@ class PortfolioAnalysisShareAcceptanceTest extends SharedDatabaseTest {
   @Autowired PortfolioHoldingHistoryRepository holdingHistories;
   @Autowired AssetRepository assets;
   @Autowired StockDailyPriceRepository prices;
+  @Autowired UsdKrwRateRepository exchangeRates;
   @Autowired JwtTokenProvider tokens;
 
   @Test
@@ -409,6 +412,33 @@ class PortfolioAnalysisShareAcceptanceTest extends SharedDatabaseTest {
             shares.findAllByOwnerIdOrderByCreatedAtDescIdDesc(owner.getId()).stream()
                 .filter(share -> share.getAnalysisId() == null))
         .hasSize(1);
+  }
+
+  @Test
+  void createsShareForPortfolioWithUsAsset() {
+    Member owner = member("미국 종목 공유 작성자");
+    Portfolio portfolio = portfolios.save(Portfolio.create(owner));
+    String code = UUID.randomUUID().toString();
+    Asset asset =
+        assets.save(
+            Asset.listedStock(
+                "미국 공유 종목",
+                code,
+                StockMarket.NASDAQ,
+                "US" + code.replace("-", "").substring(0, 10),
+                LocalDate.now().minusDays(2)));
+    holdings.save(new PortfolioHolding(portfolio, asset, 1, new BigDecimal("100")));
+    LocalDate baseDate = LocalDate.now().minusDays(1);
+    prices.saveAndFlush(new StockDailyPrice(asset, baseDate, new BigDecimal("120")));
+    exchangeRates.saveAndFlush(
+        new UsdKrwRate(baseDate, baseDate, new BigDecimal("1400"), Instant.now()));
+
+    client(owner)
+        .body(Map.of("question", "미국 종목도 공유할 수 있어야 해요.", "assetNames", List.of("미국 공유 종목")))
+        .post(OWNER_API)
+        .then()
+        .statusCode(200)
+        .body("share.analysisId", nullValue());
   }
 
   private PortfolioAnalysis analysis(Member owner) {

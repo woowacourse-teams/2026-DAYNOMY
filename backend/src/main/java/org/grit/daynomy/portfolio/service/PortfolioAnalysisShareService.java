@@ -26,6 +26,7 @@ import org.grit.daynomy.portfolio.domain.PortfolioAnalysis;
 import org.grit.daynomy.portfolio.domain.PortfolioAnalysisComment;
 import org.grit.daynomy.portfolio.domain.PortfolioAnalysisPublicSnapshot;
 import org.grit.daynomy.portfolio.domain.PortfolioAnalysisShare;
+import org.grit.daynomy.portfolio.domain.PortfolioHolding;
 import org.grit.daynomy.portfolio.domain.PortfolioHoldingChangeType;
 import org.grit.daynomy.portfolio.dto.PortfolioAnalysisResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioAnalysisShareDto;
@@ -41,7 +42,9 @@ import org.grit.daynomy.portfolio.repository.PortfolioAnalysisShareRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioHoldingHistoryRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioHoldingRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @RequiredArgsConstructor
 @Service
@@ -60,10 +63,19 @@ public class PortfolioAnalysisShareService {
   private final MemberRepository members;
   private final PortfolioAnalysisShareRateLimiter rateLimiter;
   private final Clock clock;
+  private final PlatformTransactionManager transactionManager;
 
-  @Transactional
   public PortfolioAnalysisShareDto.CreatedResponse create(
       Long memberId, PortfolioAnalysisShareDto.CreateRequest request) {
+    var portfolio = prepareShareablePortfolio(memberId, request.analysisId() == null);
+    var transaction = new TransactionTemplate(transactionManager);
+    return transaction.execute(status -> create(memberId, request, portfolio));
+  }
+
+  private PortfolioAnalysisShareDto.CreatedResponse create(
+      Long memberId,
+      PortfolioAnalysisShareDto.CreateRequest request,
+      PreparedShareablePortfolio portfolio) {
     PortfolioAnalysis analysis =
         request.analysisId() == null
             ? null
@@ -82,11 +94,11 @@ public class PortfolioAnalysisShareService {
             .orElseThrow(() -> new BusinessException(MemberErrorCode.MEMBER_NOT_FOUND));
     Instant now = clock.instant();
     String rawToken = newToken();
-    ShareablePortfolio portfolio = shareablePortfolio(memberId, analysis == null);
+    ShareablePortfolio shareablePortfolio = shareablePortfolio(analysis == null, portfolio);
     PortfolioAnalysisPublicSnapshot publicSnapshot =
         analysis == null
-            ? portfolioSnapshot(portfolio, request.assetNames())
-            : publicSnapshot(memberId, analysis, portfolio, request.assetNames());
+            ? portfolioSnapshot(shareablePortfolio, request.assetNames())
+            : publicSnapshot(memberId, analysis, shareablePortfolio, request.assetNames());
     Optional<PortfolioAnalysisShare> existingShare =
         analysis == null
             ? shares.findFirstByOwnerIdAndAnalysisIdIsNullOrderByCreatedAtDesc(memberId)
@@ -298,11 +310,19 @@ public class PortfolioAnalysisShareService {
             () -> new BusinessException(PortfolioErrorCode.PORTFOLIO_ANALYSIS_COMMENT_NOT_FOUND));
   }
 
-  @Transactional(readOnly = true)
   public List<PortfolioAnalysisShareDto.SimulationAssetResponse> simulationAssets(
       Long memberId, Long shareId, Long commentId) {
+    readTransaction()
+        .executeWithoutResult(status -> requireSimulationAccess(memberId, shareId, commentId));
+    var portfolio = prepareShareablePortfolio(memberId, false);
+    return readTransaction()
+        .execute(status -> simulationAssets(memberId, shareId, commentId, portfolio));
+  }
+
+  private List<PortfolioAnalysisShareDto.SimulationAssetResponse> simulationAssets(
+      Long memberId, Long shareId, Long commentId, PreparedShareablePortfolio preparedPortfolio) {
     requireSimulationAccess(memberId, shareId, commentId);
-    var portfolio = shareablePortfolio(memberId, false);
+    var portfolio = shareablePortfolio(false, preparedPortfolio);
     if (portfolio.holdings().isEmpty()
         || portfolio.holdings().stream()
             .anyMatch(
@@ -512,27 +532,37 @@ public class PortfolioAnalysisShareService {
         List.of());
   }
 
-  private ShareablePortfolio shareablePortfolio(Long memberId, boolean required) {
-    var savedHoldings = holdings.findAllByPortfolioMemberId(memberId);
-    if (savedHoldings.isEmpty()) {
+  private PreparedShareablePortfolio prepareShareablePortfolio(Long memberId, boolean required) {
+    record HoldingsSnapshot(Long portfolioId, PortfolioCalculateRequest request) {}
+    var snapshot =
+        readTransaction()
+            .execute(
+                status -> {
+                  var savedHoldings = holdings.findAllByPortfolioMemberId(memberId);
+                  if (savedHoldings.isEmpty() && required) {
+                    throw new BusinessException(
+                        PortfolioErrorCode.PORTFOLIO_ANALYSIS_SHARE_INVALID_ASSETS);
+                  }
+                  return new HoldingsSnapshot(
+                      savedHoldings.isEmpty()
+                          ? null
+                          : savedHoldings.getFirst().getPortfolio().getId(),
+                      calculationRequest(savedHoldings));
+                });
+    return new PreparedShareablePortfolio(
+        snapshot.portfolioId(), snapshot.request(), calculation.preparePrices(snapshot.request()));
+  }
+
+  private ShareablePortfolio shareablePortfolio(
+      boolean required, PreparedShareablePortfolio portfolio) {
+    if (portfolio.request().holdings().isEmpty()) {
       if (required) {
         throw new BusinessException(PortfolioErrorCode.PORTFOLIO_ANALYSIS_SHARE_INVALID_ASSETS);
       }
       return new ShareablePortfolio(List.of(), Map.of());
     }
-    var calculated =
-        calculation.calculate(
-            new PortfolioCalculateRequest(
-                savedHoldings.stream()
-                    .map(
-                        holding ->
-                            new PortfolioHoldingRequest(
-                                holding.getAsset().getId(),
-                                holding.getQuantity(),
-                                holding.getAveragePurchasePrice()))
-                    .toList()));
-    Map<Long, LocalDate> firstPurchasedOn =
-        firstPurchasedOn(savedHoldings.getFirst().getPortfolio().getId());
+    var calculated = calculation.calculate(portfolio.request(), portfolio.prices());
+    Map<Long, LocalDate> firstPurchasedOn = firstPurchasedOn(portfolio.portfolioId());
     Map<String, PortfolioAnalysisPublicSnapshot.HoldingContext> details = new HashMap<>();
     for (PortfolioHoldingResponse holding : calculated.holdings()) {
       BigDecimal currentPrice =
@@ -551,6 +581,24 @@ public class PortfolioAnalysisShareService {
               holding.returnRate()));
     }
     return new ShareablePortfolio(calculated.holdings(), Map.copyOf(details));
+  }
+
+  private PortfolioCalculateRequest calculationRequest(List<PortfolioHolding> savedHoldings) {
+    return new PortfolioCalculateRequest(
+        savedHoldings.stream()
+            .map(
+                holding ->
+                    new PortfolioHoldingRequest(
+                        holding.getAsset().getId(),
+                        holding.getQuantity(),
+                        holding.getAveragePurchasePrice()))
+            .toList());
+  }
+
+  private TransactionTemplate readTransaction() {
+    var transaction = new TransactionTemplate(transactionManager);
+    transaction.setReadOnly(true);
+    return transaction;
   }
 
   private Map<Long, LocalDate> firstPurchasedOn(Long portfolioId) {
@@ -580,6 +628,11 @@ public class PortfolioAnalysisShareService {
   private record ShareablePortfolio(
       List<PortfolioHoldingResponse> holdings,
       Map<String, PortfolioAnalysisPublicSnapshot.HoldingContext> details) {}
+
+  private record PreparedShareablePortfolio(
+      Long portfolioId,
+      PortfolioCalculateRequest request,
+      PortfolioCalculationService.PreparedPrices prices) {}
 
   private static void requireAccessible(PortfolioAnalysisShare share, Instant now) {
     switch (share.status(now)) {
