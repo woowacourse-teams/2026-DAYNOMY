@@ -179,15 +179,29 @@ describe('포트폴리오 분석 의견 요청', () => {
     expect(await view.findByRole('heading', { name: '받은 의견 1개' })).toBeTruthy();
     expect(view.getByText(comment.content)).toBeTruthy();
     expect(view.queryByRole('textbox', { name: '새 댓글' })).toBeNull();
-    expect(
-      view.getByRole('textbox', { name: '리뷰어님 댓글에 답글' }).closest('details'),
-    ).toBeNull();
+    expect(view.queryByRole('textbox', { name: '리뷰어님 댓글에 답글' })).toBeNull();
+    expect(view.getByRole('button', { name: '답글 달기' }).getAttribute('aria-expanded')).toBe(
+      'false',
+    );
+    fireEvent.click(view.getByRole('button', { name: '답글 달기' }));
+    expect(document.activeElement).toBe(
+      view.getByRole('textbox', { name: '리뷰어님 댓글에 답글' }),
+    );
     expect(view.getByRole('button', { name: '답글 등록' }).hasAttribute('disabled')).toBe(true);
     fireEvent.change(view.getByRole('textbox', { name: '리뷰어님 댓글에 답글' }), {
       target: { value: reply.content },
     });
+    fireEvent.click(view.getByRole('button', { name: '답글 접기' }));
+    expect(view.queryByRole('textbox', { name: '리뷰어님 댓글에 답글' })).toBeNull();
+    fireEvent.click(view.getByRole('button', { name: '답글 달기' }));
+    expect(
+      (view.getByRole('textbox', { name: '리뷰어님 댓글에 답글' }) as HTMLTextAreaElement).value,
+    ).toBe(reply.content);
     fireEvent.click(view.getByRole('button', { name: '답글 등록' }));
     expect(await view.findByText(reply.content)).toBeTruthy();
+    expect(view.queryByRole('textbox', { name: '리뷰어님 댓글에 답글' })).toBeNull();
+    expect(document.activeElement).toBe(view.getByRole('button', { name: '답글 달기' }));
+    fireEvent.click(view.getByRole('button', { name: '답글 달기' }));
     expect(
       (view.getByRole('textbox', { name: '리뷰어님 댓글에 답글' }) as HTMLTextAreaElement).value,
     ).toBe('');
@@ -461,6 +475,7 @@ describe('포트폴리오 분석 의견 요청', () => {
     await waitFor(() => expect(view.getByRole('button', { name: '수정' })).toBeTruthy());
     expect(view.getByText('댓글을 남겼어요.')).toBeTruthy();
     const reply = '작성자 답변을 확인하고 비중 조절을 다시 생각해 볼게요.';
+    fireEvent.click(view.getByRole('button', { name: '답글 달기' }));
     fireEvent.change(view.getByRole('textbox', { name: '리뷰어님 댓글에 답글' }), {
       target: { value: reply },
     });

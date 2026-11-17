@@ -1991,6 +1991,23 @@
   gap: 4px 20px;
 }
 
+.portfolio-reply-toggle {
+  min-height: 44px;
+  border: 0;
+  padding: 8px 0;
+  background: transparent;
+  color: #344054;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.portfolio-reply-toggle:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .portfolio-reply-actions > .portfolio-reply-compose,
 .portfolio-reply-actions > .portfolio-review-simulation:has(.portfolio-review-simulation-editor) {
   flex-basis: 100%;
