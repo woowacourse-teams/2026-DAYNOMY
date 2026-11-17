@@ -334,12 +334,12 @@ function SimulationEditor({ shareId, comment, id }: Props & { id: string }) {
                 {pending ? '임시 구성 분석 중…' : '이 구성으로 포트폴리오 분석'}
               </button>
             </div>
+            {pending ? (
+              <div role="status" className="portfolio-simulation-progress">
+                분석 중이에요. 결과가 나올 때까지 잠시 기다려 주세요.
+              </div>
+            ) : null}
           </div>
-          {pending ? (
-            <p role="status" className="portfolio-simulation-progress">
-              분석 중이에요. 결과가 나올 때까지 잠시 기다려 주세요.
-            </p>
-          ) : null}
         </form>
       ) : (
         <button type="button" onClick={() => setAttempt(attempt + 1)}>

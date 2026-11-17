@@ -1009,7 +1009,12 @@
 }
 
 .portfolio-simulation-progress {
-  grid-column: 1 / -1;
+  flex-basis: 100%;
+  border-top: 1px solid #e4e9f0;
+  padding-top: 12px;
+  color: #31588a;
+  font-size: 0.8125rem;
+  line-height: 1.6;
 }
 
 .portfolio-simulation-table .portfolio-simulation-edit-weight {
