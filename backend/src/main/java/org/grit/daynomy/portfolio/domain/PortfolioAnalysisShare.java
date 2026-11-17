@@ -17,12 +17,14 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.grit.daynomy.common.BaseEntity;
 import org.grit.daynomy.member.domain.Member;
+import org.hibernate.annotations.DynamicUpdate;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Entity
+@DynamicUpdate
 @Table(
     name = "portfolio_analysis_shares",
     uniqueConstraints = @UniqueConstraint(columnNames = {"owner_member_id", "analysis_id"}))
@@ -41,6 +43,12 @@ public class PortfolioAnalysisShare extends BaseEntity {
 
   @Column(nullable = false, length = 200)
   private String question;
+
+  @Column(name = "additional_explanation", length = 2000)
+  private String additionalExplanation;
+
+  @Column(name = "additional_explanation_updated_at")
+  private Instant additionalExplanationUpdatedAt;
 
   @Column(name = "token_hash", nullable = false, unique = true, length = 64)
   private String tokenHash;
@@ -95,6 +103,15 @@ public class PortfolioAnalysisShare extends BaseEntity {
 
   public void revoke(Instant now) {
     if (revokedAt == null) revokedAt = Objects.requireNonNull(now);
+  }
+
+  public void updateAdditionalExplanation(String content, Instant now) {
+    String normalized = Objects.requireNonNull(content).strip();
+    if (normalized.length() > 2000 || containsMarkup(normalized)) {
+      throw new IllegalArgumentException("추가 설명은 2000자 이하의 일반 텍스트여야 합니다.");
+    }
+    this.additionalExplanation = normalized.isEmpty() ? null : normalized;
+    this.additionalExplanationUpdatedAt = normalized.isEmpty() ? null : Objects.requireNonNull(now);
   }
 
   public Status status(Instant now) {

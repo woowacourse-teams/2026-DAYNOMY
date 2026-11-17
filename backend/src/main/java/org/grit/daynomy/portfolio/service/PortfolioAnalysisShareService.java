@@ -133,6 +133,17 @@ public class PortfolioAnalysisShareService {
   }
 
   @Transactional
+  public PortfolioAnalysisShareDto.OwnerResponse updateExplanation(
+      Long memberId, Long shareId, PortfolioAnalysisShareDto.ExplanationRequest request) {
+    rateLimiter.acquireWrite(memberId);
+    PortfolioAnalysisShare share = ownedShare(memberId, shareId);
+    Instant now = clock.instant();
+    requireAccessible(share, now);
+    share.updateAdditionalExplanation(request.content(), now);
+    return ownerResponse(share, now);
+  }
+
+  @Transactional
   public PortfolioAnalysisShareDto.OwnerResponse revoke(Long memberId, Long shareId) {
     PortfolioAnalysisShare share = ownedShare(memberId, shareId);
     Instant now = clock.instant();
@@ -167,6 +178,8 @@ public class PortfolioAnalysisShareService {
     return new PortfolioAnalysisShareDto.PublicResponse(
         share.getOwner().getNickname(),
         share.getQuestion(),
+        share.getAdditionalExplanation(),
+        share.getAdditionalExplanationUpdatedAt(),
         share.getExpiresAt(),
         PortfolioAnalysisShareDto.SnapshotResponse.from(share.getSnapshot()),
         viewerMemberId != null && !share.getOwner().getId().equals(viewerMemberId),
@@ -372,6 +385,8 @@ public class PortfolioAnalysisShareService {
         share.getId(),
         share.getAnalysisId(),
         share.getQuestion(),
+        share.getAdditionalExplanation(),
+        share.getAdditionalExplanationUpdatedAt(),
         share.status(now),
         share.getExpiresAt(),
         share.getCreatedAt(),

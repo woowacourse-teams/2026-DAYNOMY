@@ -26,6 +26,25 @@ class PortfolioAnalysisShareTest {
   }
 
   @Test
+  void explanationCanBeUpdatedClearedAndRetainedWhenRenewing() {
+    var share = share();
+    share.updateAdditionalExplanation("  장기 투자 목적입니다.\n분산도 함께 고민하고 있어요.  ", NOW);
+    assertThat(share.getAdditionalExplanation()).isEqualTo("장기 투자 목적입니다.\n분산도 함께 고민하고 있어요.");
+    assertThat(share.getAdditionalExplanationUpdatedAt()).isEqualTo(NOW);
+
+    share.renew("어때?", "b".repeat(64), snapshot(), NOW.plusSeconds(100));
+    assertThat(share.getAdditionalExplanation()).startsWith("장기 투자");
+    assertThatThrownBy(() -> share.updateAdditionalExplanation("a".repeat(2001), NOW))
+        .isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> share.updateAdditionalExplanation("<b>설명</b>", NOW))
+        .isInstanceOf(IllegalArgumentException.class);
+
+    share.updateAdditionalExplanation(" \n ", NOW);
+    assertThat(share.getAdditionalExplanation()).isNull();
+    assertThat(share.getAdditionalExplanationUpdatedAt()).isNull();
+  }
+
+  @Test
   void acceptsAShortQuestion() {
     var share = share();
 

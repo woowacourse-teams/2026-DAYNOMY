@@ -2,6 +2,7 @@ package org.grit.daynomy.portfolio.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
@@ -38,10 +39,16 @@ public final class PortfolioAnalysisShareDto {
 
   public record CreatedResponse(OwnerResponse share, String token) {}
 
+  public record ExplanationRequest(
+      @NotNull @Size(max = 2000) @Pattern(regexp = "^[^<>]*$", message = "HTML 형식은 입력할 수 없습니다.")
+          String content) {}
+
   public record OwnerResponse(
       Long id,
       Long analysisId,
       String question,
+      String additionalExplanation,
+      Instant additionalExplanationUpdatedAt,
       PortfolioAnalysisShare.Status status,
       Instant expiresAt,
       Instant createdAt,
@@ -58,6 +65,8 @@ public final class PortfolioAnalysisShareDto {
   public record PublicResponse(
       String ownerNickname,
       String question,
+      String additionalExplanation,
+      Instant additionalExplanationUpdatedAt,
       Instant expiresAt,
       SnapshotResponse analysis,
       boolean canComment,

@@ -263,6 +263,111 @@ class PortfolioAnalysisShareAcceptanceTest extends SharedDatabaseTest {
   }
 
   @Test
+  void ownerPublishesExplanationWithoutExposingPrivateComments() {
+    Member owner = member("추가 설명 작성자");
+    Member reviewer = member("비공개 댓글 작성자");
+    PortfolioAnalysis analysis = analysis(owner);
+    var created =
+        client(owner)
+            .body(
+                Map.of(
+                    "analysisId",
+                    analysis.getId(),
+                    "question",
+                    "장기 투자에 대한 의견이 궁금해요.",
+                    "assetNames",
+                    List.of("삼성전자")))
+            .post(OWNER_API)
+            .then()
+            .statusCode(200)
+            .extract();
+    String token = created.path("token");
+    int shareId = created.path("share.id");
+    String explanationApi = OWNER_API + "/" + shareId + "/explanation";
+    client(reviewer)
+        .body(Map.of("content", "다른 방문자에게 보이면 안 되는 의견"))
+        .header(SHARE_TOKEN_HEADER, token)
+        .post(PUBLIC_API + "/comments")
+        .then()
+        .statusCode(200);
+
+    client(reviewer)
+        .body(Map.of("content", "다른 사람의 설명 변경"))
+        .put(explanationApi)
+        .then()
+        .statusCode(404);
+    var anonymousCsrf = given().port(port).get("/api/auth/csrf");
+    given()
+        .port(port)
+        .contentType("application/json")
+        .cookies(anonymousCsrf.cookies())
+        .header(
+            anonymousCsrf.jsonPath().getString("headerName"),
+            anonymousCsrf.jsonPath().getString("token"))
+        .body(Map.of("content", "비회원 변경"))
+        .put(explanationApi)
+        .then()
+        .statusCode(401);
+    client(owner)
+        .body(Map.of("content", "<b>허용하지 않는 형식</b>"))
+        .put(explanationApi)
+        .then()
+        .statusCode(400);
+    client(owner)
+        .body(Map.of("content", "a".repeat(2001)))
+        .put(explanationApi)
+        .then()
+        .statusCode(400);
+    client(owner).body(Map.of()).put(explanationApi).then().statusCode(400);
+
+    client(owner)
+        .body(Map.of("content", "  3년 이상 투자할 계획입니다.\n비중 조절도 검토하고 있어요.  "))
+        .put(explanationApi)
+        .then()
+        .statusCode(200)
+        .body("additionalExplanation", equalTo("3년 이상 투자할 계획입니다.\n비중 조절도 검토하고 있어요."));
+    given()
+        .port(port)
+        .header(SHARE_TOKEN_HEADER, token)
+        .get(PUBLIC_API)
+        .then()
+        .statusCode(200)
+        .body("additionalExplanation", equalTo("3년 이상 투자할 계획입니다.\n비중 조절도 검토하고 있어요."))
+        .body("ownerShare", nullValue())
+        .body("myComments", hasSize(0));
+    client(reviewer)
+        .header(SHARE_TOKEN_HEADER, token)
+        .get(PUBLIC_API)
+        .then()
+        .statusCode(200)
+        .body("additionalExplanation", equalTo("3년 이상 투자할 계획입니다.\n비중 조절도 검토하고 있어요."))
+        .body("myComments", hasSize(1));
+
+    client(owner)
+        .body(Map.of("content", "수정된 투자 배경"))
+        .put(explanationApi)
+        .then()
+        .statusCode(200)
+        .body("additionalExplanation", equalTo("수정된 투자 배경"));
+    client(owner)
+        .body(Map.of("content", ""))
+        .put(explanationApi)
+        .then()
+        .statusCode(200)
+        .body("additionalExplanation", nullValue());
+    given()
+        .port(port)
+        .header(SHARE_TOKEN_HEADER, token)
+        .get(PUBLIC_API)
+        .then()
+        .statusCode(200)
+        .body("additionalExplanation", nullValue())
+        .body("additionalExplanationUpdatedAt", nullValue());
+    client(owner).post(OWNER_API + "/" + shareId + "/revoke").then().statusCode(200);
+    client(owner).body(Map.of("content", "중단된 공유 변경")).put(explanationApi).then().statusCode(410);
+  }
+
+  @Test
   void revokedLinkStopsPublicAccessButKeepsCommentsForTheOwner() {
     Member owner = member("작성자");
     Member reviewer = member("리뷰어");
