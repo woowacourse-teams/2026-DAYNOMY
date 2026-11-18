@@ -97,6 +97,30 @@ tasks.register<JavaExec>("portfolio1000Loadtest") {
     maxHeapSize = "512m"
 }
 
+tasks.register<Test>("newsPublishConnectionBenchmark") {
+    description = "Compares DB connection usage before and after news publish transaction splitting"
+    group = "verification"
+    testClassesDirs = sourceSets.test.get().output.classesDirs
+    classpath = sourceSets.test.get().runtimeClasspath
+    useJUnitPlatform()
+    filter {
+        includeTestsMatching("org.grit.daynomy.news.service.NewsPublishConnectionBenchmarkTest")
+    }
+    environment("NEWS_PUBLISH_BENCHMARK", "true")
+}
+
+tasks.register<Test>("newsPublishOpenAiBenchmark") {
+    description = "Measures sequential and parallel news publish analysis with the real OpenAI API"
+    group = "verification"
+    testClassesDirs = sourceSets.test.get().output.classesDirs
+    classpath = sourceSets.test.get().runtimeClasspath
+    useJUnitPlatform()
+    filter {
+        includeTestsMatching("org.grit.daynomy.news.service.NewsPublishOpenAiBenchmarkTest")
+    }
+    environment("NEWS_PUBLISH_OPENAI_BENCHMARK", "true")
+}
+
 spotless {
     java {
         googleJavaFormat()
