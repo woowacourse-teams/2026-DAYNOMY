@@ -110,7 +110,7 @@ tasks.register<Test>("newsPublishConnectionBenchmark") {
 }
 
 tasks.register<Test>("newsPublishOpenAiBenchmark") {
-    description = "Measures sequential and parallel news publish analysis with the real OpenAI API"
+    description = "Measures sequential and parallel news publishing with the real OpenAI API and database"
     group = "verification"
     testClassesDirs = sourceSets.test.get().output.classesDirs
     classpath = sourceSets.test.get().runtimeClasspath

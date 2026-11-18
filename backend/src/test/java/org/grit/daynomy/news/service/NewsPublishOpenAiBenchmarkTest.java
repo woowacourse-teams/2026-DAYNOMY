@@ -6,19 +6,25 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
 import org.grit.daynomy.keyword.ai.KeywordAiClient;
+import org.grit.daynomy.keyword.domain.NewsKeyword;
+import org.grit.daynomy.keyword.service.KeywordService;
 import org.grit.daynomy.market.ai.MarketAnalysisAiClient;
+import org.grit.daynomy.market.domain.analysis.NewsMarketAnalysis;
+import org.grit.daynomy.market.service.MarketAnalysisService;
+import org.grit.daynomy.news.domain.Category;
+import org.grit.daynomy.news.domain.News;
+import org.grit.daynomy.news.domain.NewsSourceInfo;
+import org.grit.daynomy.news.repository.NewsRepository;
 import org.grit.daynomy.support.SharedDatabaseTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @EnabledIfEnvironmentVariable(named = "NEWS_PUBLISH_OPENAI_BENCHMARK", matches = "true")
 @ActiveProfiles("test")
@@ -34,29 +40,30 @@ class NewsPublishOpenAiBenchmarkTest extends SharedDatabaseTest {
       시장에서는 기준금리 인하 시점에 대한 전망이 엇갈렸어요. 일부 참여자는 물가 둔화가 이어지면 완화 가능성이 커질 것으로 봤지만, 다른 참여자는 환율과 가계대출 흐름을 더 확인해야 한다고 평가했어요.
       """;
 
+  @Autowired private AdminNewsService adminNewsService;
+  @Autowired private NewsRepository newsRepository;
   @Autowired private KeywordAiClient keywordAiClient;
   @Autowired private MarketAnalysisAiClient marketAnalysisAiClient;
-
-  @Autowired
-  @Qualifier("newsPublishAiExecutor")
-  private Executor executor;
+  @Autowired private KeywordService keywordService;
+  @Autowired private MarketAnalysisService marketAnalysisService;
+  @Autowired private PlatformTransactionManager transactionManager;
 
   @Test
-  void measureRealOpenAiCalls() throws Exception {
+  void measureRealNewsPublish() {
     List<Measurement> sequential = new ArrayList<>();
     List<Measurement> parallel = new ArrayList<>();
 
-    sequential.add(measureSequential());
-    parallel.add(measureParallel());
-    parallel.add(measureParallel());
-    sequential.add(measureSequential());
+    sequential.add(measureSequentialPublish());
+    parallel.add(measureParallelPublish());
+    parallel.add(measureParallelPublish());
+    sequential.add(measureSequentialPublish());
 
     long sequentialAverage = averageTotal(sequential);
     long parallelAverage = averageTotal(parallel);
     String report = report(sequential, parallel, sequentialAverage, parallelAverage);
 
-    assertThat(sequential).allSatisfy(Measurement::assertSuccessful);
-    assertThat(parallel).allSatisfy(Measurement::assertSuccessful);
+    assertThat(sequential).allSatisfy(this::assertPublished);
+    assertThat(parallel).allSatisfy(this::assertPublished);
 
     Path reportPath = Path.of("build/reports/news-publish-openai-benchmark.txt");
     Files.createDirectories(reportPath.getParent());
@@ -64,28 +71,50 @@ class NewsPublishOpenAiBenchmarkTest extends SharedDatabaseTest {
     System.out.println(report);
   }
 
-  private Measurement measureSequential() {
+  private Measurement measureSequentialPublish() {
+    Long newsId = createDraft();
     long startedAt = System.nanoTime();
-    Timed<?> keywords = measure(() -> keywordAiClient.extractKeywords(CONTENT));
-    Timed<?> market = measure(() -> marketAnalysisAiClient.analyze(CONTENT));
-    return new Measurement(keywords, market, elapsedMillis(startedAt));
+    publishSequentially(newsId);
+    return new Measurement(newsId, elapsedMillis(startedAt));
   }
 
-  private Measurement measureParallel() throws Exception {
+  private Measurement measureParallelPublish() {
+    Long newsId = createDraft();
     long startedAt = System.nanoTime();
-    CompletableFuture<Timed<?>> keywords =
-        CompletableFuture.supplyAsync(
-            () -> measure(() -> keywordAiClient.extractKeywords(CONTENT)), executor);
-    CompletableFuture<Timed<?>> market =
-        CompletableFuture.supplyAsync(
-            () -> measure(() -> marketAnalysisAiClient.analyze(CONTENT)), executor);
-    return new Measurement(keywords.get(), market.get(), elapsedMillis(startedAt));
+    adminNewsService.publish(newsId);
+    return new Measurement(newsId, elapsedMillis(startedAt));
   }
 
-  private Timed<?> measure(Supplier<?> request) {
-    long startedAt = System.nanoTime();
-    Object result = request.get();
-    return new Timed<>(result, elapsedMillis(startedAt));
+  private Long createDraft() {
+    return new TransactionTemplate(transactionManager)
+        .execute(
+            status ->
+                newsRepository
+                    .save(
+                        News.createDraft(
+                            "뉴스 발행 실측",
+                            CONTENT,
+                            null,
+                            List.of(
+                                new NewsSourceInfo(
+                                    "벤치마크", "https://benchmark.invalid/news/publish")),
+                            Category.STOCK))
+                    .getId());
+  }
+
+  private void publishSequentially(Long newsId) {
+    new TransactionTemplate(transactionManager)
+        .executeWithoutResult(
+            status -> {
+              News news = newsRepository.findById(newsId).orElseThrow();
+              List<NewsKeyword> keywords = keywordAiClient.extractKeywords(news.getContent());
+              NewsMarketAnalysis marketAnalysis =
+                  marketAnalysisAiClient.analyze(news.getContent());
+              keywordService.saveKeywords(news, keywords);
+              marketAnalysisService.saveMarketAnalysis(news, marketAnalysis);
+              newsRepository.flush();
+              news.publish();
+            });
   }
 
   private long averageTotal(List<Measurement> measurements) {
@@ -100,17 +129,10 @@ class NewsPublishOpenAiBenchmarkTest extends SharedDatabaseTest {
       long parallelAverage) {
     return """
         model=%s
-        sequential_round_1_keyword_ms=%d
-        sequential_round_1_market_ms=%d
+        measurement_scope=service_publish_with_database
         sequential_round_1_total_ms=%d
-        sequential_round_2_keyword_ms=%d
-        sequential_round_2_market_ms=%d
         sequential_round_2_total_ms=%d
-        parallel_round_1_keyword_ms=%d
-        parallel_round_1_market_ms=%d
         parallel_round_1_total_ms=%d
-        parallel_round_2_keyword_ms=%d
-        parallel_round_2_market_ms=%d
         parallel_round_2_total_ms=%d
         sequential_average_total_ms=%d
         parallel_average_total_ms=%d
@@ -119,17 +141,9 @@ class NewsPublishOpenAiBenchmarkTest extends SharedDatabaseTest {
         """
         .formatted(
             System.getenv().getOrDefault("OPENAI_MODEL", "gpt-5-mini"),
-            sequential.get(0).keywords().durationMs(),
-            sequential.get(0).market().durationMs(),
             sequential.get(0).totalMs(),
-            sequential.get(1).keywords().durationMs(),
-            sequential.get(1).market().durationMs(),
             sequential.get(1).totalMs(),
-            parallel.get(0).keywords().durationMs(),
-            parallel.get(0).market().durationMs(),
             parallel.get(0).totalMs(),
-            parallel.get(1).keywords().durationMs(),
-            parallel.get(1).market().durationMs(),
             parallel.get(1).totalMs(),
             sequentialAverage,
             parallelAverage,
@@ -141,12 +155,9 @@ class NewsPublishOpenAiBenchmarkTest extends SharedDatabaseTest {
     return TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt);
   }
 
-  private record Timed<T>(T result, long durationMs) {}
-
-  private record Measurement(Timed<?> keywords, Timed<?> market, long totalMs) {
-    void assertSuccessful() {
-      assertThat(keywords.result()).isNotNull();
-      assertThat(market.result()).isNotNull();
-    }
+  private void assertPublished(Measurement measurement) {
+    assertThat(newsRepository.findById(measurement.newsId()).orElseThrow().isPublished()).isTrue();
   }
+
+  private record Measurement(Long newsId, long totalMs) {}
 }
