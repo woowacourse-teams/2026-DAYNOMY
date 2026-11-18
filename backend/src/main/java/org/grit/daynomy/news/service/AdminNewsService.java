@@ -295,7 +295,7 @@ public class AdminNewsService {
   public News update(Long id, AdminNewsUpdateRequest request, MultipartFile image) {
     News news =
         newsRepository
-            .findById(id)
+            .findByIdForUpdate(id)
             .orElseThrow(() -> new BusinessException(NewsErrorCode.NEWS_NOT_FOUND));
     boolean shouldRegenerateAnalysis =
         news.isPublished() && !news.getContent().equals(request.content());

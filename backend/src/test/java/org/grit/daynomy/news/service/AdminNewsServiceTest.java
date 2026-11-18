@@ -978,7 +978,7 @@ class AdminNewsServiceTest {
             new ImageSourceRequest("Pexels", "https://pexels.com/photo/example"));
     MockMultipartFile image =
         new MockMultipartFile("image", "new.png", MediaType.IMAGE_PNG_VALUE, new byte[] {4, 5, 6});
-    given(newsRepository.findById(1L)).willReturn(Optional.of(news));
+    given(newsRepository.findByIdForUpdate(1L)).willReturn(Optional.of(news));
     given(s3ImageStorage.upload(any(), eq("png"), eq(MediaType.IMAGE_PNG_VALUE)))
         .willReturn(
             new S3ImageStorage.StoredImage("new-image.png", "https://example.com/new-image.png"));
@@ -1036,7 +1036,7 @@ class AdminNewsServiceTest {
             null,
             null,
             List.of());
-    given(newsRepository.findById(1L)).willReturn(Optional.of(news));
+    given(newsRepository.findByIdForUpdate(1L)).willReturn(Optional.of(news));
 
     TransactionSynchronizationManager.initSynchronization();
     try {
@@ -1068,7 +1068,7 @@ class AdminNewsServiceTest {
     List<NewsKeyword> keywords =
         List.of(new NewsKeyword(KeywordCategory.POLICY, "금리 인하", "포인트 1", "포인트 2", "포인트 3"));
     NewsMarketAnalysis marketAnalysis = new NewsMarketAnalysis("수정된 시장 분석 결과");
-    given(newsRepository.findById(1L)).willReturn(Optional.of(news));
+    given(newsRepository.findByIdForUpdate(1L)).willReturn(Optional.of(news));
     given(keywordAiClient.extractKeywords("수정 본문")).willReturn(keywords);
     given(marketAnalysisAiClient.analyze("수정 본문")).willReturn(marketAnalysis);
 
@@ -1114,7 +1114,7 @@ class AdminNewsServiceTest {
                 "수정 저작자",
                 "CC BY-SA 4.0",
                 "https://creativecommons.org/licenses/by-sa/4.0/"));
-    given(newsRepository.findById(1L)).willReturn(Optional.of(news));
+    given(newsRepository.findByIdForUpdate(1L)).willReturn(Optional.of(news));
 
     TransactionSynchronizationManager.initSynchronization();
     try {
@@ -1153,7 +1153,7 @@ class AdminNewsServiceTest {
     List<NewsKeyword> keywords =
         List.of(new NewsKeyword(KeywordCategory.POLICY, "금리 인하", "포인트 1", "포인트 2", "포인트 3"));
     RuntimeException failure = new RuntimeException("market analysis generation failed");
-    given(newsRepository.findById(1L)).willReturn(Optional.of(news));
+    given(newsRepository.findByIdForUpdate(1L)).willReturn(Optional.of(news));
     given(keywordAiClient.extractKeywords("수정 본문")).willReturn(keywords);
     given(marketAnalysisAiClient.analyze("수정 본문")).willThrow(failure);
 
@@ -1181,7 +1181,7 @@ class AdminNewsServiceTest {
             "기존 본문",
             List.of(new NewsSourceRequest("직접 입력", "https://example.com/new")),
             Category.ETF);
-    given(newsRepository.findById(1L)).willReturn(Optional.of(news));
+    given(newsRepository.findByIdForUpdate(1L)).willReturn(Optional.of(news));
 
     TransactionSynchronizationManager.initSynchronization();
     News updatedNews = adminNewsService.update(1L, request, null);
@@ -1215,7 +1215,7 @@ class AdminNewsServiceTest {
         new MockMultipartFile("image", "new.png", MediaType.IMAGE_PNG_VALUE, new byte[] {4, 5, 6});
     S3ImageStorage.StoredImage uploadedImage =
         new S3ImageStorage.StoredImage("new-image.png", "https://example.com/new-image.png");
-    given(newsRepository.findById(1L)).willReturn(Optional.of(news));
+    given(newsRepository.findByIdForUpdate(1L)).willReturn(Optional.of(news));
     given(s3ImageStorage.upload(any(), eq("png"), eq(MediaType.IMAGE_PNG_VALUE)))
         .willReturn(uploadedImage);
     org.mockito.BDDMockito.willThrow(new RuntimeException("database update failed"))
@@ -1232,7 +1232,7 @@ class AdminNewsServiceTest {
   @Test
   @DisplayName("존재하지 않는 뉴스 수정 요청은 예외를 던진다")
   void updateNewsThrowsWhenNewsIsMissing() {
-    given(newsRepository.findById(1L)).willReturn(Optional.empty());
+    given(newsRepository.findByIdForUpdate(1L)).willReturn(Optional.empty());
 
     assertThatThrownBy(
             () ->

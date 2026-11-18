@@ -2,6 +2,7 @@ package org.grit.daynomy.news.repository;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import jakarta.persistence.LockModeType;
 import java.util.List;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
@@ -90,5 +91,7 @@ class NewsRepositoryTest extends SharedDatabaseTest {
     var found = newsRepository.findByIdForUpdate(draft.getId());
 
     assertThat(found).isPresent().get().extracting(News::getTitle).isEqualTo("초안 뉴스");
+    assertThat(entityManager.getEntityManager().getLockMode(found.orElseThrow()))
+        .isEqualTo(LockModeType.PESSIMISTIC_WRITE);
   }
 }
