@@ -49,7 +49,7 @@ class NewsPublishOpenAiBenchmarkTest extends SharedDatabaseTest {
   @Autowired private PlatformTransactionManager transactionManager;
 
   @Test
-  void measureRealNewsPublish() {
+  void measureRealNewsPublish() throws Exception {
     List<Measurement> sequential = new ArrayList<>();
     List<Measurement> parallel = new ArrayList<>();
 
@@ -108,8 +108,7 @@ class NewsPublishOpenAiBenchmarkTest extends SharedDatabaseTest {
             status -> {
               News news = newsRepository.findById(newsId).orElseThrow();
               List<NewsKeyword> keywords = keywordAiClient.extractKeywords(news.getContent());
-              NewsMarketAnalysis marketAnalysis =
-                  marketAnalysisAiClient.analyze(news.getContent());
+              NewsMarketAnalysis marketAnalysis = marketAnalysisAiClient.analyze(news.getContent());
               keywordService.saveKeywords(news, keywords);
               marketAnalysisService.saveMarketAnalysis(news, marketAnalysis);
               newsRepository.flush();
