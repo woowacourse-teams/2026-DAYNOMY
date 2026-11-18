@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.external.ExternalErrorCode;
 import org.grit.daynomy.keyword.ai.KeywordAiClient;
@@ -30,10 +31,21 @@ public class NewsPublishAiService {
   }
 
   Analysis analyze(String content) {
-    CompletableFuture<List<NewsKeyword>> keywords =
-        CompletableFuture.supplyAsync(() -> keywordAiClient.extractKeywords(content), executor);
-    CompletableFuture<NewsMarketAnalysis> marketAnalysis =
-        CompletableFuture.supplyAsync(() -> marketAnalysisAiClient.analyze(content), executor);
+    CompletableFuture<List<NewsKeyword>> keywords;
+    CompletableFuture<NewsMarketAnalysis> marketAnalysis;
+    try {
+      keywords =
+          CompletableFuture.supplyAsync(() -> keywordAiClient.extractKeywords(content), executor);
+      try {
+        marketAnalysis =
+            CompletableFuture.supplyAsync(() -> marketAnalysisAiClient.analyze(content), executor);
+      } catch (RejectedExecutionException exception) {
+        keywords.cancel(true);
+        throw exception;
+      }
+    } catch (RejectedExecutionException exception) {
+      throw new BusinessException(ExternalErrorCode.AI_NEWS_GENERATION_FAILED);
+    }
 
     try {
       CompletableFuture.allOf(keywords, marketAnalysis).get();
