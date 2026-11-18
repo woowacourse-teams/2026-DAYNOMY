@@ -1,11 +1,9 @@
-.portfolio-analysis-share-trigger {
-  border: 1px solid #cfd9ea;
-  border-radius: 10px;
-  background: #fff;
-  color: #31588a;
-  padding: 10px 14px;
-  font-weight: 700;
-  cursor: pointer;
+.portfolio-page .portfolio-analysis-button.portfolio-analysis-share-trigger {
+  justify-content: center;
+  gap: 6px;
+  border-color: #d0d5dd;
+  color: #475467;
+  padding-inline: 14px;
 }
 
 .portfolio-analysis-actions {
@@ -378,6 +376,10 @@
 }
 
 @media (max-width: 640px) {
+  .portfolio-analysis-heading:has(.portfolio-analysis-share-trigger:only-child) {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
   .portfolio-analysis-actions {
     width: 100%;
     justify-content: stretch;

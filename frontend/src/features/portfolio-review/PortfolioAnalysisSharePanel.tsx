@@ -86,13 +86,14 @@ export function PortfolioAnalysisSharePanel({
   return (
     <>
       <button
-        className="portfolio-analysis-share-trigger"
+        className="portfolio-analysis-button portfolio-analysis-share-trigger"
         type="button"
         onClick={() => {
           trackEvent('portfolio_analysis_share_opened', { surface: 'portfolio_analysis' });
           setOpen(true);
         }}
       >
+        <LinkSimpleIcon size={16} aria-hidden="true" />
         의견 받기
       </button>
       {open ? (
