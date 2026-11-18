@@ -233,6 +233,18 @@
     overflow: hidden;
   }
 
+  .portfolio-review-result .portfolio-asset-list {
+    max-height: 168px;
+  }
+
+  .portfolio-review-result .portfolio-asset-name {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
+  }
+
   .portfolio-review-result .portfolio-detail-header {
     grid-template-columns: minmax(0, 1fr);
     gap: 12px;

@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useId, useRef, useState, type ReactNode } from 'react';
 import { ApiError } from '../../api/client';
 import { deletePortfolioAnalysisReply, updatePortfolioAnalysisReply } from './api';
 import type { PortfolioAnalysisComment } from './types';
@@ -35,6 +35,9 @@ export function PortfolioAnalysisReplyThread({
   onChange: (comment: PortfolioAnalysisComment) => void;
   reviewAction?: ReactNode;
 }) {
+  const composeId = useId();
+  const toggleRef = useRef<HTMLButtonElement>(null);
+  const [composing, setComposing] = useState(false);
   const [draft, setDraft] = useState('');
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editingContent, setEditingContent] = useState('');
@@ -48,6 +51,8 @@ export function PortfolioAnalysisReplyThread({
     try {
       onChange(await createReply(draft.trim()));
       setDraft('');
+      setComposing(false);
+      toggleRef.current?.focus();
     } catch (caught) {
       setError(caught instanceof ApiError ? caught.message : '답글을 저장하지 못했어요.');
     } finally {
@@ -158,12 +163,26 @@ export function PortfolioAnalysisReplyThread({
 
       <div className="portfolio-reply-actions">
         {canReply ? (
-          <div className="portfolio-reply-compose">
+          <button
+            ref={toggleRef}
+            type="button"
+            className="portfolio-reply-toggle"
+            aria-expanded={composing}
+            aria-controls={composing ? composeId : undefined}
+            onClick={() => setComposing((current) => !current)}
+          >
+            {composing ? '답글 접기' : '답글 달기'}
+          </button>
+        ) : null}
+        {reviewAction}
+        {canReply && composing ? (
+          <div id={composeId} className="portfolio-reply-compose">
             <label>
-              <span>{comment.authorNickname}님에게 답글</span>
+              <span>답글 남기기</span>
               <textarea
+                autoFocus
                 aria-label={`${comment.authorNickname}님 댓글에 답글`}
-                rows={3}
+                rows={2}
                 maxLength={MAX_REPLY_LENGTH}
                 value={draft}
                 onChange={(event) => setDraft(event.target.value)}
@@ -180,7 +199,6 @@ export function PortfolioAnalysisReplyThread({
             </button>
           </div>
         ) : null}
-        {reviewAction}
       </div>
       {error ? (
         <p className="portfolio-share-error" role="alert">

@@ -25,6 +25,8 @@ export type PortfolioAnalysisOwnerShare = {
   id: number;
   analysisId: number | null;
   question: string;
+  additionalExplanation: string | null;
+  additionalExplanationUpdatedAt: string | null;
   status: PortfolioAnalysisShareStatus;
   expiresAt: string;
   createdAt: string;
@@ -52,6 +54,8 @@ export type PortfolioAnalysisPublicImpact = PortfolioAssetImpactResponse & {
 export type PortfolioAnalysisPublicShare = {
   ownerNickname: string;
   question: string;
+  additionalExplanation: string | null;
+  additionalExplanationUpdatedAt: string | null;
   expiresAt: string;
   analysis: Omit<PortfolioAnalysisResponse, 'impacts'> & {
     allAssetsShared: boolean;

@@ -38,6 +38,8 @@ const ownerShare = {
   id: 3,
   analysisId: 7,
   question: '반도체 비중이 너무 높은지 의견을 듣고 싶어요.',
+  additionalExplanation: null,
+  additionalExplanationUpdatedAt: null,
   status: 'ACTIVE',
   expiresAt: '2026-11-19T00:00:00Z',
   createdAt: '2026-11-12T00:00:00Z',
@@ -49,6 +51,8 @@ const ownerShare = {
 const publicShare = {
   ownerNickname: '작성자',
   question: ownerShare.question,
+  additionalExplanation: null,
+  additionalExplanationUpdatedAt: null,
   expiresAt: ownerShare.expiresAt,
   canComment: false,
   myComments: [],
@@ -115,6 +119,119 @@ afterEach(() => {
 
 describe('포트폴리오 분석 의견 요청', () => {
   it.each([
+    { additionalExplanation: undefined, additionalExplanationUpdatedAt: undefined },
+    { additionalExplanation: 123, additionalExplanationUpdatedAt: comment.updatedAt },
+    { additionalExplanation: '설명', additionalExplanationUpdatedAt: null },
+    { additionalExplanation: null, additionalExplanationUpdatedAt: comment.updatedAt },
+    { additionalExplanation: '설명', additionalExplanationUpdatedAt: 'invalid-date' },
+    { additionalExplanation: '', additionalExplanationUpdatedAt: comment.updatedAt },
+    { additionalExplanation: 'a'.repeat(2001), additionalExplanationUpdatedAt: comment.updatedAt },
+  ])('잘못된 공개 설명 응답을 거부한다', async (explanation) => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(response({ ...publicShare, ...explanation }))
+      .mockResolvedValueOnce(
+        response({ ...publicShare, ownerShare: { ...ownerShare, ...explanation } }),
+      );
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(getPublicPortfolioAnalysisShare('test-token')).rejects.toThrow(
+      '공유된 분석 응답 형식이 올바르지 않습니다.',
+    );
+    await expect(getPublicPortfolioAnalysisShare('test-token')).rejects.toThrow(
+      '공유된 분석 응답 형식이 올바르지 않습니다.',
+    );
+  });
+
+  it('비회원에게 공개 설명을 질문 아래 표시하고 댓글과 분리한다', async () => {
+    const explanation = '3년 이상 투자할 계획입니다.\n분산도 함께 고민하고 있어요.';
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() =>
+        Promise.resolve(
+          response({
+            ...publicShare,
+            additionalExplanation: explanation,
+            additionalExplanationUpdatedAt: comment.updatedAt,
+          }),
+        ),
+      ),
+    );
+    const view = render(
+      <MemoryRouter initialEntries={['/portfolio/analysis/share#test-token']}>
+        <AuthContext.Provider
+          value={{ isLoggedIn: false, memberId: null, loading: false, role: null }}
+        >
+          <PortfolioAnalysisSharePage />
+        </AuthContext.Provider>
+      </MemoryRouter>,
+    );
+    const section = await view.findByRole('region', { name: '작성자 추가 설명' });
+    expect(section.textContent).toContain(explanation);
+    expect(section.closest('.portfolio-public-share-hero')).not.toBeNull();
+    expect(view.queryByRole('button', { name: '설명 수정' })).toBeNull();
+    expect(view.queryByText(comment.content)).toBeNull();
+  });
+
+  it('관리 창에서 공개 설명을 작성하고 실패 시 유지하며 수정하거나 내릴 수 있다', async () => {
+    let attempts = 0;
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith('/api/auth/csrf'))
+        return Promise.resolve(response({ headerName: 'X-XSRF-TOKEN', token: 'csrf' }));
+      if (url.endsWith('/api/users/me/portfolio/analysis/shares') && !init?.method)
+        return Promise.resolve(response([ownerShare]));
+      if (
+        url.endsWith('/api/users/me/portfolio/analysis/shares/3/explanation') &&
+        init?.method === 'PUT'
+      ) {
+        attempts += 1;
+        if (attempts === 1)
+          return Promise.resolve(
+            response({ code: 'INTERNAL_SERVER_ERROR', message: '저장 실패' }, 500),
+          );
+        const content = JSON.parse(String(init.body)).content;
+        return Promise.resolve(
+          response({
+            ...ownerShare,
+            additionalExplanation: content || null,
+            additionalExplanationUpdatedAt: content ? comment.updatedAt : null,
+          }),
+        );
+      }
+      throw new Error(`unexpected request: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const view = render(<PortfolioAnalysisSharePanel analysisId={7} assets={analysisAssets} />);
+    fireEvent.click(view.getByRole('button', { name: '의견 받기' }));
+    fireEvent.click(await view.findByRole('button', { name: '설명 추가' }));
+    expect(view.getByText('링크를 가진 모든 사람에게 공개돼요.')).toBeTruthy();
+    const input = view.getByRole('textbox', { name: '추가 설명 내용' });
+    expect(view.getByRole('button', { name: '추가 설명 공개' }).hasAttribute('disabled')).toBe(
+      true,
+    );
+    fireEvent.change(input, { target: { value: '<잘못된 설명>' } });
+    expect(view.getByRole('button', { name: '추가 설명 공개' }).hasAttribute('disabled')).toBe(
+      true,
+    );
+    fireEvent.change(input, { target: { value: '장기 투자 목적입니다.' } });
+    fireEvent.click(view.getByRole('button', { name: '추가 설명 공개' }));
+    await view.findByRole('alert');
+    expect((input as HTMLTextAreaElement).value).toBe('장기 투자 목적입니다.');
+    fireEvent.click(view.getByRole('button', { name: '추가 설명 공개' }));
+    expect(await view.findByText('공유 페이지에 추가 설명을 공개했어요.')).toBeTruthy();
+    expect(view.getByText('장기 투자 목적입니다.')).toBeTruthy();
+    expect(view.queryByRole('textbox', { name: '추가 설명 내용' })).toBeNull();
+    fireEvent.click(view.getByRole('button', { name: '설명 수정' }));
+    fireEvent.change(view.getByRole('textbox', { name: '추가 설명 내용' }), {
+      target: { value: '' },
+    });
+    fireEvent.click(view.getByRole('button', { name: '설명 내리기' }));
+    expect(await view.findByText('추가 설명을 내렸어요.')).toBeTruthy();
+    expect(view.getByRole('button', { name: '설명 추가' })).toBeTruthy();
+    expect(attempts).toBe(3);
+  });
+
+  it.each([
     undefined,
     'invalid',
     {},
@@ -179,15 +296,29 @@ describe('포트폴리오 분석 의견 요청', () => {
     expect(await view.findByRole('heading', { name: '받은 의견 1개' })).toBeTruthy();
     expect(view.getByText(comment.content)).toBeTruthy();
     expect(view.queryByRole('textbox', { name: '새 댓글' })).toBeNull();
-    expect(
-      view.getByRole('textbox', { name: '리뷰어님 댓글에 답글' }).closest('details'),
-    ).toBeNull();
+    expect(view.queryByRole('textbox', { name: '리뷰어님 댓글에 답글' })).toBeNull();
+    expect(view.getByRole('button', { name: '답글 달기' }).getAttribute('aria-expanded')).toBe(
+      'false',
+    );
+    fireEvent.click(view.getByRole('button', { name: '답글 달기' }));
+    expect(document.activeElement).toBe(
+      view.getByRole('textbox', { name: '리뷰어님 댓글에 답글' }),
+    );
     expect(view.getByRole('button', { name: '답글 등록' }).hasAttribute('disabled')).toBe(true);
     fireEvent.change(view.getByRole('textbox', { name: '리뷰어님 댓글에 답글' }), {
       target: { value: reply.content },
     });
+    fireEvent.click(view.getByRole('button', { name: '답글 접기' }));
+    expect(view.queryByRole('textbox', { name: '리뷰어님 댓글에 답글' })).toBeNull();
+    fireEvent.click(view.getByRole('button', { name: '답글 달기' }));
+    expect(
+      (view.getByRole('textbox', { name: '리뷰어님 댓글에 답글' }) as HTMLTextAreaElement).value,
+    ).toBe(reply.content);
     fireEvent.click(view.getByRole('button', { name: '답글 등록' }));
     expect(await view.findByText(reply.content)).toBeTruthy();
+    expect(view.queryByRole('textbox', { name: '리뷰어님 댓글에 답글' })).toBeNull();
+    expect(document.activeElement).toBe(view.getByRole('button', { name: '답글 달기' }));
+    fireEvent.click(view.getByRole('button', { name: '답글 달기' }));
     expect(
       (view.getByRole('textbox', { name: '리뷰어님 댓글에 답글' }) as HTMLTextAreaElement).value,
     ).toBe('');
@@ -455,16 +586,51 @@ describe('포트폴리오 분석 의견 요청', () => {
     );
 
     const textarea = await view.findByRole('textbox', { name: '새 댓글' });
+    expect(view.queryByRole('link', { name: '의견 남기기' })).toBeNull();
+    fireEvent.change(textarea, { target: { value: '한' } });
+    expect(view.getByText('의견은 2자 이상 입력해 주세요.')).toBeTruthy();
+    expect(view.getByRole('button', { name: '의견 남기기' }).hasAttribute('disabled')).toBe(true);
+    fireEvent.change(textarea, { target: { value: '<의견>' } });
+    expect(view.getByText('< 또는 > 문자는 사용할 수 없어요.')).toBeTruthy();
     fireEvent.change(textarea, { target: { value: comment.content } });
     fireEvent.click(view.getByRole('button', { name: '의견 남기기' }));
 
     await waitFor(() => expect(view.getByRole('button', { name: '수정' })).toBeTruthy());
     expect(view.getByText('댓글을 남겼어요.')).toBeTruthy();
+    fireEvent.change(textarea, { target: { value: '새로운 의견' } });
+    expect(view.queryByText('댓글을 남겼어요.')).toBeNull();
+    fireEvent.click(view.getByRole('button', { name: '수정' }));
+    fireEvent.change(view.getByRole('textbox', { name: '댓글 수정' }), {
+      target: { value: '<수정>' },
+    });
+    expect(view.getByText('< 또는 > 문자는 사용할 수 없어요.')).toBeTruthy();
+    expect(view.getByRole('button', { name: '수정 저장' }).hasAttribute('disabled')).toBe(true);
+    fireEvent.click(view.getByRole('button', { name: '취소' }));
     const reply = '작성자 답변을 확인하고 비중 조절을 다시 생각해 볼게요.';
+    fireEvent.click(view.getByRole('button', { name: '답글 달기' }));
     fireEvent.change(view.getByRole('textbox', { name: '리뷰어님 댓글에 답글' }), {
       target: { value: reply },
     });
     fireEvent.click(view.getByRole('button', { name: '답글 등록' }));
     expect(await view.findByText(reply)).toBeTruthy();
+  });
+
+  it('댓글을 남길 수 없는 회원에게 작성 폼 대신 의견 안내를 표시한다', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(response(publicShare))),
+    );
+    const view = render(
+      <MemoryRouter initialEntries={['/portfolio/analysis/share#raw-share-token']}>
+        <AuthContext.Provider
+          value={{ isLoggedIn: true, memberId: 22, loading: false, role: 'USER' }}
+        >
+          <PortfolioAnalysisSharePage />
+        </AuthContext.Provider>
+      </MemoryRouter>,
+    );
+
+    expect(await view.findByText(/이 링크에서는 의견을 남길 수 없어요/)).toBeTruthy();
+    expect(view.queryByRole('textbox', { name: '새 댓글' })).toBeNull();
   });
 });

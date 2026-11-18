@@ -37,6 +37,8 @@ class PortfolioAnalysisShareVisibilityTest {
     when(shares.findByTokenHash(anyString())).thenReturn(Optional.of(share));
     when(share.getId()).thenReturn(10L);
     when(share.getOwner()).thenReturn(owner);
+    when(share.getAdditionalExplanation()).thenReturn("링크를 가진 모두에게 공개하는 투자 배경");
+    when(share.getAdditionalExplanationUpdatedAt()).thenReturn(now);
     when(owner.getId()).thenReturn(1L);
     when(share.status(now)).thenReturn(PortfolioAnalysisShare.Status.ACTIVE);
     when(share.getSnapshot())
@@ -65,6 +67,8 @@ class PortfolioAnalysisShareVisibilityTest {
             Clock.fixed(now, ZoneOffset.UTC),
             null);
     var response = service.getPublic("test-token", viewerId, "127.0.0.1");
+    assertThat(response.additionalExplanation()).isEqualTo("링크를 가진 모두에게 공개하는 투자 배경");
+    assertThat(response.additionalExplanationUpdatedAt()).isEqualTo(now);
     if (Long.valueOf(1).equals(viewerId)) {
       assertThat(response.ownerShare().id()).isEqualTo(10L);
       assertThat(response.ownerShare().comments())

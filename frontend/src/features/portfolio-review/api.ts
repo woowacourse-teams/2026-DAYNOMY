@@ -74,12 +74,23 @@ function hasHoldingContext(value: unknown) {
   return isRecord(value) && (value.holding === null || isHoldingContext(value.holding));
 }
 
+function hasValidExplanation(value: Record<string, unknown>) {
+  return (
+    (value.additionalExplanation === null && value.additionalExplanationUpdatedAt === null) ||
+    (typeof value.additionalExplanation === 'string' &&
+      value.additionalExplanation.trim().length > 0 &&
+      value.additionalExplanation.length <= 2000 &&
+      isDate(value.additionalExplanationUpdatedAt))
+  );
+}
+
 function isOwnerShare(value: unknown): value is PortfolioAnalysisOwnerShare {
   return (
     isRecord(value) &&
     Number.isSafeInteger(value.id) &&
     (value.analysisId === null || Number.isSafeInteger(value.analysisId)) &&
     typeof value.question === 'string' &&
+    hasValidExplanation(value) &&
     typeof value.status === 'string' &&
     ['ACTIVE', 'EXPIRED', 'REVOKED'].includes(value.status) &&
     isDate(value.expiresAt) &&
@@ -111,6 +122,7 @@ function requirePublicShare(value: unknown): PortfolioAnalysisPublicShare {
     !isRecord(value) ||
     typeof value.ownerNickname !== 'string' ||
     typeof value.question !== 'string' ||
+    !hasValidExplanation(value) ||
     !isDate(value.expiresAt) ||
     !isRecord(value.analysis) ||
     typeof value.analysis.allAssetsShared !== 'boolean' ||
@@ -154,6 +166,19 @@ export async function revokePortfolioAnalysisShare(shareId: number) {
     { method: 'POST' },
   );
   if (!isOwnerShare(response)) throw new Error('공유 중단 응답 형식이 올바르지 않습니다.');
+  return response;
+}
+
+export async function updatePortfolioShareExplanation(shareId: number, content: string) {
+  const response = await requestWithCsrf<unknown>(
+    `/api/users/me/portfolio/analysis/shares/${shareId}/explanation`,
+    {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ content }),
+    },
+  );
+  if (!isOwnerShare(response)) throw new Error('추가 설명 응답 형식이 올바르지 않습니다.');
   return response;
 }
 

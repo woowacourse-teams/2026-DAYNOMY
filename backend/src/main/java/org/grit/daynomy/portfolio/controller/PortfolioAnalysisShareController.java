@@ -78,6 +78,15 @@ public class PortfolioAnalysisShareController {
     return service.revoke(member.memberId(), shareId);
   }
 
+  @Operation(summary = "공유 링크의 공개 추가 설명 수정 (작성자 전용, 빈 내용은 설명 내리기)")
+  @PutMapping("/api/users/me/portfolio/analysis/shares/{shareId}/explanation")
+  public PortfolioAnalysisShareDto.OwnerResponse updateExplanation(
+      @AuthenticationPrincipal AuthenticatedMember member,
+      @Positive @PathVariable Long shareId,
+      @Valid @RequestBody PortfolioAnalysisShareDto.ExplanationRequest request) {
+    return service.updateExplanation(member.memberId(), shareId, request);
+  }
+
   @Operation(summary = "내 분석 결과 의견 요청과 받은 의견 영구 삭제")
   @DeleteMapping("/api/users/me/portfolio/analysis/shares/{shareId}")
   public ResponseEntity<Void> delete(
