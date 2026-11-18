@@ -89,7 +89,8 @@ class NewsPublishOpenAiBenchmarkTest extends SharedDatabaseTest {
   }
 
   private long averageTotal(List<Measurement> measurements) {
-    return Math.round(measurements.stream().mapToLong(Measurement::totalMs).average().orElseThrow());
+    return Math.round(
+        measurements.stream().mapToLong(Measurement::totalMs).average().orElseThrow());
   }
 
   private String report(

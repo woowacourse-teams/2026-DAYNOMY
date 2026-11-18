@@ -231,9 +231,7 @@ public class AdminNewsService {
     NewsPublishAiService.Analysis analysis = newsPublishAiService.analyze(target.content());
 
     return new TransactionTemplate(transactionManager)
-        .execute(
-            status ->
-                completePublish(target, analysis.keywords(), analysis.marketAnalysis()));
+        .execute(status -> completePublish(target, analysis.keywords(), analysis.marketAnalysis()));
   }
 
   private PublishTarget findPublishTarget(Long id) {

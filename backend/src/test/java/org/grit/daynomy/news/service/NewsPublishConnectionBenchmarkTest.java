@@ -167,8 +167,7 @@ class NewsPublishConnectionBenchmarkTest extends SharedDatabaseTest {
                                         null,
                                         List.of(
                                             new NewsSourceInfo(
-                                                "벤치마크",
-                                                "https://benchmark.invalid/news/" + index)),
+                                                "벤치마크", "https://benchmark.invalid/news/" + index)),
                                         Category.STOCK))
                             .toList())
                     .stream()
@@ -251,12 +250,7 @@ class NewsPublishConnectionBenchmarkTest extends SharedDatabaseTest {
       }
       sleep(delayMillis);
       return List.of(
-          new NewsKeyword(
-              KeywordCategory.POLICY,
-              "벤치마크",
-              "벤치마크 정의",
-              "벤치마크 맥락",
-              "벤치마크 관찰점"));
+          new NewsKeyword(KeywordCategory.POLICY, "벤치마크", "벤치마크 정의", "벤치마크 맥락", "벤치마크 관찰점"));
     }
   }
 

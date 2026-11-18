@@ -58,8 +58,7 @@ class NewsPublishAiServiceTest {
   void aiFailureIsPropagatedAfterBothCallsFinish() {
     RuntimeException failure = new RuntimeException("keyword failed");
     given(keywordAiClient.extractKeywords("뉴스 본문")).willThrow(failure);
-    given(marketAnalysisAiClient.analyze("뉴스 본문"))
-        .willReturn(new NewsMarketAnalysis("시장 분석"));
+    given(marketAnalysisAiClient.analyze("뉴스 본문")).willReturn(new NewsMarketAnalysis("시장 분석"));
 
     try (var executor = Executors.newFixedThreadPool(2)) {
       var service = new NewsPublishAiService(keywordAiClient, marketAnalysisAiClient, executor);
