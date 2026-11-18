@@ -4,8 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -56,6 +58,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -66,6 +69,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
@@ -97,6 +101,10 @@ class AdminNewsServiceTest {
   @Mock private MarketAnalysisService marketAnalysisService;
 
   @Mock private AssetContentService assetContentService;
+
+  @Mock private PlatformTransactionManager transactionManager;
+
+  @Mock private NewsPublishAiService newsPublishAiService;
 
   @InjectMocks private AdminNewsService adminNewsService;
 
@@ -717,11 +725,12 @@ class AdminNewsServiceTest {
             List.of(new NewsSourceInfo("직접 입력", "https://example.com/news/1")),
             Category.STOCK);
     given(newsRepository.findById(1L)).willReturn(Optional.of(news));
+    given(newsRepository.findByIdForUpdate(1L)).willReturn(Optional.of(news));
     List<NewsKeyword> keywords =
         List.of(new NewsKeyword(KeywordCategory.POLICY, "금리 인하", "포인트 1", "포인트 2", "포인트 3"));
     NewsMarketAnalysis marketAnalysis = new NewsMarketAnalysis("시장 분석 결과");
-    given(keywordAiClient.extractKeywords("뉴스 본문")).willReturn(keywords);
-    given(marketAnalysisAiClient.analyze("뉴스 본문")).willReturn(marketAnalysis);
+    given(newsPublishAiService.analyze("뉴스 본문"))
+        .willReturn(new NewsPublishAiService.Analysis(keywords, marketAnalysis));
 
     TransactionSynchronizationManager.initSynchronization();
     News publishedNews = adminNewsService.publish(1L);
@@ -729,12 +738,20 @@ class AdminNewsServiceTest {
     assertThat(publishedNews).isSameAs(news);
     assertThat(publishedNews.getStatus()).isEqualTo(NewsStatus.PUBLISHED);
     assertThat(publishedNews.getPublishedAt()).isNotNull();
-    verify(keywordAiClient).extractKeywords("뉴스 본문");
-    verify(marketAnalysisAiClient).analyze("뉴스 본문");
+    verify(newsPublishAiService).analyze("뉴스 본문");
     verify(keywordService).saveKeywords(news, keywords);
     verify(marketAnalysisService).saveMarketAnalysis(news, marketAnalysis);
     verify(newsRepository).flush();
     assertThat(appender.list).isEmpty();
+
+    InOrder transactions = inOrder(transactionManager, newsRepository, newsPublishAiService);
+    transactions.verify(transactionManager).getTransaction(any());
+    transactions.verify(newsRepository).findById(1L);
+    transactions.verify(transactionManager).commit(isNull());
+    transactions.verify(newsPublishAiService).analyze("뉴스 본문");
+    transactions.verify(transactionManager).getTransaction(any());
+    transactions.verify(newsRepository).findByIdForUpdate(1L);
+    transactions.verify(transactionManager).commit(isNull());
 
     commitTransaction();
     ILoggingEvent log = assertCompletionLog(LogEvent.NEWS_PUBLISH_COMPLETED);
@@ -755,8 +772,9 @@ class AdminNewsServiceTest {
         List.of(new NewsKeyword(KeywordCategory.POLICY, "금리 인하", "포인트 1", "포인트 2", "포인트 3"));
     NewsMarketAnalysis marketAnalysis = new NewsMarketAnalysis("시장 분석 결과");
     given(newsRepository.findById(1L)).willReturn(Optional.of(news));
-    given(keywordAiClient.extractKeywords("뉴스 본문")).willReturn(keywords);
-    given(marketAnalysisAiClient.analyze("뉴스 본문")).willReturn(marketAnalysis);
+    given(newsRepository.findByIdForUpdate(1L)).willReturn(Optional.of(news));
+    given(newsPublishAiService.analyze("뉴스 본문"))
+        .willReturn(new NewsPublishAiService.Analysis(keywords, marketAnalysis));
     org.mockito.BDDMockito.willThrow(new DataIntegrityViolationException("duplicate news_id"))
         .given(newsRepository)
         .flush();
@@ -800,7 +818,79 @@ class AdminNewsServiceTest {
         .isEqualTo(NewsErrorCode.NEWS_NOT_DRAFT);
 
     verifyNoInteractions(
-        keywordAiClient, marketAnalysisAiClient, keywordService, marketAnalysisService);
+        newsPublishAiService,
+        keywordAiClient,
+        marketAnalysisAiClient,
+        keywordService,
+        marketAnalysisService);
+  }
+
+  @Test
+  @DisplayName("AI 분석 중 뉴스 본문이 변경되면 발행 결과를 저장하지 않는다")
+  void publishNewsRejectsContentChangedDuringAnalysis() {
+    News original =
+        News.createDraft(
+            "초안 뉴스",
+            "기존 본문",
+            null,
+            List.of(new NewsSourceInfo("직접 입력", "https://example.com/news/1")),
+            Category.STOCK);
+    News changed =
+        News.createDraft(
+            "초안 뉴스",
+            "수정된 본문",
+            null,
+            List.of(new NewsSourceInfo("직접 입력", "https://example.com/news/1")),
+            Category.STOCK);
+    List<NewsKeyword> keywords =
+        List.of(new NewsKeyword(KeywordCategory.POLICY, "금리 인하", "포인트 1", "포인트 2", "포인트 3"));
+    NewsMarketAnalysis marketAnalysis = new NewsMarketAnalysis("시장 분석 결과");
+    given(newsRepository.findById(1L)).willReturn(Optional.of(original));
+    given(newsRepository.findByIdForUpdate(1L)).willReturn(Optional.of(changed));
+    given(newsPublishAiService.analyze("기존 본문"))
+        .willReturn(new NewsPublishAiService.Analysis(keywords, marketAnalysis));
+
+    assertThatThrownBy(() -> adminNewsService.publish(1L))
+        .isInstanceOf(BusinessException.class)
+        .extracting(exception -> ((BusinessException) exception).errorCode())
+        .isEqualTo(NewsErrorCode.NEWS_NOT_DRAFT);
+
+    assertThat(changed.getStatus()).isEqualTo(NewsStatus.DRAFT);
+    verifyNoInteractions(keywordService, marketAnalysisService);
+  }
+
+  @Test
+  @DisplayName("AI 분석 중 뉴스 상태가 변경되면 발행 결과를 저장하지 않는다")
+  void publishNewsRejectsStatusChangedDuringAnalysis() {
+    News original =
+        News.createDraft(
+            "초안 뉴스",
+            "뉴스 본문",
+            null,
+            List.of(new NewsSourceInfo("직접 입력", "https://example.com/news/1")),
+            Category.STOCK);
+    News published =
+        News.createPublished(
+            "발행 뉴스",
+            "뉴스 본문",
+            null,
+            List.of(new NewsSourceInfo("직접 입력", "https://example.com/news/1")),
+            Category.STOCK,
+            java.time.Instant.now());
+    List<NewsKeyword> keywords =
+        List.of(new NewsKeyword(KeywordCategory.POLICY, "금리 인하", "포인트 1", "포인트 2", "포인트 3"));
+    NewsMarketAnalysis marketAnalysis = new NewsMarketAnalysis("시장 분석 결과");
+    given(newsRepository.findById(1L)).willReturn(Optional.of(original));
+    given(newsRepository.findByIdForUpdate(1L)).willReturn(Optional.of(published));
+    given(newsPublishAiService.analyze("뉴스 본문"))
+        .willReturn(new NewsPublishAiService.Analysis(keywords, marketAnalysis));
+
+    assertThatThrownBy(() -> adminNewsService.publish(1L))
+        .isInstanceOf(BusinessException.class)
+        .extracting(exception -> ((BusinessException) exception).errorCode())
+        .isEqualTo(NewsErrorCode.NEWS_NOT_DRAFT);
+
+    verifyNoInteractions(keywordService, marketAnalysisService);
   }
 
   @Test
@@ -850,8 +940,8 @@ class AdminNewsServiceTest {
   }
 
   @Test
-  @DisplayName("키워드 추출에 실패하면 뉴스는 초안 상태로 유지한다")
-  void publishNewsKeepsDraftWhenKeywordExtractionFails() {
+  @DisplayName("AI 분석에 실패하면 뉴스는 초안 상태로 유지한다")
+  void publishNewsKeepsDraftWhenAiAnalysisFails() {
     News news =
         News.createDraft(
             "초안 뉴스",
@@ -860,13 +950,13 @@ class AdminNewsServiceTest {
             List.of(new NewsSourceInfo("직접 입력", "https://example.com/news/1")),
             Category.STOCK);
     given(newsRepository.findById(1L)).willReturn(Optional.of(news));
-    RuntimeException failure = new RuntimeException("keyword extraction failed");
-    given(keywordAiClient.extractKeywords("뉴스 본문")).willThrow(failure);
+    RuntimeException failure = new RuntimeException("AI analysis failed");
+    given(newsPublishAiService.analyze("뉴스 본문")).willThrow(failure);
 
     assertThatThrownBy(() -> adminNewsService.publish(1L)).isSameAs(failure);
 
     assertThat(news.getStatus()).isEqualTo(NewsStatus.DRAFT);
-    verifyNoInteractions(marketAnalysisAiClient, keywordService, marketAnalysisService);
+    verifyNoInteractions(keywordService, marketAnalysisService);
   }
 
   @Test

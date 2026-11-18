@@ -40,9 +40,12 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
 @Slf4j
@@ -63,6 +66,8 @@ public class AdminNewsService {
   private final KeywordService keywordService;
   private final MarketAnalysisService marketAnalysisService;
   private final AssetContentService assetContentService;
+  private final PlatformTransactionManager transactionManager;
+  private final NewsPublishAiService newsPublishAiService;
 
   @Transactional
   public News createDraft(AdminNewsCreateRequest request, MultipartFile image) {
@@ -217,8 +222,21 @@ public class AdminNewsService {
         && content[11] == 'P';
   }
 
-  @Transactional
+  @Transactional(propagation = Propagation.NOT_SUPPORTED)
   public News publish(Long id) {
+    var read = new TransactionTemplate(transactionManager);
+    read.setReadOnly(true);
+    PublishTarget target = read.execute(status -> findPublishTarget(id));
+
+    NewsPublishAiService.Analysis analysis = newsPublishAiService.analyze(target.content());
+
+    return new TransactionTemplate(transactionManager)
+        .execute(
+            status ->
+                completePublish(target, analysis.keywords(), analysis.marketAnalysis()));
+  }
+
+  private PublishTarget findPublishTarget(Long id) {
     News news =
         newsRepository
             .findById(id)
@@ -228,8 +246,19 @@ public class AdminNewsService {
       throw new BusinessException(NewsErrorCode.NEWS_NOT_DRAFT);
     }
 
-    List<NewsKeyword> keywords = keywordAiClient.extractKeywords(news.getContent());
-    NewsMarketAnalysis marketAnalysis = marketAnalysisAiClient.analyze(news.getContent());
+    return new PublishTarget(id, news.getContent());
+  }
+
+  private News completePublish(
+      PublishTarget target, List<NewsKeyword> keywords, NewsMarketAnalysis marketAnalysis) {
+    News news =
+        newsRepository
+            .findByIdForUpdate(target.id())
+            .orElseThrow(() -> new BusinessException(NewsErrorCode.NEWS_NOT_FOUND));
+    if (!news.isDraft() || !news.getContent().equals(target.content())) {
+      throw new BusinessException(NewsErrorCode.NEWS_NOT_DRAFT);
+    }
+
     keywordService.saveKeywords(news, keywords);
     try {
       marketAnalysisService.saveMarketAnalysis(news, marketAnalysis);
@@ -483,4 +512,6 @@ public class AdminNewsService {
   }
 
   private record ImageUpload(S3ImageStorage.StoredImage storedImage, ImageSourceInfo source) {}
+
+  private record PublishTarget(Long id, String content) {}
 }

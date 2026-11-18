@@ -72,4 +72,23 @@ class NewsRepositoryTest extends SharedDatabaseTest {
         .containsExactlyInAnyOrder("초안 주식 뉴스", "발행 주식 뉴스");
     assertThat(draftStockNews.getContent()).extracting(News::getTitle).containsExactly("초안 주식 뉴스");
   }
+
+  @Test
+  @DisplayName("발행 직전 뉴스는 쓰기 잠금으로 조회한다")
+  void findNewsForUpdate() {
+    News draft =
+        entityManager.persist(
+            News.createDraft(
+                "초안 뉴스",
+                "본문",
+                null,
+                List.of(new NewsSourceInfo("직접 입력", "https://example.com/draft")),
+                Category.STOCK));
+    entityManager.flush();
+    entityManager.clear();
+
+    var found = newsRepository.findByIdForUpdate(draft.getId());
+
+    assertThat(found).isPresent().get().extracting(News::getTitle).isEqualTo("초안 뉴스");
+  }
 }
