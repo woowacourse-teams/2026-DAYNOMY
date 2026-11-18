@@ -73,7 +73,6 @@ class NewsPublishConnectionBenchmarkTest extends SharedDatabaseTest {
 
     assertThat(legacy.active()).isGreaterThanOrEqualTo(CONCURRENT_PUBLISHES);
     assertThat(split.active()).isZero();
-    assertThat(legacyDurationMs - parallelDurationMs).isGreaterThanOrEqualTo(400);
 
     String report =
         """

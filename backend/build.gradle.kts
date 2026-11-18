@@ -107,6 +107,7 @@ tasks.register<Test>("newsPublishConnectionBenchmark") {
         includeTestsMatching("org.grit.daynomy.news.service.NewsPublishConnectionBenchmarkTest")
     }
     environment("NEWS_PUBLISH_BENCHMARK", "true")
+    outputs.upToDateWhen { false }
 }
 
 tasks.register<Test>("newsPublishOpenAiBenchmark") {
@@ -119,6 +120,7 @@ tasks.register<Test>("newsPublishOpenAiBenchmark") {
         includeTestsMatching("org.grit.daynomy.news.service.NewsPublishOpenAiBenchmarkTest")
     }
     environment("NEWS_PUBLISH_OPENAI_BENCHMARK", "true")
+    outputs.upToDateWhen { false }
 }
 
 spotless {

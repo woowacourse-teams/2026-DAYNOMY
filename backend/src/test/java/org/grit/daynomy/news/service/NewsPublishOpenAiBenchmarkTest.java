@@ -21,6 +21,7 @@ import org.grit.daynomy.support.SharedDatabaseTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -47,6 +48,9 @@ class NewsPublishOpenAiBenchmarkTest extends SharedDatabaseTest {
   @Autowired private KeywordService keywordService;
   @Autowired private MarketAnalysisService marketAnalysisService;
   @Autowired private PlatformTransactionManager transactionManager;
+
+  @Value("${ai.openai.model:gpt-5-mini}")
+  private String model;
 
   @Test
   void measureRealNewsPublish() throws Exception {
@@ -129,6 +133,8 @@ class NewsPublishOpenAiBenchmarkTest extends SharedDatabaseTest {
     return """
         model=%s
         measurement_scope=service_publish_with_database
+        sequential_path=legacy_single_transaction_sequential_ai
+        parallel_path=split_transaction_parallel_ai
         sequential_round_1_total_ms=%d
         sequential_round_2_total_ms=%d
         parallel_round_1_total_ms=%d
@@ -139,7 +145,7 @@ class NewsPublishOpenAiBenchmarkTest extends SharedDatabaseTest {
         average_reduction_percent=%.1f
         """
         .formatted(
-            System.getenv().getOrDefault("OPENAI_MODEL", "gpt-5-mini"),
+            model,
             sequential.get(0).totalMs(),
             sequential.get(1).totalMs(),
             parallel.get(0).totalMs(),
