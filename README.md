@@ -223,7 +223,7 @@ DAYNOMY는 4명의 개발자가 기획부터 프론트엔드, 백엔드, 테스�
 ├── frontend/         # React 웹 애플리케이션
 ├── monitoring/       # 메트릭·로그·트레이싱 및 알림 설정
 ├── loadtest/         # k6 부하 테스트
-├── docs/             # 접근성·부하 테스트 등 공통 문서
+├── docs/             # 투자리그·검색·부하 테스트 등 공통 문서
 ├── .github/          # CI/CD 워크플로
 └── scripts/          # 저장소 공통 스크립트
 ```
@@ -277,6 +277,8 @@ npm run build
 - [백엔드 ADR](./backend/docs/adr)
 - [프론트엔드 ADR](./frontend/docs/adr)
 - [모니터링 운영 문서](./monitoring/docs)
+- [투자리그 문서](./docs/league/README.md)
+- [검색 문서](./docs/search/README.md)
 - [부하 테스트 문서](./docs/loadtest)
 - [팀 개발 규칙](./AGENTS.md)
 
