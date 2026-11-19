@@ -33,7 +33,7 @@ public class OpenAiNewsWriter {
   private static final String RETRY_INSTRUCTION =
       """
 
-제공된 조사 자료를 바탕으로 본문을 처음부터 다시 작성하라. 조사 자료에 없는 사실을 추가하지 말고, 각 본문은 공백 포함 900~1,100자를 목표로 800~1,500자 범위를 반드시 지켜라. 반환 전 각 본문의 글자 수를 확인하고, 4~6개 문단과 해라체를 정확히 지키며 시장 분석·전망·투자 의견을 제외하라.
+제공된 조사 자료를 바탕으로 제목과 본문을 처음부터 다시 작성하라. 조사 자료에 없는 사실을 추가하지 말고, 핵심 주체와 사건이 드러나는 제목을 작성하라. 조건부 발언과 주장·확인 여부를 유지하고, 본문은 중요한 사실부터 배치하는 해라체 기사 문장으로 작성하라. 같은 사실, 출처 설명, 작성 범위와 미확정 사항을 반복해 분량을 채우지 말고 시장 분석·전망·투자 의견을 제외하라.
 """;
 
   private final OpenAiProperties openAiProperties;
@@ -245,6 +245,8 @@ public class OpenAiNewsWriter {
                         false,
                         "properties",
                         Map.of(
+                            "title",
+                            Map.of("type", "string"),
                             "content",
                             Map.of("type", "string"),
                             "industries",
@@ -256,7 +258,7 @@ public class OpenAiNewsWriter {
                                 "maxItems",
                                 industries.size())),
                         "required",
-                        List.of("content", "industries")))),
+                        List.of("title", "content", "industries")))),
             "required",
             List.of("articles")));
   }
@@ -276,21 +278,18 @@ public class OpenAiNewsWriter {
       Set<String> activeIndustryCodes =
           industries.stream().map(Industry::getCode).collect(java.util.stream.Collectors.toSet());
       for (int index = 0; index < articles.size(); index++) {
+        String title = articles.get(index).path("title").asText().strip();
         String content = articles.get(index).path("content").asText().strip();
         NewsGenerationTopicResearch item = research.get(index);
         try {
+          validateTitle(title);
           validateContent(content);
           List<String> industryCodes =
               parseIndustryCodes(articles.get(index).path("industries"), activeIndustryCodes);
           generatedNews.put(
               index,
               new GeneratedEconomicNews(
-                  item.topicKey(),
-                  item.title(),
-                  content,
-                  item.category(),
-                  item.sources(),
-                  industryCodes));
+                  item.topicKey(), title, content, item.category(), item.sources(), industryCodes));
         } catch (IllegalArgumentException exception) {
           failures.add(new ValidationFailure(index, item, exception.getMessage()));
         }
@@ -320,6 +319,12 @@ public class OpenAiNewsWriter {
   private void validateContent(String content) {
     if (content.isBlank()) {
       throw new IllegalArgumentException("Content must not be blank.");
+    }
+  }
+
+  private void validateTitle(String title) {
+    if (title.isBlank()) {
+      throw new IllegalArgumentException("Title must not be blank.");
     }
   }
 
