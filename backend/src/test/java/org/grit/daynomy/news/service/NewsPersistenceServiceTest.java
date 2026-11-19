@@ -101,9 +101,7 @@ class NewsPersistenceServiceTest {
     given(assetRepository.findListedStocksByIndustryCodes(java.util.Set.of("SEMICONDUCTOR")))
         .willReturn(List.of(samsung));
 
-    assertThat(
-            newsPersistenceService.saveDrafts(
-                List.of(article), List.of(10L), reservationToken))
+    assertThat(newsPersistenceService.saveDrafts(List.of(article), List.of(10L), reservationToken))
         .containsExactly(savedNews);
 
     verify(assetContentService).syncNewsContents(savedNews, List.of(1L));
