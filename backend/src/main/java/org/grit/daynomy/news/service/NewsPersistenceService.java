@@ -2,14 +2,17 @@ package org.grit.daynomy.news.service;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.asset.domain.Asset;
+import org.grit.daynomy.asset.domain.AssetCategory;
 import org.grit.daynomy.asset.repository.AssetRepository;
 import org.grit.daynomy.content.service.AssetContentService;
+import org.grit.daynomy.content.service.AssetMentionMatcher;
 import org.grit.daynomy.news.ai.GeneratedEconomicNews;
 import org.grit.daynomy.news.domain.News;
 import org.grit.daynomy.news.domain.NewsGenerationTopic;
@@ -22,16 +25,19 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class NewsPersistenceService {
 
+  private static final Set<AssetCategory> LINKABLE_CATEGORIES = Set.of(AssetCategory.STOCK);
+
   private final NewsRepository newsRepository;
   private final NewsGenerationTopicRepository topicRepository;
   private final AssetRepository assetRepository;
   private final AssetContentService assetContentService;
+  private final AssetMentionMatcher assetMentionMatcher;
 
   @Transactional
   public List<News> saveDrafts(List<GeneratedEconomicNews> generatedNews) {
     List<News> savedDrafts =
         newsRepository.saveAll(generatedNews.stream().map(this::toDraft).toList());
-    connectIndustryAssets(generatedNews, savedDrafts);
+    connectAssets(generatedNews, savedDrafts);
     return savedDrafts;
   }
 
@@ -58,7 +64,7 @@ public class NewsPersistenceService {
       drafts.add(toDraft(article));
     }
     List<News> savedDrafts = newsRepository.saveAll(drafts);
-    connectIndustryAssets(generatedNews, savedDrafts);
+    connectAssets(generatedNews, savedDrafts);
     for (int index = 0; index < generatedNews.size(); index++) {
       topicsByKey
           .get(generatedNews.get(index).topicKey())
@@ -75,16 +81,24 @@ public class NewsPersistenceService {
         article.title(), article.content(), null, article.sources(), article.category());
   }
 
-  private void connectIndustryAssets(
-      List<GeneratedEconomicNews> generatedNews, List<News> savedDrafts) {
+  private void connectAssets(List<GeneratedEconomicNews> generatedNews, List<News> savedDrafts) {
+    List<Asset> matchableAssets =
+        assetRepository.findAllByCategoryInAndListedTrue(LINKABLE_CATEGORIES);
     for (int index = 0; index < generatedNews.size(); index++) {
-      Set<String> industryCodes = Set.copyOf(generatedNews.get(index).industryCodes());
-      if (industryCodes.isEmpty()) continue;
-      List<Long> assetIds =
-          assetRepository.findListedStocksByIndustryCodes(industryCodes).stream()
-              .map(Asset::getId)
-              .toList();
-      assetContentService.syncNewsContents(savedDrafts.get(index), assetIds);
+      GeneratedEconomicNews article = generatedNews.get(index);
+      Set<Long> assetIds = new LinkedHashSet<>();
+      assetMentionMatcher.match(article.title(), article.content(), matchableAssets).stream()
+          .map(Asset::getId)
+          .forEach(assetIds::add);
+      Set<String> industryCodes = Set.copyOf(article.industryCodes());
+      if (!industryCodes.isEmpty()) {
+        assetRepository.findListedStocksByIndustryCodes(industryCodes).stream()
+            .map(Asset::getId)
+            .forEach(assetIds::add);
+      }
+      if (!assetIds.isEmpty()) {
+        assetContentService.syncNewsContents(savedDrafts.get(index), List.copyOf(assetIds));
+      }
     }
   }
 }

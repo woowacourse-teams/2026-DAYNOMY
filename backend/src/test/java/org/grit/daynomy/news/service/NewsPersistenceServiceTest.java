@@ -11,8 +11,10 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import java.util.List;
 import java.util.UUID;
 import org.grit.daynomy.asset.domain.Asset;
+import org.grit.daynomy.asset.domain.AssetCategory;
 import org.grit.daynomy.asset.repository.AssetRepository;
 import org.grit.daynomy.content.service.AssetContentService;
+import org.grit.daynomy.content.service.AssetMentionMatcher;
 import org.grit.daynomy.news.ai.GeneratedEconomicNews;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.news.domain.News;
@@ -34,6 +36,7 @@ class NewsPersistenceServiceTest {
   @Mock private NewsGenerationTopicRepository topicRepository;
   @Mock private AssetRepository assetRepository;
   @Mock private AssetContentService assetContentService;
+  @Mock private AssetMentionMatcher assetMentionMatcher;
 
   @InjectMocks private NewsPersistenceService newsPersistenceService;
 
@@ -48,6 +51,7 @@ class NewsPersistenceServiceTest {
 
     assertThat(drafts).singleElement().extracting(News::getTitle).isEqualTo("미국 중간선거");
     verifyNoInteractions(topicRepository);
+    verifyNoInteractions(assetContentService);
   }
 
   @Test
@@ -68,6 +72,41 @@ class NewsPersistenceServiceTest {
     assertThat(newsPersistenceService.saveDrafts(List.of(article))).containsExactly(savedNews);
 
     verify(assetContentService).syncNewsContents(savedNews, List.of(1L, 2L));
+  }
+
+  @Test
+  @DisplayName("예약된 주제로 생성한 뉴스에 직접 언급된 상장 주식을 중복 없이 연결한다")
+  void connectsMentionedStocksToScheduledNewsWithoutDuplicates() {
+    GeneratedEconomicNews article =
+        new GeneratedEconomicNews(
+            "a".repeat(64),
+            "삼성전자 실적",
+            "삼성전자가 실적을 발표했다.",
+            Category.STOCK,
+            List.of(),
+            List.of("SEMICONDUCTOR"));
+    UUID reservationToken = UUID.randomUUID();
+    NewsGenerationTopic topic = org.mockito.Mockito.mock(NewsGenerationTopic.class);
+    News savedNews = org.mockito.Mockito.mock(News.class);
+    Asset samsung = org.mockito.Mockito.mock(Asset.class);
+    given(topic.getTopicKey()).willReturn(article.topicKey());
+    given(topic.isReservedBy(reservationToken)).willReturn(true);
+    given(samsung.getId()).willReturn(1L);
+    given(topicRepository.findAllByIdForUpdate(List.of(10L))).willReturn(List.of(topic));
+    given(newsRepository.saveAll(anyList())).willReturn(List.of(savedNews));
+    given(assetRepository.findAllByCategoryInAndListedTrue(java.util.Set.of(AssetCategory.STOCK)))
+        .willReturn(List.of(samsung));
+    given(assetMentionMatcher.match(article.title(), article.content(), List.of(samsung)))
+        .willReturn(List.of(samsung));
+    given(assetRepository.findListedStocksByIndustryCodes(java.util.Set.of("SEMICONDUCTOR")))
+        .willReturn(List.of(samsung));
+
+    assertThat(
+            newsPersistenceService.saveDrafts(
+                List.of(article), List.of(10L), reservationToken))
+        .containsExactly(savedNews);
+
+    verify(assetContentService).syncNewsContents(savedNews, List.of(1L));
   }
 
   @Test

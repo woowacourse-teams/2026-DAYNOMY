@@ -7,7 +7,7 @@ import org.grit.daynomy.asset.domain.Asset;
 import org.springframework.stereotype.Component;
 
 @Component
-class AssetMentionMatcher {
+public class AssetMentionMatcher {
 
   private static final Pattern ENGLISH_COMPANY_SUFFIX =
       Pattern.compile(
@@ -15,7 +15,7 @@ class AssetMentionMatcher {
           Pattern.CASE_INSENSITIVE);
   private static final String KOREAN_POSTPOSITIONS = "에서|에게|으로|부터|까지|은|는|이|가|을|를|의|과|와|도|만|에|로";
 
-  List<Asset> match(String title, String description, List<Asset> assets) {
+  public List<Asset> match(String title, String description, List<Asset> assets) {
     String text = (safe(title) + " " + safe(description)).toLowerCase(Locale.ROOT);
     return assets.stream()
         .filter(
