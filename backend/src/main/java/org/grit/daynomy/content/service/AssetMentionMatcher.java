@@ -53,11 +53,11 @@ public class AssetMentionMatcher {
 
     Set<String> aliases = new HashSet<>();
     aliasCounts.forEach(
-            (alias, count) -> {
-              if (count == 1 && !officialNames.contains(alias)) {
-                aliases.add(alias);
-              }
-            });
+        (alias, count) -> {
+          if (count == 1 && !officialNames.contains(alias)) {
+            aliases.add(alias);
+          }
+        });
     return aliases;
   }
 

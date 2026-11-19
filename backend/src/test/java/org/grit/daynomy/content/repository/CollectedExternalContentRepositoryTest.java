@@ -36,21 +36,11 @@ class CollectedExternalContentRepositoryTest extends SharedDatabaseTest {
     CollectedExternalContent matched =
         entityManager.persist(
             new CollectedExternalContent(
-                source,
-                "삼성전자 실적",
-                "",
-                "https://youtube.com/watch?v=matched",
-                null,
-                null));
+                source, "삼성전자 실적", "", "https://youtube.com/watch?v=matched", null, null));
     CollectedExternalContent unmatched =
         entityManager.persist(
             new CollectedExternalContent(
-                source,
-                "시장 전망",
-                "",
-                "https://youtube.com/watch?v=unmatched",
-                null,
-                null));
+                source, "시장 전망", "", "https://youtube.com/watch?v=unmatched", null, null));
     entityManager.persist(new CollectedExternalContentReview(matched, asset));
     entityManager.persist(new CollectedExternalContentReview(unmatched, null));
     entityManager.flush();

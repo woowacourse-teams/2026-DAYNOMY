@@ -76,8 +76,7 @@ class AssetMentionMatcherTest {
     Asset skHynix = new Asset("SK하이닉스", AssetCategory.STOCK, "000660");
     Asset innox = new Asset("이닉스", AssetCategory.STOCK, "452400");
 
-    assertThat(matcher.match("SK하이닉스 실적 발표", "", List.of(skHynix, innox)))
-        .containsExactly(skHynix);
+    assertThat(matcher.match("SK하이닉스 실적 발표", "", List.of(skHynix, innox))).containsExactly(skHynix);
   }
 
   @Test
@@ -94,8 +93,7 @@ class AssetMentionMatcherTest {
     Asset prefixed = new Asset("AB이닉스", AssetCategory.STOCK, "000001");
     Asset innox = new Asset("이닉스", AssetCategory.STOCK, "452400");
 
-    assertThat(matcher.match("이닉스 실적 발표", "", List.of(prefixed, innox)))
-        .containsExactly(innox);
+    assertThat(matcher.match("이닉스 실적 발표", "", List.of(prefixed, innox))).containsExactly(innox);
   }
 
   @Test
