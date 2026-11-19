@@ -23,7 +23,9 @@ public interface CollectedExternalContentRepository
       where exists (
         select review.id
         from CollectedExternalContentReview review
-        where review.collectedContent = content and review.status = :status
+        where review.collectedContent = content
+          and review.status = :status
+          and review.suggestedAsset is not null
       )
       order by content.createdAt desc, content.id desc
       """)
