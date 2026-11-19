@@ -71,6 +71,74 @@ class AssetMentionMatcherTest {
     assertThat(matcher.match("파인애플 시장 성장", "", List.of(apple))).isEmpty();
   }
 
+  @Test
+  void doesNotMatchKoreanAssetNameInsideAnotherAssetName() {
+    Asset skHynix = new Asset("SK하이닉스", AssetCategory.STOCK, "000660");
+    Asset innox = new Asset("이닉스", AssetCategory.STOCK, "452400");
+
+    assertThat(matcher.match("SK하이닉스 실적 발표", "", List.of(skHynix, innox))).containsExactly(skHynix);
+  }
+
+  @Test
+  void matchesUniqueKoreanAliasAfterLatinStockNamePrefix() {
+    Asset skHynix = new Asset("SK하이닉스", AssetCategory.STOCK, "000660");
+    Asset innox = new Asset("이닉스", AssetCategory.STOCK, "452400");
+
+    assertThat(matcher.match("하이닉스는 실적을 발표했다.", "", List.of(skHynix, innox)))
+        .containsExactly(skHynix);
+  }
+
+  @Test
+  void rejectsDerivedAliasThatMatchesAnotherAssetOfficialName() {
+    Asset prefixed = new Asset("AB이닉스", AssetCategory.STOCK, "000001");
+    Asset innox = new Asset("이닉스", AssetCategory.STOCK, "452400");
+
+    assertThat(matcher.match("이닉스 실적 발표", "", List.of(prefixed, innox))).containsExactly(innox);
+  }
+
+  @Test
+  void rejectsDerivedAliasSharedByMultipleStocks() {
+    Asset first = new Asset("AB테스트", AssetCategory.STOCK, "000001");
+    Asset second = new Asset("CD테스트", AssetCategory.STOCK, "000002");
+
+    assertThat(matcher.match("테스트 실적 발표", "", List.of(first, second))).isEmpty();
+  }
+
+  @Test
+  void doesNotDeriveAliasesFromEtfNames() {
+    Asset nvidia = usStock("NVIDIA Corporation", "NVDA.US");
+    nvidia.synchronizeKoreanName("엔비디아");
+    Asset derivative =
+        Asset.listedSecurity(
+            "ACE엔비디아",
+            AssetCategory.ETF,
+            "483320",
+            StockMarket.KOSPI,
+            null,
+            LocalDate.of(2026, 11, 4));
+
+    assertThat(matcher.match("엔비디아 실적 발표", "", List.of(nvidia, derivative)))
+        .containsExactly(nvidia);
+  }
+
+  @Test
+  void bareUnderlyingNameDoesNotMatchDerivativeProductNames() {
+    Asset nvidia = usStock("NVIDIA Corporation", "NVDA.US");
+    nvidia.synchronizeKoreanName("엔비디아");
+    Asset derivative =
+        Asset.listedSecurity(
+            "T-Rex 2X Long NVIDIA Daily Target ETF",
+            AssetCategory.ETF,
+            "NVDX.US",
+            StockMarket.BATS,
+            null,
+            LocalDate.of(2026, 11, 4));
+    derivative.synchronizeKoreanName("티렉스 엔비디아(NVDA) 2X");
+
+    assertThat(matcher.match("엔비디아 실적 발표", "", List.of(nvidia, derivative)))
+        .containsExactly(nvidia);
+  }
+
   private Asset usStock(String name, String code) {
     return Asset.listedStock(name, code, StockMarket.NASDAQ, null, LocalDate.of(2026, 11, 4));
   }
