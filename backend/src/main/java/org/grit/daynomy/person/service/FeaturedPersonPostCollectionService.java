@@ -14,6 +14,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.common.logging.LogEvent;
 import org.grit.daynomy.content.domain.ContentSourceType;
+import org.grit.daynomy.content.service.ContentTranslationService;
 import org.grit.daynomy.external.openai.OpenAiSocialPostSearchClient;
 import org.grit.daynomy.external.youtube.YouTubeClient;
 import org.grit.daynomy.person.domain.FeaturedPerson;
@@ -41,6 +42,7 @@ public class FeaturedPersonPostCollectionService {
   private final OpenAiSocialPostSearchClient socialPostSearchClient;
   private final YouTubeClient youtubeClient;
   private final FeaturedPersonService featuredPersonService;
+  private final ContentTranslationService contentTranslationService;
 
   @Transactional(readOnly = true)
   public FeaturedPersonPostCandidatesResponse getPendingCandidates(Long personId) {
@@ -120,9 +122,10 @@ public class FeaturedPersonPostCollectionService {
           skippedCount++;
           continue;
         }
+        String translatedTitle = contentTranslationService.translateTitleIfEnglish(post.title());
         postRepository.save(
             FeaturedPersonPost.createPending(
-                person, post.sourceType(), post.title(), normalizedUrl, post.publishedAt()));
+                person, post.sourceType(), translatedTitle, normalizedUrl, post.publishedAt()));
         createdCount++;
       } catch (BusinessException exception) {
         skippedCount++;
