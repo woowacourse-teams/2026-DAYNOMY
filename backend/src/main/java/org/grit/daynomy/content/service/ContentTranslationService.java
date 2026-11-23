@@ -22,24 +22,40 @@ public class ContentTranslationService {
       return item;
     }
 
+    ContentTranslation translation = translate(item.title(), item.description());
+    if (translation == null) {
+      return item;
+    }
+    return new CollectedContentItem(
+        translateTitle ? translation.title() : item.title(),
+        translateDescription ? translation.description() : item.description(),
+        item.url(),
+        item.imageUrl(),
+        item.publishedDate());
+  }
+
+  public String translateTitleIfEnglish(String title) {
+    if (!isEnglish(text(title))) {
+      return title;
+    }
+    ContentTranslation translation = translate(title, "");
+    return translation == null ? title : translation.title();
+  }
+
+  private ContentTranslation translate(String title, String description) {
     try {
       log.atInfo()
           .addKeyValue("event", LogEvent.EXTERNAL_API_REQUESTED.code())
           .addKeyValue("api", "OpenAI")
           .addKeyValue("operation", "external-content-translation")
           .log(LogEvent.EXTERNAL_API_REQUESTED.message());
-      ContentTranslation translation = translator.translate(item.title(), item.description());
+      ContentTranslation translation = translator.translate(title, description);
       log.atInfo()
           .addKeyValue("event", LogEvent.EXTERNAL_API_COMPLETED.code())
           .addKeyValue("api", "OpenAI")
           .addKeyValue("operation", "external-content-translation")
           .log(LogEvent.EXTERNAL_API_COMPLETED.message());
-      return new CollectedContentItem(
-          translateTitle ? translation.title() : item.title(),
-          translateDescription ? translation.description() : item.description(),
-          item.url(),
-          item.imageUrl(),
-          item.publishedDate());
+      return translation;
     } catch (OpenAiContentTranslationException exception) {
       log.atWarn()
           .addKeyValue("event", LogEvent.EXTERNAL_API_FAILED.code())
@@ -47,7 +63,7 @@ public class ContentTranslationService {
           .addKeyValue("operation", "external-content-translation")
           .addKeyValue("errorType", exception.getClass().getSimpleName())
           .log(LogEvent.EXTERNAL_API_FAILED.message());
-      return item;
+      return null;
     }
   }
 

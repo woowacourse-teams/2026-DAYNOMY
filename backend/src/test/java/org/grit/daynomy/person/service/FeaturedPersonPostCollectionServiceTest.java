@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.never;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -12,6 +13,7 @@ import java.util.List;
 import java.util.Optional;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.content.domain.ContentSourceType;
+import org.grit.daynomy.content.service.ContentTranslationService;
 import org.grit.daynomy.external.openai.OpenAiSocialPostSearchClient;
 import org.grit.daynomy.external.openai.SocialPostCandidate;
 import org.grit.daynomy.external.youtube.YouTubeClient;
@@ -38,6 +40,7 @@ class FeaturedPersonPostCollectionServiceTest {
   @Mock private OpenAiSocialPostSearchClient socialPostSearchClient;
   @Mock private YouTubeClient youtubeClient;
   @Mock private FeaturedPersonService featuredPersonService;
+  @Mock private ContentTranslationService contentTranslationService;
   @InjectMocks private FeaturedPersonPostCollectionService collectionService;
 
   @Test
@@ -57,7 +60,7 @@ class FeaturedPersonPostCollectionServiceTest {
             List.of(
                 new SocialPostCandidate(
                     SocialPostCandidate.Platform.X,
-                    "공식 X 글",
+                    "Official X post",
                     "https://x.com/elonmusk/status/12345",
                     "2026-10-12")));
     given(
@@ -75,6 +78,9 @@ class FeaturedPersonPostCollectionServiceTest {
                     "")));
     given(featuredPersonService.normalizePostUrl(any(), any()))
         .willAnswer(invocation -> invocation.getArgument(0));
+    given(contentTranslationService.translateTitleIfEnglish("Official X post"))
+        .willReturn("공식 X 글");
+    given(contentTranslationService.translateTitleIfEnglish("공식 영상")).willReturn("공식 영상");
     given(postRepository.findByPersonIdAndStatusOrderByCreatedAtDescIdDesc(any(), any()))
         .willReturn(List.of());
 
@@ -85,6 +91,9 @@ class FeaturedPersonPostCollectionServiceTest {
     assertThat(captor.getAllValues())
         .extracting(FeaturedPersonPost::getSourceType)
         .containsExactly(ContentSourceType.X, ContentSourceType.YOUTUBE);
+    assertThat(captor.getAllValues())
+        .extracting(FeaturedPersonPost::getTitle)
+        .containsExactly("공식 X 글", "공식 영상");
     assertThat(captor.getAllValues().get(0).getPublishedAt())
         .isEqualTo(Instant.parse("2026-10-12T00:00:00Z"));
     assertThat(captor.getAllValues().get(1).getPublishedAt())
@@ -136,12 +145,46 @@ class FeaturedPersonPostCollectionServiceTest {
                 "https://x.com/elonmusk/not-a-post", ContentSourceType.X))
         .willThrow(
             new BusinessException(FeaturedPersonErrorCode.FEATURED_PERSON_INVALID_SOCIAL_URL));
+    given(contentTranslationService.translateTitleIfEnglish("유효한 글")).willReturn("유효한 글");
     given(postRepository.findByPersonIdAndStatusOrderByCreatedAtDescIdDesc(any(), any()))
         .willReturn(List.of());
 
     collectionService.collect(1L, LocalDate.parse("2026-10-10"), LocalDate.parse("2026-10-12"));
 
     then(postRepository).should().save(any(FeaturedPersonPost.class));
+  }
+
+  @Test
+  void collectDoesNotTranslateDuplicateCandidates() {
+    FeaturedPerson person = org.mockito.Mockito.mock(FeaturedPerson.class);
+    given(person.getXProfileUrl()).willReturn("https://x.com/elonmusk");
+    given(personRepository.findById(1L)).willReturn(Optional.of(person));
+    given(
+            socialPostSearchClient.searchProfiles(
+                "https://x.com/elonmusk",
+                null,
+                LocalDate.parse("2026-10-10"),
+                LocalDate.parse("2026-10-12")))
+        .willReturn(
+            List.of(
+                new SocialPostCandidate(
+                    SocialPostCandidate.Platform.X,
+                    "Official X post",
+                    "https://x.com/elonmusk/status/12345",
+                    "2026-10-12")));
+    given(
+            featuredPersonService.normalizePostUrl(
+                "https://x.com/elonmusk/status/12345", ContentSourceType.X))
+        .willReturn("https://x.com/elonmusk/status/12345");
+    given(postRepository.existsByPersonIdAndUrl(1L, "https://x.com/elonmusk/status/12345"))
+        .willReturn(true);
+    given(postRepository.findByPersonIdAndStatusOrderByCreatedAtDescIdDesc(any(), any()))
+        .willReturn(List.of());
+
+    collectionService.collect(1L, LocalDate.parse("2026-10-10"), LocalDate.parse("2026-10-12"));
+
+    then(contentTranslationService).shouldHaveNoInteractions();
+    then(postRepository).should(never()).save(any(FeaturedPersonPost.class));
   }
 
   @Test
