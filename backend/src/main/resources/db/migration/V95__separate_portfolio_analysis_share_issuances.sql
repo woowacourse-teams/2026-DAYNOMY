@@ -1,0 +1,4 @@
+ALTER TABLE portfolio_analysis_shares
+    DROP CONSTRAINT portfolio_analysis_shares_owner_member_id_analysis_id_key;
+
+DROP INDEX uq_portfolio_analysis_shares_owner_without_analysis;

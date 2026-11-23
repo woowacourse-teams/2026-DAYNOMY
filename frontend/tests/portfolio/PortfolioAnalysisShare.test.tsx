@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 
-import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import { AuthContext } from '../../src/auth/AuthContext';
@@ -386,6 +386,99 @@ describe('포트폴리오 분석 의견 요청', () => {
         }),
       }),
     );
+  });
+
+  it('기존 링크를 유지한 채 새 링크를 추가 발급한다', async () => {
+    const nextShare = {
+      ...ownerShare,
+      id: 4,
+      createdAt: '2026-11-13T00:00:00Z',
+      comments: [],
+    };
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith('/api/users/me/portfolio/analysis/shares') && !init?.method)
+        return Promise.resolve(response([ownerShare]));
+      if (url.endsWith('/api/auth/csrf'))
+        return Promise.resolve(response({ headerName: 'X-XSRF-TOKEN', token: 'csrf' }));
+      if (url.endsWith('/api/users/me/portfolio/analysis/shares') && init?.method === 'POST')
+        return Promise.resolve(response({ share: nextShare, token: 'next-share-token' }));
+      throw new Error(`unexpected request: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const view = render(<PortfolioAnalysisSharePanel analysisId={7} assets={analysisAssets} />);
+    fireEvent.click(view.getByRole('button', { name: '의견 받기' }));
+
+    const issueButton = await view.findByRole('button', { name: '새 링크 만들기' });
+    expect(view.queryByText('새 링크를 발급하면 이전 링크는 바로 사용할 수 없어요.')).toBeNull();
+    fireEvent.click(issueButton);
+
+    const link = await view.findByLabelText('공유 링크');
+    expect((link as HTMLInputElement).value).toContain(
+      '/portfolio/analysis/share#next-share-token',
+    );
+    expect(view.getAllByText('공유 중')).toHaveLength(2);
+  });
+
+  it('과거 공유의 설명을 수정해도 최신 공유를 폐기하면 해당 URL을 제거한다', async () => {
+    const pastShare = { ...ownerShare, question: '과거 공유 링크' };
+    const latestShare = {
+      ...ownerShare,
+      id: 4,
+      question: '최신 공유 링크',
+      createdAt: '2026-11-13T00:00:00Z',
+    };
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith('/api/users/me/portfolio/analysis/shares') && !init?.method)
+        return Promise.resolve(response([pastShare]));
+      if (url.endsWith('/api/auth/csrf'))
+        return Promise.resolve(response({ headerName: 'X-XSRF-TOKEN', token: 'csrf' }));
+      if (url.endsWith('/api/users/me/portfolio/analysis/shares') && init?.method === 'POST')
+        return Promise.resolve(response({ share: latestShare, token: 'latest-share-token' }));
+      if (
+        url.endsWith(`/api/users/me/portfolio/analysis/shares/${pastShare.id}/explanation`) &&
+        init?.method === 'PUT'
+      )
+        return Promise.resolve(
+          response({
+            ...pastShare,
+            additionalExplanation: '과거 공유에 대한 설명',
+            additionalExplanationUpdatedAt: comment.updatedAt,
+          }),
+        );
+      if (
+        url.endsWith(`/api/users/me/portfolio/analysis/shares/${latestShare.id}/revoke`) &&
+        init?.method === 'POST'
+      )
+        return Promise.resolve(response({ ...latestShare, status: 'REVOKED' }));
+      throw new Error(`unexpected request: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const view = render(<PortfolioAnalysisSharePanel analysisId={7} assets={analysisAssets} />);
+    fireEvent.click(view.getByRole('button', { name: '의견 받기' }));
+    fireEvent.change(await view.findByRole('textbox', { name: '어떤 점이 궁금한가요?' }), {
+      target: { value: latestShare.question },
+    });
+    fireEvent.click(view.getByRole('button', { name: '새 링크 만들기' }));
+    expect(((await view.findByLabelText('공유 링크')) as HTMLInputElement).value).toContain(
+      'latest-share-token',
+    );
+
+    const pastItem = view.getByText(pastShare.question).closest('li');
+    expect(pastItem).not.toBeNull();
+    fireEvent.click(within(pastItem!).getByRole('button', { name: '설명 추가' }));
+    fireEvent.change(within(pastItem!).getByRole('textbox', { name: '추가 설명 내용' }), {
+      target: { value: '과거 공유에 대한 설명' },
+    });
+    fireEvent.click(within(pastItem!).getByRole('button', { name: '추가 설명 공개' }));
+    await view.findByText('공유 페이지에 추가 설명을 공개했어요.');
+
+    fireEvent.click(view.getByRole('button', { name: `${latestShare.question} 공유 중단` }));
+    await view.findByText('공유를 중단했어요. 받은 의견은 유지됩니다.');
+    expect(view.queryByLabelText('공유 링크')).toBeNull();
   });
 
   it('분석 전에는 포트폴리오 구성만 공유한다', async () => {

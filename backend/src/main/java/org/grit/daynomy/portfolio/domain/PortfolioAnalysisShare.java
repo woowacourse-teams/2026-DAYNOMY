@@ -9,7 +9,6 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
-import jakarta.persistence.UniqueConstraint;
 import java.time.Instant;
 import java.util.Objects;
 import lombok.AccessLevel;
@@ -25,9 +24,7 @@ import org.hibernate.type.SqlTypes;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Entity
 @DynamicUpdate
-@Table(
-    name = "portfolio_analysis_shares",
-    uniqueConstraints = @UniqueConstraint(columnNames = {"owner_member_id", "analysis_id"}))
+@Table(name = "portfolio_analysis_shares")
 public class PortfolioAnalysisShare extends BaseEntity {
 
   @Id

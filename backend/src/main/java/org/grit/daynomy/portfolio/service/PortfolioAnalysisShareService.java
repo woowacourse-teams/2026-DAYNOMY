@@ -15,7 +15,6 @@ import java.util.HexFormat;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.stream.IntStream;
 import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.common.exception.BusinessException;
@@ -99,27 +98,14 @@ public class PortfolioAnalysisShareService {
         analysis == null
             ? portfolioSnapshot(shareablePortfolio, request.assetNames())
             : publicSnapshot(memberId, analysis, shareablePortfolio, request.assetNames());
-    Optional<PortfolioAnalysisShare> existingShare =
-        analysis == null
-            ? shares.findFirstByOwnerIdAndAnalysisIdIsNullOrderByCreatedAtDesc(memberId)
-            : shares.findByOwnerIdAndAnalysisId(memberId, analysis.getId());
     PortfolioAnalysisShare share =
-        existingShare
-            .map(
-                existing -> {
-                  existing.renew(
-                      request.question(), hash(rawToken), publicSnapshot, now.plus(SHARE_DURATION));
-                  return existing;
-                })
-            .orElseGet(
-                () ->
-                    PortfolioAnalysisShare.create(
-                        owner,
-                        analysis == null ? null : analysis.getId(),
-                        request.question(),
-                        hash(rawToken),
-                        publicSnapshot,
-                        now.plus(SHARE_DURATION)));
+        PortfolioAnalysisShare.create(
+            owner,
+            analysis == null ? null : analysis.getId(),
+            request.question(),
+            hash(rawToken),
+            publicSnapshot,
+            now.plus(SHARE_DURATION));
     PortfolioAnalysisShare saved = shares.save(share);
     return new PortfolioAnalysisShareDto.CreatedResponse(ownerResponse(saved, now), rawToken);
   }
