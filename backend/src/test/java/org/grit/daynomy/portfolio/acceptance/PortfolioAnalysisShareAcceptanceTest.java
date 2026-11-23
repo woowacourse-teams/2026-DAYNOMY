@@ -587,8 +587,7 @@ class PortfolioAnalysisShareAcceptanceTest extends SharedDatabaseTest {
     prices.saveAndFlush(
         new StockDailyPrice(asset, LocalDate.now().minusDays(1), new BigDecimal("80000")));
     Map<String, Object> request =
-        Map.of(
-            "question", "동시에 공유해도 링크별 의견은 분리되어야 해요.", "assetNames", List.of("동시 공유 종목"));
+        Map.of("question", "동시에 공유해도 링크별 의견은 분리되어야 해요.", "assetNames", List.of("동시 공유 종목"));
     var first = client(owner).body(request);
     var second = client(owner).body(request);
     var start = new CountDownLatch(1);
