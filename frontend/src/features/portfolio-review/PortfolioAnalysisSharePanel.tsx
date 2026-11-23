@@ -1,4 +1,6 @@
 import { CopyIcon } from '@phosphor-icons/react/dist/csr/Copy';
+import { ArrowSquareOutIcon } from '@phosphor-icons/react/dist/csr/ArrowSquareOut';
+import { CaretDownIcon } from '@phosphor-icons/react/dist/csr/CaretDown';
 import { LinkSimpleIcon } from '@phosphor-icons/react/dist/csr/LinkSimple';
 import { ShieldCheckIcon } from '@phosphor-icons/react/dist/csr/ShieldCheck';
 import { XIcon } from '@phosphor-icons/react/dist/csr/X';
@@ -52,10 +54,7 @@ function replaceShare(
   values: PortfolioAnalysisOwnerShare[] | null,
   next: PortfolioAnalysisOwnerShare,
 ) {
-  const current = values ?? [];
-  return current.some((value) => value.id === next.id)
-    ? current.map((value) => (value.id === next.id ? next : value))
-    : [next, ...current];
+  return [next, ...(values ?? []).filter((value) => value.id !== next.id)];
 }
 
 function replaceComment(
@@ -132,7 +131,9 @@ function ShareDialog({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [expandedHistoryId, setExpandedHistoryId] = useState<number | null>(null);
   const linkRef = useRef<HTMLInputElement>(null);
+  const questionRef = useRef<HTMLTextAreaElement>(null);
   const current = shares?.find((share) => share.analysisId === analysisId) ?? null;
   const selectedAssets = assets.filter((asset) => selectedAssetNames.includes(asset.assetName));
   const holdingByName = new Map(holdings.map((holding) => [holding.name, holding]));
@@ -143,6 +144,7 @@ function ShareDialog({
       .then((values) => {
         if (controller.signal.aborted) return;
         setShares(values);
+        setExpandedHistoryId(values[0]?.id ?? null);
         const existing = values.find((share) => share.analysisId === analysisId);
         setQuestion(existing?.question ?? '');
         setSelectedAssetNames(
@@ -159,6 +161,12 @@ function ShareDialog({
       });
     return () => controller.abort();
   }, [analysisId, assets]);
+
+  useEffect(() => {
+    if (loading) return;
+    const frame = window.requestAnimationFrame(() => questionRef.current?.focus());
+    return () => window.cancelAnimationFrame(frame);
+  }, [loading]);
 
   const normalizedQuestion = question.trim();
   const questionInvalid =
@@ -179,6 +187,7 @@ function ShareDialog({
       );
       const url = `${window.location.origin}/portfolio/analysis/share#${created.token}`;
       setShares((values) => replaceShare(values, created.share));
+      setExpandedHistoryId(created.share.id);
       setShareUrl(url);
       setNotice('7일 동안 사용할 수 있는 링크를 발급했어요.');
       trackEvent('portfolio_analysis_share_created', { surface: 'portfolio_analysis' });
@@ -229,6 +238,7 @@ function ShareDialog({
     try {
       await deletePortfolioAnalysisShare(share.id);
       setShares((values) => (values ?? []).filter((value) => value.id !== share.id));
+      if (expandedHistoryId === share.id) setExpandedHistoryId(null);
       if (share.id === current?.id) {
         setQuestion('');
         setShareUrl('');
@@ -334,6 +344,7 @@ function ShareDialog({
               <label className="portfolio-share-question">
                 <span>어떤 점이 궁금한가요?</span>
                 <textarea
+                  ref={questionRef}
                   data-autofocus
                   aria-label="어떤 점이 궁금한가요?"
                   value={question}
@@ -408,6 +419,11 @@ function ShareDialog({
                       ? '새 링크 만들기'
                       : '7일 링크 만들기'}
                 </button>
+                {current?.status === 'ACTIVE' && !shareUrl ? (
+                  <p className="portfolio-share-hint">
+                    새 링크를 발급하면 이전 링크는 바로 사용할 수 없어요.
+                  </p>
+                ) : null}
               </div>
 
               {shareUrl ? (
@@ -419,6 +435,20 @@ function ShareDialog({
                       <CopyIcon size={18} weight="bold" aria-hidden="true" />
                       링크 복사
                     </button>
+                    <a
+                      href={shareUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() =>
+                        trackEvent('portfolio_analysis_share_preview_opened', {
+                          surface: 'portfolio_analysis',
+                        })
+                      }
+                    >
+                      <ArrowSquareOutIcon size={18} weight="bold" aria-hidden="true" />
+                      공유 화면 열기
+                      <span className="portfolio-share-visually-hidden">새 탭</span>
+                    </a>
                   </div>
                 </div>
               ) : null}
@@ -426,104 +456,147 @@ function ShareDialog({
           </div>
 
           {shares?.length ? (
-            <details className="portfolio-share-history">
-              <summary id="portfolio-share-history-title">
-                이전 의견 요청 <span>{shares.length}</span>
-              </summary>
+            <section
+              className="portfolio-share-history"
+              aria-labelledby="portfolio-share-history-title"
+            >
+              <header className="portfolio-share-history-heading">
+                <h2 id="portfolio-share-history-title">이전 의견 요청</h2>
+                <span>{shares.length}</span>
+              </header>
               <ul>
                 {shares.map((share) => (
                   <li key={share.id}>
-                    <div className={`portfolio-share-status is-${share.status.toLowerCase()}`}>
-                      <strong>
-                        {share.status === 'ACTIVE'
-                          ? '공유 중'
-                          : share.status === 'EXPIRED'
-                            ? '공유 만료'
-                            : '공유 중단'}
-                      </strong>
-                      <span>만료 {formatDate(share.expiresAt)}</span>
-                      <span>받은 댓글 {share.comments.length}건</span>
-                    </div>
-                    <p className="portfolio-share-history-question">{share.question}</p>
-                    <PortfolioShareExplanation
-                      share={share}
-                      disabled={saving}
-                      onChange={(updated) => setShares((values) => replaceShare(values, updated))}
-                    />
-                    <p className="portfolio-share-shared-assets">
-                      공개 종목: {share.sharedAssets.map((asset) => asset.assetName).join(', ')}
-                    </p>
-                    <div className="portfolio-share-actions">
-                      {share.status === 'ACTIVE' ? (
-                        <button
-                          className="is-secondary"
-                          type="button"
-                          onClick={() => void revoke(share)}
-                          disabled={saving}
-                          aria-label={`${share.question} 공유 중단`}
+                    <details
+                      className="portfolio-share-history-item"
+                      open={expandedHistoryId === share.id}
+                      onToggle={(event) => {
+                        if (event.currentTarget.open) setExpandedHistoryId(share.id);
+                        else if (expandedHistoryId === share.id) setExpandedHistoryId(null);
+                      }}
+                    >
+                      <summary>
+                        <span
+                          className={`portfolio-share-history-status is-${share.status.toLowerCase()}`}
                         >
-                          공유 중단
-                        </button>
-                      ) : null}
-                      <button
-                        className="is-danger"
-                        type="button"
-                        onClick={() => void remove(share)}
-                        disabled={saving}
-                        aria-label={`${share.question} 영구 삭제`}
-                      >
-                        영구 삭제
-                      </button>
-                    </div>
-                    {share.comments.length ? (
-                      <section
-                        className="portfolio-public-review is-owner"
-                        aria-labelledby={`portfolio-share-comments-${share.id}`}
-                      >
-                        <header className="portfolio-public-review-heading">
-                          <h3 id={`portfolio-share-comments-${share.id}`}>
-                            받은 의견 {share.comments.length}개
-                          </h3>
-                          <p className="portfolio-public-owner-note">
-                            댓글 작성자와 나만 볼 수 있는 대화예요.
-                          </p>
-                        </header>
-                        <ul className="portfolio-share-reviews" aria-label="받은 의견 목록">
-                          {share.comments.map((comment) => (
-                            <li key={comment.id}>
-                              <div className="portfolio-review-meta">
-                                <span className="portfolio-comment-avatar" aria-hidden="true">
-                                  <UserIcon size={18} />
-                                </span>
-                                <strong>{comment.authorNickname}</strong>
-                                <time dateTime={comment.updatedAt}>
-                                  {formatDate(comment.updatedAt)}
-                                </time>
+                          {share.status === 'ACTIVE'
+                            ? '공유 중'
+                            : share.status === 'EXPIRED'
+                              ? '공유 만료'
+                              : '공유 중단'}
+                        </span>
+                        <strong>{share.question}</strong>
+                        <span className="portfolio-share-history-expiry">
+                          {formatDate(share.expiresAt)}까지
+                        </span>
+                        <span className="portfolio-share-history-count">
+                          받은 의견 {share.comments.length}개
+                        </span>
+                        <CaretDownIcon size={18} weight="bold" aria-hidden="true" />
+                      </summary>
+                      <div className="portfolio-share-history-body">
+                        {share.comments.length ? (
+                          <section
+                            className="portfolio-share-history-review"
+                            aria-labelledby={`portfolio-share-comments-${share.id}`}
+                          >
+                            <header>
+                              <div>
+                                <h3 id={`portfolio-share-comments-${share.id}`}>
+                                  받은 의견 {share.comments.length}개
+                                </h3>
+                                <p>댓글 작성자와 나만 볼 수 있는 대화예요.</p>
                               </div>
-                              <p>{comment.content}</p>
-                              <PortfolioAnalysisReplyThread
-                                comment={comment}
-                                canReply={share.status === 'ACTIVE'}
-                                createReply={(content) =>
-                                  savePortfolioAnalysisOwnerReply(share.id, comment.id, content)
-                                }
-                                onChange={(nextComment) =>
-                                  setShares((values) =>
-                                    replaceComment(values, share.id, nextComment),
-                                  )
-                                }
-                              />
-                            </li>
-                          ))}
-                        </ul>
-                      </section>
-                    ) : (
-                      <p className="portfolio-share-empty">아직 받은 댓글이 없어요.</p>
-                    )}
+                            </header>
+                            <ul className="portfolio-share-reviews" aria-label="받은 의견 목록">
+                              {share.comments.map((comment) => (
+                                <li key={comment.id}>
+                                  <div className="portfolio-review-meta">
+                                    <span className="portfolio-comment-avatar" aria-hidden="true">
+                                      <UserIcon size={18} />
+                                    </span>
+                                    <strong>{comment.authorNickname}</strong>
+                                    <time dateTime={comment.updatedAt}>
+                                      {formatDate(comment.updatedAt)}
+                                    </time>
+                                  </div>
+                                  <p>{comment.content}</p>
+                                  <PortfolioAnalysisReplyThread
+                                    comment={comment}
+                                    canReply={share.status === 'ACTIVE'}
+                                    createReply={(content) =>
+                                      savePortfolioAnalysisOwnerReply(share.id, comment.id, content)
+                                    }
+                                    onChange={(nextComment) =>
+                                      setShares((values) =>
+                                        replaceComment(values, share.id, nextComment),
+                                      )
+                                    }
+                                  />
+                                </li>
+                              ))}
+                            </ul>
+                          </section>
+                        ) : (
+                          <p className="portfolio-share-history-empty">
+                            아직 받은 의견이 없어요. 의견이 도착하면 이곳에서 대화를 이어갈 수
+                            있어요.
+                          </p>
+                        )}
+
+                        <section
+                          className="portfolio-share-history-context"
+                          aria-labelledby={`portfolio-share-context-${share.id}`}
+                        >
+                          <h3 id={`portfolio-share-context-${share.id}`}>공유한 내용</h3>
+                          <div className="portfolio-share-history-assets">
+                            <span>공개 종목</span>
+                            <p>{share.sharedAssets.map((asset) => asset.assetName).join(', ')}</p>
+                          </div>
+                          <PortfolioShareExplanation
+                            share={share}
+                            disabled={saving}
+                            onChange={(updated) =>
+                              setShares((values) => replaceShare(values, updated))
+                            }
+                          />
+                        </section>
+
+                        <details className="portfolio-share-history-manage">
+                          <summary>
+                            요청 관리
+                            <CaretDownIcon size={16} weight="bold" aria-hidden="true" />
+                          </summary>
+                          <p>공유를 중단해도 받은 의견은 유지돼요.</p>
+                          <div className="portfolio-share-actions">
+                            {share.status === 'ACTIVE' ? (
+                              <button
+                                className="is-secondary"
+                                type="button"
+                                onClick={() => void revoke(share)}
+                                disabled={saving}
+                                aria-label={`${share.question} 공유 중단`}
+                              >
+                                공유 중단
+                              </button>
+                            ) : null}
+                            <button
+                              className="is-danger"
+                              type="button"
+                              onClick={() => void remove(share)}
+                              disabled={saving}
+                              aria-label={`${share.question} 영구 삭제`}
+                            >
+                              영구 삭제
+                            </button>
+                          </div>
+                        </details>
+                      </div>
+                    </details>
                   </li>
                 ))}
               </ul>
-            </details>
+            </section>
           ) : null}
         </div>
       ) : null}

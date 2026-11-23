@@ -45,7 +45,7 @@ export function PortfolioShareExplanation({
     <section className="portfolio-share-explanation-editor" aria-labelledby={`${id}-title`}>
       <header>
         <div>
-          <h3 id={`${id}-title`}>작성자 추가 설명</h3>
+          <h4 id={`${id}-title`}>추가 설명</h4>
           <p id={`${id}-visibility`}>
             {share.status === 'ACTIVE'
               ? '링크를 가진 모든 사람에게 공개돼요.'
