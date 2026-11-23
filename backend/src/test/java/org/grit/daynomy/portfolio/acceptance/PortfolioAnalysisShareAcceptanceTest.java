@@ -17,6 +17,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import org.grit.daynomy.asset.domain.Asset;
+import org.grit.daynomy.asset.domain.AssetCategory;
 import org.grit.daynomy.asset.domain.StockDailyPrice;
 import org.grit.daynomy.asset.domain.StockMarket;
 import org.grit.daynomy.asset.repository.AssetRepository;
@@ -365,6 +366,88 @@ class PortfolioAnalysisShareAcceptanceTest extends SharedDatabaseTest {
         .body("additionalExplanationUpdatedAt", nullValue());
     client(owner).post(OWNER_API + "/" + shareId + "/revoke").then().statusCode(200);
     client(owner).body(Map.of("content", "중단된 공유 변경")).put(explanationApi).then().statusCode(410);
+  }
+
+  @Test
+  void ownerPersistsAndUpdatesOneReviewProposalPerComment() {
+    Member owner = member("검토안 작성자");
+    Member reviewer = member("검토안 제안자");
+    Member outsider = member("검토안 외부인");
+    PortfolioAnalysis analysis = analysis(owner);
+    String suffix = UUID.randomUUID().toString();
+    Asset samsung = assets.save(new Asset("삼성전자", AssetCategory.STOCK, "S-" + suffix));
+    Asset etf = assets.save(new Asset("KODEX 200", AssetCategory.ETF, "E-" + suffix));
+    var created =
+        client(owner)
+            .body(
+                Map.of(
+                    "analysisId",
+                    analysis.getId(),
+                    "question",
+                    "댓글 제안을 검토안으로 저장하고 싶어요.",
+                    "assetNames",
+                    List.of("삼성전자")))
+            .post(OWNER_API)
+            .then()
+            .statusCode(200)
+            .extract();
+    String token = created.path("token");
+    int shareId = created.path("share.id");
+    int commentId =
+        client(reviewer)
+            .body(Map.of("content", "ETF를 함께 편입해 분산해 보세요."))
+            .header(SHARE_TOKEN_HEADER, token)
+            .post(PUBLIC_API + "/comments")
+            .then()
+            .statusCode(200)
+            .extract()
+            .path("id");
+    String proposalApi = OWNER_API + "/" + shareId + "/comments/" + commentId + "/proposal";
+
+    int proposalId =
+        client(owner)
+            .body(Map.of("assets", List.of(Map.of("assetId", samsung.getId(), "weight", 100))))
+            .put(proposalApi)
+            .then()
+            .statusCode(200)
+            .body("shareId", equalTo(shareId))
+            .body("commentId", equalTo(commentId))
+            .body("assets", hasSize(1))
+            .body("assets[0].assetName", equalTo("삼성전자"))
+            .extract()
+            .path("id");
+    client(owner)
+        .body(
+            Map.of(
+                "assets",
+                List.of(
+                    Map.of("assetId", samsung.getId(), "weight", 60),
+                    Map.of("assetId", etf.getId(), "weight", 40))))
+        .put(proposalApi)
+        .then()
+        .statusCode(200)
+        .body("id", equalTo(proposalId))
+        .body("assets", hasSize(2));
+
+    client(owner)
+        .get(OWNER_API + "/" + shareId + "/proposals")
+        .then()
+        .statusCode(200)
+        .body("$", hasSize(1))
+        .body("[0].id", equalTo(proposalId))
+        .body("[0].assets[1].assetName", equalTo("KODEX 200"));
+    client(outsider)
+        .get(OWNER_API + "/" + shareId + "/proposals")
+        .then()
+        .statusCode(404)
+        .body("code", equalTo("PORTFOLIO_ANALYSIS_SHARE_NOT_FOUND"));
+
+    client(owner).delete(proposalApi).then().statusCode(204);
+    client(owner)
+        .get(OWNER_API + "/" + shareId + "/proposals")
+        .then()
+        .statusCode(200)
+        .body("$", hasSize(0));
   }
 
   @Test

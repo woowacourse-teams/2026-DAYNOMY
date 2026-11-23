@@ -300,8 +300,20 @@ public class PortfolioAnalysisShareService {
   }
 
   @Transactional(readOnly = true)
+  public PortfolioAnalysisShare requireOwner(Long memberId, Long shareId) {
+    return ownedShare(memberId, shareId);
+  }
+
+  @Transactional(readOnly = true)
+  public PortfolioAnalysisShare requireOwnerAccess(Long memberId, Long shareId) {
+    PortfolioAnalysisShare share = ownedShare(memberId, shareId);
+    requireAccessible(share, clock.instant());
+    return share;
+  }
+
+  @Transactional(readOnly = true)
   public void requireSimulationAccess(Long memberId, Long shareId, Long commentId) {
-    requireAccessible(ownedShare(memberId, shareId), clock.instant());
+    requireOwnerAccess(memberId, shareId);
     comments
         .findByIdAndShareId(commentId, shareId)
         .filter(comment -> !comment.isReply())
