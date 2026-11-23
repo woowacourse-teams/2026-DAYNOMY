@@ -58,6 +58,7 @@ class PortfolioReviewSimulationServiceTest {
           null,
           null,
           limiter,
+          mock(PortfolioShareTokenCipher.class),
           Clock.fixed(now, ZoneOffset.UTC),
           transactions);
   private final PortfolioReviewSimulationService service =
@@ -112,6 +113,7 @@ class PortfolioReviewSimulationServiceTest {
             calculation,
             null,
             limiter,
+            mock(PortfolioShareTokenCipher.class),
             Clock.fixed(now, ZoneOffset.UTC),
             transactions);
     if (new BigDecimal(amount).signum() <= 0) {

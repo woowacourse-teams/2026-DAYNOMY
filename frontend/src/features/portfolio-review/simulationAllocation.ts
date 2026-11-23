@@ -43,6 +43,17 @@ export function simulationWeights(assets: SimulationDraft[]) {
   };
 }
 
+export function balanceSimulationDraft(assets: SimulationDraft[]) {
+  if (!assets.length || assets.length > 50) return null;
+  const manualUnits = assets.slice(1).map((asset) => weightInBasisPoints(asset.weight));
+  if (manualUnits.some((unit) => unit === null)) return null;
+  const remaining = 10000 - (manualUnits as number[]).reduce((sum, unit) => sum + unit, 0);
+  if (remaining <= 0) return null;
+  return assets.map((asset, index) =>
+    index === 0 ? { ...asset, weight: (remaining / 100).toFixed(2) } : asset,
+  );
+}
+
 export function simulationAllocation(assets: { amount: string }[]) {
   if (!assets.length || assets.length > 50) return null;
   const amounts = assets.map((asset) => amountInCents(asset.amount));

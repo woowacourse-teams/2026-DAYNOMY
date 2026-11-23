@@ -164,8 +164,12 @@
   gap: 8px;
 }
 
-.portfolio-share-actions button,
+.portfolio-share-actions :is(button, a),
 .portfolio-share-link :is(button, a) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   border: 1px solid #31588a;
   border-radius: 9px;
   background: #31588a;
@@ -173,6 +177,7 @@
   padding: 10px 14px;
   font: inherit;
   font-weight: 700;
+  text-decoration: none;
   cursor: pointer;
 }
 
@@ -944,6 +949,33 @@
   font-variant-numeric: tabular-nums;
 }
 
+.portfolio-simulation-table input[readonly] {
+  border-color: #e4e9f0;
+  background: #f4f6f9;
+  color: #344054;
+  cursor: default;
+}
+
+.portfolio-simulation-automatic-badge {
+  display: block;
+  width: max-content;
+  margin: 5px 0 0 auto;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #edf3fa;
+  color: #31588a;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.portfolio-review-simulation-editor .portfolio-simulation-automatic-help {
+  margin: 4px 0 0;
+  color: #667085;
+  font-size: 0.75rem;
+  line-height: 1.6;
+}
+
 .portfolio-simulation-table th[scope='row'] {
   padding-right: 16px;
   overflow-wrap: anywhere;
@@ -1209,6 +1241,13 @@
   padding: 11px 16px;
   text-decoration: none;
   font-weight: 700;
+}
+
+.portfolio-simulation-automatic-help {
+  margin: 10px 0 0;
+  color: #667085;
+  font-size: 0.75rem;
+  line-height: 1.6;
 }
 
 .portfolio-public-share-state {
@@ -2406,11 +2445,6 @@
   font-weight: 600;
 }
 
-.portfolio-public-main > .portfolio-review-result .portfolio-analysis-heading h2 {
-  font-size: 1.125rem;
-  font-weight: 700;
-}
-
 .portfolio-public-share-state a {
   background: #182230;
 }
@@ -2592,11 +2626,6 @@
   gap: 7px;
 }
 
-.portfolio-share-history-item > summary::-webkit-details-marker,
-.portfolio-share-history-manage > summary::-webkit-details-marker {
-  display: none;
-}
-
 .portfolio-share-history-heading h2 {
   margin: 0;
   color: #182230;
@@ -2638,30 +2667,17 @@
   background: #fff;
 }
 
-.portfolio-share-history-item > summary {
+.portfolio-share-history-item > header {
   display: grid;
   min-height: 76px;
   padding: 14px 16px;
   align-items: center;
-  grid-template-columns: auto minmax(0, 1fr) auto auto auto;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
   gap: 6px 12px;
   color: #182230;
-  cursor: pointer;
-  list-style: none;
 }
 
-.portfolio-share-history-item > summary:hover {
-  background: #f7f9fc;
-}
-
-.portfolio-share-history-item > summary:focus-visible,
-.portfolio-share-history-manage > summary:focus-visible,
-.portfolio-share-explanation-editor button:focus-visible {
-  outline: 2px solid #31588a;
-  outline-offset: -3px;
-}
-
-.portfolio-share-history-item > summary > strong {
+.portfolio-share-history-item > header > strong {
   min-width: 0;
   overflow: hidden;
   color: #182230;
@@ -2670,17 +2686,6 @@
   line-height: 1.45;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.portfolio-share-history-item > summary > svg,
-.portfolio-share-history-manage > summary > svg {
-  color: #65748a;
-  transition: transform 160ms ease-out;
-}
-
-.portfolio-share-history-item[open] > summary > svg,
-.portfolio-share-history-manage[open] > summary > svg {
-  transform: rotate(180deg);
 }
 
 .portfolio-share-history-status {
@@ -3034,114 +3039,6 @@
   overflow-wrap: anywhere;
 }
 
-.portfolio-share-explanation-editor {
-  display: grid;
-  padding: 14px 16px;
-  gap: 12px;
-  border-radius: 8px;
-  background: #f3f6fa;
-}
-
-.portfolio-share-explanation-editor > header {
-  display: flex;
-  min-height: 44px;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.portfolio-share-explanation-editor h4 {
-  margin: 0;
-  color: #182230;
-  font-size: 0.875rem;
-  font-weight: 750;
-}
-
-.portfolio-share-explanation-editor header p {
-  margin: 3px 0 0;
-  color: #526077;
-  font-size: 0.75rem;
-  line-height: 1.5;
-}
-
-.portfolio-share-explanation-editor header button,
-.portfolio-share-explanation-editor .portfolio-share-actions button {
-  min-height: 44px;
-  flex: 0 0 auto;
-  border: 1px solid #bfc8d5;
-  border-radius: 7px;
-  padding: 8px 12px;
-  background: #fff;
-  color: #34445b;
-  font: inherit;
-  font-size: 0.8125rem;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.portfolio-share-explanation-editor form {
-  display: grid;
-  gap: 9px;
-}
-
-.portfolio-share-explanation-editor form > label {
-  color: #34445b;
-  font-size: 0.8125rem;
-  font-weight: 700;
-}
-
-.portfolio-share-explanation-editor textarea {
-  width: 100%;
-  min-height: 112px;
-  resize: vertical;
-  border: 1px solid #bfc8d5;
-  border-radius: 8px;
-  padding: 12px;
-  background: #fff;
-  color: #182230;
-  font: inherit;
-  line-height: 1.6;
-}
-
-.portfolio-share-explanation-meta {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-  color: #526077;
-}
-
-.portfolio-share-explanation-meta small {
-  font-size: 0.75rem;
-}
-
-.portfolio-share-explanation-meta .is-error {
-  color: #b42318;
-}
-
-.portfolio-share-explanation-copy,
-.portfolio-share-explanation-editor > .portfolio-share-notice {
-  margin: 0;
-  color: #34445b;
-  font-size: 0.8125rem;
-  line-height: 1.65;
-  white-space: pre-wrap;
-}
-
-.portfolio-share-explanation-editor .portfolio-share-actions {
-  display: flex;
-  margin: 0;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-.portfolio-share-explanation-editor .portfolio-share-actions button:not(.is-secondary) {
-  border-color: #182230;
-  background: #182230;
-  color: #fff;
-}
-
-.portfolio-share-explanation-editor button:disabled,
 .portfolio-share-history-review button:disabled {
   cursor: default;
   opacity: 0.55;
@@ -3156,25 +3053,14 @@
 }
 
 .portfolio-share-history-manage {
-  padding-top: 10px;
+  display: grid;
+  padding-top: 16px;
+  gap: 10px;
   border-top: 1px solid #e4e7ec;
 }
 
-.portfolio-share-history-manage > summary {
-  display: inline-flex;
-  min-height: 44px;
-  padding: 8px 0;
-  align-items: center;
-  gap: 7px;
-  color: #526077;
-  font-size: 0.8125rem;
-  font-weight: 700;
-  cursor: pointer;
-  list-style: none;
-}
-
 .portfolio-share-history-manage > p {
-  margin: 2px 0 12px;
+  margin: 0;
   color: #526077;
   font-size: 0.75rem;
   line-height: 1.5;
@@ -3182,12 +3068,13 @@
 
 .portfolio-share-history-manage > .portfolio-share-actions {
   display: flex;
+  flex-wrap: wrap;
   margin: 0;
   justify-content: flex-start;
   gap: 8px;
 }
 
-.portfolio-share-history-manage > .portfolio-share-actions button {
+.portfolio-share-history-manage > .portfolio-share-actions :is(button, a) {
   min-height: 44px;
   border-radius: 7px;
   padding: 8px 12px;
@@ -3211,14 +3098,14 @@
     grid-column: 1 / -1;
   }
 
-  .portfolio-share-history-item > summary {
+  .portfolio-share-history-item > header {
     min-height: 0;
     padding: 14px;
     grid-template-columns: auto minmax(0, 1fr) auto;
     gap: 6px 10px;
   }
 
-  .portfolio-share-history-item > summary > strong {
+  .portfolio-share-history-item > header > strong {
     grid-column: 1 / -1;
     grid-row: 2;
     white-space: normal;
@@ -3232,11 +3119,6 @@
   .portfolio-share-history-count {
     grid-column: 3;
     grid-row: 3;
-  }
-
-  .portfolio-share-history-item > summary > svg {
-    grid-column: 3;
-    grid-row: 1;
   }
 
   .portfolio-share-history-body {
@@ -3268,28 +3150,17 @@
     gap: 4px;
   }
 
-  .portfolio-share-explanation-editor {
-    padding: 14px;
-  }
-
-  .portfolio-share-explanation-editor > header {
-    align-items: flex-start;
-  }
-
-  .portfolio-share-explanation-meta,
   .portfolio-share-history-review .portfolio-reply-compose-footer {
     align-items: stretch;
     flex-direction: column;
   }
 
-  .portfolio-share-explanation-editor .portfolio-share-actions,
   .portfolio-share-history-manage > .portfolio-share-actions {
     align-items: stretch;
     flex-direction: column;
   }
 
-  .portfolio-share-explanation-editor .portfolio-share-actions button,
-  .portfolio-share-history-manage > .portfolio-share-actions button,
+  .portfolio-share-history-manage > .portfolio-share-actions :is(button, a),
   .portfolio-share-history-review .portfolio-reply-compose-footer button {
     width: 100%;
   }

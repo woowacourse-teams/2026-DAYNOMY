@@ -17,6 +17,12 @@ const score = (value: number | null) =>
     ? '판단 보류'
     : `${value > 0 ? '+' : value < 0 ? '−' : ''}${Math.abs(value).toFixed(2)}점`;
 
+function analyzedAtLabel(value: string | null) {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : `${date.toLocaleString('ko-KR')} 분석 기준`;
+}
+
 function Paragraph({ text }: { text: string }) {
   const plain = text
     .replace(/\[([^\]]+)\]\(https?:\/\/[^)]+\)/g, '$1')
@@ -24,6 +30,20 @@ function Paragraph({ text }: { text: string }) {
     .replace(/\[\d+(?:\s*[,–-]\s*\d+)*\]/g, '')
     .replace(/【[^】]*】/g, '')
     .replace(/\*\*/g, '')
+    .replace(/밝혔습니다\./g, '밝혔어요.')
+    .replace(/예시입니다\./g, '예시예요.')
+    .replace(/([았었였했됐졌])습니다\./g, '$1어요.')
+    .replace(/어렵습니다\./g, '어려워요.')
+    .replace(/않습니다\./g, '않아요.')
+    .replace(/아닙니다\./g, '아니에요.')
+    .replace(/보입니다\./g, '보여요.')
+    .replace(/되었습니다\./g, '됐어요.')
+    .replace(/했습니다\./g, '했어요.')
+    .replace(/됩니다\./g, '돼요.')
+    .replace(/있습니다\./g, '있어요.')
+    .replace(/없습니다\./g, '없어요.')
+    .replace(/입니다\./g, '이에요.')
+    .replace(/합니다\./g, '해요.')
     .trim();
   return plain ? <p>{plain}</p> : null;
 }
@@ -33,11 +53,15 @@ export function PortfolioReviewAnalysisResult({
   title,
   showOverall = true,
   fullLayout = false,
+  portfolioLabel = '전체 포트폴리오',
+  contextNote,
 }: {
   analysis: PortfolioAnalysisResponse;
   title: string;
   showOverall?: boolean;
   fullLayout?: boolean;
+  portfolioLabel?: string;
+  contextNote?: string;
 }) {
   const id = useId();
   const [selected, setSelected] = useState<string | null>(null);
@@ -59,6 +83,7 @@ export function PortfolioReviewAnalysisResult({
   ];
   let offset = 0;
   const overall = showOverall && !selectedImpact;
+  const analyzedAt = analyzedAtLabel(analysis.analyzedAt);
 
   return (
     <section
@@ -66,7 +91,10 @@ export function PortfolioReviewAnalysisResult({
       aria-label={title}
     >
       <header className="portfolio-analysis-heading has-analysis">
-        <h2>{title}</h2>
+        <div>
+          <h2>{title}</h2>
+          {contextNote ? <p>{contextNote}</p> : null}
+        </div>
       </header>
       {!showOverall ? (
         <p className="portfolio-review-result-note">
@@ -84,7 +112,7 @@ export function PortfolioReviewAnalysisResult({
               viewBox="0 0 220 220"
               role="group"
               aria-label={
-                showOverall ? '전체 포트폴리오의 자산별 보유 비중' : '공개 종목 내 자산별 비중'
+                showOverall ? `${portfolioLabel}의 자산별 보유 비중` : '공개 종목 내 자산별 비중'
               }
             >
               {overall ? (
@@ -96,7 +124,7 @@ export function PortfolioReviewAnalysisResult({
                   stroke={color(direction)}
                   strokeWidth="38"
                   role="img"
-                  aria-label={`전체 포트폴리오, ${label(direction)}`}
+                  aria-label={`${portfolioLabel}, ${label(direction)}`}
                 />
               ) : (
                 assets.map((asset) => {
@@ -135,11 +163,11 @@ export function PortfolioReviewAnalysisResult({
               <button
                 type="button"
                 className={`portfolio-donut-center ${tone(direction)}${overall ? ' is-overall' : ''}`}
-                aria-label="전체 포트폴리오 분석 보기"
+                aria-label={`${selectedImpact?.assetName ?? portfolioLabel} 분석 보기`}
                 aria-pressed={overall}
                 onClick={() => setSelected(null)}
               >
-                <strong>{selectedImpact?.assetName ?? '전체 포트폴리오'}</strong>
+                <strong>{selectedImpact?.assetName ?? portfolioLabel}</strong>
                 {selectedImpact ? <b>{selectedImpact.weight}%</b> : <small>전체 분석</small>}
               </button>
             ) : (
@@ -165,7 +193,7 @@ export function PortfolioReviewAnalysisResult({
                     }}
                     aria-hidden="true"
                   />
-                  <span className="portfolio-asset-name">전체 포트폴리오</span>
+                  <span className="portfolio-asset-name">{portfolioLabel}</span>
                   <span className="portfolio-asset-analysis">전체 분석</span>
                   <strong>{score(analysis.overallScore)}</strong>
                 </button>
@@ -219,6 +247,7 @@ export function PortfolioReviewAnalysisResult({
         <article
           className={`portfolio-impact-detail ${overall ? 'is-overall ' : ''}${tone(direction)}`}
           aria-labelledby={`${id}-detail`}
+          aria-live="polite"
         >
           <div className="portfolio-detail-header">
             <div>
@@ -227,10 +256,10 @@ export function PortfolioReviewAnalysisResult({
                   ? selectedImpact.direction
                     ? `포트폴리오 영향 TOP ${selectedImpact.rank} / ${analysis.analyzedAssetCount}`
                     : '보유 종목 · 근거 부족'
-                  : '전체 포트폴리오 예상 영향'}
+                  : `${portfolioLabel} 예상 영향`}
               </span>
-              <h3 id={`${id}-detail`} aria-live="polite">
-                {selectedImpact?.assetName ?? (showOverall ? '전체 포트폴리오' : '공개 종목 분석')}
+              <h3 id={`${id}-detail`}>
+                {selectedImpact?.assetName ?? (showOverall ? portfolioLabel : '공개 종목 분석')}
               </h3>
             </div>
             <div className="portfolio-detail-badge-group">
@@ -279,13 +308,17 @@ export function PortfolioReviewAnalysisResult({
               <p>표시할 공개 종목 분석이 없어요.</p>
             )}
           </div>
-          {overall && analysis.analyzedAt ? (
+          {overall && analyzedAt && analysis.analyzedAt ? (
             <time className="portfolio-detail-time" dateTime={analysis.analyzedAt}>
-              {new Date(analysis.analyzedAt).toLocaleString('ko-KR')} 분석 기준
+              {analyzedAt}
             </time>
           ) : null}
-          <section className="portfolio-evidence" aria-labelledby={`${id}-sources`}>
-            <h4 id={`${id}-sources`}>분석 출처</h4>
+          <details className="portfolio-evidence">
+            <summary>
+              <span className="portfolio-evidence-label is-closed">분석 출처 모두 보기</span>
+              <span className="portfolio-evidence-label is-open">분석 출처 접기</span>
+              <span className="portfolio-evidence-toggle-icon" aria-hidden="true" />
+            </summary>
             {sources.length ? (
               <ul className="portfolio-evidence-sources">
                 {sources.map((source) => (
@@ -323,13 +356,25 @@ export function PortfolioReviewAnalysisResult({
             ) : (
               <p>연결된 출처가 없어요.</p>
             )}
-          </section>
+          </details>
         </article>
       </div>
       {showOverall ? (
         <div className="portfolio-score-panel">
-          <section className="portfolio-score-guide" aria-labelledby={`${id}-score-guide`}>
-            <h3 id={`${id}-score-guide`}>영향 점수 산정 기준</h3>
+          {analysis.overallScore === 0 ? (
+            <p role="status">
+              {analysis.positiveImpactScore > 0 || analysis.negativeImpactScore > 0
+                ? `긍정 기여 +${analysis.positiveImpactScore.toFixed(2)}점과 부정 기여 −${Math.abs(analysis.negativeImpactScore).toFixed(2)}점이 상쇄돼 전체 영향 점수가 0점이에요.`
+                : '분석한 종목의 영향이 모두 중립으로 평가돼 전체 영향 점수가 0점이에요.'}
+            </p>
+          ) : null}
+          <details className="portfolio-score-guide">
+            <summary>
+              <svg className="portfolio-score-toggle" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M6 3 21 12 6 21Z" />
+              </svg>
+              <h3 id={`${id}-score-guide`}>영향 점수 산정 기준</h3>
+            </summary>
             <p>
               보유 비중과 자산별 영향 방향·수준을 합산한 -100~100 지표예요. 예상 수익률이나 상승
               확률은 아니에요.
@@ -349,7 +394,7 @@ export function PortfolioReviewAnalysisResult({
                 <dd>{score(analysis.overallScore)}</dd>
               </div>
             </dl>
-          </section>
+          </details>
         </div>
       ) : null}
     </section>

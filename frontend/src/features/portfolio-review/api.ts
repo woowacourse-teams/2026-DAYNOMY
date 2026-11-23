@@ -90,6 +90,7 @@ function isOwnerShare(value: unknown): value is PortfolioAnalysisOwnerShare {
   return (
     isRecord(value) &&
     Number.isSafeInteger(value.id) &&
+    (value.token === null || typeof value.token === 'string') &&
     (value.analysisId === null || Number.isSafeInteger(value.analysisId)) &&
     typeof value.question === 'string' &&
     hasValidExplanation(value) &&
@@ -195,7 +196,7 @@ function isReviewProposal(value: unknown): value is PortfolioReviewProposal {
 }
 
 function requireReviewProposal(value: unknown) {
-  if (!isReviewProposal(value)) throw new Error('저장된 검토안 응답 형식이 올바르지 않습니다.');
+  if (!isReviewProposal(value)) throw new Error('저장한 개선안 응답 형식이 올바르지 않습니다.');
   return value;
 }
 
@@ -219,25 +220,26 @@ export async function createPortfolioAnalysisShare(
   );
 }
 
+export async function reissuePortfolioAnalysisShare(shareId: number) {
+  return requireCreated(
+    await requestWithCsrf<unknown>(`/api/users/me/portfolio/analysis/shares/${shareId}/reissue`, {
+      method: 'POST',
+    }),
+  );
+}
+
+export async function getOwnerPortfolioAnalysisShare(shareId: number, signal?: AbortSignal) {
+  return requirePublicShare(
+    await request<unknown>(`/api/users/me/portfolio/analysis/shares/${shareId}`, { signal }),
+  );
+}
+
 export async function revokePortfolioAnalysisShare(shareId: number) {
   const response = await requestWithCsrf<unknown>(
     `/api/users/me/portfolio/analysis/shares/${shareId}/revoke`,
     { method: 'POST' },
   );
   if (!isOwnerShare(response)) throw new Error('공유 중단 응답 형식이 올바르지 않습니다.');
-  return response;
-}
-
-export async function updatePortfolioShareExplanation(shareId: number, content: string) {
-  const response = await requestWithCsrf<unknown>(
-    `/api/users/me/portfolio/analysis/shares/${shareId}/explanation`,
-    {
-      method: 'PUT',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ content }),
-    },
-  );
-  if (!isOwnerShare(response)) throw new Error('추가 설명 응답 형식이 올바르지 않습니다.');
   return response;
 }
 
@@ -415,7 +417,7 @@ export async function getPortfolioReviewProposals(shareId: number, signal?: Abor
     { signal },
   );
   if (!Array.isArray(response) || !response.every(isReviewProposal))
-    throw new Error('저장된 검토안 목록 응답 형식이 올바르지 않습니다.');
+    throw new Error('저장한 개선안 목록 응답 형식이 올바르지 않습니다.');
   return response;
 }
 

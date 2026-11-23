@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.member.domain.Member;
 import org.grit.daynomy.member.exception.MemberErrorCode;
@@ -46,6 +47,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 @RequiredArgsConstructor
+@Slf4j
 @Service
 public class PortfolioAnalysisShareService {
 
@@ -61,6 +63,7 @@ public class PortfolioAnalysisShareService {
   private final PortfolioCalculationService calculation;
   private final MemberRepository members;
   private final PortfolioAnalysisShareRateLimiter rateLimiter;
+  private final PortfolioShareTokenCipher tokenCipher;
   private final Clock clock;
   private final PlatformTransactionManager transactionManager;
 
@@ -104,6 +107,7 @@ public class PortfolioAnalysisShareService {
             analysis == null ? null : analysis.getId(),
             request.question(),
             hash(rawToken),
+            tokenCipher.encrypt(rawToken),
             publicSnapshot,
             now.plus(SHARE_DURATION));
     PortfolioAnalysisShare saved = shares.save(share);
@@ -116,6 +120,16 @@ public class PortfolioAnalysisShareService {
     return shares.findAllByOwnerIdOrderByCreatedAtDescIdDesc(memberId).stream()
         .map(share -> ownerResponse(share, now))
         .toList();
+  }
+
+  @Transactional
+  public PortfolioAnalysisShareDto.CreatedResponse reissue(Long memberId, Long shareId) {
+    rateLimiter.acquireWrite(memberId);
+    PortfolioAnalysisShare share = ownedShare(memberId, shareId);
+    Instant now = clock.instant();
+    String rawToken = newToken();
+    share.reissue(hash(rawToken), tokenCipher.encrypt(rawToken), now.plus(SHARE_DURATION));
+    return new PortfolioAnalysisShareDto.CreatedResponse(ownerResponse(share, now), rawToken);
   }
 
   @Transactional
@@ -143,6 +157,11 @@ public class PortfolioAnalysisShareService {
   }
 
   @Transactional(readOnly = true)
+  public PortfolioAnalysisShareDto.PublicResponse getOwnerPreview(Long memberId, Long shareId) {
+    return publicResponse(ownedShare(memberId, shareId), memberId, clock.instant());
+  }
+
+  @Transactional(readOnly = true)
   public PortfolioAnalysisShareDto.PublicResponse getPublic(
       String rawToken, Long viewerMemberId, String remoteAddress) {
     rateLimiter.acquireRead(remoteAddress);
@@ -152,6 +171,11 @@ public class PortfolioAnalysisShareService {
             .orElseThrow(
                 () -> new BusinessException(PortfolioErrorCode.PORTFOLIO_ANALYSIS_SHARE_NOT_FOUND));
     requireAccessible(share, clock.instant());
+    return publicResponse(share, viewerMemberId, clock.instant());
+  }
+
+  private PortfolioAnalysisShareDto.PublicResponse publicResponse(
+      PortfolioAnalysisShare share, Long viewerMemberId, Instant now) {
     List<PortfolioAnalysisShareDto.CommentResponse> myComments =
         viewerMemberId == null
             ? List.of()
@@ -170,9 +194,7 @@ public class PortfolioAnalysisShareService {
         PortfolioAnalysisShareDto.SnapshotResponse.from(share.getSnapshot()),
         viewerMemberId != null && !share.getOwner().getId().equals(viewerMemberId),
         myComments,
-        share.getOwner().getId().equals(viewerMemberId)
-            ? ownerResponse(share, clock.instant())
-            : null);
+        share.getOwner().getId().equals(viewerMemberId) ? ownerResponse(share, now) : null);
   }
 
   @Transactional
@@ -381,6 +403,7 @@ public class PortfolioAnalysisShareService {
             .toList();
     return new PortfolioAnalysisShareDto.OwnerResponse(
         share.getId(),
+        recoverToken(share, now),
         share.getAnalysisId(),
         share.getQuestion(),
         share.getAdditionalExplanation(),
@@ -396,6 +419,19 @@ public class PortfolioAnalysisShareService {
                         impact.assetName(), impact.weight()))
             .toList(),
         commentResponses);
+  }
+
+  private String recoverToken(PortfolioAnalysisShare share, Instant now) {
+    if (share.status(now) != PortfolioAnalysisShare.Status.ACTIVE
+        || share.getEncryptedToken() == null) {
+      return null;
+    }
+    try {
+      return tokenCipher.decrypt(share.getEncryptedToken());
+    } catch (IllegalStateException exception) {
+      log.warn("Unable to decrypt portfolio analysis share token: shareId={}", share.getId());
+      return null;
+    }
   }
 
   private PortfolioAnalysisShareDto.CommentResponse commentResponse(

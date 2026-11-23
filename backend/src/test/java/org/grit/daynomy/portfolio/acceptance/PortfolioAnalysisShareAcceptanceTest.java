@@ -96,6 +96,11 @@ class PortfolioAnalysisShareAcceptanceTest extends SharedDatabaseTest {
             .extract();
     String token = created.path("token");
     int shareId = created.path("share.id");
+    String listedToken = created.path("share.token");
+    assertThat(listedToken).isEqualTo(token);
+    assertThat(shares.findById((long) shareId).orElseThrow().getEncryptedToken())
+        .startsWith("v1.")
+        .doesNotContain(token);
 
     client(reviewer)
         .body(Map.of("content", " a "))
@@ -230,6 +235,7 @@ class PortfolioAnalysisShareAcceptanceTest extends SharedDatabaseTest {
         .get(OWNER_API)
         .then()
         .statusCode(200)
+        .body("[0].token", equalTo(token))
         .body("[0].comments", hasSize(2))
         .body("[0].sharedAssets", hasSize(1))
         .body("[0].comments[1].replies", hasSize(2))
@@ -490,6 +496,72 @@ class PortfolioAnalysisShareAcceptanceTest extends SharedDatabaseTest {
         .get(OWNER_API)
         .then()
         .body("[0].status", equalTo("REVOKED"))
+        .body("[0].token", nullValue())
+        .body("[0].comments", hasSize(1));
+    client(owner)
+        .get(OWNER_API + "/" + shareId)
+        .then()
+        .statusCode(200)
+        .body("ownerShare.id", equalTo(shareId))
+        .body("ownerShare.status", equalTo("REVOKED"))
+        .body("ownerShare.comments", hasSize(1));
+  }
+
+  @Test
+  void reissuesTheSameRequestWhileKeepingItsComments() {
+    Member owner = member("재발급 작성자");
+    Member reviewer = member("재발급 리뷰어");
+    PortfolioAnalysis analysis = analysis(owner);
+    var created =
+        client(owner)
+            .body(
+                Map.of(
+                    "analysisId",
+                    analysis.getId(),
+                    "question",
+                    "기존 의견을 유지한 채 링크를 다시 발급하고 싶어요.",
+                    "assetNames",
+                    List.of("삼성전자")))
+            .post(OWNER_API)
+            .then()
+            .statusCode(200)
+            .extract();
+    String oldToken = created.path("token");
+    int shareId = created.path("share.id");
+    client(reviewer)
+        .body(Map.of("content", "재발급 뒤에도 남아야 하는 의견입니다."))
+        .header(SHARE_TOKEN_HEADER, oldToken)
+        .post(PUBLIC_API + "/comments")
+        .then()
+        .statusCode(200);
+
+    var reissued =
+        client(owner)
+            .post(OWNER_API + "/" + shareId + "/reissue")
+            .then()
+            .statusCode(200)
+            .body("share.id", equalTo(shareId))
+            .body("share.status", equalTo("ACTIVE"))
+            .body("share.comments", hasSize(1))
+            .extract();
+    String newToken = reissued.path("token");
+
+    assertThat(newToken).isNotEqualTo(oldToken).isEqualTo(reissued.path("share.token"));
+    given().port(port).header(SHARE_TOKEN_HEADER, oldToken).get(PUBLIC_API).then().statusCode(404);
+    given()
+        .port(port)
+        .header(SHARE_TOKEN_HEADER, newToken)
+        .get(PUBLIC_API)
+        .then()
+        .statusCode(200)
+        .body("question", equalTo("기존 의견을 유지한 채 링크를 다시 발급하고 싶어요."));
+    client(owner)
+        .get(OWNER_API)
+        .then()
+        .statusCode(200)
+        .body("$", hasSize(1))
+        .body("[0].id", equalTo(shareId))
+        .body("[0].token", equalTo(newToken))
         .body("[0].comments", hasSize(1));
   }
 

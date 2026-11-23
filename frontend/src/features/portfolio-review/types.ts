@@ -24,6 +24,7 @@ export type PortfolioAnalysisShareStatus = 'ACTIVE' | 'EXPIRED' | 'REVOKED';
 
 export type PortfolioAnalysisOwnerShare = {
   id: number;
+  token: string | null;
   analysisId: number | null;
   question: string;
   additionalExplanation: string | null;
