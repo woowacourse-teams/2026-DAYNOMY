@@ -411,7 +411,7 @@ class PortfolioAnalysisShareAcceptanceTest extends SharedDatabaseTest {
   }
 
   @Test
-  void newLinkKeepsPreviousCommentsOnlyInThePreviousShare() {
+  void newLinkKeepsPreviousLinkAndCommentsActiveIndependently() {
     Member owner = member("링크 재발급 작성자");
     Member reviewer = member("링크 재발급 리뷰어");
     PortfolioAnalysis analysis = analysis(owner);
@@ -463,8 +463,14 @@ class PortfolioAnalysisShareAcceptanceTest extends SharedDatabaseTest {
         .header(SHARE_TOKEN_HEADER, firstToken)
         .get(PUBLIC_API)
         .then()
-        .statusCode(410)
-        .body("code", equalTo("PORTFOLIO_ANALYSIS_SHARE_REVOKED"));
+        .statusCode(200)
+        .body("additionalExplanation", equalTo("첫 번째 링크에만 남아야 하는 추가 설명입니다."));
+    client(reviewer)
+        .header(SHARE_TOKEN_HEADER, firstToken)
+        .get(PUBLIC_API)
+        .then()
+        .statusCode(200)
+        .body("myComments", hasSize(1));
     client(reviewer)
         .header(SHARE_TOKEN_HEADER, secondToken)
         .get(PUBLIC_API)
@@ -487,7 +493,7 @@ class PortfolioAnalysisShareAcceptanceTest extends SharedDatabaseTest {
         .body("[0].status", equalTo("ACTIVE"))
         .body("[0].comments", hasSize(0))
         .body("[1].id", equalTo(firstShareId))
-        .body("[1].status", equalTo("REVOKED"))
+        .body("[1].status", equalTo("ACTIVE"))
         .body("[1].comments", hasSize(1));
   }
 
@@ -600,8 +606,7 @@ class PortfolioAnalysisShareAcceptanceTest extends SharedDatabaseTest {
             .filter(share -> share.getAnalysisId() == null)
             .toList();
     assertThat(createdShares).hasSize(2);
-    assertThat(createdShares).filteredOn(share -> share.getRevokedAt() == null).hasSize(1);
-    assertThat(createdShares).filteredOn(share -> share.getRevokedAt() != null).hasSize(1);
+    assertThat(createdShares).allMatch(share -> share.getRevokedAt() == null);
   }
 
   @Test

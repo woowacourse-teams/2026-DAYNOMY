@@ -98,18 +98,6 @@ public class PortfolioAnalysisShareService {
         analysis == null
             ? portfolioSnapshot(shareablePortfolio, request.assetNames())
             : publicSnapshot(memberId, analysis, shareablePortfolio, request.assetNames());
-    PortfolioAnalysisShare previousShare =
-        analysis == null
-            ? shares
-                .findFirstByOwnerIdAndAnalysisIdIsNullOrderByCreatedAtDescIdDesc(memberId)
-                .orElse(null)
-            : shares
-                .findFirstByOwnerIdAndAnalysisIdOrderByCreatedAtDescIdDesc(
-                    memberId, analysis.getId())
-                .orElse(null);
-    if (previousShare != null && previousShare.status(now) == PortfolioAnalysisShare.Status.ACTIVE) {
-      previousShare.revoke(now);
-    }
     PortfolioAnalysisShare share =
         PortfolioAnalysisShare.create(
             owner,
