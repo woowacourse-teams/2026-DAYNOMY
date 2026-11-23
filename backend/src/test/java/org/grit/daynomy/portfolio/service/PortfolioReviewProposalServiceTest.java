@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -25,6 +26,8 @@ import org.grit.daynomy.portfolio.repository.PortfolioAnalysisCommentRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioReviewProposalRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.ArgumentCaptor;
 
 class PortfolioReviewProposalServiceTest {
@@ -48,6 +51,7 @@ class PortfolioReviewProposalServiceTest {
     when(comment.getId()).thenReturn(9L);
     when(comment.getShare()).thenReturn(share);
     when(comment.isReply()).thenReturn(false);
+    when(shares.requireOwner(1L, 3L)).thenReturn(share);
     when(shares.requireOwnerAccess(1L, 3L)).thenReturn(share);
     when(comments.findByIdAndShareIdForUpdate(9L, 3L)).thenReturn(Optional.of(comment));
     when(proposals.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
@@ -128,6 +132,26 @@ class PortfolioReviewProposalServiceTest {
     service.delete(1L, 3L, 9L);
 
     verify(proposals).delete(existing);
+  }
+
+  @ParameterizedTest
+  @EnumSource(
+      value = PortfolioErrorCode.class,
+      names = {"PORTFOLIO_ANALYSIS_SHARE_EXPIRED", "PORTFOLIO_ANALYSIS_SHARE_REVOKED"})
+  void endedShareAllowsListingAndDeletingButRejectsSaving(PortfolioErrorCode errorCode) {
+    when(shares.requireOwnerAccess(1L, 3L)).thenThrow(new BusinessException(errorCode));
+    when(proposals.findAllByShareIdOrderByUpdatedAtDescIdDesc(3L)).thenReturn(List.of());
+    when(proposals.findByCommentId(9L)).thenReturn(Optional.empty());
+
+    assertThat(service.list(1L, 3L)).isEmpty();
+    service.delete(1L, 3L, 9L);
+    assertThatThrownBy(() -> service.save(1L, 3L, 9L, request(assetRequest(10L, "100"))))
+        .isInstanceOfSatisfying(
+            BusinessException.class,
+            exception -> assertThat(exception.errorCode()).isEqualTo(errorCode));
+
+    verify(shares, times(2)).requireOwner(1L, 3L);
+    verify(shares).requireOwnerAccess(1L, 3L);
   }
 
   private Asset asset(Long id, String name, AssetCategory category) {

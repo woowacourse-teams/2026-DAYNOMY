@@ -29,7 +29,7 @@ public class PortfolioReviewProposalService {
 
   @Transactional(readOnly = true)
   public List<PortfolioReviewProposalDto.Response> list(Long memberId, Long shareId) {
-    shares.requireOwnerAccess(memberId, shareId);
+    shares.requireOwner(memberId, shareId);
     return proposals.findAllByShareIdOrderByUpdatedAtDescIdDesc(shareId).stream()
         .map(PortfolioReviewProposalDto.Response::from)
         .toList();
@@ -57,7 +57,7 @@ public class PortfolioReviewProposalService {
   @Transactional
   public void delete(Long memberId, Long shareId, Long commentId) {
     rateLimiter.acquireWrite(memberId);
-    shares.requireOwnerAccess(memberId, shareId);
+    shares.requireOwner(memberId, shareId);
     rootCommentForUpdate(shareId, commentId);
     proposals.findByCommentId(commentId).ifPresent(proposals::delete);
   }
