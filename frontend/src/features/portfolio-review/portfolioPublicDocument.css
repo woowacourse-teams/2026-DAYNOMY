@@ -53,6 +53,48 @@ body:has(.portfolio-public-share-page) {
   white-space: pre-wrap;
 }
 
+.portfolio-public-explanation {
+  grid-column: 1 / -1;
+  display: grid;
+  margin: 4px 0 0;
+  padding-top: 18px;
+  gap: 8px;
+  border-top: 1px solid #edf0f4;
+}
+
+.portfolio-public-explanation > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.portfolio-public-explanation h2,
+.portfolio-public-explanation p,
+.portfolio-public-explanation time {
+  margin: 0;
+}
+
+.portfolio-public-explanation h2 {
+  color: #344054;
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+.portfolio-public-explanation time {
+  color: #8491a3;
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.portfolio-public-explanation p {
+  color: #52637a;
+  font-size: 0.875rem;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
 .portfolio-public-question-expiry {
   display: inline-flex;
   align-items: center;

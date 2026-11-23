@@ -146,6 +146,7 @@ function ShareDialog({
     assets.map((asset) => asset.assetName),
   );
   const [shareUrl, setShareUrl] = useState('');
+  const [shareUrlShareId, setShareUrlShareId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -165,6 +166,7 @@ function ShareDialog({
         const existing = values.find((share) => share.analysisId === analysisId);
         setQuestion(existing?.question ?? '');
         setShareUrl(existing?.token ? publicShareUrl(existing.token) : '');
+        setShareUrlShareId(existing?.token ? existing.id : null);
         setSelectedAssetNames(
           existing?.sharedAssets.map((asset) => asset.assetName) ??
             assets.map((asset) => asset.assetName),
@@ -206,6 +208,7 @@ function ShareDialog({
       const url = publicShareUrl(created.token);
       setShares((values) => replaceShare(values, created.share));
       setShareUrl(url);
+      setShareUrlShareId(created.share.id);
       setNotice('7일 동안 사용할 수 있는 링크를 발급했어요.');
       trackEvent('portfolio_analysis_share_created', { surface: 'portfolio_analysis' });
     } catch (caught) {
@@ -233,6 +236,7 @@ function ShareDialog({
     try {
       await writeClipboard(url);
       setShareUrl(url);
+      setShareUrlShareId(share.id);
       setNotice('이전 의견 요청 링크를 복사했어요.');
     } catch {
       setError('링크를 복사하지 못했어요. 다시 시도해 주세요.');
@@ -254,6 +258,7 @@ function ShareDialog({
       const url = publicShareUrl(created.token);
       setShares((values) => replaceShare(values, created.share));
       setShareUrl(url);
+      setShareUrlShareId(created.share.id);
       setNotice('의견과 대화는 유지하고 7일 링크를 다시 발급했어요.');
     } catch (caught) {
       setError(messageFrom(caught, '링크를 다시 발급하지 못했어요.'));
@@ -269,7 +274,10 @@ function ShareDialog({
     try {
       const revoked = await revokePortfolioAnalysisShare(share.id);
       setShares((values) => replaceShare(values, revoked));
-      if (share.id === current?.id) setShareUrl('');
+      if (share.id === shareUrlShareId) {
+        setShareUrl('');
+        setShareUrlShareId(null);
+      }
       setNotice('공유를 중단했어요. 받은 의견은 유지됩니다.');
     } catch (caught) {
       setError(messageFrom(caught, '공유를 중단하지 못했어요.'));
@@ -287,9 +295,12 @@ function ShareDialog({
     try {
       await deletePortfolioAnalysisShare(share.id);
       setShares((values) => (values ?? []).filter((value) => value.id !== share.id));
+      if (share.id === shareUrlShareId) {
+        setShareUrl('');
+        setShareUrlShareId(null);
+      }
       if (share.id === current?.id) {
         setQuestion('');
-        setShareUrl('');
       }
       setNotice('의견 요청을 삭제했어요.');
     } catch (caught) {

@@ -171,7 +171,37 @@ describe('댓글 제안 임시 포트폴리오', () => {
 
     expect(view.getByRole('heading', { name: '변경한 구성' })).toBeTruthy();
     expect(view.getByRole('heading', { name: '이 구성의 AI 분석' })).toBeTruthy();
-    expect(view.queryByRole('heading', { name: '분석 변화' })).toBeNull();
+    expect(view.queryByRole('heading', { name: '공유 시점 대비 분석 변화' })).toBeNull();
+  });
+
+  it('0%로 반올림되는 소액 자산이 있어도 현재 구성을 편집할 수 있다', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL) => {
+        if (String(input) === path)
+          return Promise.resolve(
+            response([
+              { ...assets[0], amount: 60_000_000 },
+              { ...assets[1], amount: 1_000 },
+            ]),
+          );
+        throw new Error(`unexpected request: ${String(input)}`);
+      }),
+    );
+    const view = renderSimulation();
+
+    fireEvent.click(view.getByRole('button', { name: /^이 의견으로 개선안 만들기/ }));
+
+    expect(
+      (await view.findByRole('spinbutton', { name: '삼성전자 비중' })) as HTMLInputElement,
+    ).toHaveProperty('value', '100.00');
+    expect(
+      (view.getByRole('spinbutton', { name: 'SK하이닉스 비중' }) as HTMLInputElement).value,
+    ).toBe('0.00');
+    expect(view.queryByText('현재 포트폴리오를 불러오지 못했어요.')).toBeNull();
+    expect(
+      view.getByRole('button', { name: '개선안 저장하고 분석' }).hasAttribute('disabled'),
+    ).toBe(true);
   });
 
   it('개선안을 먼저 저장한 뒤 분석하고 모달 밖에 결과를 보여준다', async () => {

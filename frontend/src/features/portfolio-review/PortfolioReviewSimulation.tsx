@@ -130,15 +130,13 @@ function SimulationEditor({
           assets.map((asset) => ({ amount: asset.amount.toFixed(2) })),
         );
         if (!allocation) throw new Error('현재 비중을 계산하지 못했어요.');
-        const initial = balanceSimulationDraft(
-          assets.map(({ assetId, assetName, category }, index) => ({
-            assetId,
-            assetName,
-            category,
-            weight: allocation.weights[index].toFixed(2),
-          })),
-        );
-        if (!initial) throw new Error('현재 비중을 계산하지 못했어요.');
+        const initialDraft = assets.map(({ assetId, assetName, category }, index) => ({
+          assetId,
+          assetName,
+          category,
+          weight: allocation.weights[index].toFixed(2),
+        }));
+        const initial = balanceSimulationDraft(initialDraft) ?? initialDraft;
         setBase(initial);
         const proposalDraft = initialProposal
           ? initialProposal.assets.map(({ assetId, assetName, category, weight }) => ({

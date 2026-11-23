@@ -468,6 +468,22 @@ export default function PortfolioAnalysisSharePage() {
               링크 공개 기한 · {formatExpiryDate(share.expiresAt)}까지
             </time>
             <h1>{share.question}</h1>
+            {share.additionalExplanation ? (
+              <section
+                className="portfolio-public-explanation"
+                aria-labelledby="portfolio-public-explanation-title"
+              >
+                <div>
+                  <h2 id="portfolio-public-explanation-title">작성자 추가 설명</h2>
+                  {share.additionalExplanationUpdatedAt ? (
+                    <time dateTime={share.additionalExplanationUpdatedAt}>
+                      {formatDate(share.additionalExplanationUpdatedAt)} 수정
+                    </time>
+                  ) : null}
+                </div>
+                <p>{share.additionalExplanation}</p>
+              </section>
+            ) : null}
           </section>
 
           <section

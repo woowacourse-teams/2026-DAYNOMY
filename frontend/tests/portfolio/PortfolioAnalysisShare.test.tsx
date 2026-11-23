@@ -652,8 +652,10 @@ describe('포트폴리오 분석 의견 요청', () => {
         `${window.location.origin}/portfolio/analysis/share#raw-share-token`,
       ),
     );
+    expect(view.getByLabelText('공유 링크')).toBeTruthy();
     fireEvent.click(view.getByRole('button', { name: `${pastShare.question} 공유 중단` }));
     expect(await view.findByText('공유를 중단했어요. 받은 의견은 유지됩니다.')).toBeTruthy();
+    expect(view.queryByLabelText('공유 링크')).toBeNull();
     expect(fetchMock).toHaveBeenCalledWith(
       `/api/users/me/portfolio/analysis/shares/${pastShare.id}/revoke`,
       expect.objectContaining({ method: 'POST' }),
@@ -697,6 +699,8 @@ describe('포트폴리오 분석 의견 요청', () => {
   it('작성자는 토큰 없이 이전 요청의 공유 화면에 다시 들어간다', async () => {
     const ownerResponse = {
       ...publicShare,
+      additionalExplanation: '장기 투자 관점에서 분산 여부를 함께 보고 싶어요.',
+      additionalExplanationUpdatedAt: '2026-11-13T02:00:00Z',
       canComment: false,
       ownerShare: { ...ownerShare, comments: [comment] },
     };
@@ -726,6 +730,8 @@ describe('포트폴리오 분석 의견 요청', () => {
     );
 
     expect(await view.findByRole('heading', { name: ownerShare.question })).toBeTruthy();
+    expect(view.getByRole('heading', { name: '작성자 추가 설명' })).toBeTruthy();
+    expect(view.getByText('장기 투자 관점에서 분산 여부를 함께 보고 싶어요.')).toBeTruthy();
     expect(view.getByText(comment.content)).toBeTruthy();
     expect(fetchMock).toHaveBeenCalledWith(
       '/api/users/me/portfolio/analysis/shares/3',
@@ -775,7 +781,15 @@ describe('포트폴리오 분석 의견 요청', () => {
   });
 
   it('비회원은 민감정보 없이 공유 결과를 보고 로그인 후 의견 작성을 선택한다', async () => {
-    const fetchMock = vi.fn(() => Promise.resolve(response(publicShare)));
+    const fetchMock = vi.fn(() =>
+      Promise.resolve(
+        response({
+          ...publicShare,
+          additionalExplanation: '수익률보다 변동성을 낮추는 방향을 우선하고 있어요.',
+          additionalExplanationUpdatedAt: '2026-11-13T02:00:00Z',
+        }),
+      ),
+    );
     vi.stubGlobal('fetch', fetchMock);
 
     const view = render(
@@ -787,6 +801,13 @@ describe('포트폴리오 분석 의견 요청', () => {
     );
 
     expect(await view.findByRole('heading', { name: ownerShare.question })).toBeTruthy();
+    expect(view.getByRole('heading', { name: '작성자 추가 설명' })).toBeTruthy();
+    expect(view.getByText('수익률보다 변동성을 낮추는 방향을 우선하고 있어요.')).toBeTruthy();
+    expect(
+      view.container.querySelector<HTMLTimeElement>(
+        '.portfolio-public-explanation time[datetime="2026-11-13T02:00:00Z"]',
+      ),
+    ).not.toBeNull();
     expect(
       view.container.querySelector('.portfolio-public-share-page.is-reviewer-view'),
     ).not.toBeNull();
