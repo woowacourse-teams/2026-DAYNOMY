@@ -50,6 +50,9 @@ public class PortfolioAnalysisShare extends BaseEntity {
   @Column(name = "token_hash", nullable = false, unique = true, length = 64)
   private String tokenHash;
 
+  @Column(name = "encrypted_token", length = 512)
+  private String encryptedToken;
+
   @JdbcTypeCode(SqlTypes.JSON)
   @Column(nullable = false, columnDefinition = "jsonb")
   private PortfolioAnalysisPublicSnapshot snapshot;
@@ -65,11 +68,12 @@ public class PortfolioAnalysisShare extends BaseEntity {
       Long analysisId,
       String question,
       String tokenHash,
+      String encryptedToken,
       PortfolioAnalysisPublicSnapshot snapshot,
       Instant expiresAt) {
     this.owner = Objects.requireNonNull(owner);
     this.analysisId = analysisId;
-    renew(question, tokenHash, snapshot, expiresAt);
+    renew(question, tokenHash, encryptedToken, snapshot, expiresAt);
   }
 
   public static PortfolioAnalysisShare create(
@@ -77,14 +81,17 @@ public class PortfolioAnalysisShare extends BaseEntity {
       Long analysisId,
       String question,
       String tokenHash,
+      String encryptedToken,
       PortfolioAnalysisPublicSnapshot snapshot,
       Instant expiresAt) {
-    return new PortfolioAnalysisShare(owner, analysisId, question, tokenHash, snapshot, expiresAt);
+    return new PortfolioAnalysisShare(
+        owner, analysisId, question, tokenHash, encryptedToken, snapshot, expiresAt);
   }
 
   public void renew(
       String question,
       String tokenHash,
+      String encryptedToken,
       PortfolioAnalysisPublicSnapshot snapshot,
       Instant expiresAt) {
     String normalized = Objects.requireNonNull(question).strip();
@@ -93,7 +100,15 @@ public class PortfolioAnalysisShare extends BaseEntity {
     }
     this.question = normalized;
     this.tokenHash = requireHash(tokenHash);
+    this.encryptedToken = requireEncryptedToken(encryptedToken);
     this.snapshot = Objects.requireNonNull(snapshot);
+    this.expiresAt = Objects.requireNonNull(expiresAt);
+    this.revokedAt = null;
+  }
+
+  public void reissue(String tokenHash, String encryptedToken, Instant expiresAt) {
+    this.tokenHash = requireHash(tokenHash);
+    this.encryptedToken = requireEncryptedToken(encryptedToken);
     this.expiresAt = Objects.requireNonNull(expiresAt);
     this.revokedAt = null;
   }
@@ -120,6 +135,13 @@ public class PortfolioAnalysisShare extends BaseEntity {
   private static String requireHash(String value) {
     if (value == null || !value.matches("[0-9a-f]{64}")) {
       throw new IllegalArgumentException("공유 토큰 해시는 SHA-256 형식이어야 합니다.");
+    }
+    return value;
+  }
+
+  private static String requireEncryptedToken(String value) {
+    if (value == null || value.isBlank() || value.length() > 512) {
+      throw new IllegalArgumentException("암호화된 공유 토큰 형식이 올바르지 않습니다.");
     }
     return value;
   }

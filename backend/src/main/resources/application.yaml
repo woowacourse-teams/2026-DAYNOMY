@@ -242,6 +242,7 @@ portfolio:
     model: ${PORTFOLIO_ANALYSIS_MODEL:gpt-5.4-mini}
     cache-ttl: ${PORTFOLIO_ANALYSIS_CACHE_TTL:30m}
     batch-size: ${PORTFOLIO_ANALYSIS_BATCH_SIZE:1}
+    share-token-encryption-secret: ${PORTFOLIO_SHARE_TOKEN_ENCRYPTION_SECRET:${JWT_SECRET}}
   snapshot:
     enabled: ${PORTFOLIO_SNAPSHOT_ENABLED:false}
     cron: ${PORTFOLIO_SNAPSHOT_CRON:0 30 7 * * TUE-SAT}

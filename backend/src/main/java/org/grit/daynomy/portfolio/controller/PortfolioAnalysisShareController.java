@@ -101,6 +101,20 @@ public class PortfolioAnalysisShareController {
     return service.list(member.memberId());
   }
 
+  @Operation(summary = "내 의견 요청 공유 화면 조회 (작성자 전용, 공유 종료 후에도 가능)")
+  @GetMapping("/api/users/me/portfolio/analysis/shares/{shareId}")
+  public PortfolioAnalysisShareDto.PublicResponse ownerPreview(
+      @AuthenticationPrincipal AuthenticatedMember member, @Positive @PathVariable Long shareId) {
+    return service.getOwnerPreview(member.memberId(), shareId);
+  }
+
+  @Operation(summary = "기존 의견 요청 링크 재발급 (작성자 전용)")
+  @PostMapping("/api/users/me/portfolio/analysis/shares/{shareId}/reissue")
+  public PortfolioAnalysisShareDto.CreatedResponse reissue(
+      @AuthenticationPrincipal AuthenticatedMember member, @Positive @PathVariable Long shareId) {
+    return service.reissue(member.memberId(), shareId);
+  }
+
   @Operation(summary = "내 분석 결과 공유 중단")
   @PostMapping("/api/users/me/portfolio/analysis/shares/{shareId}/revoke")
   public PortfolioAnalysisShareDto.OwnerResponse revoke(
