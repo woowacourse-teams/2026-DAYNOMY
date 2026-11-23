@@ -1,4 +1,5 @@
 import type { PortfolioAnalysisResponse, PortfolioAssetImpactResponse } from '../portfolio/types';
+import type { SimulationCategory } from './simulationAllocation';
 
 export type PortfolioAnalysisComment = {
   id: number;
@@ -38,6 +39,22 @@ export type PortfolioAnalysisOwnerShare = {
 export type PortfolioAnalysisShareCreated = {
   share: PortfolioAnalysisOwnerShare;
   token: string;
+};
+
+export type PortfolioReviewProposalAsset = {
+  assetId: number;
+  assetName: string;
+  category: SimulationCategory;
+  weight: number;
+};
+
+export type PortfolioReviewProposal = {
+  id: number;
+  shareId: number;
+  commentId: number;
+  assets: PortfolioReviewProposalAsset[];
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type PortfolioAnalysisHoldingContext = {

@@ -1,25 +1,32 @@
-import { useEffect, useMemo, useState } from 'react';
-import { ChatCircleText, LinkBreak, ShieldCheck, User } from '@phosphor-icons/react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ChatCircleText, LinkBreak, LockKey, ShieldCheck, User } from '@phosphor-icons/react';
 import { Link, useLocation } from 'react-router-dom';
+import analysisMascot from '../../assets/portfolio-analysis-mascot.png';
 import { trackEvent } from '../../analytics';
 import { ApiError } from '../../api/client';
 import { useAuth } from '../../hooks/useLoginStatus';
 import {
   createPortfolioAnalysisComment,
+  deletePortfolioReviewProposal,
   deletePortfolioAnalysisComment,
+  getPortfolioReviewProposals,
   getPublicPortfolioAnalysisShare,
   savePortfolioAnalysisCommenterReply,
   savePortfolioAnalysisOwnerReply,
   updatePortfolioAnalysisComment,
 } from './api';
 import { PortfolioAnalysisReplyThread } from './PortfolioAnalysisReplyThread';
-import type { PortfolioAnalysisPublicShare } from './types';
-import { PortfolioReviewSimulation } from './PortfolioReviewSimulation';
+import type { PortfolioAnalysisPublicShare, PortfolioReviewProposal } from './types';
+import {
+  PortfolioReviewResult,
+  PortfolioReviewSimulation,
+  type PortfolioReviewResultState,
+} from './PortfolioReviewSimulation';
 import { PortfolioReviewAnalysisResult } from './PortfolioReviewAnalysisResult';
 import './portfolioAnalysisShare.css';
 import './portfolioPublicDocument.css';
 
-const ALLOCATION_COLORS = ['#31588a', '#8b7bc8', '#2a8a72', '#b77c25', '#64748b'];
+const ALLOCATION_COLORS = ['#3d6de0', '#78a5f2', '#bfd4f4', '#d7dce3', '#aeb8c6'];
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat('ko-KR', {
@@ -37,10 +44,6 @@ function formatExpiryDate(value: string) {
 
 function displayOwnerNickname(value: string) {
   return /^회원_[0-9a-f-]+$/i.test(value) ? '익명 투자자' : value;
-}
-
-function formatDateOnly(value: string | null) {
-  return value ? value.replaceAll('-', '.') : '기록 없음';
 }
 
 function errorMessage(error: unknown) {
@@ -99,6 +102,13 @@ export default function PortfolioAnalysisSharePage() {
   const [editingContent, setEditingContent] = useState('');
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState('');
+  const [proposals, setProposals] = useState<PortfolioReviewProposal[]>([]);
+  const [proposalResult, setProposalResult] = useState<PortfolioReviewResultState | null>(null);
+  const [proposalError, setProposalError] = useState('');
+  const [proposalLoading, setProposalLoading] = useState(false);
+  const [proposalAttempt, setProposalAttempt] = useState(0);
+  const [deletingProposal, setDeletingProposal] = useState(false);
+  const proposalResultRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const previousTitle = document.title;
@@ -145,6 +155,55 @@ export default function PortfolioAnalysisSharePage() {
       });
     return () => controller.abort();
   }, [authLoading, isLoggedIn, memberId, token]);
+
+  const ownerShareId = share?.ownerShare?.id;
+
+  useEffect(() => {
+    if (!ownerShareId) {
+      setProposals([]);
+      setProposalResult(null);
+      setProposalError('');
+      setProposalLoading(false);
+      return;
+    }
+    const controller = new AbortController();
+    setProposals([]);
+    setProposalResult(null);
+    setProposalError('');
+    setProposalLoading(true);
+    getPortfolioReviewProposals(ownerShareId, controller.signal)
+      .then((values) => {
+        if (controller.signal.aborted) return;
+        setProposals(values);
+        const latest = values[0];
+        setProposalResult(
+          latest
+            ? {
+                proposal: latest,
+                base: null,
+                draft: latest.assets.map(({ assetId, assetName, category, weight }) => ({
+                  assetId,
+                  assetName,
+                  category,
+                  weight: weight.toFixed(2),
+                })),
+                analysis: null,
+              }
+            : null,
+        );
+      })
+      .catch((caught: unknown) => {
+        if (!controller.signal.aborted) {
+          setProposalError(
+            caught instanceof ApiError ? caught.message : '저장된 검토안을 불러오지 못했어요.',
+          );
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setProposalLoading(false);
+      });
+    return () => controller.abort();
+  }, [ownerShareId, proposalAttempt]);
 
   const normalizedContent = content.trim();
   const contentValidationMessage = getCommentValidationMessage(content);
@@ -212,6 +271,74 @@ export default function PortfolioAnalysisSharePage() {
     }
   }
 
+  function rememberProposal(proposal: PortfolioReviewProposal) {
+    setProposals((current) => [
+      proposal,
+      ...current.filter((value) => value.commentId !== proposal.commentId),
+    ]);
+    setProposalResult({
+      proposal,
+      base: null,
+      draft: proposal.assets.map(({ assetId, assetName, category, weight }) => ({
+        assetId,
+        assetName,
+        category,
+        weight: weight.toFixed(2),
+      })),
+      analysis: null,
+    });
+  }
+
+  function showAnalysisResult(result: PortfolioReviewResultState) {
+    rememberProposal(result.proposal);
+    setProposalResult(result);
+    setProposalError('');
+    window.requestAnimationFrame(() =>
+      proposalResultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
+    );
+  }
+
+  async function removeProposal() {
+    if (
+      !ownerShareId ||
+      !proposalResult ||
+      deletingProposal ||
+      !window.confirm('저장된 검토안을 삭제할까요? 분석 결과도 화면에서 사라집니다.')
+    )
+      return;
+    setDeletingProposal(true);
+    setProposalError('');
+    try {
+      await deletePortfolioReviewProposal(ownerShareId, proposalResult.proposal.commentId);
+      const remaining = proposals.filter(
+        (value) => value.commentId !== proposalResult.proposal.commentId,
+      );
+      setProposals(remaining);
+      const latest = remaining[0];
+      setProposalResult(
+        latest
+          ? {
+              proposal: latest,
+              base: null,
+              draft: latest.assets.map(({ assetId, assetName, category, weight }) => ({
+                assetId,
+                assetName,
+                category,
+                weight: weight.toFixed(2),
+              })),
+              analysis: null,
+            }
+          : null,
+      );
+    } catch (caught) {
+      setProposalError(
+        caught instanceof ApiError ? caught.message : '저장된 검토안을 삭제하지 못했어요.',
+      );
+    } finally {
+      setDeletingProposal(false);
+    }
+  }
+
   if (loading) {
     return (
       <main className="portfolio-public-share-page" aria-busy="true">
@@ -241,48 +368,52 @@ export default function PortfolioAnalysisSharePage() {
   const ownerNickname = displayOwnerNickname(share.ownerNickname);
 
   return (
-    <main className="portfolio-public-share-page">
-      <header className="portfolio-public-share-hero">
-        <div className="portfolio-public-share-owner">
-          <span className="portfolio-public-share-avatar" aria-hidden="true">
-            {ownerNickname.slice(0, 1)}
-          </span>
-          <div>
-            <strong>{ownerNickname}</strong>
-          </div>
-          <time dateTime={share.expiresAt} className="portfolio-public-expiry">
-            링크 공개 기한 · {formatExpiryDate(share.expiresAt)}까지
-          </time>
-        </div>
-        <h1>{share.question}</h1>
-        {share.additionalExplanation ? (
-          <section
-            className="portfolio-public-explanation"
-            aria-labelledby="portfolio-public-explanation-title"
-          >
-            <div>
-              <h2 id="portfolio-public-explanation-title">작성자 추가 설명</h2>
-              {share.additionalExplanationUpdatedAt ? (
-                <time dateTime={share.additionalExplanationUpdatedAt}>
-                  {formatDate(share.additionalExplanationUpdatedAt)} 수정
-                </time>
-              ) : null}
-            </div>
-            <p>{share.additionalExplanation}</p>
-          </section>
-        ) : null}
-      </header>
-
+    <main
+      className={`portfolio-public-share-page ${share.ownerShare ? 'is-owner-view' : 'is-reviewer-view'}`}
+    >
       <div className="portfolio-public-content">
         <div className="portfolio-public-main">
+          <section className="portfolio-public-share-hero" id="portfolio-public-question">
+            <div className="portfolio-public-share-owner">
+              <strong>{ownerNickname}</strong>
+              <span>님의 질문</span>
+            </div>
+            <time dateTime={share.expiresAt} className="portfolio-public-question-expiry">
+              <LockKey size={18} aria-hidden="true" />
+              링크 공개 기한 · {formatExpiryDate(share.expiresAt)}까지
+            </time>
+            <h1>{share.question}</h1>
+            {share.additionalExplanation ? (
+              <section
+                className="portfolio-public-explanation"
+                aria-labelledby="portfolio-public-explanation-title"
+              >
+                <div>
+                  <h2 id="portfolio-public-explanation-title">작성자 추가 설명</h2>
+                  {share.additionalExplanationUpdatedAt ? (
+                    <time dateTime={share.additionalExplanationUpdatedAt}>
+                      {formatDate(share.additionalExplanationUpdatedAt)} 수정
+                    </time>
+                  ) : null}
+                </div>
+                <p>{share.additionalExplanation}</p>
+              </section>
+            ) : null}
+          </section>
+
           <section
-            className="portfolio-public-assets"
+            className={`portfolio-public-assets${share.analysis.hasAnalysis ? ' is-summary' : ''}`}
             aria-labelledby="portfolio-public-assets-title"
           >
             <div className="portfolio-public-section-heading">
               <div>
                 <h2 id="portfolio-public-assets-title">
-                  공개한 종목 <span className="portfolio-public-count">{impacts.length}개</span>
+                  {share.analysis.hasAnalysis
+                    ? share.analysis.allAssetsShared
+                      ? '포트폴리오 구성'
+                      : '공개한 종목 구성'
+                    : '종목별 구성'}{' '}
+                  <span className="portfolio-public-count">{impacts.length}개</span>
                 </h2>
               </div>
             </div>
@@ -293,9 +424,13 @@ export default function PortfolioAnalysisSharePage() {
                 비공개입니다.
               </span>
             </p>
-            {impacts.length > 0 ? (
+            {share.analysis.hasAnalysis && !share.analysis.allAssetsShared ? (
+              <p className="portfolio-public-partial-note">
+                전체 포트폴리오 기준 비중이며, 선택한 종목만 표시해요.
+              </p>
+            ) : null}
+            {!share.analysis.hasAnalysis && impacts.length > 0 ? (
               <div className="portfolio-public-allocation">
-                <p>공유 시점의 종목별 비중</p>
                 <div
                   className="portfolio-public-allocation-bar"
                   role="img"
@@ -308,7 +443,9 @@ export default function PortfolioAnalysisSharePage() {
                         flexBasis: `${impact.weight}%`,
                         backgroundColor: ALLOCATION_COLORS[index % ALLOCATION_COLORS.length],
                       }}
-                    />
+                    >
+                      {impact.weight >= 8 ? <span aria-hidden="true">{impact.weight}%</span> : null}
+                    </span>
                   ))}
                 </div>
                 {!share.analysis.allAssetsShared ? (
@@ -316,71 +453,108 @@ export default function PortfolioAnalysisSharePage() {
                 ) : null}
               </div>
             ) : null}
-            <div className="portfolio-public-asset-list">
-              {impacts.map((impact, index) => {
-                const holding = impact.holding;
-                const returnRate = holding?.returnRate;
-                return (
-                  <article key={impact.assetName}>
-                    <header>
-                      <span
-                        className="portfolio-public-asset-color"
-                        aria-hidden="true"
-                        style={{
-                          backgroundColor: ALLOCATION_COLORS[index % ALLOCATION_COLORS.length],
-                        }}
-                      />
-                      <div>
-                        <h3>{impact.assetName}</h3>
-                        <span>
-                          {[holding?.assetCode, holding?.market].filter(Boolean).join(' · ') ||
-                            '종목 정보'}
-                        </span>
-                      </div>
-                    </header>
-                    <dl className="portfolio-public-holding-metrics">
-                      <div>
-                        <dt>비중</dt>
-                        <dd>{impact.weight}%</dd>
-                      </div>
-                      <div>
-                        <dt>최초 매수일</dt>
-                        <dd className={holding?.firstPurchasedOn ? undefined : 'is-muted'}>
-                          {formatDateOnly(holding?.firstPurchasedOn ?? null)}
-                        </dd>
-                      </div>
-                      <div
-                        className={
-                          returnRate == null
-                            ? ''
-                            : returnRate > 0
-                              ? 'is-gain'
-                              : returnRate < 0
-                                ? 'is-loss'
-                                : ''
-                        }
-                      >
-                        <dt>수익률</dt>
-                        <dd>
-                          {returnRate == null
-                            ? '확인 불가'
-                            : `${returnRate > 0 ? '+' : ''}${returnRate.toFixed(2)}%`}
-                        </dd>
-                      </div>
-                    </dl>
-                  </article>
-                );
-              })}
+            <div
+              className={share.analysis.hasAnalysis ? 'portfolio-public-asset-table' : undefined}
+              role={share.analysis.hasAnalysis ? 'table' : undefined}
+              aria-label={share.analysis.hasAnalysis ? '공개 포트폴리오 구성' : undefined}
+            >
+              {share.analysis.hasAnalysis ? (
+                <div className="portfolio-public-asset-table-head" role="row">
+                  <span role="columnheader">종목</span>
+                  <span role="columnheader">시장</span>
+                  <span role="columnheader">비중</span>
+                </div>
+              ) : null}
+              <div
+                className="portfolio-public-asset-list"
+                role={share.analysis.hasAnalysis ? 'rowgroup' : undefined}
+              >
+                {impacts.map((impact, index) => {
+                  const holding = impact.holding;
+                  const returnRate = holding?.returnRate;
+                  const clampedWeight = Math.min(100, Math.max(0, impact.weight));
+                  return (
+                    <article
+                      key={impact.assetName}
+                      role={share.analysis.hasAnalysis ? 'row' : undefined}
+                    >
+                      <header role={share.analysis.hasAnalysis ? 'rowheader' : undefined}>
+                        {!share.analysis.hasAnalysis ? (
+                          <span
+                            className="portfolio-public-asset-color"
+                            aria-hidden="true"
+                            style={{
+                              backgroundColor: ALLOCATION_COLORS[index % ALLOCATION_COLORS.length],
+                            }}
+                          />
+                        ) : null}
+                        <div>
+                          <h3>{impact.assetName}</h3>
+                          <span>
+                            {share.analysis.hasAnalysis
+                              ? holding?.assetCode || '종목 정보'
+                              : [holding?.assetCode, holding?.market].filter(Boolean).join(' · ') ||
+                                '종목 정보'}
+                          </span>
+                        </div>
+                      </header>
+                      {share.analysis.hasAnalysis ? (
+                        <>
+                          <span className="portfolio-public-asset-market" role="cell">
+                            {holding?.market || '—'}
+                          </span>
+                          <div className="portfolio-public-weight-cell" role="cell">
+                            <span className="portfolio-public-weight-line" aria-hidden="true">
+                              <span style={{ width: `${clampedWeight}%` }} />
+                            </span>
+                            <strong className="portfolio-public-weight">{impact.weight}%</strong>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <strong className="portfolio-public-weight">{impact.weight}%</strong>
+                          <div
+                            className="portfolio-public-weight-bar"
+                            role="img"
+                            aria-label={`${impact.assetName} 비중 ${impact.weight}%`}
+                          >
+                            <span
+                              style={{
+                                width: `${clampedWeight}%`,
+                                backgroundColor:
+                                  ALLOCATION_COLORS[index % ALLOCATION_COLORS.length],
+                              }}
+                            />
+                          </div>
+                          <dl
+                            className={`portfolio-public-return${
+                              returnRate == null
+                                ? ''
+                                : returnRate > 0
+                                  ? ' is-gain'
+                                  : returnRate < 0
+                                    ? ' is-loss'
+                                    : ''
+                            }`}
+                          >
+                            <dt>수익률</dt>
+                            <dd>
+                              {returnRate == null
+                                ? '확인 불가'
+                                : `${returnRate > 0 ? '+' : ''}${returnRate.toFixed(2)}%`}
+                            </dd>
+                          </dl>
+                        </>
+                      )}
+                    </article>
+                  );
+                })}
+              </div>
             </div>
-            {share.analysis.hasAnalysis && share.analysis.analyzedAt ? (
-              <p className="portfolio-public-share-analyzed">
-                AI 분석 기준{' '}
-                <time dateTime={share.analysis.analyzedAt}>
-                  {formatDate(share.analysis.analyzedAt)}
-                </time>
-              </p>
+            {!share.analysis.hasAnalysis && share.analysis.overallImpact ? (
+              <p className="portfolio-public-summary">{share.analysis.overallImpact}</p>
             ) : null}
-            {share.analysis.excludedAssets?.length ? (
+            {!share.analysis.hasAnalysis && share.analysis.excludedAssets?.length ? (
               <p className="portfolio-public-excluded">
                 분석 예산에 따라 {share.analysis.excludedAssets.length}개 종목은 분석 대상에서
                 제외됐어요.
@@ -388,16 +562,54 @@ export default function PortfolioAnalysisSharePage() {
             ) : null}
           </section>
 
+          <a className="portfolio-public-mobile-review-link" href="#portfolio-public-review">
+            {share.ownerShare
+              ? `받은 의견 ${share.ownerShare.comments.length}개 보기`
+              : '의견 남기기'}
+          </a>
+
           {share.analysis.hasAnalysis ? (
             <PortfolioReviewAnalysisResult
               analysis={share.analysis}
               title={share.analysis.allAssetsShared ? 'AI 포트폴리오 분석' : '공개 종목 분석'}
               showOverall={share.analysis.allAssetsShared}
+              fullLayout
             />
+          ) : null}
+          {proposalError ? (
+            <div className="portfolio-public-proposal-error" role="alert">
+              <p>{proposalError}</p>
+              <button type="button" onClick={() => setProposalAttempt((current) => current + 1)}>
+                다시 불러오기
+              </button>
+            </div>
+          ) : proposalLoading ? (
+            <p className="portfolio-public-proposal-loading" role="status">
+              저장된 검토안을 확인하고 있어요.
+            </p>
+          ) : null}
+          {proposalResult ? (
+            <div ref={proposalResultRef}>
+              <PortfolioReviewResult
+                {...proposalResult}
+                deleting={deletingProposal}
+                onDelete={() => void removeProposal()}
+                onReanalyze={() => {
+                  const trigger = document.getElementById(
+                    `portfolio-review-simulation-${proposalResult.proposal.commentId}`,
+                  );
+                  if (trigger instanceof HTMLButtonElement) {
+                    trigger.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    trigger.click();
+                  }
+                }}
+              />
+            </div>
           ) : null}
         </div>
 
         <section
+          id="portfolio-public-review"
           className={`portfolio-public-review${share.ownerShare ? ' is-owner' : ''}`}
           aria-labelledby="portfolio-public-review-title"
         >
@@ -407,7 +619,16 @@ export default function PortfolioAnalysisSharePage() {
             </h2>
             {share.ownerShare ? (
               <p className="portfolio-public-owner-note">댓글 작성자와 나만 볼 수 있는 대화예요.</p>
-            ) : null}
+            ) : (
+              <>
+                <p className="portfolio-public-review-prompt">
+                  이 구성에서 보완할 점을 알려주세요.
+                </p>
+                <a className="portfolio-public-question-link" href="#portfolio-public-question">
+                  질문 다시 보기
+                </a>
+              </>
+            )}
           </header>
           {!isLoggedIn ? (
             <div className="portfolio-public-login">
@@ -431,7 +652,7 @@ export default function PortfolioAnalysisSharePage() {
                       setNotice('');
                     }}
                     aria-invalid={Boolean(contentValidationMessage)}
-                    placeholder="비중이나 매수 시점에 대한 생각을 적어 주세요."
+                    placeholder="의견을 입력해 주세요."
                   />
                   <span className="portfolio-public-comment-meta">
                     <small
@@ -451,6 +672,10 @@ export default function PortfolioAnalysisSharePage() {
                   </p>
                 ) : null}
                 <div className="portfolio-public-comment-footer">
+                  <p className="portfolio-public-comment-privacy">
+                    <img src={analysisMascot} alt="" />
+                    작성자에게만 공개됩니다
+                  </p>
                   {notice ? (
                     <p className="portfolio-share-notice" role="status">
                       {notice}
@@ -462,7 +687,7 @@ export default function PortfolioAnalysisSharePage() {
                       onClick={() => void createComment()}
                       disabled={contentInvalid || saving}
                     >
-                      {saving ? '저장 중' : '의견 남기기'}
+                      {saving ? '저장 중' : '의견 보내기'}
                     </button>
                   </div>
                 </div>
@@ -582,6 +807,12 @@ export default function PortfolioAnalysisSharePage() {
                           <PortfolioReviewSimulation
                             shareId={share.ownerShare!.id}
                             comment={comment}
+                            proposal={
+                              proposals.find((proposal) => proposal.commentId === comment.id) ??
+                              null
+                            }
+                            onProposalSaved={rememberProposal}
+                            onAnalysisComplete={showAnalysisResult}
                           />
                         }
                         createReply={(replyContent) =>

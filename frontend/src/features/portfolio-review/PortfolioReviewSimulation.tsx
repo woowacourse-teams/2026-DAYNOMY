@@ -1,13 +1,20 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { ArrowCounterClockwiseIcon } from '@phosphor-icons/react/dist/csr/ArrowCounterClockwise';
+import { ArrowRightIcon } from '@phosphor-icons/react/dist/csr/ArrowRight';
+import { CaretRightIcon } from '@phosphor-icons/react/dist/csr/CaretRight';
 import { LockSimpleIcon } from '@phosphor-icons/react/dist/csr/LockSimple';
 import { SparkleIcon } from '@phosphor-icons/react/dist/csr/Sparkle';
 import { XIcon } from '@phosphor-icons/react/dist/csr/X';
 import { ApiError } from '../../api/client';
+import { PortfolioDialog } from '../portfolio/components/PortfolioDialog';
 import { PortfolioReviewAnalysisResult } from './PortfolioReviewAnalysisResult';
 import type { PortfolioAnalysisResponse } from '../portfolio/types';
-import { analyzeReviewSimulation, getReviewSimulationAssets } from './api';
-import type { PortfolioAnalysisComment } from './types';
+import {
+  analyzeReviewSimulation,
+  getReviewSimulationAssets,
+  savePortfolioReviewProposal,
+} from './api';
+import type { PortfolioAnalysisComment, PortfolioReviewProposal } from './types';
 import type { StockSearchItem } from '../stocks/types';
 import { PortfolioReviewStockPicker } from './PortfolioReviewStockPicker';
 import {
@@ -19,7 +26,20 @@ import {
   type SimulationDraft,
 } from './simulationAllocation';
 
-type Props = { shareId: number; comment: PortfolioAnalysisComment };
+export type PortfolioReviewResultState = {
+  proposal: PortfolioReviewProposal;
+  base: SimulationDraft[] | null;
+  draft: SimulationDraft[];
+  analysis: PortfolioAnalysisResponse | null;
+};
+
+type Props = {
+  shareId: number;
+  comment: PortfolioAnalysisComment;
+  proposal: PortfolioReviewProposal | null;
+  onProposalSaved: (proposal: PortfolioReviewProposal) => void;
+  onAnalysisComplete: (result: PortfolioReviewResultState) => void;
+};
 const percent = (weight: number) => `${weight.toFixed(2)}%`;
 
 export function PortfolioReviewSimulation(props: Props) {
@@ -27,23 +47,48 @@ export function PortfolioReviewSimulation(props: Props) {
   const id = useId();
   return (
     <div className="portfolio-review-simulation">
-      {!open ? (
-        <button
-          type="button"
-          aria-expanded={false}
-          aria-controls={id}
-          onClick={() => setOpen(true)}
+      <button
+        id={`portfolio-review-simulation-${props.comment.id}`}
+        type="button"
+        className="portfolio-review-simulation-trigger"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        aria-controls={open ? id : undefined}
+        onClick={() => setOpen(true)}
+      >
+        <SparkleIcon size={18} aria-hidden="true" />
+        <span>
+          <strong>{props.proposal ? '저장한 검토안 다시 보기' : '이 제안으로 분석해 보기'}</strong>
+          <small>
+            {props.proposal
+              ? '저장된 구성으로 다시 수정하거나 분석할 수 있어요.'
+              : '검토안만 저장되며 실제 포트폴리오는 바뀌지 않아요.'}
+          </small>
+        </span>
+        <CaretRightIcon size={16} weight="bold" aria-hidden="true" />
+      </button>
+      {open ? (
+        <PortfolioDialog
+          titleId={`${id}-title`}
+          onClose={() => setOpen(false)}
+          className="portfolio-review-simulation-dialog"
         >
-          제안 반영해 보기
-        </button>
-      ) : (
-        <SimulationEditor {...props} id={id} />
-      )}
+          <SimulationEditor {...props} id={id} onClose={() => setOpen(false)} />
+        </PortfolioDialog>
+      ) : null}
     </div>
   );
 }
 
-function SimulationEditor({ shareId, comment, id }: Props & { id: string }) {
+function SimulationEditor({
+  shareId,
+  comment,
+  proposal,
+  onProposalSaved,
+  onAnalysisComplete,
+  id,
+  onClose,
+}: Props & { id: string; onClose: () => void }) {
   const [base, setBase] = useState<SimulationDraft[] | null>(null);
   const [draft, setDraft] = useState<SimulationDraft[]>([]);
   const [selectedStock, setSelectedStock] = useState<StockSearchItem | null>(null);
@@ -52,9 +97,10 @@ function SimulationEditor({ shareId, comment, id }: Props & { id: string }) {
   const weightInput = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(true);
   const [attempt, setAttempt] = useState(0);
-  const [pending, setPending] = useState(false);
+  const [pending, setPending] = useState<'saving' | 'analyzing' | null>(null);
   const [error, setError] = useState('');
-  const [result, setResult] = useState<PortfolioAnalysisResponse | null>(null);
+  const title = '제안 구성 편집';
+  const initialProposal = useRef(proposal).current;
 
   useEffect(() => {
     if (selectedStock) weightInput.current?.focus();
@@ -79,7 +125,16 @@ function SimulationEditor({ shareId, comment, id }: Props & { id: string }) {
           weight: allocation.weights[index].toFixed(2),
         }));
         setBase(initial);
-        setDraft(initial);
+        setDraft(
+          initialProposal
+            ? initialProposal.assets.map(({ assetId, assetName, category, weight }) => ({
+                assetId,
+                assetName,
+                category,
+                weight: weight.toFixed(2),
+              }))
+            : initial,
+        );
       })
       .catch((caught: unknown) => {
         if (!controller.signal.aborted)
@@ -91,7 +146,7 @@ function SimulationEditor({ shareId, comment, id }: Props & { id: string }) {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [shareId, comment.id, attempt]);
+  }, [shareId, comment.id, initialProposal, attempt]);
 
   const after = simulationWeights(draft);
   const valid = after?.total === 100;
@@ -118,48 +173,70 @@ function SimulationEditor({ shareId, comment, id }: Props & { id: string }) {
 
   function change(next: SimulationDraft[]) {
     setDraft(next);
-    setResult(null);
     setError('');
     setAddedMessage('');
   }
   async function analyze() {
     if (!valid || !after || pending) return;
-    setPending(true);
+    let proposalSaved = false;
+    setPending('saving');
     setError('');
-    setResult(null);
     try {
-      setResult(
-        await analyzeReviewSimulation(
-          shareId,
-          comment.id,
-          draft.map((asset, index) => ({
-            assetName: analysisAssetName(asset),
-            weight: after.weights[index],
-          })),
-        ),
+      const proposal = await savePortfolioReviewProposal(
+        shareId,
+        comment.id,
+        draft.map((asset, index) => ({
+          assetId: asset.assetId,
+          weight: after.weights[index],
+        })),
       );
+      proposalSaved = true;
+      onProposalSaved(proposal);
+      setPending('analyzing');
+      const analysis = await analyzeReviewSimulation(
+        shareId,
+        comment.id,
+        draft.map((asset, index) => ({
+          assetName: analysisAssetName(asset),
+          weight: after.weights[index],
+        })),
+      );
+      onAnalysisComplete({ proposal, base, draft, analysis });
+      onClose();
     } catch (caught) {
-      setError(
-        caught instanceof ApiError
-          ? caught.message
-          : '임시 구성 분석에 실패했어요. 다시 시도해 주세요.',
-      );
+      if (proposalSaved) {
+        setError('검토안은 저장했지만 분석에 실패했어요. 저장된 구성으로 다시 시도해 주세요.');
+      } else {
+        setError(caught instanceof ApiError ? caught.message : '검토안을 저장하지 못했어요.');
+      }
     } finally {
-      setPending(false);
+      setPending(null);
     }
   }
 
   return (
     <section id={id} aria-labelledby={`${id}-title`} className="portfolio-review-simulation-editor">
       <header>
-        <h3 id={`${id}-title`}>제안 반영하기</h3>
-        <p className="portfolio-simulation-intro">비중 합계를 100%로 맞춘 뒤 분석해 보세요.</p>
+        <h3 id={`${id}-title`} tabIndex={-1}>
+          {title}
+        </h3>
+        <p className="portfolio-simulation-intro">
+          비중 합계를 100%로 맞춘 뒤 저장하고 분석해 보세요.
+        </p>
+        <button
+          type="button"
+          className="portfolio-simulation-close"
+          aria-label={`${title} 닫기`}
+          onClick={onClose}
+        >
+          <XIcon size={20} aria-hidden="true" />
+        </button>
       </header>
       {loading ? (
         <p role="status">현재 구성을 불러오고 있어요.</p>
       ) : base ? (
         <form className="portfolio-simulation-form" onSubmit={(event) => event.preventDefault()}>
-          <fieldset disabled={pending} className="portfolio-simulation-stock-addition">
+          <fieldset disabled={pending !== null} className="portfolio-simulation-stock-addition">
             <legend>종목 추가</legend>
             <PortfolioReviewStockPicker
               value={selectedStock}
@@ -169,7 +246,7 @@ function SimulationEditor({ shareId, comment, id }: Props & { id: string }) {
                 setWeight('');
               }}
               draft={draft}
-              disabled={pending}
+              disabled={pending !== null}
             />
             {selectedStock ? (
               <div className="portfolio-simulation-add">
@@ -227,7 +304,7 @@ function SimulationEditor({ shareId, comment, id }: Props & { id: string }) {
             </p>
           </fieldset>
           <fieldset
-            disabled={pending}
+            disabled={pending !== null}
             className="portfolio-simulation-composition"
             aria-labelledby={`${id}-composition-title`}
           >
@@ -312,13 +389,13 @@ function SimulationEditor({ shareId, comment, id }: Props & { id: string }) {
           <div className="portfolio-simulation-footer">
             <p className="portfolio-simulation-help portfolio-simulation-privacy">
               <LockSimpleIcon size={16} aria-hidden="true" />
-              실제 포트폴리오는 그대로이며, 결과는 나만 볼 수 있어요.
+              검토안만 저장돼요. 실제 포트폴리오와 분석 결과는 저장되지 않아요.
             </p>
             <div className="portfolio-simulation-footer-actions">
               <button
                 type="button"
                 className="portfolio-simulation-reset"
-                disabled={pending}
+                disabled={pending !== null}
                 onClick={() => change(base)}
               >
                 <ArrowCounterClockwiseIcon size={16} aria-hidden="true" />
@@ -328,15 +405,21 @@ function SimulationEditor({ shareId, comment, id }: Props & { id: string }) {
                 className="portfolio-simulation-submit"
                 type="button"
                 onClick={() => void analyze()}
-                disabled={!valid || pending}
+                disabled={!valid || pending !== null}
               >
                 <SparkleIcon size={18} aria-hidden="true" />
-                {pending ? '임시 구성 분석 중…' : '이 구성으로 포트폴리오 분석'}
+                {pending === 'saving'
+                  ? '검토안 저장 중…'
+                  : pending === 'analyzing'
+                    ? '검토안 분석 중…'
+                    : '검토안 저장하고 분석'}
               </button>
             </div>
             {pending ? (
               <div role="status" className="portfolio-simulation-progress">
-                분석 중이에요. 결과가 나올 때까지 잠시 기다려 주세요.
+                {pending === 'saving'
+                  ? '검토안을 저장하고 있어요.'
+                  : '분석 중이에요. 결과가 나올 때까지 잠시 기다려 주세요.'}
               </div>
             ) : null}
           </div>
@@ -351,11 +434,123 @@ function SimulationEditor({ shareId, comment, id }: Props & { id: string }) {
           {error}
         </p>
       ) : null}
-      {result ? (
+    </section>
+  );
+}
+
+export function PortfolioReviewResult({
+  base,
+  draft,
+  analysis,
+  proposal,
+  onReanalyze,
+  onDelete,
+  deleting,
+}: PortfolioReviewResultState & {
+  onReanalyze: () => void;
+  onDelete: () => void;
+  deleting: boolean;
+}) {
+  const id = useId();
+  const draftNames = new Set(draft.map(analysisAssetName));
+  const assets = [
+    ...draft,
+    ...(base ?? []).filter((asset) => !draftNames.has(analysisAssetName(asset))),
+  ];
+
+  return (
+    <section
+      className={`portfolio-public-proposal-result${base ? '' : ' is-saved-only'}`}
+      aria-labelledby={`${id}-section-title`}
+      tabIndex={-1}
+    >
+      <header className="portfolio-public-proposal-heading">
+        <div>
+          <span>저장된 검토안</span>
+          <h2 id={`${id}-section-title`}>댓글 제안을 반영한 구성</h2>
+          <p>
+            {new Intl.DateTimeFormat('ko-KR', { dateStyle: 'medium', timeStyle: 'short' }).format(
+              new Date(proposal.updatedAt),
+            )}{' '}
+            저장 · 분석 결과는 새로고침하면 사라져요.
+          </p>
+        </div>
+        <div className="portfolio-public-proposal-actions">
+          <button type="button" onClick={onReanalyze}>
+            <ArrowCounterClockwiseIcon size={16} aria-hidden="true" />
+            구성 다시 검토
+          </button>
+          <button type="button" className="is-danger" onClick={onDelete} disabled={deleting}>
+            {deleting ? '삭제 중…' : '검토안 삭제'}
+          </button>
+        </div>
+      </header>
+      <section className="portfolio-simulation-snapshot" aria-labelledby={`${id}-title`}>
+        <header>
+          <div>
+            <h3 id={`${id}-title`}>검토안 구성</h3>
+            <p>
+              {base
+                ? '현재 포트폴리오와 검토안의 비중 차이예요.'
+                : '명시적으로 저장한 검토안이에요. 실제 포트폴리오에는 반영되지 않았어요.'}
+            </p>
+          </div>
+        </header>
+        <ul aria-label={base ? '현재 구성과 제안 구성 비교' : '저장된 검토안 구성'}>
+          {assets.map((asset) => {
+            const name = analysisAssetName(asset);
+            const current = percentage(base?.find((item) => analysisAssetName(item) === name));
+            const proposed = percentage(draft.find((item) => analysisAssetName(item) === name));
+            const difference = proposed - current;
+            return (
+              <li key={name}>
+                <strong>{name}</strong>
+                <div className="portfolio-simulation-snapshot-values">
+                  {base ? (
+                    <>
+                      <span>
+                        <small>현재</small>
+                        <b>{percent(current)}</b>
+                      </span>
+                      <ArrowRightIcon size={16} aria-hidden="true" />
+                    </>
+                  ) : null}
+                  <span>
+                    <small>{base ? '제안' : '비중'}</small>
+                    <b>{percent(proposed)}</b>
+                  </span>
+                </div>
+                {base ? (
+                  <span
+                    className={`portfolio-simulation-difference${difference === 0 ? ' is-unchanged' : ''}`}
+                  >
+                    {difference === 0
+                      ? '변화 없음'
+                      : `${difference > 0 ? '+' : '−'}${Math.abs(difference).toFixed(2)}%p`}
+                  </span>
+                ) : null}
+              </li>
+            );
+          })}
+        </ul>
+        <p className="portfolio-simulation-snapshot-note">
+          <LockSimpleIcon size={16} aria-hidden="true" />
+          실제 보유 구성은 변경되지 않았고, 분석 결과는 저장하지 않았어요.
+        </p>
+      </section>
+      {analysis ? (
         <div className="portfolio-simulation-result">
-          <PortfolioReviewAnalysisResult analysis={result} title="임시 포트폴리오 분석 결과" />
+          <PortfolioReviewAnalysisResult
+            analysis={analysis}
+            title="제안 구성 분석 결과"
+            fullLayout
+          />
         </div>
       ) : null}
     </section>
   );
+}
+
+function percentage(asset: SimulationDraft | undefined) {
+  return asset ? (weightInBasisPoints(asset.weight) ?? 0) / 100 : 0;
 }
