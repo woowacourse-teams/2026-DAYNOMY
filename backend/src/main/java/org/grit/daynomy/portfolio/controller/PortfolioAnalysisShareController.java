@@ -12,7 +12,9 @@ import org.grit.daynomy.auth.token.AuthenticatedMember;
 import org.grit.daynomy.portfolio.dto.PortfolioAnalysisRequest;
 import org.grit.daynomy.portfolio.dto.PortfolioAnalysisResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioAnalysisShareDto;
+import org.grit.daynomy.portfolio.dto.PortfolioReviewProposalDto;
 import org.grit.daynomy.portfolio.service.PortfolioAnalysisShareService;
+import org.grit.daynomy.portfolio.service.PortfolioReviewProposalService;
 import org.grit.daynomy.portfolio.service.PortfolioReviewSimulationService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -36,6 +38,37 @@ public class PortfolioAnalysisShareController {
 
   private final PortfolioAnalysisShareService service;
   private final PortfolioReviewSimulationService simulation;
+  private final PortfolioReviewProposalService proposals;
+
+  @Operation(summary = "댓글 제안을 반영한 저장 검토안 목록 조회 (작성자 전용)")
+  @GetMapping("/api/users/me/portfolio/analysis/shares/{shareId}/proposals")
+  public List<PortfolioReviewProposalDto.Response> proposals(
+      @AuthenticationPrincipal AuthenticatedMember member,
+      @Positive @PathVariable Long shareId) {
+    return proposals.list(member.memberId(), shareId);
+  }
+
+  @Operation(summary = "댓글 제안을 반영한 검토안 저장 또는 갱신 (작성자 전용)")
+  @PutMapping(
+      "/api/users/me/portfolio/analysis/shares/{shareId}/comments/{commentId}/proposal")
+  public PortfolioReviewProposalDto.Response saveProposal(
+      @AuthenticationPrincipal AuthenticatedMember member,
+      @Positive @PathVariable Long shareId,
+      @Positive @PathVariable Long commentId,
+      @Valid @RequestBody PortfolioReviewProposalDto.Request request) {
+    return proposals.save(member.memberId(), shareId, commentId, request);
+  }
+
+  @Operation(summary = "댓글 제안을 반영한 저장 검토안 폐기 (작성자 전용)")
+  @DeleteMapping(
+      "/api/users/me/portfolio/analysis/shares/{shareId}/comments/{commentId}/proposal")
+  public ResponseEntity<Void> deleteProposal(
+      @AuthenticationPrincipal AuthenticatedMember member,
+      @Positive @PathVariable Long shareId,
+      @Positive @PathVariable Long commentId) {
+    proposals.delete(member.memberId(), shareId, commentId);
+    return ResponseEntity.noContent().build();
+  }
 
   @Operation(summary = "댓글 제안 검토용 현재 자산·원화 평가금액 조회 (작성자 전용)")
   @GetMapping("/api/users/me/portfolio/analysis/shares/{shareId}/comments/{commentId}/simulation")
