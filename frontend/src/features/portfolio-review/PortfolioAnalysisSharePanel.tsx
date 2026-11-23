@@ -52,7 +52,10 @@ function replaceShare(
   values: PortfolioAnalysisOwnerShare[] | null,
   next: PortfolioAnalysisOwnerShare,
 ) {
-  return [next, ...(values ?? []).filter((value) => value.id !== next.id)];
+  const current = values ?? [];
+  return current.some((value) => value.id === next.id)
+    ? current.map((value) => (value.id === next.id ? next : value))
+    : [next, ...current];
 }
 
 function replaceComment(
