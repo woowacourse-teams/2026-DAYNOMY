@@ -18,9 +18,10 @@ public interface PortfolioAnalysisShareRepository
   @Query("select share from PortfolioAnalysisShare share where share.tokenHash = :tokenHash")
   Optional<PortfolioAnalysisShare> findByTokenHashForUpdate(@Param("tokenHash") String tokenHash);
 
-  Optional<PortfolioAnalysisShare> findByOwnerIdAndAnalysisId(Long ownerId, Long analysisId);
+  Optional<PortfolioAnalysisShare> findFirstByOwnerIdAndAnalysisIdOrderByCreatedAtDescIdDesc(
+      Long ownerId, Long analysisId);
 
-  Optional<PortfolioAnalysisShare> findFirstByOwnerIdAndAnalysisIdIsNullOrderByCreatedAtDesc(
+  Optional<PortfolioAnalysisShare> findFirstByOwnerIdAndAnalysisIdIsNullOrderByCreatedAtDescIdDesc(
       Long ownerId);
 
   Optional<PortfolioAnalysisShare> findByIdAndOwnerId(Long id, Long ownerId);
