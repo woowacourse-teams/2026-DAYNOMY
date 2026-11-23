@@ -31,8 +31,7 @@ public record PortfolioReviewProposalSnapshot(List<Asset> assets) {
     }
   }
 
-  public record Asset(
-      Long assetId, String assetName, AssetCategory category, BigDecimal weight) {
+  public record Asset(Long assetId, String assetName, AssetCategory category, BigDecimal weight) {
 
     public Asset {
       if (assetId == null || assetId <= 0) {

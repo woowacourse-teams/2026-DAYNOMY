@@ -37,10 +37,7 @@ public class PortfolioReviewProposalService {
 
   @Transactional
   public PortfolioReviewProposalDto.Response save(
-      Long memberId,
-      Long shareId,
-      Long commentId,
-      PortfolioReviewProposalDto.Request request) {
+      Long memberId, Long shareId, Long commentId, PortfolioReviewProposalDto.Request request) {
     rateLimiter.acquireWrite(memberId);
     var share = shares.requireOwnerAccess(memberId, shareId);
     PortfolioAnalysisComment comment = rootCommentForUpdate(shareId, commentId);
@@ -76,9 +73,7 @@ public class PortfolioReviewProposalService {
   private PortfolioReviewProposalSnapshot snapshot(PortfolioReviewProposalDto.Request request) {
     var requestedAssets = request.assets();
     var assetIds =
-        requestedAssets.stream()
-            .map(PortfolioReviewProposalDto.AssetRequest::assetId)
-            .toList();
+        requestedAssets.stream().map(PortfolioReviewProposalDto.AssetRequest::assetId).toList();
     if (assetIds.stream().distinct().count() != assetIds.size()) {
       throw invalidAssets();
     }

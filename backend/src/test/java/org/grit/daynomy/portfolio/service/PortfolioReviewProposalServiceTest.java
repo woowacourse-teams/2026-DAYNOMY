@@ -91,11 +91,7 @@ class PortfolioReviewProposalServiceTest {
     when(assets.findAllById(List.of(10L, 20L))).thenReturn(List.of(samsung, etf));
     when(proposals.findByCommentId(9L)).thenReturn(Optional.of(existing));
 
-    service.save(
-        1L,
-        3L,
-        9L,
-        request(assetRequest(10L, "60"), assetRequest(20L, "40")));
+    service.save(1L, 3L, 9L, request(assetRequest(10L, "60"), assetRequest(20L, "40")));
 
     verify(proposals).saveAndFlush(existing);
     assertThat(existing.getSnapshot().assets())

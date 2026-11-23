@@ -375,10 +375,8 @@ class PortfolioAnalysisShareAcceptanceTest extends SharedDatabaseTest {
     Member outsider = member("검토안 외부인");
     PortfolioAnalysis analysis = analysis(owner);
     String suffix = UUID.randomUUID().toString();
-    Asset samsung =
-        assets.save(new Asset("삼성전자", AssetCategory.STOCK, "S-" + suffix));
-    Asset etf =
-        assets.save(new Asset("KODEX 200", AssetCategory.ETF, "E-" + suffix));
+    Asset samsung = assets.save(new Asset("삼성전자", AssetCategory.STOCK, "S-" + suffix));
+    Asset etf = assets.save(new Asset("KODEX 200", AssetCategory.ETF, "E-" + suffix));
     var created =
         client(owner)
             .body(
@@ -404,15 +402,11 @@ class PortfolioAnalysisShareAcceptanceTest extends SharedDatabaseTest {
             .statusCode(200)
             .extract()
             .path("id");
-    String proposalApi =
-        OWNER_API + "/" + shareId + "/comments/" + commentId + "/proposal";
+    String proposalApi = OWNER_API + "/" + shareId + "/comments/" + commentId + "/proposal";
 
     int proposalId =
         client(owner)
-            .body(
-                Map.of(
-                    "assets",
-                    List.of(Map.of("assetId", samsung.getId(), "weight", 100))))
+            .body(Map.of("assets", List.of(Map.of("assetId", samsung.getId(), "weight", 100))))
             .put(proposalApi)
             .then()
             .statusCode(200)

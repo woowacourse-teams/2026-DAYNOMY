@@ -18,7 +18,8 @@ class PortfolioReviewProposalSnapshotTest {
                 asset(1L, "삼성전자", AssetCategory.STOCK, "60"),
                 asset(2L, "KODEX 200", AssetCategory.ETF, "40")));
 
-    assertThat(snapshot.assets()).extracting(PortfolioReviewProposalSnapshot.Asset::assetName)
+    assertThat(snapshot.assets())
+        .extracting(PortfolioReviewProposalSnapshot.Asset::assetName)
         .containsExactly("삼성전자", "KODEX 200");
   }
 

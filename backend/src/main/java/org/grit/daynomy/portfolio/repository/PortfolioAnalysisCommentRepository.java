@@ -16,7 +16,8 @@ public interface PortfolioAnalysisCommentRepository
 
   @Lock(LockModeType.PESSIMISTIC_WRITE)
   @Query(
-      "select comment from PortfolioAnalysisComment comment where comment.id = :id and comment.share.id = :shareId")
+      "select comment from PortfolioAnalysisComment comment where comment.id = :id and"
+          + " comment.share.id = :shareId")
   Optional<PortfolioAnalysisComment> findByIdAndShareIdForUpdate(
       @Param("id") Long id, @Param("shareId") Long shareId);
 

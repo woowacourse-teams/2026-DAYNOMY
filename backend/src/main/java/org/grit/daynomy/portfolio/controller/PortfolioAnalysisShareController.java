@@ -43,14 +43,12 @@ public class PortfolioAnalysisShareController {
   @Operation(summary = "댓글 제안을 반영한 저장 검토안 목록 조회 (작성자 전용)")
   @GetMapping("/api/users/me/portfolio/analysis/shares/{shareId}/proposals")
   public List<PortfolioReviewProposalDto.Response> proposals(
-      @AuthenticationPrincipal AuthenticatedMember member,
-      @Positive @PathVariable Long shareId) {
+      @AuthenticationPrincipal AuthenticatedMember member, @Positive @PathVariable Long shareId) {
     return proposals.list(member.memberId(), shareId);
   }
 
   @Operation(summary = "댓글 제안을 반영한 검토안 저장 또는 갱신 (작성자 전용)")
-  @PutMapping(
-      "/api/users/me/portfolio/analysis/shares/{shareId}/comments/{commentId}/proposal")
+  @PutMapping("/api/users/me/portfolio/analysis/shares/{shareId}/comments/{commentId}/proposal")
   public PortfolioReviewProposalDto.Response saveProposal(
       @AuthenticationPrincipal AuthenticatedMember member,
       @Positive @PathVariable Long shareId,
@@ -60,8 +58,7 @@ public class PortfolioAnalysisShareController {
   }
 
   @Operation(summary = "댓글 제안을 반영한 저장 검토안 폐기 (작성자 전용)")
-  @DeleteMapping(
-      "/api/users/me/portfolio/analysis/shares/{shareId}/comments/{commentId}/proposal")
+  @DeleteMapping("/api/users/me/portfolio/analysis/shares/{shareId}/comments/{commentId}/proposal")
   public ResponseEntity<Void> deleteProposal(
       @AuthenticationPrincipal AuthenticatedMember member,
       @Positive @PathVariable Long shareId,
