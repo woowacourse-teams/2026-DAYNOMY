@@ -547,12 +547,7 @@ class PortfolioAnalysisShareAcceptanceTest extends SharedDatabaseTest {
     String newToken = reissued.path("token");
 
     assertThat(newToken).isNotEqualTo(oldToken).isEqualTo(reissued.path("share.token"));
-    given()
-        .port(port)
-        .header(SHARE_TOKEN_HEADER, oldToken)
-        .get(PUBLIC_API)
-        .then()
-        .statusCode(404);
+    given().port(port).header(SHARE_TOKEN_HEADER, oldToken).get(PUBLIC_API).then().statusCode(404);
     given()
         .port(port)
         .header(SHARE_TOKEN_HEADER, newToken)

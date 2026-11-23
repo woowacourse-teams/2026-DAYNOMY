@@ -37,8 +37,7 @@ class PortfolioAnalysisShareTest {
     assertThat(share.getAdditionalExplanation()).isEqualTo("장기 투자 목적입니다.\n분산도 함께 고민하고 있어요.");
     assertThat(share.getAdditionalExplanationUpdatedAt()).isEqualTo(NOW);
 
-    share.renew(
-        "어때?", "b".repeat(64), "encrypted-token-2", snapshot(), NOW.plusSeconds(100));
+    share.renew("어때?", "b".repeat(64), "encrypted-token-2", snapshot(), NOW.plusSeconds(100));
     assertThat(share.getAdditionalExplanation()).startsWith("장기 투자");
     assertThatThrownBy(() -> share.updateAdditionalExplanation("a".repeat(2001), NOW))
         .isInstanceOf(IllegalArgumentException.class);
@@ -54,8 +53,7 @@ class PortfolioAnalysisShareTest {
   void acceptsAShortQuestion() {
     var share = share();
 
-    share.renew(
-        "어때?", "b".repeat(64), "encrypted-token-2", snapshot(), NOW.plusSeconds(100));
+    share.renew("어때?", "b".repeat(64), "encrypted-token-2", snapshot(), NOW.plusSeconds(100));
 
     assertThat(share.getQuestion()).isEqualTo("어때?");
   }

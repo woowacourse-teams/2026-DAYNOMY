@@ -194,9 +194,7 @@ public class PortfolioAnalysisShareService {
         PortfolioAnalysisShareDto.SnapshotResponse.from(share.getSnapshot()),
         viewerMemberId != null && !share.getOwner().getId().equals(viewerMemberId),
         myComments,
-        share.getOwner().getId().equals(viewerMemberId)
-            ? ownerResponse(share, now)
-            : null);
+        share.getOwner().getId().equals(viewerMemberId) ? ownerResponse(share, now) : null);
   }
 
   @Transactional
