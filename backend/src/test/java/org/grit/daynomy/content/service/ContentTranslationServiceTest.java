@@ -99,6 +99,32 @@ class ContentTranslationServiceTest {
   }
 
   @Test
+  @DisplayName("영문 제목만 전달하면 한국어 제목을 반환한다")
+  void translateTitleIfEnglishReturnsTranslatedTitle() {
+    given(translator.translate("Official update", ""))
+        .willReturn(new ContentTranslation("공식 소식", ""));
+
+    assertThat(service.translateTitleIfEnglish("Official update")).isEqualTo("공식 소식");
+  }
+
+  @Test
+  @DisplayName("한국어 제목만 전달하면 번역하지 않는다")
+  void translateTitleIfEnglishSkipsKoreanTitle() {
+    assertThat(service.translateTitleIfEnglish("공식 소식")).isEqualTo("공식 소식");
+    verifyNoInteractions(translator);
+  }
+
+  @Test
+  @DisplayName("제목 번역 실패 시 원문을 반환한다")
+  void translateTitleIfEnglishKeepsOriginalOnFailure() {
+    willThrow(new OpenAiContentTranslationException("failed"))
+        .given(translator)
+        .translate("Official update", "");
+
+    assertThat(service.translateTitleIfEnglish("Official update")).isEqualTo("Official update");
+  }
+
+  @Test
   @DisplayName("영문 판별은 문자가 모두 라틴 문자인 경우로 제한한다")
   void englishDetectionIsConservative() {
     assertThat(ContentTranslationService.isEnglish("Federal Reserve holds rates")).isTrue();
