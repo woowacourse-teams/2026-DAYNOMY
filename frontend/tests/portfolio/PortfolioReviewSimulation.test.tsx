@@ -1,7 +1,12 @@
 /** @vitest-environment jsdom */
+import { useState } from 'react';
 import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { PortfolioReviewSimulation } from '../../src/features/portfolio-review/PortfolioReviewSimulation';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  PortfolioReviewResult,
+  PortfolioReviewSimulation,
+  type PortfolioReviewResultState,
+} from '../../src/features/portfolio-review/PortfolioReviewSimulation';
 import {
   amountInCents,
   weightInBasisPoints,
@@ -12,7 +17,12 @@ import {
 import {
   getReviewSimulationAssets,
   analyzeReviewSimulation,
+  getPortfolioReviewProposals,
 } from '../../src/features/portfolio-review/api';
+import type { PortfolioReviewProposal } from '../../src/features/portfolio-review/types';
+
+const originalShowModal = HTMLDialogElement.prototype.showModal;
+const originalClose = HTMLDialogElement.prototype.close;
 
 const comment = {
   id: 9,
@@ -39,29 +49,104 @@ const analysis = {
   sources: [],
 };
 const path = '/api/users/me/portfolio/analysis/shares/3/comments/9/simulation';
+const proposalPath = '/api/users/me/portfolio/analysis/shares/3/comments/9/proposal';
+const proposalsPath = '/api/users/me/portfolio/analysis/shares/3/proposals';
+const savedProposal: PortfolioReviewProposal = {
+  id: 17,
+  shareId: 3,
+  commentId: 9,
+  assets: [
+    { assetId: 1, assetName: '삼성전자', category: 'STOCK', weight: 50 },
+    { assetId: 2, assetName: 'SK하이닉스', category: 'STOCK', weight: 50 },
+  ],
+  createdAt: '2026-11-23T00:00:00Z',
+  updatedAt: '2026-11-23T00:00:00Z',
+};
+
+function SimulationHarness({
+  initialProposal = null,
+}: {
+  initialProposal?: PortfolioReviewProposal | null;
+}) {
+  const [proposal, setProposal] = useState(initialProposal);
+  const [result, setResult] = useState<PortfolioReviewResultState | null>(null);
+  function saveProposal(next: PortfolioReviewProposal) {
+    setProposal(next);
+    setResult({
+      proposal: next,
+      base: null,
+      draft: next.assets.map(({ assetId, assetName, category, weight }) => ({
+        assetId,
+        assetName,
+        category,
+        weight: weight.toFixed(2),
+      })),
+      analysis: null,
+    });
+  }
+  return (
+    <>
+      <PortfolioReviewSimulation
+        shareId={3}
+        comment={comment}
+        proposal={proposal}
+        onProposalSaved={saveProposal}
+        onAnalysisComplete={setResult}
+      />
+      {result ? (
+        <PortfolioReviewResult
+          {...result}
+          deleting={false}
+          onDelete={() => {}}
+          onReanalyze={() => {}}
+        />
+      ) : null}
+    </>
+  );
+}
+
+function renderSimulation(initialProposal: PortfolioReviewProposal | null = null) {
+  return render(<SimulationHarness initialProposal={initialProposal} />);
+}
 function response(value: unknown, status = 200) {
   return new Response(JSON.stringify(value), {
     status,
     headers: { 'content-type': 'application/json' },
   });
 }
+beforeEach(() => {
+  HTMLDialogElement.prototype.showModal = function () {
+    this.setAttribute('open', '');
+  };
+  HTMLDialogElement.prototype.close = function () {
+    this.removeAttribute('open');
+  };
+});
+
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  HTMLDialogElement.prototype.showModal = originalShowModal;
+  HTMLDialogElement.prototype.close = originalClose;
 });
 
 describe('댓글 제안 임시 포트폴리오', () => {
-  it('수정한 구성을 분석한 뒤에도 접히지 않고 명시적으로 원래 구성으로 되돌릴 수 있다', async () => {
+  it('검토안을 먼저 저장한 뒤 분석하고 모달 밖에 결과를 보여준다', async () => {
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       if (String(input).endsWith('/api/auth/csrf'))
         return Promise.resolve(response({ headerName: 'X-XSRF-TOKEN', token: 'csrf' }));
+      if (String(input) === proposalPath && init?.method === 'PUT')
+        return Promise.resolve(response(savedProposal));
       if (String(input) === path)
         return Promise.resolve(response(init?.method === 'POST' ? analysis : assets));
       throw new Error('보유 내역 저장 API를 호출하면 안 됩니다.');
     });
     vi.stubGlobal('fetch', fetchMock);
-    const view = render(<PortfolioReviewSimulation shareId={3} comment={comment} />);
-    fireEvent.click(view.getByRole('button', { name: '제안 반영해 보기' }));
+    const view = renderSimulation();
+    const trigger = view.getByRole('button', { name: /^이 제안으로 분석해 보기/ });
+    expect(trigger.textContent).toContain('검토안만 저장되며 실제 포트폴리오는 바뀌지 않아요.');
+    trigger.focus();
+    fireEvent.click(trigger);
     const first = await view.findByRole('spinbutton', { name: '삼성전자 비중' });
     expect(view.getAllByRole('option').map((option) => option.textContent)).toEqual([
       '전체',
@@ -69,13 +154,37 @@ describe('댓글 제안 임시 포트폴리오', () => {
       'ETF',
     ]);
     fireEvent.change(first, { target: { value: '' } });
-    const submit = view.getByRole('button', { name: '이 구성으로 포트폴리오 분석' });
+    const submit = view.getByRole('button', { name: '검토안 저장하고 분석' });
     expect(submit.hasAttribute('disabled')).toBe(true);
     fireEvent.change(first, { target: { value: '50' } });
     expect(submit.hasAttribute('disabled')).toBe(true);
     fireEvent.change(view.getByLabelText('SK하이닉스 비중'), { target: { value: '50' } });
     fireEvent.click(submit);
     expect(await view.findByText('임시 구성 분석 완료')).toBeTruthy();
+    expect(view.queryByRole('dialog')).toBeNull();
+    expect(view.getByRole('heading', { name: '댓글 제안을 반영한 구성' })).toBeTruthy();
+    const snapshot = view.getByRole('list', { name: '현재 구성과 제안 구성 비교' });
+    expect(snapshot.children[0].textContent?.replace(/\s/g, '')).toContain(
+      '삼성전자현재60.00%제안50.00%−10.00%p',
+    );
+    expect(snapshot.children[1].textContent?.replace(/\s/g, '')).toContain(
+      'SK하이닉스현재40.00%제안50.00%+10.00%p',
+    );
+    expect(
+      view.getByText('실제 보유 구성은 변경되지 않았고, 분석 결과는 저장하지 않았어요.'),
+    ).toBeTruthy();
+    expect(fetchMock).toHaveBeenCalledWith(
+      proposalPath,
+      expect.objectContaining({
+        method: 'PUT',
+        body: JSON.stringify({
+          assets: [
+            { assetId: 1, weight: 50 },
+            { assetId: 2, weight: 50 },
+          ],
+        }),
+      }),
+    );
     expect(fetchMock).toHaveBeenCalledWith(
       path,
       expect.objectContaining({
@@ -90,19 +199,20 @@ describe('댓글 제안 임시 포트폴리오', () => {
     );
     expect(assets[0].amount).toBe(600000);
     expect(view.queryByText(/600,000원|1,000,000원|검토 금액|현재 → 검토 후/)).toBeNull();
-    expect(view.queryByRole('button', { name: '닫기' })).toBeNull();
-    fireEvent.click(view.getByRole('heading', { name: '제안 반영하기' }));
-    expect(view.getByRole('region', { name: '제안 반영하기' })).toBeTruthy();
-    expect(view.getByText('임시 구성 분석 완료')).toBeTruthy();
-    expect((first as HTMLInputElement).value).toBe('50');
-    fireEvent.change(first, { target: { value: '40' } });
-    expect(view.queryByText('임시 구성 분석 완료')).toBeNull();
-    expect(submit.hasAttribute('disabled')).toBe(true);
+    const putIndex = fetchMock.mock.calls.findIndex(([, init]) => init?.method === 'PUT');
+    const postIndex = fetchMock.mock.calls.findIndex(([, init]) => init?.method === 'POST');
+    expect(putIndex).toBeLessThan(postIndex);
+    fireEvent.click(view.getByRole('button', { name: /^저장한 검토안 다시 보기/ }));
+    expect(
+      ((await view.findByRole('spinbutton', { name: '삼성전자 비중' })) as HTMLInputElement).value,
+    ).toBe('50.00');
     fireEvent.click(view.getByRole('button', { name: '원래 구성으로 되돌리기' }));
     expect(
       ((await view.findByRole('spinbutton', { name: '삼성전자 비중' })) as HTMLInputElement).value,
     ).toBe('60.00');
-    expect(view.queryByText('임시 구성 분석 완료')).toBeNull();
+    fireEvent.click(view.getByRole('button', { name: '제안 구성 편집 닫기' }));
+    expect(view.queryByRole('dialog')).toBeNull();
+    await waitFor(() => expect(document.activeElement).toBe(trigger));
   });
 
   it('분석 실패 시 수정한 구성을 유지하고 재시도할 수 있다', async () => {
@@ -112,6 +222,8 @@ describe('댓글 제안 임시 포트폴리오', () => {
       vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
         if (String(input).endsWith('/api/auth/csrf'))
           return Promise.resolve(response({ headerName: 'X-XSRF-TOKEN', token: 'csrf' }));
+        if (String(input) === proposalPath && init?.method === 'PUT')
+          return Promise.resolve(response(savedProposal));
         if (init?.method !== 'POST') return Promise.resolve(response(assets));
         return Promise.resolve(
           ++attempts === 1
@@ -120,18 +232,20 @@ describe('댓글 제안 임시 포트폴리오', () => {
         );
       }),
     );
-    const view = render(<PortfolioReviewSimulation shareId={3} comment={comment} />);
-    fireEvent.click(view.getByRole('button', { name: '제안 반영해 보기' }));
+    const view = renderSimulation();
+    fireEvent.click(view.getByRole('button', { name: /^이 제안으로 분석해 보기/ }));
     await view.findByRole('spinbutton', { name: '삼성전자 비중' });
-    fireEvent.click(view.getByRole('button', { name: '이 구성으로 포트폴리오 분석' }));
-    expect(await view.findByRole('alert')).toBeTruthy();
+    fireEvent.click(view.getByRole('button', { name: '검토안 저장하고 분석' }));
+    expect(await view.findByText(/검토안은 저장했지만 분석에 실패/)).toBeTruthy();
+    expect(view.getByRole('heading', { name: '댓글 제안을 반영한 구성' })).toBeTruthy();
     await waitFor(() =>
       expect(
-        view.getByRole('button', { name: '이 구성으로 포트폴리오 분석' }).hasAttribute('disabled'),
+        view.getByRole('button', { name: '검토안 저장하고 분석' }).hasAttribute('disabled'),
       ).toBe(false),
     );
-    fireEvent.click(view.getByRole('button', { name: '이 구성으로 포트폴리오 분석' }));
+    fireEvent.click(view.getByRole('button', { name: '검토안 저장하고 분석' }));
     expect(await view.findByText('임시 구성 분석 완료')).toBeTruthy();
+    expect(view.queryByRole('dialog')).toBeNull();
   });
 
   it.each([
@@ -162,6 +276,32 @@ describe('댓글 제안 임시 포트폴리오', () => {
       vi.fn(() => Promise.resolve(response(value))),
     );
     await expect(getReviewSimulationAssets(3, 9)).rejects.toThrow('임시 포트폴리오 응답 형식');
+  });
+
+  it('저장된 검토안 목록을 검증해 불러온다', async () => {
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      expect(String(input)).toBe(proposalsPath);
+      return Promise.resolve(response([savedProposal]));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(getPortfolioReviewProposals(3)).resolves.toEqual([savedProposal]);
+  });
+
+  it.each([
+    null,
+    {},
+    [null],
+    [{ ...savedProposal, commentId: null }],
+    [{ ...savedProposal, assets: [] }],
+    [{ ...savedProposal, assets: [{ ...savedProposal.assets[0], category: 'UNKNOWN' }] }],
+    [{ ...savedProposal, assets: [{ ...savedProposal.assets[0], weight: '100' }] }],
+    [{ ...savedProposal, assets: [{ ...savedProposal.assets[0], weight: 99 }] }],
+  ])('잘못된 저장 검토안 응답을 거부한다: %j', async (value) => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(response(value))),
+    );
+    await expect(getPortfolioReviewProposals(3)).rejects.toThrow('저장된 검토안 목록 응답 형식');
   });
 
   it('알 수 없는 분석 방향 응답을 거부한다', async () => {
@@ -198,8 +338,8 @@ describe('비중으로 구성 검토', () => {
         ),
       ),
     );
-    const view = render(<PortfolioReviewSimulation shareId={3} comment={comment} />);
-    fireEvent.click(view.getByRole('button', { name: '제안 반영해 보기' }));
+    const view = renderSimulation();
+    fireEvent.click(view.getByRole('button', { name: /^이 제안으로 분석해 보기/ }));
     fireEvent.change(await view.findByLabelText('종목 검색'), { target: { value: '검색' } });
     fireEvent.click(await view.findByRole('button', { name: '검색 재시도' }, { timeout: 3000 }));
     expect(
@@ -222,12 +362,29 @@ describe('비중으로 구성 검토', () => {
               stocks: [{ assetId: 3, assetCode: 'TEST', name, category, market: 'NASDAQ' }],
             }),
           );
+        if (String(input) === proposalPath && init?.method === 'PUT') {
+          const requestAssets = JSON.parse(init.body as string).assets as {
+            assetId: number;
+            weight: number;
+          }[];
+          return Promise.resolve(
+            response({
+              ...savedProposal,
+              assets: requestAssets.map((asset) => ({
+                ...asset,
+                assetName:
+                  asset.assetId === 1 ? '삼성전자' : asset.assetId === 2 ? 'SK하이닉스' : name,
+                category: asset.assetId === 3 ? category : 'STOCK',
+              })),
+            }),
+          );
+        }
         if (String(input) !== path) throw new Error('기존 포트폴리오를 저장하면 안 됩니다.');
         return Promise.resolve(response(init?.method === 'POST' ? analysis : assets));
       });
       vi.stubGlobal('fetch', fetchMock);
-      const view = render(<PortfolioReviewSimulation shareId={3} comment={comment} />);
-      fireEvent.click(view.getByRole('button', { name: '제안 반영해 보기' }));
+      const view = renderSimulation();
+      fireEvent.click(view.getByRole('button', { name: /^이 제안으로 분석해 보기/ }));
       await view.findByRole('spinbutton', { name: '삼성전자 비중' });
       fireEvent.change(view.getByLabelText('종류'), { target: { value: category } });
       fireEvent.change(view.getByLabelText('종목 검색'), { target: { value: name } });
@@ -239,7 +396,7 @@ describe('비중으로 구성 검토', () => {
       expect(document.activeElement).toBe(view.getByLabelText('종목 검색'));
       expect(view.getByText('150.00%')).toBeTruthy();
       expect(
-        view.getByRole('button', { name: '이 구성으로 포트폴리오 분석' }).hasAttribute('disabled'),
+        view.getByRole('button', { name: '검토안 저장하고 분석' }).hasAttribute('disabled'),
       ).toBe(true);
       fireEvent.change(view.getByLabelText('삼성전자 비중'), { target: { value: '30' } });
       fireEvent.change(view.getByLabelText('SK하이닉스 비중'), { target: { value: '20' } });
@@ -250,7 +407,7 @@ describe('비중으로 구성 검토', () => {
       });
       expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false);
       expect(view.queryByText('임시 구성 분석 완료')).toBeNull();
-      fireEvent.click(view.getByRole('button', { name: '이 구성으로 포트폴리오 분석' }));
+      fireEvent.click(view.getByRole('button', { name: '검토안 저장하고 분석' }));
       await view.findByText('임시 구성 분석 완료');
       expect(fetchMock.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(1);
       const post = fetchMock.mock.calls.find(([, init]) => init?.method === 'POST');
@@ -261,14 +418,14 @@ describe('비중으로 구성 검토', () => {
           { assetName: analysisName, weight: 50 },
         ],
       });
+      fireEvent.click(view.getByRole('button', { name: /^저장한 검토안 다시 보기/ }));
+      await view.findByRole('spinbutton', { name: `${name} 비중` });
       fireEvent.click(view.getByRole('button', { name: `${name} 삭제` }));
-      expect(view.queryByText('임시 구성 분석 완료')).toBeNull();
       expect(
-        view.getByRole('button', { name: '이 구성으로 포트폴리오 분석' }).hasAttribute('disabled'),
+        view.getByRole('button', { name: '검토안 저장하고 분석' }).hasAttribute('disabled'),
       ).toBe(true);
       fireEvent.click(view.getByRole('button', { name: '원래 구성으로 되돌리기' }));
       expect(view.queryByRole('spinbutton', { name: `${name} 비중` })).toBeNull();
-      expect(view.queryByText('임시 구성 분석 완료')).toBeNull();
     },
   );
 
@@ -302,8 +459,8 @@ describe('비중으로 구성 검토', () => {
         ),
       ),
     );
-    const view = render(<PortfolioReviewSimulation shareId={3} comment={comment} />);
-    fireEvent.click(view.getByRole('button', { name: '제안 반영해 보기' }));
+    const view = renderSimulation();
+    fireEvent.click(view.getByRole('button', { name: /^이 제안으로 분석해 보기/ }));
     await view.findByRole('spinbutton', { name: '삼성전자 비중' });
     fireEvent.change(view.getByLabelText('종목 검색'), { target: { value: '삼성전자' } });
     expect(view.queryByLabelText('추가할 비중 (%)')).toBeNull();

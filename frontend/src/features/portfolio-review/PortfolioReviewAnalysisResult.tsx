@@ -32,10 +32,12 @@ export function PortfolioReviewAnalysisResult({
   analysis,
   title,
   showOverall = true,
+  fullLayout = false,
 }: {
   analysis: PortfolioAnalysisResponse;
   title: string;
   showOverall?: boolean;
+  fullLayout?: boolean;
 }) {
   const id = useId();
   const [selected, setSelected] = useState<string | null>(null);
@@ -59,7 +61,10 @@ export function PortfolioReviewAnalysisResult({
   const overall = showOverall && !selectedImpact;
 
   return (
-    <section className="portfolio-review-result portfolio-analysis-section" aria-label={title}>
+    <section
+      className={`portfolio-review-result portfolio-analysis-section ${fullLayout ? 'is-full-layout' : 'is-compact-layout'}`}
+      aria-label={title}
+    >
       <header className="portfolio-analysis-heading has-analysis">
         <h2>{title}</h2>
       </header>
