@@ -176,9 +176,7 @@ class FeaturedPersonPostCollectionServiceTest {
             featuredPersonService.normalizePostUrl(
                 "https://x.com/elonmusk/status/12345", ContentSourceType.X))
         .willReturn("https://x.com/elonmusk/status/12345");
-    given(
-            postRepository.existsByPersonIdAndUrl(
-                1L, "https://x.com/elonmusk/status/12345"))
+    given(postRepository.existsByPersonIdAndUrl(1L, "https://x.com/elonmusk/status/12345"))
         .willReturn(true);
     given(postRepository.findByPersonIdAndStatusOrderByCreatedAtDescIdDesc(any(), any()))
         .willReturn(List.of());
