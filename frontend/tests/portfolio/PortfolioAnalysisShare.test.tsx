@@ -388,6 +388,39 @@ describe('포트폴리오 분석 의견 요청', () => {
     );
   });
 
+  it('기존 링크를 유지한 채 새 링크를 추가 발급한다', async () => {
+    const nextShare = {
+      ...ownerShare,
+      id: 4,
+      createdAt: '2026-11-13T00:00:00Z',
+      comments: [],
+    };
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith('/api/users/me/portfolio/analysis/shares') && !init?.method)
+        return Promise.resolve(response([ownerShare]));
+      if (url.endsWith('/api/auth/csrf'))
+        return Promise.resolve(response({ headerName: 'X-XSRF-TOKEN', token: 'csrf' }));
+      if (url.endsWith('/api/users/me/portfolio/analysis/shares') && init?.method === 'POST')
+        return Promise.resolve(response({ share: nextShare, token: 'next-share-token' }));
+      throw new Error(`unexpected request: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const view = render(<PortfolioAnalysisSharePanel analysisId={7} assets={analysisAssets} />);
+    fireEvent.click(view.getByRole('button', { name: '의견 받기' }));
+
+    const issueButton = await view.findByRole('button', { name: '새 링크 만들기' });
+    expect(view.queryByText('새 링크를 발급하면 이전 링크는 바로 사용할 수 없어요.')).toBeNull();
+    fireEvent.click(issueButton);
+
+    const link = await view.findByLabelText('공유 링크');
+    expect((link as HTMLInputElement).value).toContain(
+      '/portfolio/analysis/share#next-share-token',
+    );
+    expect(view.getAllByText('공유 중')).toHaveLength(2);
+  });
+
   it('분석 전에는 포트폴리오 구성만 공유한다', async () => {
     const compositionShare = { ...ownerShare, analysisId: null };
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {

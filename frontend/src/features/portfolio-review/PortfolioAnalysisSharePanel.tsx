@@ -405,11 +405,6 @@ function ShareDialog({
                       ? '새 링크 만들기'
                       : '7일 링크 만들기'}
                 </button>
-                {current?.status === 'ACTIVE' && !shareUrl ? (
-                  <p className="portfolio-share-hint">
-                    새 링크를 발급하면 이전 링크는 바로 사용할 수 없어요.
-                  </p>
-                ) : null}
               </div>
 
               {shareUrl ? (
