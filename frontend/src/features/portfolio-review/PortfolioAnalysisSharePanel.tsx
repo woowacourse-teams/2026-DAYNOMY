@@ -1,6 +1,5 @@
 import { CopyIcon } from '@phosphor-icons/react/dist/csr/Copy';
 import { ArrowSquareOutIcon } from '@phosphor-icons/react/dist/csr/ArrowSquareOut';
-import { CaretDownIcon } from '@phosphor-icons/react/dist/csr/CaretDown';
 import { LinkSimpleIcon } from '@phosphor-icons/react/dist/csr/LinkSimple';
 import { ShieldCheckIcon } from '@phosphor-icons/react/dist/csr/ShieldCheck';
 import { XIcon } from '@phosphor-icons/react/dist/csr/X';
@@ -14,11 +13,11 @@ import {
   createPortfolioAnalysisShare,
   deletePortfolioAnalysisShare,
   getPortfolioAnalysisShares,
+  reissuePortfolioAnalysisShare,
   revokePortfolioAnalysisShare,
   savePortfolioAnalysisOwnerReply,
 } from './api';
 import { PortfolioAnalysisReplyThread } from './PortfolioAnalysisReplyThread';
-import { PortfolioShareExplanation } from './PortfolioShareExplanation';
 import type { PortfolioAnalysisOwnerShare } from './types';
 import './portfolioAnalysisShare.css';
 import './portfolioPublicDocument.css';
@@ -35,6 +34,26 @@ function formatDate(value: string) {
 
 function messageFrom(error: unknown, fallback: string) {
   return error instanceof ApiError ? error.message : fallback;
+}
+
+function publicShareUrl(token: string) {
+  return `${window.location.origin}/portfolio/analysis/share#${token}`;
+}
+
+async function writeClipboard(value: string) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value);
+    return;
+  }
+  const textarea = document.createElement('textarea');
+  textarea.value = value;
+  textarea.style.position = 'fixed';
+  textarea.style.opacity = '0';
+  document.body.append(textarea);
+  textarea.select();
+  const copied = document.execCommand('copy');
+  textarea.remove();
+  if (!copied) throw new Error('copy failed');
 }
 
 function previewGradient(assets: PortfolioAsset[]) {
@@ -131,7 +150,6 @@ function ShareDialog({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
-  const [expandedHistoryId, setExpandedHistoryId] = useState<number | null>(null);
   const linkRef = useRef<HTMLInputElement>(null);
   const questionRef = useRef<HTMLTextAreaElement>(null);
   const current = shares?.find((share) => share.analysisId === analysisId) ?? null;
@@ -144,9 +162,9 @@ function ShareDialog({
       .then((values) => {
         if (controller.signal.aborted) return;
         setShares(values);
-        setExpandedHistoryId(values[0]?.id ?? null);
         const existing = values.find((share) => share.analysisId === analysisId);
         setQuestion(existing?.question ?? '');
+        setShareUrl(existing?.token ? publicShareUrl(existing.token) : '');
         setSelectedAssetNames(
           existing?.sharedAssets.map((asset) => asset.assetName) ??
             assets.map((asset) => asset.assetName),
@@ -185,9 +203,8 @@ function ShareDialog({
         normalizedQuestion,
         selectedAssetNames,
       );
-      const url = `${window.location.origin}/portfolio/analysis/share#${created.token}`;
+      const url = publicShareUrl(created.token);
       setShares((values) => replaceShare(values, created.share));
-      setExpandedHistoryId(created.share.id);
       setShareUrl(url);
       setNotice('7일 동안 사용할 수 있는 링크를 발급했어요.');
       trackEvent('portfolio_analysis_share_created', { surface: 'portfolio_analysis' });
@@ -201,15 +218,47 @@ function ShareDialog({
   async function copyLink() {
     if (!shareUrl) return;
     try {
-      if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(shareUrl);
-      else {
-        linkRef.current?.select();
-        document.execCommand('copy');
-      }
+      await writeClipboard(shareUrl);
       setNotice('공유 링크를 복사했어요.');
       trackEvent('portfolio_analysis_share_copied', { surface: 'portfolio_analysis' });
     } catch {
       setError('링크를 복사하지 못했어요. 직접 선택해 복사해 주세요.');
+    }
+  }
+
+  async function copyPreviousLink(share: PortfolioAnalysisOwnerShare) {
+    if (!share.token) return;
+    const url = publicShareUrl(share.token);
+    setError('');
+    try {
+      await writeClipboard(url);
+      setShareUrl(url);
+      setNotice('이전 의견 요청 링크를 복사했어요.');
+    } catch {
+      setError('링크를 복사하지 못했어요. 다시 시도해 주세요.');
+    }
+  }
+
+  async function reissue(share: PortfolioAnalysisOwnerShare) {
+    if (saving) return;
+    if (
+      share.status === 'ACTIVE' &&
+      !window.confirm('이 요청의 기존 링크는 사용할 수 없게 됩니다. 새 링크를 발급할까요?')
+    )
+      return;
+    setSaving(true);
+    setError('');
+    setNotice('');
+    try {
+      const created = await reissuePortfolioAnalysisShare(share.id);
+      const url = publicShareUrl(created.token);
+      setShares((values) => replaceShare(values, created.share));
+      setShareUrl(url);
+      setNotice('의견과 대화는 유지하고 7일 링크를 다시 발급했어요.');
+    } catch (caught) {
+      setError(messageFrom(caught, '링크를 다시 발급하지 못했어요.'));
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -238,7 +287,6 @@ function ShareDialog({
     try {
       await deletePortfolioAnalysisShare(share.id);
       setShares((values) => (values ?? []).filter((value) => value.id !== share.id));
-      if (expandedHistoryId === share.id) setExpandedHistoryId(null);
       if (share.id === current?.id) {
         setQuestion('');
         setShareUrl('');
@@ -421,7 +469,7 @@ function ShareDialog({
                 </button>
                 {current?.status === 'ACTIVE' && !shareUrl ? (
                   <p className="portfolio-share-hint">
-                    새 링크를 발급하면 이전 링크는 바로 사용할 수 없어요.
+                    새 요청으로 발급되며 이전 링크와 받은 의견은 그대로 유지돼요.
                   </p>
                 ) : null}
               </div>
@@ -467,15 +515,8 @@ function ShareDialog({
               <ul>
                 {shares.map((share) => (
                   <li key={share.id}>
-                    <details
-                      className="portfolio-share-history-item"
-                      open={expandedHistoryId === share.id}
-                      onToggle={(event) => {
-                        if (event.currentTarget.open) setExpandedHistoryId(share.id);
-                        else if (expandedHistoryId === share.id) setExpandedHistoryId(null);
-                      }}
-                    >
-                      <summary>
+                    <article className="portfolio-share-history-item">
+                      <header>
                         <span
                           className={`portfolio-share-history-status is-${share.status.toLowerCase()}`}
                         >
@@ -492,8 +533,7 @@ function ShareDialog({
                         <span className="portfolio-share-history-count">
                           받은 의견 {share.comments.length}개
                         </span>
-                        <CaretDownIcon size={18} weight="bold" aria-hidden="true" />
-                      </summary>
+                      </header>
                       <div className="portfolio-share-history-body">
                         {share.comments.length ? (
                           <section
@@ -544,31 +584,46 @@ function ShareDialog({
                           </p>
                         )}
 
-                        <section
-                          className="portfolio-share-history-context"
-                          aria-labelledby={`portfolio-share-context-${share.id}`}
-                        >
-                          <h3 id={`portfolio-share-context-${share.id}`}>공유한 내용</h3>
+                        <section className="portfolio-share-history-context" aria-label="공개 종목">
                           <div className="portfolio-share-history-assets">
                             <span>공개 종목</span>
                             <p>{share.sharedAssets.map((asset) => asset.assetName).join(', ')}</p>
                           </div>
-                          <PortfolioShareExplanation
-                            share={share}
-                            disabled={saving}
-                            onChange={(updated) =>
-                              setShares((values) => replaceShare(values, updated))
-                            }
-                          />
                         </section>
 
-                        <details className="portfolio-share-history-manage">
-                          <summary>
-                            요청 관리
-                            <CaretDownIcon size={16} weight="bold" aria-hidden="true" />
-                          </summary>
-                          <p>공유를 중단해도 받은 의견은 유지돼요.</p>
+                        <div className="portfolio-share-history-manage">
+                          <p>공유 화면 확인과 링크 관리는 여기서 바로 할 수 있어요.</p>
                           <div className="portfolio-share-actions">
+                            <a
+                              className="is-secondary"
+                              href={`/portfolio/analysis/share/owner/${share.id}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              <ArrowSquareOutIcon size={16} aria-hidden="true" />
+                              공유 화면 보기
+                            </a>
+                            {share.token ? (
+                              <button
+                                className="is-secondary"
+                                type="button"
+                                onClick={() => void copyPreviousLink(share)}
+                                disabled={saving}
+                              >
+                                <CopyIcon size={16} aria-hidden="true" />
+                                링크 복사
+                              </button>
+                            ) : (
+                              <button
+                                className="is-secondary"
+                                type="button"
+                                onClick={() => void reissue(share)}
+                                disabled={saving}
+                              >
+                                <LinkSimpleIcon size={16} aria-hidden="true" />
+                                링크 다시 발급
+                              </button>
+                            )}
                             {share.status === 'ACTIVE' ? (
                               <button
                                 className="is-secondary"
@@ -590,9 +645,9 @@ function ShareDialog({
                               영구 삭제
                             </button>
                           </div>
-                        </details>
+                        </div>
                       </div>
-                    </details>
+                    </article>
                   </li>
                 ))}
               </ul>

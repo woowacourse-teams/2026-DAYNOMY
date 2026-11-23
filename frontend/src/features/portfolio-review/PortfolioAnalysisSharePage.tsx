@@ -1,22 +1,28 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChatCircleText, LinkBreak, LockKey, ShieldCheck, User } from '@phosphor-icons/react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useParams } from 'react-router-dom';
 import analysisMascot from '../../assets/portfolio-analysis-mascot.png';
 import { trackEvent } from '../../analytics';
 import { ApiError } from '../../api/client';
 import { useAuth } from '../../hooks/useLoginStatus';
 import {
+  analyzeReviewSimulation,
   createPortfolioAnalysisComment,
   deletePortfolioReviewProposal,
   deletePortfolioAnalysisComment,
   getPortfolioReviewProposals,
+  getOwnerPortfolioAnalysisShare,
   getPublicPortfolioAnalysisShare,
   savePortfolioAnalysisCommenterReply,
   savePortfolioAnalysisOwnerReply,
   updatePortfolioAnalysisComment,
 } from './api';
 import { PortfolioAnalysisReplyThread } from './PortfolioAnalysisReplyThread';
-import type { PortfolioAnalysisPublicShare, PortfolioReviewProposal } from './types';
+import type {
+  PortfolioAnalysisComment,
+  PortfolioAnalysisPublicShare,
+  PortfolioReviewProposal,
+} from './types';
 import {
   PortfolioReviewResult,
   PortfolioReviewSimulation,
@@ -63,6 +69,73 @@ function getCommentValidationMessage(value: string) {
   return '';
 }
 
+function savedProposalResult(proposal: PortfolioReviewProposal): PortfolioReviewResultState {
+  return {
+    proposal,
+    base: null,
+    draft: proposal.assets.map(({ assetId, assetName, category, weight }) => ({
+      assetId,
+      assetName,
+      category,
+      weight: weight.toFixed(2),
+    })),
+    analysis: null,
+  };
+}
+
+function SavedProposalSelector({
+  proposals,
+  comments,
+  selectedProposalId,
+  disabled,
+  onSelect,
+}: {
+  proposals: PortfolioReviewProposal[];
+  comments: PortfolioAnalysisComment[];
+  selectedProposalId: number | null;
+  disabled: boolean;
+  onSelect: (proposal: PortfolioReviewProposal) => void;
+}) {
+  if (!proposals.length) return null;
+  const ordered = [...proposals].sort(
+    (left, right) =>
+      new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime() ||
+      left.id - right.id,
+  );
+  const selectedId = selectedProposalId ?? ordered.at(-1)!.id;
+  const selectedIndex = Math.max(
+    0,
+    ordered.findIndex((proposal) => proposal.id === selectedId),
+  );
+
+  if (ordered.length === 1) return null;
+
+  return (
+    <label className="portfolio-proposal-selector">
+      <span className="portfolio-proposal-selector-count">저장한 개선안 {ordered.length}개</span>
+      <select
+        aria-label="저장한 개선안"
+        disabled={disabled}
+        value={String(ordered[selectedIndex].id)}
+        onChange={(event) => {
+          const selected = ordered.find((proposal) => String(proposal.id) === event.target.value);
+          if (selected) onSelect(selected);
+        }}
+      >
+        {ordered.map((proposal, index) => {
+          const comment = comments.find((value) => value.id === proposal.commentId);
+          const excerpt = comment?.content.trim() || '원댓글을 확인할 수 없음';
+          return (
+            <option key={proposal.id} value={proposal.id}>
+              {`${index + 1}. ${excerpt}`}
+            </option>
+          );
+        })}
+      </select>
+    </label>
+  );
+}
+
 function installPrivatePageMeta() {
   const created: HTMLMetaElement[] = [];
   const ensure = (name: string, content: string) => {
@@ -92,8 +165,10 @@ function installPrivatePageMeta() {
 
 export default function PortfolioAnalysisSharePage() {
   const location = useLocation();
+  const { shareId: ownerShareIdParam } = useParams();
   const { isLoggedIn, loading: authLoading, memberId } = useAuth();
   const token = useMemo(() => location.hash.replace(/^#/, ''), [location.hash]);
+  const ownerPreviewShareId = ownerShareIdParam ? Number(ownerShareIdParam) : null;
   const [share, setShare] = useState<PortfolioAnalysisPublicShare | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -108,6 +183,7 @@ export default function PortfolioAnalysisSharePage() {
   const [proposalLoading, setProposalLoading] = useState(false);
   const [proposalAttempt, setProposalAttempt] = useState(0);
   const [deletingProposal, setDeletingProposal] = useState(false);
+  const [analyzingProposal, setAnalyzingProposal] = useState(false);
   const proposalResultRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -122,7 +198,11 @@ export default function PortfolioAnalysisSharePage() {
 
   useEffect(() => {
     if (authLoading) return;
-    if (!token || token.length > 100) {
+    const ownerPreview = ownerShareIdParam !== undefined;
+    if (
+      (ownerPreview && (!Number.isSafeInteger(ownerPreviewShareId) || ownerPreviewShareId! <= 0)) ||
+      (!ownerPreview && (!token || token.length > 100))
+    ) {
       setError('공유된 분석을 찾을 수 없어요.');
       setLoading(false);
       return;
@@ -130,7 +210,10 @@ export default function PortfolioAnalysisSharePage() {
     const controller = new AbortController();
     setLoading(true);
     setError('');
-    getPublicPortfolioAnalysisShare(token, controller.signal)
+    const request = ownerPreview
+      ? getOwnerPortfolioAnalysisShare(ownerPreviewShareId!, controller.signal)
+      : getPublicPortfolioAnalysisShare(token, controller.signal);
+    request
       .then((value) => {
         if (controller.signal.aborted) return;
         setShare(value);
@@ -154,7 +237,7 @@ export default function PortfolioAnalysisSharePage() {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [authLoading, isLoggedIn, memberId, token]);
+  }, [authLoading, isLoggedIn, memberId, ownerPreviewShareId, ownerShareIdParam, token]);
 
   const ownerShareId = share?.ownerShare?.id;
 
@@ -176,26 +259,12 @@ export default function PortfolioAnalysisSharePage() {
         if (controller.signal.aborted) return;
         setProposals(values);
         const latest = values[0];
-        setProposalResult(
-          latest
-            ? {
-                proposal: latest,
-                base: null,
-                draft: latest.assets.map(({ assetId, assetName, category, weight }) => ({
-                  assetId,
-                  assetName,
-                  category,
-                  weight: weight.toFixed(2),
-                })),
-                analysis: null,
-              }
-            : null,
-        );
+        setProposalResult(latest ? savedProposalResult(latest) : null);
       })
       .catch((caught: unknown) => {
         if (!controller.signal.aborted) {
           setProposalError(
-            caught instanceof ApiError ? caught.message : '저장된 검토안을 불러오지 못했어요.',
+            caught instanceof ApiError ? caught.message : '저장한 개선안을 불러오지 못했어요.',
           );
         }
       })
@@ -276,17 +345,18 @@ export default function PortfolioAnalysisSharePage() {
       proposal,
       ...current.filter((value) => value.commentId !== proposal.commentId),
     ]);
-    setProposalResult({
-      proposal,
-      base: null,
-      draft: proposal.assets.map(({ assetId, assetName, category, weight }) => ({
-        assetId,
-        assetName,
-        category,
-        weight: weight.toFixed(2),
-      })),
-      analysis: null,
-    });
+    setProposalResult(savedProposalResult(proposal));
+  }
+
+  function selectProposal(proposal: PortfolioReviewProposal) {
+    if (analyzingProposal) return;
+    setProposalError('');
+    if (proposalResult?.proposal.id !== proposal.id) {
+      setProposalResult(savedProposalResult(proposal));
+    }
+    window.requestAnimationFrame(() =>
+      proposalResultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
+    );
   }
 
   function showAnalysisResult(result: PortfolioReviewResultState) {
@@ -298,12 +368,41 @@ export default function PortfolioAnalysisSharePage() {
     );
   }
 
+  async function analyzeSavedProposal() {
+    if (!ownerShareId || !proposalResult || analyzingProposal) return;
+    const proposal = proposalResult.proposal;
+    setAnalyzingProposal(true);
+    setProposalError('');
+    try {
+      const analysis = await analyzeReviewSimulation(
+        ownerShareId,
+        proposal.commentId,
+        proposal.assets.map((asset) => ({
+          assetName: asset.assetName,
+          weight: asset.weight,
+        })),
+      );
+      setProposalResult((current) =>
+        current?.proposal.id === proposal.id ? { ...current, analysis } : current,
+      );
+    } catch (caught) {
+      setProposalError(
+        caught instanceof ApiError
+          ? caught.message
+          : '개선안을 분석하지 못했어요. 다시 시도해 주세요.',
+      );
+    } finally {
+      setAnalyzingProposal(false);
+    }
+  }
+
   async function removeProposal() {
     if (
       !ownerShareId ||
       !proposalResult ||
       deletingProposal ||
-      !window.confirm('저장된 검토안을 삭제할까요? 분석 결과도 화면에서 사라집니다.')
+      analyzingProposal ||
+      !window.confirm('저장한 개선안을 삭제할까요? 분석 결과도 화면에서 사라집니다.')
     )
       return;
     setDeletingProposal(true);
@@ -315,24 +414,10 @@ export default function PortfolioAnalysisSharePage() {
       );
       setProposals(remaining);
       const latest = remaining[0];
-      setProposalResult(
-        latest
-          ? {
-              proposal: latest,
-              base: null,
-              draft: latest.assets.map(({ assetId, assetName, category, weight }) => ({
-                assetId,
-                assetName,
-                category,
-                weight: weight.toFixed(2),
-              })),
-              analysis: null,
-            }
-          : null,
-      );
+      setProposalResult(latest ? savedProposalResult(latest) : null);
     } catch (caught) {
       setProposalError(
-        caught instanceof ApiError ? caught.message : '저장된 검토안을 삭제하지 못했어요.',
+        caught instanceof ApiError ? caught.message : '저장한 개선안을 삭제하지 못했어요.',
       );
     } finally {
       setDeletingProposal(false);
@@ -383,22 +468,6 @@ export default function PortfolioAnalysisSharePage() {
               링크 공개 기한 · {formatExpiryDate(share.expiresAt)}까지
             </time>
             <h1>{share.question}</h1>
-            {share.additionalExplanation ? (
-              <section
-                className="portfolio-public-explanation"
-                aria-labelledby="portfolio-public-explanation-title"
-              >
-                <div>
-                  <h2 id="portfolio-public-explanation-title">작성자 추가 설명</h2>
-                  {share.additionalExplanationUpdatedAt ? (
-                    <time dateTime={share.additionalExplanationUpdatedAt}>
-                      {formatDate(share.additionalExplanationUpdatedAt)} 수정
-                    </time>
-                  ) : null}
-                </div>
-                <p>{share.additionalExplanation}</p>
-              </section>
-            ) : null}
           </section>
 
           <section
@@ -585,15 +654,38 @@ export default function PortfolioAnalysisSharePage() {
             </div>
           ) : proposalLoading ? (
             <p className="portfolio-public-proposal-loading" role="status">
-              저장된 검토안을 확인하고 있어요.
+              저장한 개선안을 확인하고 있어요.
             </p>
           ) : null}
           {proposalResult ? (
             <div ref={proposalResultRef}>
               <PortfolioReviewResult
                 {...proposalResult}
+                sourceComment={
+                  share.ownerShare?.comments.find(
+                    (comment) => comment.id === proposalResult.proposal.commentId,
+                  )?.content ?? null
+                }
+                proposalSelector={
+                  share.ownerShare ? (
+                    <SavedProposalSelector
+                      proposals={proposals}
+                      comments={share.ownerShare.comments}
+                      selectedProposalId={proposalResult.proposal.id}
+                      disabled={analyzingProposal}
+                      onSelect={selectProposal}
+                    />
+                  ) : null
+                }
+                baselineAnalysis={
+                  share.analysis.hasAnalysis && share.analysis.allAssetsShared
+                    ? share.analysis
+                    : null
+                }
                 deleting={deletingProposal}
+                analyzing={analyzingProposal}
                 onDelete={() => void removeProposal()}
+                onAnalyze={() => void analyzeSavedProposal()}
                 onReanalyze={() => {
                   const trigger = document.getElementById(
                     `portfolio-review-simulation-${proposalResult.proposal.commentId}`,
@@ -620,14 +712,7 @@ export default function PortfolioAnalysisSharePage() {
             {share.ownerShare ? (
               <p className="portfolio-public-owner-note">댓글 작성자와 나만 볼 수 있는 대화예요.</p>
             ) : (
-              <>
-                <p className="portfolio-public-review-prompt">
-                  이 구성에서 보완할 점을 알려주세요.
-                </p>
-                <a className="portfolio-public-question-link" href="#portfolio-public-question">
-                  질문 다시 보기
-                </a>
-              </>
+              <p className="portfolio-public-review-prompt">이 구성에서 보완할 점을 알려주세요.</p>
             )}
           </header>
           {!isLoggedIn ? (

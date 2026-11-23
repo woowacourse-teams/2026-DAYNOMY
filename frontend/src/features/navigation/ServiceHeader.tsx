@@ -47,7 +47,12 @@ export function ServiceHeader() {
   }, [searchOpen]);
 
   const tabs = [
-    { label: '포트폴리오', to: '/', active: location.pathname === '/' },
+    {
+      label: '포트폴리오',
+      to: '/',
+      active:
+        location.pathname === '/' || location.pathname.startsWith('/portfolio/analysis/share'),
+    },
     {
       label: '소식',
       to: '/news',
@@ -60,7 +65,7 @@ export function ServiceHeader() {
       label: '투자 리그',
       to: '/league',
       active:
-        location.pathname.startsWith('/league') || location.pathname.startsWith('/portfolio/'),
+        location.pathname.startsWith('/league') || location.pathname === '/portfolio/publication',
     },
   ];
 

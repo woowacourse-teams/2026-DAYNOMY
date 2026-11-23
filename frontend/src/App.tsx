@@ -390,6 +390,14 @@ function AppContent() {
 
               <Route path="/portfolio" element={<Navigate to="/" replace />} />
               <Route path="/portfolio/analysis/share" element={<PortfolioAnalysisSharePage />} />
+              <Route
+                path="/portfolio/analysis/share/owner/:shareId"
+                element={
+                  <AuthenticatedRoute>
+                    <PortfolioAnalysisSharePage />
+                  </AuthenticatedRoute>
+                }
+              />
               <Route path="/investment-calendar" element={<Navigate to="/news" replace />} />
               <Route
                 path="/portfolio/records"

@@ -9,6 +9,7 @@ import {
 } from '../../src/features/portfolio-review/PortfolioReviewSimulation';
 import {
   amountInCents,
+  balanceSimulationDraft,
   weightInBasisPoints,
   simulationWeights,
   simulationAllocation,
@@ -39,14 +40,22 @@ const assets: SimulationAsset[] = [
 const analysis = {
   totalAssetCount: 2,
   analyzedAssetCount: 0,
-  overallDirection: null,
-  overallScore: null,
-  positiveImpactScore: 0,
+  overallDirection: 'POSITIVE' as const,
+  overallScore: 15,
+  positiveImpactScore: 15,
   negativeImpactScore: 0,
   analyzedAt: null,
   overallImpact: '임시 구성 분석 완료',
   impacts: [],
   sources: [],
+};
+const baselineAnalysis = {
+  ...analysis,
+  overallDirection: 'NEGATIVE' as const,
+  overallScore: -5,
+  positiveImpactScore: 0,
+  negativeImpactScore: 5,
+  overallImpact: '공유 시점 분석',
 };
 const path = '/api/users/me/portfolio/analysis/shares/3/comments/9/simulation';
 const proposalPath = '/api/users/me/portfolio/analysis/shares/3/comments/9/proposal';
@@ -96,8 +105,11 @@ function SimulationHarness({
       {result ? (
         <PortfolioReviewResult
           {...result}
+          baselineAnalysis={baselineAnalysis}
           deleting={false}
+          analyzing={false}
           onDelete={() => {}}
+          onAnalyze={() => {}}
           onReanalyze={() => {}}
         />
       ) : null}
@@ -131,7 +143,38 @@ afterEach(() => {
 });
 
 describe('댓글 제안 임시 포트폴리오', () => {
-  it('검토안을 먼저 저장한 뒤 분석하고 모달 밖에 결과를 보여준다', async () => {
+  it('공유 시점 분석이 없으면 빈 비교 단계를 만들지 않고 구성과 분석을 이어서 보여준다', () => {
+    const view = render(
+      <PortfolioReviewResult
+        proposal={savedProposal}
+        base={assets.map(({ assetId, assetName, category }, index) => ({
+          assetId,
+          assetName,
+          category,
+          weight: index === 0 ? '60.00' : '40.00',
+        }))}
+        draft={savedProposal.assets.map(({ assetId, assetName, category, weight }) => ({
+          assetId,
+          assetName,
+          category,
+          weight: weight.toFixed(2),
+        }))}
+        analysis={analysis}
+        baselineAnalysis={null}
+        deleting={false}
+        analyzing={false}
+        onDelete={() => {}}
+        onAnalyze={() => {}}
+        onReanalyze={() => {}}
+      />,
+    );
+
+    expect(view.getByRole('heading', { name: '변경한 구성' })).toBeTruthy();
+    expect(view.getByRole('heading', { name: '이 구성의 AI 분석' })).toBeTruthy();
+    expect(view.queryByRole('heading', { name: '분석 변화' })).toBeNull();
+  });
+
+  it('개선안을 먼저 저장한 뒤 분석하고 모달 밖에 결과를 보여준다', async () => {
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       if (String(input).endsWith('/api/auth/csrf'))
         return Promise.resolve(response({ headerName: 'X-XSRF-TOKEN', token: 'csrf' }));
@@ -143,32 +186,42 @@ describe('댓글 제안 임시 포트폴리오', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
     const view = renderSimulation();
-    const trigger = view.getByRole('button', { name: /^이 제안으로 분석해 보기/ });
-    expect(trigger.textContent).toContain('검토안만 저장되며 실제 포트폴리오는 바뀌지 않아요.');
+    const trigger = view.getByRole('button', { name: /^이 의견으로 개선안 만들기/ });
+    expect(trigger.textContent).toContain('실제 포트폴리오는 바뀌지 않아요.');
     trigger.focus();
     fireEvent.click(trigger);
     const first = await view.findByRole('spinbutton', { name: '삼성전자 비중' });
+    expect(first.hasAttribute('readonly')).toBe(true);
+    expect(view.getByText('자동 조정')).toBeTruthy();
     expect(view.getAllByRole('option').map((option) => option.textContent)).toEqual([
       '전체',
       '주식',
       'ETF',
     ]);
-    fireEvent.change(first, { target: { value: '' } });
-    const submit = view.getByRole('button', { name: '검토안 저장하고 분석' });
-    expect(submit.hasAttribute('disabled')).toBe(true);
-    fireEvent.change(first, { target: { value: '50' } });
-    expect(submit.hasAttribute('disabled')).toBe(true);
+    const submit = view.getByRole('button', { name: '개선안 저장하고 분석' });
     fireEvent.change(view.getByLabelText('SK하이닉스 비중'), { target: { value: '50' } });
+    expect((first as HTMLInputElement).value).toBe('50.00');
+    expect(view.getByText('100.00%')).toBeTruthy();
     fireEvent.click(submit);
     expect(await view.findByText('임시 구성 분석 완료')).toBeTruthy();
     expect(view.queryByRole('dialog')).toBeNull();
-    expect(view.getByRole('heading', { name: '댓글 제안을 반영한 구성' })).toBeTruthy();
-    const snapshot = view.getByRole('list', { name: '현재 구성과 제안 구성 비교' });
+    expect(view.getByRole('heading', { name: '댓글 의견 반영 결과' })).toBeTruthy();
+    const comparison = view
+      .getByRole('heading', { name: '공유 시점 대비 분석 변화' })
+      .closest('section')!;
+    expect(comparison.textContent).toContain('부정 영향');
+    expect(comparison.textContent).toContain('긍정 영향');
+    expect(comparison.textContent).toContain('−5.00점');
+    expect(comparison.textContent).toContain('+15.00점');
+    expect(comparison.textContent).toContain('+20.00점 변화');
+    expect(view.getByRole('heading', { name: '이 구성의 AI 분석' })).toBeTruthy();
+    expect(view.getByText('실제 보유에는 반영되지 않은 개선안 분석이에요.')).toBeTruthy();
+    const snapshot = view.getByRole('list', { name: '현재 구성과 개선안 구성 비교' });
     expect(snapshot.children[0].textContent?.replace(/\s/g, '')).toContain(
-      '삼성전자현재60.00%제안50.00%−10.00%p',
+      '삼성전자현재60.00%개선안50.00%−10.00%p',
     );
     expect(snapshot.children[1].textContent?.replace(/\s/g, '')).toContain(
-      'SK하이닉스현재40.00%제안50.00%+10.00%p',
+      'SK하이닉스현재40.00%개선안50.00%+10.00%p',
     );
     expect(
       view.getByText('실제 보유 구성은 변경되지 않았고, 분석 결과는 저장하지 않았어요.'),
@@ -202,7 +255,7 @@ describe('댓글 제안 임시 포트폴리오', () => {
     const putIndex = fetchMock.mock.calls.findIndex(([, init]) => init?.method === 'PUT');
     const postIndex = fetchMock.mock.calls.findIndex(([, init]) => init?.method === 'POST');
     expect(putIndex).toBeLessThan(postIndex);
-    fireEvent.click(view.getByRole('button', { name: /^저장한 검토안 다시 보기/ }));
+    fireEvent.click(view.getByRole('button', { name: /^저장한 개선안 수정/ }));
     expect(
       ((await view.findByRole('spinbutton', { name: '삼성전자 비중' })) as HTMLInputElement).value,
     ).toBe('50.00');
@@ -210,7 +263,7 @@ describe('댓글 제안 임시 포트폴리오', () => {
     expect(
       ((await view.findByRole('spinbutton', { name: '삼성전자 비중' })) as HTMLInputElement).value,
     ).toBe('60.00');
-    fireEvent.click(view.getByRole('button', { name: '제안 구성 편집 닫기' }));
+    fireEvent.click(view.getByRole('button', { name: '개선안 편집 닫기' }));
     expect(view.queryByRole('dialog')).toBeNull();
     await waitFor(() => expect(document.activeElement).toBe(trigger));
   });
@@ -233,17 +286,17 @@ describe('댓글 제안 임시 포트폴리오', () => {
       }),
     );
     const view = renderSimulation();
-    fireEvent.click(view.getByRole('button', { name: /^이 제안으로 분석해 보기/ }));
+    fireEvent.click(view.getByRole('button', { name: /^이 의견으로 개선안 만들기/ }));
     await view.findByRole('spinbutton', { name: '삼성전자 비중' });
-    fireEvent.click(view.getByRole('button', { name: '검토안 저장하고 분석' }));
-    expect(await view.findByText(/검토안은 저장했지만 분석에 실패/)).toBeTruthy();
-    expect(view.getByRole('heading', { name: '댓글 제안을 반영한 구성' })).toBeTruthy();
+    fireEvent.click(view.getByRole('button', { name: '개선안 저장하고 분석' }));
+    expect(await view.findByText(/개선안은 저장했지만 분석에 실패/)).toBeTruthy();
+    expect(view.getByRole('heading', { name: '댓글 의견 반영 결과' })).toBeTruthy();
     await waitFor(() =>
       expect(
-        view.getByRole('button', { name: '검토안 저장하고 분석' }).hasAttribute('disabled'),
+        view.getByRole('button', { name: '개선안 저장하고 분석' }).hasAttribute('disabled'),
       ).toBe(false),
     );
-    fireEvent.click(view.getByRole('button', { name: '검토안 저장하고 분석' }));
+    fireEvent.click(view.getByRole('button', { name: '개선안 저장하고 분석' }));
     expect(await view.findByText('임시 구성 분석 완료')).toBeTruthy();
     expect(view.queryByRole('dialog')).toBeNull();
   });
@@ -278,7 +331,7 @@ describe('댓글 제안 임시 포트폴리오', () => {
     await expect(getReviewSimulationAssets(3, 9)).rejects.toThrow('임시 포트폴리오 응답 형식');
   });
 
-  it('저장된 검토안 목록을 검증해 불러온다', async () => {
+  it('저장한 개선안 목록을 검증해 불러온다', async () => {
     const fetchMock = vi.fn((input: RequestInfo | URL) => {
       expect(String(input)).toBe(proposalsPath);
       return Promise.resolve(response([savedProposal]));
@@ -296,12 +349,12 @@ describe('댓글 제안 임시 포트폴리오', () => {
     [{ ...savedProposal, assets: [{ ...savedProposal.assets[0], category: 'UNKNOWN' }] }],
     [{ ...savedProposal, assets: [{ ...savedProposal.assets[0], weight: '100' }] }],
     [{ ...savedProposal, assets: [{ ...savedProposal.assets[0], weight: 99 }] }],
-  ])('잘못된 저장 검토안 응답을 거부한다: %j', async (value) => {
+  ])('잘못된 저장 개선안 응답을 거부한다: %j', async (value) => {
     vi.stubGlobal(
       'fetch',
       vi.fn(() => Promise.resolve(response(value))),
     );
-    await expect(getPortfolioReviewProposals(3)).rejects.toThrow('저장된 검토안 목록 응답 형식');
+    await expect(getPortfolioReviewProposals(3)).rejects.toThrow('저장한 개선안 목록 응답 형식');
   });
 
   it('알 수 없는 분석 방향 응답을 거부한다', async () => {
@@ -339,7 +392,7 @@ describe('비중으로 구성 검토', () => {
       ),
     );
     const view = renderSimulation();
-    fireEvent.click(view.getByRole('button', { name: /^이 제안으로 분석해 보기/ }));
+    fireEvent.click(view.getByRole('button', { name: /^이 의견으로 개선안 만들기/ }));
     fireEvent.change(await view.findByLabelText('종목 검색'), { target: { value: '검색' } });
     fireEvent.click(await view.findByRole('button', { name: '검색 재시도' }, { timeout: 3000 }));
     expect(
@@ -384,7 +437,7 @@ describe('비중으로 구성 검토', () => {
       });
       vi.stubGlobal('fetch', fetchMock);
       const view = renderSimulation();
-      fireEvent.click(view.getByRole('button', { name: /^이 제안으로 분석해 보기/ }));
+      fireEvent.click(view.getByRole('button', { name: /^이 의견으로 개선안 만들기/ }));
       await view.findByRole('spinbutton', { name: '삼성전자 비중' });
       fireEvent.change(view.getByLabelText('종류'), { target: { value: category } });
       fireEvent.change(view.getByLabelText('종목 검색'), { target: { value: name } });
@@ -394,20 +447,18 @@ describe('비중으로 구성 검토', () => {
       fireEvent.click(view.getByRole('button', { name: '임시 구성에 추가' }));
       expect(view.getByText(`${name} 추가 완료`)).toBeTruthy();
       expect(document.activeElement).toBe(view.getByLabelText('종목 검색'));
-      expect(view.getByText('150.00%')).toBeTruthy();
-      expect(
-        view.getByRole('button', { name: '검토안 저장하고 분석' }).hasAttribute('disabled'),
-      ).toBe(true);
-      fireEvent.change(view.getByLabelText('삼성전자 비중'), { target: { value: '30' } });
+      expect(view.getByText('100.00%')).toBeTruthy();
+      expect((view.getByLabelText('삼성전자 비중') as HTMLInputElement).value).toBe('10.00');
       fireEvent.change(view.getByLabelText('SK하이닉스 비중'), { target: { value: '20' } });
+      expect((view.getByLabelText('삼성전자 비중') as HTMLInputElement).value).toBe('30.00');
       expect(view.getByText('100.00%')).toBeTruthy();
       expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false);
       await act(async () => {
-        fireEvent.submit(view.getByLabelText('삼성전자 비중').closest('form')!);
+        fireEvent.submit(view.getByLabelText('SK하이닉스 비중').closest('form')!);
       });
       expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false);
       expect(view.queryByText('임시 구성 분석 완료')).toBeNull();
-      fireEvent.click(view.getByRole('button', { name: '검토안 저장하고 분석' }));
+      fireEvent.click(view.getByRole('button', { name: '개선안 저장하고 분석' }));
       await view.findByText('임시 구성 분석 완료');
       expect(fetchMock.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(1);
       const post = fetchMock.mock.calls.find(([, init]) => init?.method === 'POST');
@@ -418,12 +469,13 @@ describe('비중으로 구성 검토', () => {
           { assetName: analysisName, weight: 50 },
         ],
       });
-      fireEvent.click(view.getByRole('button', { name: /^저장한 검토안 다시 보기/ }));
+      fireEvent.click(view.getByRole('button', { name: /^저장한 개선안 수정/ }));
       await view.findByRole('spinbutton', { name: `${name} 비중` });
       fireEvent.click(view.getByRole('button', { name: `${name} 삭제` }));
       expect(
-        view.getByRole('button', { name: '검토안 저장하고 분석' }).hasAttribute('disabled'),
-      ).toBe(true);
+        view.getByRole('button', { name: '개선안 저장하고 분석' }).hasAttribute('disabled'),
+      ).toBe(false);
+      expect((view.getByLabelText('삼성전자 비중') as HTMLInputElement).value).toBe('80.00');
       fireEvent.click(view.getByRole('button', { name: '원래 구성으로 되돌리기' }));
       expect(view.queryByRole('spinbutton', { name: `${name} 비중` })).toBeNull();
     },
@@ -460,7 +512,7 @@ describe('비중으로 구성 검토', () => {
       ),
     );
     const view = renderSimulation();
-    fireEvent.click(view.getByRole('button', { name: /^이 제안으로 분석해 보기/ }));
+    fireEvent.click(view.getByRole('button', { name: /^이 의견으로 개선안 만들기/ }));
     await view.findByRole('spinbutton', { name: '삼성전자 비중' });
     fireEvent.change(view.getByLabelText('종목 검색'), { target: { value: '삼성전자' } });
     expect(view.queryByLabelText('추가할 비중 (%)')).toBeNull();
@@ -471,6 +523,11 @@ describe('비중으로 구성 검토', () => {
     fireEvent.change(view.getByLabelText('추가할 비중 (%)'), { target: { value: '-1' } });
     expect(view.getByLabelText('추가할 비중 (%)').getAttribute('aria-invalid')).toBe('true');
     expect(view.getByText('0% 초과, 100% 이하로 소수점 두 자리까지 입력해 주세요.')).toBeTruthy();
+    expect(view.getByRole('button', { name: '임시 구성에 추가' }).hasAttribute('disabled')).toBe(
+      true,
+    );
+    fireEvent.change(view.getByLabelText('추가할 비중 (%)'), { target: { value: '60' } });
+    expect(view.getByText('입력 가능한 비율은 최대 59.99%예요.')).toBeTruthy();
     expect(view.getByRole('button', { name: '임시 구성에 추가' }).hasAttribute('disabled')).toBe(
       true,
     );
@@ -527,5 +584,29 @@ describe('직접 입력한 비중 검증', () => {
     });
     expect(simulationWeights([{ ...draft[0], weight: '0' }])).toBeNull();
     expect(simulationWeights([])).toBeNull();
+  });
+
+  it('첫 번째 종목이 나머지 비율을 채워 합계를 100%로 유지한다', () => {
+    const draft = ['60.00', '40.00'].map((weight, index) => ({
+      assetId: index + 1,
+      assetName: `종목${index}`,
+      category: 'STOCK' as const,
+      weight,
+    }));
+
+    expect(balanceSimulationDraft(draft.map((asset) => ({ ...asset })))).toEqual(draft);
+    expect(
+      balanceSimulationDraft([
+        ...draft,
+        { assetId: 3, assetName: '추가 종목', category: 'STOCK', weight: '20.00' },
+      ])?.map((asset) => asset.weight),
+    ).toEqual(['40.00', '40.00', '20.00']);
+    expect(balanceSimulationDraft([{ ...draft[0], weight: '1.00' }])?.[0].weight).toBe('100.00');
+    expect(
+      balanceSimulationDraft([
+        ...draft,
+        { assetId: 3, assetName: '초과 종목', category: 'STOCK', weight: '60.00' },
+      ]),
+    ).toBeNull();
   });
 });

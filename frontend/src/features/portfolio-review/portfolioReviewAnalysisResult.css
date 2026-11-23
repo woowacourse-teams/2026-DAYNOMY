@@ -84,11 +84,6 @@
   font-size: 13px;
 }
 
-.portfolio-review-result.is-compact-layout .portfolio-asset-row.is-selected {
-  background: #eaf0f7;
-  color: #182230;
-}
-
 .portfolio-review-result.is-compact-layout .portfolio-asset-row strong {
   font-weight: 600;
 }
@@ -148,11 +143,55 @@
   border-top: 1px solid #e4e7ec;
 }
 
-.portfolio-review-result.is-compact-layout .portfolio-evidence h4 {
-  margin: 0 0 8px;
-  color: #31588a;
-  font-size: 13px;
-  font-weight: 600;
+.portfolio-review-result .portfolio-weight-caption,
+.portfolio-review-result .portfolio-asset-analysis,
+.portfolio-review-result .portfolio-detail-badge-group small {
+  color: #58677c;
+}
+
+.portfolio-review-result .portfolio-score-guide dt {
+  color: #58677c;
+}
+
+.portfolio-review-result .portfolio-donut-segment.is-interactive:focus-visible {
+  filter: drop-shadow(0 0 1px #182230) drop-shadow(0 0 4px rgba(24, 34, 48, 0.35));
+}
+
+.portfolio-review-result .portfolio-asset-analysis.positive,
+.portfolio-review-result .portfolio-donut-center.positive,
+.portfolio-review-result
+  .portfolio-impact-detail.positive
+  .portfolio-detail-header
+  > div:first-child
+  > span,
+.portfolio-review-result .portfolio-impact-detail.positive .portfolio-direction-badge {
+  color: #b4232d;
+}
+
+.portfolio-review-result .portfolio-asset-analysis.negative,
+.portfolio-review-result .portfolio-donut-center.negative,
+.portfolio-review-result
+  .portfolio-impact-detail.negative
+  .portfolio-detail-header
+  > div:first-child
+  > span,
+.portfolio-review-result .portfolio-impact-detail.negative .portfolio-direction-badge {
+  color: #195f9f;
+}
+
+.portfolio-review-result .portfolio-asset-analysis.neutral,
+.portfolio-review-result .portfolio-donut-center.neutral,
+.portfolio-review-result
+  .portfolio-impact-detail.neutral
+  .portfolio-detail-header
+  > div:first-child
+  > span,
+.portfolio-review-result .portfolio-impact-detail.neutral .portfolio-direction-badge {
+  color: #475467;
+}
+
+.portfolio-review-result .portfolio-detail-header h3 {
+  overflow-wrap: anywhere;
 }
 
 .portfolio-review-result.is-compact-layout .portfolio-score-panel {
