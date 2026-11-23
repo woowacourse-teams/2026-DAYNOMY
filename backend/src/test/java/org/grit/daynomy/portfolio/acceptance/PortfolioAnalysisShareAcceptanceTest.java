@@ -411,6 +411,87 @@ class PortfolioAnalysisShareAcceptanceTest extends SharedDatabaseTest {
   }
 
   @Test
+  void newLinkKeepsPreviousCommentsOnlyInThePreviousShare() {
+    Member owner = member("링크 재발급 작성자");
+    Member reviewer = member("링크 재발급 리뷰어");
+    PortfolioAnalysis analysis = analysis(owner);
+    Map<String, Object> firstRequest =
+        Map.of(
+            "analysisId",
+            analysis.getId(),
+            "question",
+            "첫 번째 링크에서 포트폴리오 의견을 받고 싶어요.",
+            "assetNames",
+            List.of("삼성전자"));
+
+    var firstCreated =
+        client(owner).body(firstRequest).post(OWNER_API).then().statusCode(200).extract();
+    String firstToken = firstCreated.path("token");
+    int firstShareId = firstCreated.path("share.id");
+    client(reviewer)
+        .body(Map.of("content", "첫 번째 링크에만 남아야 하는 의견입니다."))
+        .header(SHARE_TOKEN_HEADER, firstToken)
+        .post(PUBLIC_API + "/comments")
+        .then()
+        .statusCode(200);
+    client(owner)
+        .body(Map.of("content", "첫 번째 링크에만 남아야 하는 추가 설명입니다."))
+        .put(OWNER_API + "/" + firstShareId + "/explanation")
+        .then()
+        .statusCode(200);
+
+    var secondCreated =
+        client(owner)
+            .body(
+                Map.of(
+                    "analysisId",
+                    analysis.getId(),
+                    "question",
+                    "새 링크에서 다시 포트폴리오 의견을 받고 싶어요.",
+                    "assetNames",
+                    List.of("삼성전자")))
+            .post(OWNER_API)
+            .then()
+            .statusCode(200)
+            .extract();
+    String secondToken = secondCreated.path("token");
+    int secondShareId = secondCreated.path("share.id");
+
+    assertThat(secondShareId).isNotEqualTo(firstShareId);
+    given()
+        .port(port)
+        .header(SHARE_TOKEN_HEADER, firstToken)
+        .get(PUBLIC_API)
+        .then()
+        .statusCode(410)
+        .body("code", equalTo("PORTFOLIO_ANALYSIS_SHARE_REVOKED"));
+    client(reviewer)
+        .header(SHARE_TOKEN_HEADER, secondToken)
+        .get(PUBLIC_API)
+        .then()
+        .statusCode(200)
+        .body("additionalExplanation", nullValue())
+        .body("myComments", hasSize(0));
+    client(owner)
+        .header(SHARE_TOKEN_HEADER, secondToken)
+        .get(PUBLIC_API)
+        .then()
+        .statusCode(200)
+        .body("ownerShare.id", equalTo(secondShareId))
+        .body("ownerShare.comments", hasSize(0));
+    client(owner)
+        .get(OWNER_API)
+        .then()
+        .statusCode(200)
+        .body("[0].id", equalTo(secondShareId))
+        .body("[0].status", equalTo("ACTIVE"))
+        .body("[0].comments", hasSize(0))
+        .body("[1].id", equalTo(firstShareId))
+        .body("[1].status", equalTo("REVOKED"))
+        .body("[1].comments", hasSize(1));
+  }
+
+  @Test
   void sharesSavedPortfolioCompositionWithoutAnAnalysis() {
     Member owner = member("작성자");
     Portfolio portfolio = portfolios.save(Portfolio.create(owner));
@@ -500,7 +581,8 @@ class PortfolioAnalysisShareAcceptanceTest extends SharedDatabaseTest {
     prices.saveAndFlush(
         new StockDailyPrice(asset, LocalDate.now().minusDays(1), new BigDecimal("80000")));
     Map<String, Object> request =
-        Map.of("question", "동시에 공유해도 링크가 하나만 남아야 해요.", "assetNames", List.of("동시 공유 종목"));
+        Map.of(
+            "question", "동시에 공유해도 링크별 의견은 분리되어야 해요.", "assetNames", List.of("동시 공유 종목"));
     var first = client(owner).body(request);
     var second = client(owner).body(request);
     var start = new CountDownLatch(1);
@@ -513,10 +595,13 @@ class PortfolioAnalysisShareAcceptanceTest extends SharedDatabaseTest {
 
       assertThat(List.of(firstRequest.join(), secondRequest.join())).doesNotContainNull();
     }
-    assertThat(
-            shares.findAllByOwnerIdOrderByCreatedAtDescIdDesc(owner.getId()).stream()
-                .filter(share -> share.getAnalysisId() == null))
-        .hasSize(1);
+    var createdShares =
+        shares.findAllByOwnerIdOrderByCreatedAtDescIdDesc(owner.getId()).stream()
+            .filter(share -> share.getAnalysisId() == null)
+            .toList();
+    assertThat(createdShares).hasSize(2);
+    assertThat(createdShares).filteredOn(share -> share.getRevokedAt() == null).hasSize(1);
+    assertThat(createdShares).filteredOn(share -> share.getRevokedAt() != null).hasSize(1);
   }
 
   @Test
