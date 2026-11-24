@@ -40,8 +40,8 @@ User=ec2-user
 WorkingDirectory={deployment.APP}
 EnvironmentFile={ENVIRONMENT_FILE}
 Environment=MALLOC_ARENA_MAX=2
-ExecCondition=/usr/bin/python3 {BOOT_HELPER} --environment {deployment.ENVIRONMENT} --owns-slot {slot}
-ExecStartPre=/usr/bin/python3 {BOOT_HELPER} --environment {deployment.ENVIRONMENT} --prepare-slot {slot}
+ExecCondition=+/usr/bin/python3 {BOOT_HELPER} --environment {deployment.ENVIRONMENT} --owns-slot {slot}
+ExecStartPre=+/usr/bin/python3 {BOOT_HELPER} --environment {deployment.ENVIRONMENT} --prepare-slot {slot}
 ExecStart=/usr/lib/jvm/java-21-amazon-corretto.aarch64/bin/java -Xmx128m -XX:TieredStopAtLevel=1 -XX:+ExitOnOutOfMemoryError -Ddaynomy.deployment.slot={slot} -Ddaynomy.deployment.directory={deployment.STATE} -jar {deployment.STATE}/{slot}.jar --server.address=127.0.0.1 --server.port={api} --management.server.address=127.0.0.1 --management.server.port={management} --management.endpoints.web.exposure.include=health,prometheus,deploymenttasks --server.shutdown=graceful --spring.lifecycle.timeout-per-shutdown-phase=120s --spring.task.scheduling.shutdown.await-termination=true --spring.task.scheduling.shutdown.await-termination-period=120s
 Restart=on-failure
 RestartSec=5

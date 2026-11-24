@@ -42,6 +42,11 @@ class BootstrapTest(unittest.TestCase):
         self.apply()
         self.assertEqual(self.old.read_bytes(),b'original immutable release')
         self.assertIn('SyslogIdentifier=daynomy',self.unit.read_text())
+        # The root-owned recovery helper updates Nginx; the application remains unprivileged.
+        self.assertIn('ExecCondition=+/usr/bin/python3 ',self.unit.read_text())
+        self.assertIn('ExecStartPre=+/usr/bin/python3 ',self.unit.read_text())
+        self.assertIn('User=ec2-user',self.unit.read_text())
+        self.assertNotIn('ExecStart=+',self.unit.read_text())
         self.assertIn('MemoryMax=800M',(self.systemd/'daynomy-backend.slice').read_text())
         self.assertIn('SYSLOG_IDENTIFIER=daynomy',self.alloy.read_text())
         self.assertEqual((self.app/'deployment/active-slot').read_text(),'blue\n')
