@@ -1,5 +1,7 @@
 package org.grit.daynomy.asset.service;
 
+import static org.grit.daynomy.deployment.DeploymentOwnership.wrap;
+
 import java.time.Instant;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -18,7 +20,7 @@ public class MarketCalendarSyncScheduler {
 
   @EventListener(ApplicationReadyEvent.class)
   public void synchronizeOnStartup() {
-    taskScheduler.schedule(this::synchronize, Instant.now());
+    taskScheduler.schedule(wrap(this::synchronize), Instant.now());
   }
 
   @Scheduled(cron = "${stock.calendar.sync.cron}", zone = "Asia/Seoul")

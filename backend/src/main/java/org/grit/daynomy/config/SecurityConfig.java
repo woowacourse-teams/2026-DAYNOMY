@@ -75,6 +75,7 @@ public class SecurityConfig {
       "/actuator",
       "/actuator/health",
       "/actuator/health/**",
+      "/actuator/deploymenttasks",
       "/actuator/prometheus"
     };
 

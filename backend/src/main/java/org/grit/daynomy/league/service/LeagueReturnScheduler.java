@@ -1,5 +1,7 @@
 package org.grit.daynomy.league.service;
 
+import static org.grit.daynomy.deployment.DeploymentOwnership.wrap;
+
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.UUID;
@@ -31,7 +33,7 @@ public class LeagueReturnScheduler {
 
   @EventListener(ApplicationReadyEvent.class)
   public void calculateOnStartup() {
-    taskScheduler.schedule(this::calculateReturns, Instant.now());
+    taskScheduler.schedule(wrap(this::calculateReturns), Instant.now());
   }
 
   @Scheduled(cron = "${league.calculation.cron}", zone = "Asia/Seoul")
@@ -66,7 +68,7 @@ public class LeagueReturnScheduler {
   @EventListener(MarketCalendarSyncResult.class)
   public void recalculateAfterCalendarSync() {
     // 시작 중 달력 변경도 ApplicationReadyEvent와 준비 상태 전환을 막지 않는다.
-    taskScheduler.schedule(this::recalculateAfterCalendarChange, Instant.now());
+    taskScheduler.schedule(wrap(this::recalculateAfterCalendarChange), Instant.now());
   }
 
   private synchronized void recalculateAfterCalendarChange() {

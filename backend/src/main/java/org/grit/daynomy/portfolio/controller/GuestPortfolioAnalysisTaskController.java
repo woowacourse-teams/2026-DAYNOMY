@@ -59,7 +59,7 @@ public class GuestPortfolioAnalysisTaskController {
   @Operation(
       summary = "비회원 분석 세션 준비 및 기존 작업 복원",
       description =
-          "분석 시작 전에 먼저 호출해 세션 쿠키를 받아야 합니다. 이후 모든 요청에 같은 쿠키를 전달하세요. 작업이 없으면 EMPTY를 반환하고 체험을 소진하지 않습니다. 새로고침 시 이 조회로 작업 ID와 결과를 복원합니다. AI를 호출하지 않습니다. 서버 재시작·세션 만료 후 복구는 보장하지 않습니다.")
+          "분석 시작 전에 먼저 호출해 세션 쿠키를 받아야 합니다. 이후 모든 요청에 같은 쿠키를 전달하세요. 작업이 없으면 EMPTY를 반환하고 체험을 소진하지 않습니다. 동일 세션이 유효하면 새로고침·앱 전환·서버 재시작 후에도 DB에 저장된 작업 ID와 결과를 조회합니다. AI를 호출하지 않습니다. 세션 만료 후 복구는 보장하지 않습니다.")
   @GetMapping
   public GuestPortfolioAnalysisTaskResponse current() {
     return service.get();

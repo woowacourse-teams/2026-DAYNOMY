@@ -1,5 +1,6 @@
 package org.grit.daynomy.portfolio.v2.config;
 
+import org.grit.daynomy.deployment.DeploymentVirtualTaskExecutor;
 import org.slf4j.MDC;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -10,7 +11,7 @@ import org.springframework.core.task.support.ContextPropagatingTaskDecorator;
 public class PortfolioAnalysisAsyncV2Config {
   @Bean("portfolioAnalysisExecutorV2")
   SimpleAsyncTaskExecutor analysisExecutor() {
-    var executor = new SimpleAsyncTaskExecutor("portfolio-analysis-v2-");
+    var executor = new DeploymentVirtualTaskExecutor("portfolio-analysis-v2-");
     executor.setVirtualThreads(true);
     var propagation = new ContextPropagatingTaskDecorator();
     executor.setTaskDecorator(

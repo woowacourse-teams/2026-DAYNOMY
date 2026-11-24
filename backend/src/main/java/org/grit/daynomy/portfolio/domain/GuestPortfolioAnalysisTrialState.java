@@ -33,6 +33,47 @@ public class GuestPortfolioAnalysisTrialState {
   private String failureCode;
   private boolean coreAvailable;
 
+  public Snapshot snapshot() {
+    return new Snapshot(
+        consumed,
+        taskId,
+        token,
+        expiresAt,
+        attempts,
+        assets,
+        status,
+        summaryStatus,
+        failureCode,
+        coreAvailable);
+  }
+
+  public static GuestPortfolioAnalysisTrialState restore(Snapshot saved) {
+    var state = new GuestPortfolioAnalysisTrialState();
+    state.consumed = saved.consumed();
+    state.taskId = saved.taskId();
+    state.token = saved.token();
+    state.expiresAt = saved.expiresAt();
+    state.attempts = saved.attempts();
+    state.assets = List.copyOf(saved.assets());
+    state.status = saved.status();
+    state.summaryStatus = saved.summaryStatus();
+    state.failureCode = saved.failureCode();
+    state.coreAvailable = saved.coreAvailable();
+    return state;
+  }
+
+  public record Snapshot(
+      boolean consumed,
+      UUID taskId,
+      UUID token,
+      Instant expiresAt,
+      int attempts,
+      List<PortfolioAnalysisSnapshot.Asset> assets,
+      Status status,
+      PortfolioAnalysis.SummaryStatus summaryStatus,
+      String failureCode,
+      boolean coreAvailable) {}
+
   public void reserveLegacy() {
     if (consumed) {
       throw new BusinessException(PortfolioErrorCode.PORTFOLIO_ANALYSIS_TRIAL_EXHAUSTED);
