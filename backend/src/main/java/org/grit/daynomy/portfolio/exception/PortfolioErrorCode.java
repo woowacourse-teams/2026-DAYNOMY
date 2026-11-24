@@ -4,6 +4,10 @@ import org.grit.daynomy.common.exception.ErrorCode;
 import org.springframework.http.HttpStatus;
 
 public enum PortfolioErrorCode implements ErrorCode {
+  INVALID_IDEMPOTENCY_KEY(HttpStatus.BAD_REQUEST, "요청 키는 영문·숫자·마침표·밑줄·콜론·하이픈 1~128자로 입력해주세요."),
+  IDEMPOTENCY_KEY_CONFLICT(HttpStatus.CONFLICT, "동일한 요청 키에 다른 거래 입력을 사용할 수 없습니다."),
+  PORTFOLIO_TRANSACTION_BUSY(
+      HttpStatus.SERVICE_UNAVAILABLE, "거래 처리를 기다리는 중입니다. 같은 요청 키로 다시 시도해주세요."),
   PORTFOLIO_ANALYSIS_SOURCE_DATE_UNCONFIRMED(
       HttpStatus.BAD_GATEWAY, "자료의 발표일을 확인하지 못했습니다. 기존 분석을 유지합니다."),
   PORTFOLIO_ANALYSIS_SOURCE_UNAVAILABLE(

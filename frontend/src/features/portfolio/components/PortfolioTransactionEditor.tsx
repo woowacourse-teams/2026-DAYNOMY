@@ -92,13 +92,14 @@ export function PortfolioTransactionEditor({
   const [searchError, setSearchError] = useState('');
   const [searchRetry, setSearchRetry] = useState(0);
   const [saving, setSaving] = useState(false);
+  const submitting = useRef(false);
   const [error, setError] = useState('');
   const openedAt = useRef(performance.now());
   const changed = useRef(false);
   const closed = useRef(false);
   const lastValidation = useRef('');
   function close() {
-    if (saving || closed.current) return;
+    if (submitting.current || saving || closed.current) return;
     closed.current = true;
     if (demoStep === undefined)
       trackPortfolioEvent('portfolio_editor_closed', {
@@ -289,7 +290,7 @@ export function PortfolioTransactionEditor({
   }
   async function submit(event: React.FormEvent) {
     event.preventDefault();
-    if (demoStep !== undefined || saving || !selected) return;
+    if (demoStep !== undefined || submitting.current || saving || !selected) return;
     if (invalid) {
       recordValidation(invalid, 'submit');
       setError(invalid.message);
@@ -304,6 +305,7 @@ export function PortfolioTransactionEditor({
       });
       return;
     }
+    submitting.current = true;
     setSaving(true);
     setError('');
     try {
@@ -326,6 +328,7 @@ export function PortfolioTransactionEditor({
           : '거래를 저장하지 못했습니다. 다시 시도해 주세요.',
       );
     } finally {
+      submitting.current = false;
       setSaving(false);
     }
   }

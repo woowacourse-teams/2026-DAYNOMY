@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { AuthContext } from '../../../auth/AuthContext';
+import { createTransactionSubmission } from '../transactionSubmission';
 import { portfolioErrorType, trackPortfolioEvent } from '../analytics';
 import {
   getSavedPortfolio,
@@ -33,6 +35,10 @@ import type {
 import type { StockSearchItem } from '../../stocks/types';
 
 export function usePortfolioHoldings(isLoggedIn: boolean) {
+  const memberId = useContext(AuthContext)?.memberId;
+  const submission = useMemo(() => createTransactionSubmission(memberId), [memberId]);
+  const [pendingTransaction, setPendingTransaction] = useState(submission.getPending);
+  useEffect(() => setPendingTransaction(submission.getPending()), [submission]);
   const [guestLedger, setGuestLedger] = useState<GuestPortfolioLedger | null>(null);
   const [holdings, setHoldings] = useState<PortfolioHoldingInput[]>([]);
   const [savedPortfolioHistory, setSavedPortfolioHistory] = useState<boolean>();
@@ -197,6 +203,20 @@ export function usePortfolioHoldings(isLoggedIn: boolean) {
     }
   }
 
+  async function createMemberTransaction(body: PortfolioTransactionRequest) {
+    try {
+      const result = transact(body.assetId, () =>
+        submission.submit(body, createPortfolioTransaction),
+      );
+      setPendingTransaction(submission.getPending());
+      await result;
+      // A replay contains the original holding snapshot; reload today's actual holdings.
+      setRetryCount((count) => count + 1);
+    } finally {
+      setPendingTransaction(submission.getPending());
+    }
+  }
+
   return {
     holdings,
     hasPortfolioHistory: isLoggedIn
@@ -208,6 +228,11 @@ export function usePortfolioHoldings(isLoggedIn: boolean) {
     revision,
     loading,
     saving,
+    pendingTransaction: isLoggedIn ? pendingTransaction : null,
+    resumePendingTransaction: async () => {
+      const pending = submission.getPending();
+      if (pending && isLoggedIn) await createMemberTransaction(pending.request);
+    },
     error,
     retry: () => setRetryCount((count) => count + 1),
     saveHolding,
@@ -319,7 +344,7 @@ export function usePortfolioHoldings(isLoggedIn: boolean) {
     removeHolding,
     guestHistories: guestLedger?.histories ?? [],
     createTransaction: async (body: PortfolioTransactionRequest, stock?: StockSearchItem) => {
-      if (isLoggedIn) return transact(body.assetId, () => createPortfolioTransaction(body));
+      if (isLoggedIn) return createMemberTransaction(body);
       const selected = stock ?? holdings.find((holding) => holding.assetId === body.assetId);
       if (!selected || selected.assetId !== body.assetId)
         throw new Error('거래할 종목을 다시 선택해 주세요.');

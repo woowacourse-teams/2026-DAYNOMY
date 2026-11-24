@@ -152,7 +152,7 @@ function portfolioApiResponse(input: RequestInfo | URL, init?: RequestInit) {
   if (url.endsWith('/api/users/me/portfolio') && method === 'GET') {
     return jsonResponse({ holdings: savedHoldings, totalRealizedProfitLoss: 0 });
   }
-  if (url.endsWith('/api/portfolio/transactions') && method === 'POST') {
+  if (url.endsWith('/api/v2/users/me/portfolio/transactions') && method === 'POST') {
     const body = JSON.parse(String(init?.body)) as PortfolioTransactionRequest;
     const asset = [stock, secondStock, kosdaqStock, etf].find(
       (item) => item.assetId === body.assetId,
