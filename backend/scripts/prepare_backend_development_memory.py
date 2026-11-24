@@ -166,11 +166,13 @@ def apply(expected_sha, seconds):
             raise
     elif not (BASE / 'service.before').exists():
         raise RuntimeError('Marked service has no owned recovery backup')
+    deploy_backend.configure_environment('development')
     rows = []
     durations = []
     client = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
     until = time.monotonic() + seconds
     try:
+        deploy_backend.reclaim_development_memory(health)
         while time.monotonic() < until:
             health()
             started = time.monotonic()

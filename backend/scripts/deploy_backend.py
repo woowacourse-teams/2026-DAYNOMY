@@ -10,6 +10,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import time
 import urllib.request
@@ -25,6 +26,8 @@ ENVIRONMENT = 'production'
 PUBLIC_ORIGIN = 'https://daynomy.com'
 EXPECTED_INSTANCE = 'i-0c863ab4dc205e273'
 SLICE = 'daynomy-backend.slice'
+PROC_ROOT = Path('/proc')
+CGROUP_ROOT = Path('/sys/fs/cgroup')
 
 
 def configure_environment(environment):
@@ -84,6 +87,83 @@ def route(slot):
 def available():
     match = re.search(r'^MemAvailable:\s+(\d+) kB', Path('/proc/meminfo').read_text(), re.M)
     return int(match[1]) * 1024
+
+
+def reclaim_development_memory(verify):
+    """Page out cold CI/management memory; never change limits or touch app/security cgroups."""
+    if ENVIRONMENT != 'development' or available() >= RESERVE + 432 * 1024 * 1024:
+        return []
+    if os.geteuid() != 0:
+        raise RuntimeError('Development memory reclaim requires root')
+    require_target_instance()
+    memory = {line.split(':')[0]: int(line.split()[1]) * 1024
+              for line in (PROC_ROOT / 'meminfo').read_text().splitlines()
+              if line.split(':')[0] in ('SwapTotal', 'SwapFree')}
+    if memory.get('SwapTotal', 0) < 1024**3 - 4096 or memory.get('SwapFree', 0) < 512 * 1024**2:
+        return []
+    units = (
+        'actions.runner.woowacourse-teams-2026-DAYNOMY.frontend-dev-arm64-server.service',
+        'actions.runner.woowacourse-teams-2026-DAYNOMY.backend-dev-al2023.service',
+        'codedeploy-agent.service', 'docker.service',
+    )
+    # Modern kernels support per-request swappiness; older kernels use the plain ABI.
+    child = '''import errno,sys
+from pathlib import Path
+path=Path(sys.argv[1]);amount=sys.argv[2]
+for payload in (amount+' swappiness=200',amount):
+ try:
+  path.write_text(payload+'\\n');print('requested');break
+ except OSError as error:
+  if error.errno==errno.EINVAL and 'swappiness' in payload:continue
+  if error.errno==errno.EAGAIN:print('partial');break
+  raise
+'''
+    samples = []
+    for round_number in range(6):
+        free_swap = re.search(r'^SwapFree:\s+(\d+) kB', (PROC_ROOT / 'meminfo').read_text(), re.M)
+        if not free_swap or int(free_swap[1]) < 256 * 1024:
+            return samples
+        for unit in units:
+            if available() >= RESERVE + 432 * 1024 * 1024:
+                return samples
+            try:
+                cg = command('systemctl', 'show', unit, '-p', 'ControlGroup', '--value')
+            except subprocess.CalledProcessError:
+                continue
+            if cg != '/system.slice/' + unit:
+                continue
+            root = CGROUP_ROOT / cg.lstrip('/')
+            try:
+                swap_max = (root / 'memory.swap.max').read_text().strip()
+                if swap_max == '0' or not (root / 'memory.reclaim').exists():
+                    continue
+                processes = []
+                for pid in (root / 'cgroup.procs').read_text().split():
+                    try: processes.append((PROC_ROOT / pid / 'comm').read_text().strip())
+                    except OSError: pass
+                # Never perturb another frontend deployment or an agent hook.
+                if 'frontend-dev' in unit and 'Runner.Worker' in processes:
+                    continue
+                if unit == 'codedeploy-agent.service' and any(name not in ('ruby', 'codedeploy-agen') for name in processes):
+                    continue
+                current = int((root / 'memory.current').read_text())
+                budget = 32 * 1024**2 if unit in ('codedeploy-agent.service', 'docker.service') else 64 * 1024**2
+                budget = min(budget, current - 16 * 1024**2)
+                if budget < 4 * 1024**2:
+                    continue
+                before = available()
+                result = subprocess.run([sys.executable, '-c', child, str(root / 'memory.reclaim'), str(budget)],
+                                        capture_output=True, text=True, timeout=15)
+                row = {'unit': unit, 'round': round_number, 'requested_mib': budget // 1024**2,
+                       'exit': result.returncode, 'available_before_kib': before // 1024,
+                       'available_after_kib': available() // 1024,
+                       'swap_current_kib': int((root / 'memory.swap.current').read_text()) // 1024}
+            except (OSError, subprocess.TimeoutExpired):
+                continue  # Reclaim is best effort; the unchanged RAM gate decides.
+            verify()
+            samples.append(row)
+            print(json.dumps({'development_memory_reclaim': row}), flush=True)
+    return samples
 
 
 def probe(slot):
@@ -247,6 +327,8 @@ def deploy(artifact, version):
         pending.unlink()
     if is_active(SLOTS[new][0]):
         raise RuntimeError('Inactive slot unexpectedly runs; refusing to interrupt it')
+    if available() < RESERVE + 400 * 1024 * 1024:
+        reclaim_development_memory(lambda: probe(old))
     if available() < RESERVE + 400 * 1024 * 1024:
         raise RuntimeError('Insufficient available memory to start a candidate safely')
     release = APP / 'releases' / ('daynomy-' + version + '.jar')
