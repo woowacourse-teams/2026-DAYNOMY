@@ -22,9 +22,12 @@ def startup_diagnostics(journal):
         'migrations': r'\b(V\d+__[A-Za-z0-9_]+\.sql)\b',
         'frames': r'\bat ((?:[A-Za-z_$][\w$]*\.)+[\w$<>]+\([A-Za-z_$][\w$]*\.java:\d+\))',
         'known_failures': r'(?:Unable to start web server|Failed to initialize JPA EntityManagerFactory|Validate failed|Migration checksum mismatch|Failed to obtain JDBC Connection|Connection refused|OutOfMemoryError|Not a managed type|Schema-validation: missing table|APPLICATION FAILED TO START|Failed to bind properties|NoSuchMethodError|ClassNotFoundException)',
+        'initialization_causes': r'(?:circular reference|circular dependency|Circular depends-on relationship|No LoadTimeWeaver setup|Cannot apply class transformer|No bean named|No qualifying bean|Failed to determine a suitable driver class|Unable to create requested service|Error creating bean|Cannot resolve reference|entityManagerFactory|flywayInitializer|already closed|BeanFactory not initialized|Failed to introspect Class|Lookup method resolution failed)',
         'config_symbols': r'\b(?:class|method|field|constructor) ([A-Za-z_$][\w.$<>]+)\b',
     }
     findings = {key: set() for key in patterns}
+    templates = set()
+    safe_words = set('a an the is was not no to of for from in on with without cannot could failed failure error creating bean named name type expected actually found missing circular reference dependency depends relationship initialize initialization configuration method constructor parameter argument class transformer load time weaver specified available required defined setting property caused by application context web server start load resolve factory entity manager persistence unit jpa hibernate jdbc connection database schema migration checksum version validation illegal state already exists does not exist table column shutdown closed operation supported must be null invalid unable using annotated build validation'.split())
     def strings(value):
         if isinstance(value, str):
             return [value]
@@ -49,7 +52,13 @@ def startup_diagnostics(journal):
             pass
         for key, pattern in patterns.items():
             findings[key].update(re.findall(pattern, message))
-    return {key: sorted(values)[:80] for key, values in findings.items() if values}
+        # Emit only a fixed vocabulary from exception reasons, never arbitrary log tokens.
+        for reason in re.findall(r'(?:Exception|Error): ([^\n]{1,800})', message):
+            templates.add(' '.join(word.lower() if word.lower() in safe_words else '_'
+                                   for word in re.findall(r'[A-Za-z]+', reason)))
+    result = {key: sorted(values)[:80] for key, values in findings.items() if values}
+    result['reason_templates'] = sorted(templates)[:30]
+    return result
 
 
 def main():

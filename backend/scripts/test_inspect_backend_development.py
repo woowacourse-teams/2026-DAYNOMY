@@ -25,8 +25,8 @@ class StartupDiagnosticsTest(unittest.TestCase):
             self.assertNotIn(sensitive, json.dumps(result))
 
     def test_ignores_non_message_fields_and_non_string_messages(self):
-        self.assertEqual({}, startup_diagnostics(json.dumps({'password': 'secret'})))
-        self.assertEqual({}, startup_diagnostics(json.dumps({'MESSAGE': ['secret']})))
+        self.assertEqual({'reason_templates': []}, startup_diagnostics(json.dumps({'password': 'secret'})))
+        self.assertEqual({'reason_templates': []}, startup_diagnostics(json.dumps({'MESSAGE': ['secret']})))
 
 
 if __name__ == '__main__':
