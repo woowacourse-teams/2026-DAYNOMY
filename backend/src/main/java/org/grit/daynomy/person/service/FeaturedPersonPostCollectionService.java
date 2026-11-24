@@ -58,8 +58,6 @@ public class FeaturedPersonPostCollectionService {
     List<CollectedPost> collected = new ArrayList<>();
     BusinessException firstFailure = null;
     int sourceFailureCount = 0;
-    int socialInvalidPublishedDateCount = 0;
-    int youtubeInvalidPublishedDateCount = 0;
     log.atDebug()
         .addKeyValue("event", LogEvent.FEATURED_PERSON_POST_COLLECTION_STARTED.code())
         .addKeyValue("personId", personId)
@@ -69,20 +67,16 @@ public class FeaturedPersonPostCollectionService {
 
     if (person.getXProfileUrl() != null || person.getThreadsProfileUrl() != null) {
       try {
-        for (var post :
-            socialPostSearchClient.searchProfiles(
-                person.getXProfileUrl(), person.getThreadsProfileUrl(), from, to)) {
-          PublishedAtParseResult publishedAt = parseDate(post.publishedDate());
-          if (publishedAt.invalid()) {
-            socialInvalidPublishedDateCount++;
-          }
-          collected.add(
-              new CollectedPost(
-                  ContentSourceType.valueOf(post.platform().name()),
-                  post.title(),
-                  post.url(),
-                  publishedAt.value()));
-        }
+        socialPostSearchClient
+            .searchProfiles(person.getXProfileUrl(), person.getThreadsProfileUrl(), from, to)
+            .forEach(
+                post ->
+                    collected.add(
+                        new CollectedPost(
+                            ContentSourceType.valueOf(post.platform().name()),
+                            post.title(),
+                            post.url(),
+                            parseDate(post.publishedDate()))));
       } catch (BusinessException exception) {
         firstFailure = exception;
         sourceFailureCount++;
@@ -92,19 +86,19 @@ public class FeaturedPersonPostCollectionService {
 
     if (person.getYoutubeProfileUrl() != null) {
       try {
-        for (var video :
-            youtubeClient.searchProfile(
+        youtubeClient
+            .searchProfile(
                 person.getYoutubeProfileUrl(),
                 from.atStartOfDay(COLLECTION_ZONE).toInstant(),
-                to.plusDays(1).atStartOfDay(COLLECTION_ZONE).toInstant())) {
-          PublishedAtParseResult publishedAt = parseInstant(video.publishedAt());
-          if (publishedAt.invalid()) {
-            youtubeInvalidPublishedDateCount++;
-          }
-          collected.add(
-              new CollectedPost(
-                  ContentSourceType.YOUTUBE, video.title(), video.url(), publishedAt.value()));
-        }
+                to.plusDays(1).atStartOfDay(COLLECTION_ZONE).toInstant())
+            .forEach(
+                video ->
+                    collected.add(
+                        new CollectedPost(
+                            ContentSourceType.YOUTUBE,
+                            video.title(),
+                            video.url(),
+                            parseInstant(video.publishedAt()))));
       } catch (BusinessException exception) {
         if (firstFailure == null) {
           firstFailure = exception;
@@ -113,9 +107,6 @@ public class FeaturedPersonPostCollectionService {
         logCollectionFailure(personId, "youtube", exception);
       }
     }
-
-    logInvalidPublishedDates(
-        personId, socialInvalidPublishedDateCount, youtubeInvalidPublishedDateCount);
 
     if (collected.isEmpty() && firstFailure != null) {
       throw firstFailure;
@@ -257,41 +248,22 @@ public class FeaturedPersonPostCollectionService {
     return candidate;
   }
 
-  private PublishedAtParseResult parseDate(String value) {
+  private Instant parseDate(String value) {
     try {
-      return new PublishedAtParseResult(
-          value == null || value.isBlank()
-              ? null
-              : LocalDate.parse(value).atStartOfDay(ZoneOffset.UTC).toInstant(),
-          false);
+      return value == null || value.isBlank()
+          ? null
+          : LocalDate.parse(value).atStartOfDay(ZoneOffset.UTC).toInstant();
     } catch (DateTimeParseException exception) {
-      return new PublishedAtParseResult(null, true);
+      return null;
     }
   }
 
-  private PublishedAtParseResult parseInstant(String value) {
+  private Instant parseInstant(String value) {
     try {
-      return new PublishedAtParseResult(
-          value == null || value.isBlank() ? null : Instant.parse(value), false);
+      return value == null || value.isBlank() ? null : Instant.parse(value);
     } catch (DateTimeParseException exception) {
-      return new PublishedAtParseResult(null, true);
+      return null;
     }
-  }
-
-  private void logInvalidPublishedDates(
-      Long personId, int socialInvalidPublishedDateCount, int youtubeInvalidPublishedDateCount) {
-    int invalidPublishedDateCount =
-        socialInvalidPublishedDateCount + youtubeInvalidPublishedDateCount;
-    if (invalidPublishedDateCount == 0) {
-      return;
-    }
-    log.atWarn()
-        .addKeyValue("event", LogEvent.CONTENT_COLLECTION_DATE_PARSE_FAILED.code())
-        .addKeyValue("personId", personId)
-        .addKeyValue("socialInvalidPublishedDateCount", socialInvalidPublishedDateCount)
-        .addKeyValue("youtubeInvalidPublishedDateCount", youtubeInvalidPublishedDateCount)
-        .addKeyValue("invalidPublishedDateCount", invalidPublishedDateCount)
-        .log(LogEvent.CONTENT_COLLECTION_DATE_PARSE_FAILED.message());
   }
 
   private void logCollectionFailure(Long personId, String source, BusinessException exception) {
@@ -322,6 +294,4 @@ public class FeaturedPersonPostCollectionService {
 
   private record CollectedPost(
       ContentSourceType sourceType, String title, String url, Instant publishedAt) {}
-
-  private record PublishedAtParseResult(Instant value, boolean invalid) {}
 }
