@@ -19,6 +19,8 @@ import java.util.stream.IntStream;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.common.logging.LogEvent;
+import org.grit.daynomy.common.logging.SanitizedLogException;
 import org.grit.daynomy.member.domain.Member;
 import org.grit.daynomy.member.exception.MemberErrorCode;
 import org.grit.daynomy.member.repository.MemberRepository;
@@ -429,7 +431,12 @@ public class PortfolioAnalysisShareService {
     try {
       return tokenCipher.decrypt(share.getEncryptedToken());
     } catch (IllegalStateException exception) {
-      log.warn("Unable to decrypt portfolio analysis share token: shareId={}", share.getId());
+      log.atWarn()
+          .setCause(SanitizedLogException.from(exception))
+          .addKeyValue("event", LogEvent.PORTFOLIO_ANALYSIS_SHARE_TOKEN_RECOVERY_FAILED.code())
+          .addKeyValue("shareId", share.getId())
+          .addKeyValue("errorType", exception.getClass().getSimpleName())
+          .log(LogEvent.PORTFOLIO_ANALYSIS_SHARE_TOKEN_RECOVERY_FAILED.message());
       return null;
     }
   }
