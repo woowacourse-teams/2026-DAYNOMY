@@ -131,6 +131,24 @@ jobs:
               if not events:
                   print(f"{source}: no classified events in inspected logs (not proof of healthy operation)")
 
+          if environment == "development":
+              unit_lines = capture(["systemctl", "list-units", "--type=service", "--all", "--plain", "--no-legend"])[1].splitlines()
+              units = [line.split()[0] for line in unit_lines if line.split() and line.split()[0].startswith("actions.runner.") and ("backend-dev" in line.split()[0] or "frontend-dev" in line.split()[0])]
+              units += ["daynomy-dev.service", "codedeploy-agent.service", "alloy.service", "docker.service"]
+              for unit in units:
+                  cg = capture(["systemctl", "show", unit, "-p", "ControlGroup", "--value"])[1].strip()
+                  if not cg.startswith("/system.slice/") or ".." in cg:
+                      continue
+                  root = pathlib.Path("/sys/fs/cgroup") / cg.lstrip("/")
+                  values = {}
+                  for name in ["memory.current", "memory.max", "memory.swap.current", "memory.swap.max", "memory.events"]:
+                      try: values[name] = (root/name).read_text().strip()
+                      except OSError: values[name] = "unavailable"
+                  try:
+                      stats = dict(line.split() for line in (root/"memory.stat").read_text().splitlines())
+                      values["memory.stat"] = {key:stats.get(key) for key in ["anon", "file", "inactive_anon", "active_anon", "inactive_file", "active_file", "slab", "pgmajfault"]}
+                  except OSError: pass
+                  print("cgroup_inventory:", {"unit":unit, "cgroup":cg, "has_reclaim":(root/"memory.reclaim").exists(), "values":values})
           print("Read-only diagnosis for", environment, "at", now.isoformat())
           print("Current resources; log window (UTC):", INCIDENT_START, "through", INCIDENT_END)
           print("load_average:", *os.getloadavg())
