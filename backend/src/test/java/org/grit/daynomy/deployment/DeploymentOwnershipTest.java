@@ -56,7 +56,7 @@ class DeploymentOwnershipTest {
                 StandardOpenOption.WRITE);
         var lock = file.lock()) {
       // A separate JVM is required: POSIX locks are per process.
-      var process =
+      var builder =
           new ProcessBuilder(
                   Path.of(System.getProperty("java.home"), "bin", "java").toString(),
                   "-cp",
@@ -73,8 +73,16 @@ class DeploymentOwnershipTest {
                           .getPath(),
                   GateChild.class.getName(),
                   directory.toString())
-              .redirectErrorStream(true)
-              .start();
+              .redirectError(ProcessBuilder.Redirect.INHERIT);
+      // JVM startup diagnostics belong on stderr, not the READY protocol stream.
+      // Retain CI GC options and also reproduce the startup notice in local runs.
+      builder
+          .environment()
+          .merge(
+              "JAVA_TOOL_OPTIONS",
+              "-Ddaynomy.deployment.protocol=true",
+              (old, added) -> old + " " + added);
+      var process = builder.start();
       try {
         assertThat(process.inputReader().readLine()).isEqualTo("READY");
         assertThat(process.waitFor(150, TimeUnit.MILLISECONDS)).isFalse();
