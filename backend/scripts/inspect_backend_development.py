@@ -15,6 +15,7 @@ def startup_diagnostics(journal):
         'exceptions': r'\b(?:[a-zA-Z_$][\w$]*\.)+[A-Z][\w$]*(?:Exception|Error)\b',
         'beans': r"(?:bean with name|parameter named|reference to bean|named) ['\"]([A-Za-z][\w.]{0,120})['\"]",
         'exception_names': r'\b([A-Z][A-Za-z0-9]*(?:Exception|Error))\b',
+        'code_symbols': r'\b(?:org\.springframework|org\.hibernate|org\.flywaydb|org\.grit\.daynomy|java\.lang)\.[A-Za-z0-9_$.]+',
         'missing_types': r"(?:bean of type|No qualifying bean of type) ['\"]([\w.$]+)['\"]",
         'properties': r"Could not resolve placeholder ['\"]([\w.-]+)['\"]",
         'sql_states': r'SQL State\s*:\s*([A-Z0-9]{5})\b',
@@ -27,7 +28,9 @@ def startup_diagnostics(journal):
     }
     findings = {key: set() for key in patterns}
     templates = set()
+    structures = set()
     safe_words = set('a an the is was not no to of for from in on with without cannot could failed failure error creating bean named name type expected actually found missing circular reference dependency depends relationship initialize initialization configuration method constructor parameter argument class transformer load time weaver specified available required defined setting property caused by application context web server start load resolve factory entity manager persistence unit jpa hibernate jdbc connection database schema migration checksum version validation illegal state already exists does not exist table column shutdown closed operation supported must be null invalid unable using annotated build validation'.split())
+    safe_words.update('and or some one more multiple single registered register registration disabled enabled overriding enable disable consider defining your component that has been because when will would should called but if at there are cannot be this other which requires it requested dependencies form cycle action description primary candidates candidate found configured configuration autoconfiguration auto qualified managed persistence support determined suitable driver exhausted pooled pool timeout timed out resource resources run starting display condition evaluation report rerun debug failed due boot classpath'.split())
     def strings(value):
         if isinstance(value, str):
             return [value]
@@ -49,6 +52,8 @@ def startup_diagnostics(journal):
         try:
             structured = json.loads(message)
             if isinstance(structured, dict):
+                if re.search(r'Exception|Error|ERROR|FAILED', message):
+                    structures.add(','.join(sorted(structured)))
                 message = '\n'.join(strings(structured))
         except ValueError:
             pass
@@ -63,6 +68,8 @@ def startup_diagnostics(journal):
                                    for word in re.findall(r'[A-Za-z]+', reason)))
     result = {key: sorted(values)[:80] for key, values in findings.items() if values}
     result['reason_templates'] = sorted(templates)[:30]
+    if structures:
+        result['structured_fields'] = sorted(structures)
     return result
 
 

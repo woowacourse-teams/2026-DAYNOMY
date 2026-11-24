@@ -83,7 +83,7 @@ class BootstrapTest(unittest.TestCase):
         original=self.artifact.read_bytes()
         self.artifact.unlink()
         installed=(self.app/'deployment/blue.jar').resolve(strict=True)
-        self.assertEqual(installed.parent,self.app/'releases')
+        self.assertEqual(installed.parent,(self.app/'releases').resolve())
         self.assertEqual(installed.read_bytes(),original)
 
     def test_busy_original_batch_is_rejected_without_stopping_original(self):
