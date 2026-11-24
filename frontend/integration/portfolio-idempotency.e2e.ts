@@ -25,7 +25,7 @@ test('화면 응답 유실·새로고침·새 매수와 실제 DB 정합성 및 
   );
   const asset = Number(
     sql(
-      "INSERT INTO assets(asset_code,name,category,market,currency,listed,created_at,updated_at) VALUES('IDEMCI','멱등성실험종목','STOCK','KOSPI','KRW',true,now(),now()) RETURNING id",
+      "INSERT INTO assets(asset_code,name,category,market,listed,created_at,updated_at) VALUES('IDEMCI','멱등성실험종목','STOCK','KOSPI',true,now(),now()) RETURNING id",
     ),
   );
   sql(
@@ -79,6 +79,7 @@ test('화면 응답 유실·새로고침·새 매수와 실제 DB 정합성 및 
     return dialog;
   }
   await page.goto('/');
+  await page.getByRole('button', { name: '구독 안내 닫기', exact: true }).click();
   // The route may show the empty-portfolio introduction before the first trade.
   const start = page.getByRole('button', { name: '포트폴리오 만들기', exact: true });
   await start
@@ -100,7 +101,12 @@ test('화면 응답 유실·새로고침·새 매수와 실제 DB 정합성 및 
   await page.reload();
   await page.getByRole('button', { name: '이전 거래 결과 확인' }).click();
   await expect(page.getByRole('button', { name: '이전 거래 결과 확인' })).toHaveCount(0);
-  expect(keys).toHaveLength(2);
+  await expect.poll(() => keys.length).toBe(2);
+  await expect
+    .poll(() =>
+      page.evaluate((id) => sessionStorage.getItem(`daynomy:pending-transaction:v1:${id}`), member),
+    )
+    .toBeNull();
   expect(keys[1]).toBe(keys[0]);
   expect(counts()).toEqual({ histories: 1, quantity: 1, requests: 1 });
   const next = await openTrade();
@@ -175,13 +181,13 @@ test('화면 응답 유실·새로고침·새 매수와 실제 DB 정합성 및 
     'integration-results/actual-api-cost.json',
     JSON.stringify(
       {
-        environment: 'isolated GitHub CI / real Spring API and PostgreSQL / localhost',
+        environment: 'isolated local or CI runner / real Spring API and PostgreSQL / localhost',
         concurrentUsers: 1,
         functional,
         measurements,
         table,
         limitation:
-          'Not development-server latency or production traffic. SQL calls include transaction utility statements and auth. No DB/Redis restarts tested here.',
+          'Exploratory serial measurement: 20 samples, fixed mode order, growing trade history, same-build no-key reference; not a controlled before/after benchmark. Not development-server latency or production traffic. SQL calls include transaction utility statements and auth. No restarts or concurrent load tested here.',
       },
       null,
       2,
