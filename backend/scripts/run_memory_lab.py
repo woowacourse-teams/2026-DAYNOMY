@@ -355,6 +355,8 @@ SELECT json_build_object('snapshots',(SELECT count(*) FROM portfolio_daily_snaps
                     except Exception as error:
                         pair['validated'] = False
                         pair['error_type'] = type(error).__name__
+                        if isinstance(error, RuntimeError):
+                            pair['error_message'] = str(error)
                         killed = command('docker','inspect','--format','{{.State.OOMKilled}}',app)
                         pair['oom_kill'] = max(pair['oom_kill'], int(killed=='true'))
                     finally:

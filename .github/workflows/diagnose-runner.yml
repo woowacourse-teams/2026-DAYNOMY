@@ -132,6 +132,7 @@ jobs:
                   print(f"{source}: no classified events in inspected logs (not proof of healthy operation)")
 
           if environment == "development":
+              print("kernel_release:", os.uname().release)
               unit_lines = capture(["systemctl", "list-units", "--type=service", "--all", "--plain", "--no-legend"])[1].splitlines()
               units = [line.split()[0] for line in unit_lines if line.split() and line.split()[0].startswith("actions.runner.") and ("backend-dev" in line.split()[0] or "frontend-dev" in line.split()[0])]
               units += ["daynomy-dev.service", "codedeploy-agent.service", "alloy.service", "docker.service"]
@@ -234,10 +235,10 @@ jobs:
           set -Eeuo pipefail
           mapfile -t runner_services < <(
             systemctl list-unit-files 'actions.runner*' --type=service --no-legend --plain \
-              | awk '$1 ~ /^actions\.runner\.[[:alnum:]_.@-]+\.service$/ {print $1}'
+              | awk -v suffix=".${RUNNER_NAME}.service" '$1 ~ /^actions\.runner\.[[:alnum:]_.@-]+\.service$/ && substr($1,length($1)-length(suffix)+1)==suffix {print $1}'
           )
           if [ "${#runner_services[@]}" -ne 1 ]; then
-            printf 'Expected one GitHub Actions runner service, found: %s\n' "${runner_services[*]:-none}" >&2
+            printf 'Expected one service for the current GitHub runner, found: %s\n' "${runner_services[*]:-none}" >&2
             exit 1
           fi
           runner_service="${runner_services[0]}"

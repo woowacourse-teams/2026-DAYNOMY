@@ -1,5 +1,6 @@
 """Real Nginx reload and POSIX ownership handoff on an isolated Docker network."""
 import json
+import os
 import subprocess
 import threading
 import time
@@ -17,6 +18,7 @@ class HandoffLab:
         self.initialized_ms = None
         self.thread = None
         self.process = None
+        self.probe_log = None
 
     def control(self, script, *args):
         return self.command('docker', 'run', '--rm', '--network', 'container:' + self.app,
@@ -41,14 +43,16 @@ p=Path('/deploy-state'); (p/'active-slot').write_text('blue\\n'); (p/'jobs.lock'
                      'nginx:1.28-alpine', 'nginx', '-c', '/deploy-state/nginx.conf', '-g', 'daemon off;')
         self.control("import urllib.request; r=urllib.request.urlopen('http://127.0.0.1:8090/api/news?page=1&size=1'); assert r.headers['X-Daynomy-Slot']=='blue'")
         probe = Path(__file__).resolve().parents[1] / 'loadtest/deployment-availability.js'
+        self.probe_log = (self.output/'route-k6.log').open('w')
         self.process = subprocess.Popen([
             'docker','run','--rm','--name',self.probe,'--network','container:'+self.app,
+            '--user',str(os.getuid()),
             '-v',str(probe)+':/probe.js:ro','-v',str(self.output)+':/out',
             'grafana/k6:latest','run','--quiet','--log-format','raw',
             '--console-output','/out/route-samples.jsonl','-e','BASE_URL=http://127.0.0.1:8090',
             '-e','RPS=10','-e',f'DURATION_SECONDS={duration}',
             '-e','SUMMARY_FILE=/out/route-summary.json','/probe.js'],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            stdout=self.probe_log, stderr=subprocess.STDOUT)
         self.thread = threading.Thread(target=self.switches, daemon=True)
         self.thread.start()
 
@@ -134,4 +138,5 @@ print(json.dumps({'slot':slot,'lock_wait_seconds':round(acquired-before,3),'time
         for name in (self.probe,self.nginx):
             subprocess.run(['docker','rm','-f',name],capture_output=True)
         if self.thread: self.thread.join(timeout=5)
+        if self.probe_log: self.probe_log.close()
         subprocess.run(['docker','volume','rm','-f',self.volume],capture_output=True)

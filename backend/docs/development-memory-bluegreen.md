@@ -61,3 +61,22 @@ Deploy backend development의 수동 실행에서 `development_memory_trial=true
 불변 릴리스 이름의 `-bgN` 접미사이며 두 번째 전환에는 다른 번호를 사용한다.
 이 시험은 동일 JAR의 blue→green→blue 요청 연속성 검증이며 서로 다른 기능 버전의
 롤백 성공으로 확대 해석하지 않는다.
+
+## 유휴 관리 프로세스의 제한된 스왑 회수
+
+실측에서 스왑 생성만으로 RAM이 자동 확보되지는 않았다. 최초 적용은 JVM RSS를
+약656MiB에서409MiB로 줄였지만, runner 작업 중 RAM 여유는 약475MiB였고 스왑은
+약7MiB만 사용됐다. 기본 256MiB 보호 여유와 656MiB 후보 시작 기준을 낮추지 않는다.
+
+개발 인스턴스이며 호스트 스왑이 약1GiB 이상, 미사용 스왑이512MiB 이상일 때만
+허용 목록의 runner·CodeDeploy agent·Docker 서비스에 커널 `memory.reclaim`을
+제한적으로 요청한다. 앱·DB·보안 에이전트·Alloy·프론트 컨테이너는 대상이 아니다.
+다른 frontend runner 작업이나 agent hook이 있으면 해당 대상을 건너뛴다. 서비스
+중지·memory.max 변경·전역 swappiness 변경은 하지 않는다. 커널의 부분 회수나
+실패는 성공량으로 간주하지 않고 실제 MemAvailable과 swap 사용 변화를 기록한다.
+각 회수 뒤 기존 앱 헬스를 확인하고, 656MiB를 확보하지 못하면 새 JVM을 시작하지 않는다.
+
+지원되는 커널에서는 요청별 swappiness를 사용하고, 지원되지 않으면 기존 숫자형
+ABI로 회수한다. 회수 중 유휴 관리 프로세스의 후속 접근에 page fault 지연이 생길 수
+있으므로 실제 API 응답과 실행 시간·OOM을 계속 관측한다. 보호 여유와 JVM swap0은
+그대로 유지한다.
