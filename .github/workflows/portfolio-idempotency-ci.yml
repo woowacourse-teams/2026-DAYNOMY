@@ -66,7 +66,6 @@ jobs:
             if pg_isready -h "$PGHOST" -U "$PGUSER"; then break; fi
             sleep 1
           done
-          psql -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION pg_stat_statements'
           jwt_secret=$(openssl rand -base64 32)
           echo "::add-mask::$jwt_secret"
           echo "JWT_SECRET=$jwt_secret" >> "$GITHUB_ENV"
@@ -78,7 +77,10 @@ jobs:
           java -Xms256m -Xmx512m -jar "$jar_path" > /tmp/idem-backend.log 2>&1 &
           echo "$!" > /tmp/idem-backend.pid
           for attempt in $(seq 1 90); do
-            if curl --fail --silent http://127.0.0.1:8081/actuator/health/readiness; then exit 0; fi
+            if curl --fail --silent http://127.0.0.1:8081/actuator/health/readiness; then
+              psql -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION pg_stat_statements'
+              exit 0
+            fi
             if ! kill -0 "$(cat /tmp/idem-backend.pid)" 2>/dev/null; then tail -80 /tmp/idem-backend.log; exit 1; fi
             sleep 1
           done
