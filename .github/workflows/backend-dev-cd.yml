@@ -259,6 +259,8 @@ jobs:
         uses: actions/checkout@v6
       - name: Read development instance and API status
         run: python3 backend/scripts/inspect_backend_development.py
+      - name: Read development schema identity without migration
+        run: python3 backend/scripts/read_development_schema.py
       - name: Export encrypted startup journal for local diagnosis
         env:
           DIAGNOSTIC_CERT: |
