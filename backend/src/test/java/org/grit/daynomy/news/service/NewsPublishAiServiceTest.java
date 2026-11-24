@@ -6,7 +6,12 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
@@ -16,22 +21,41 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.common.logging.LogEvent;
 import org.grit.daynomy.external.ExternalErrorCode;
 import org.grit.daynomy.keyword.ai.KeywordAiClient;
 import org.grit.daynomy.keyword.domain.KeywordCategory;
 import org.grit.daynomy.keyword.domain.NewsKeyword;
 import org.grit.daynomy.market.ai.MarketAnalysisAiClient;
 import org.grit.daynomy.market.domain.analysis.NewsMarketAnalysis;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.slf4j.LoggerFactory;
 
 @ExtendWith(MockitoExtension.class)
 class NewsPublishAiServiceTest {
 
   @Mock private KeywordAiClient keywordAiClient;
   @Mock private MarketAnalysisAiClient marketAnalysisAiClient;
+
+  private final Logger logger = (Logger) LoggerFactory.getLogger(NewsPublishAiService.class);
+  private final ListAppender<ILoggingEvent> appender = new ListAppender<>();
+
+  @BeforeEach
+  void setUpLogging() {
+    appender.start();
+    logger.addAppender(appender);
+  }
+
+  @AfterEach
+  void tearDownLogging() {
+    logger.detachAppender(appender);
+    appender.stop();
+  }
 
   @Test
   void keywordAndMarketAnalysisStartConcurrently() {
@@ -124,6 +148,26 @@ class NewsPublishAiServiceTest {
 
     accepted.get().run();
     verifyNoInteractions(keywordAiClient, marketAnalysisAiClient);
+
+    ILoggingEvent log = logEvent(LogEvent.AI_NEWS_GENERATION_FAILED);
+    assertThat(keyValues(log))
+        .containsEntry("operation", "news-publish-analysis")
+        .containsEntry("reasonCode", "EXECUTOR_REJECTED")
+        .containsEntry("errorType", RejectedExecutionException.class.getSimpleName())
+        .containsKey("durationMs");
+  }
+
+  private ILoggingEvent logEvent(LogEvent event) {
+    return appender.list.stream()
+        .filter(loggingEvent -> event.code().equals(keyValues(loggingEvent).get("event")))
+        .findFirst()
+        .orElseThrow();
+  }
+
+  private Map<String, Object> keyValues(ILoggingEvent loggingEvent) {
+    Map<String, Object> values = new HashMap<>();
+    loggingEvent.getKeyValuePairs().forEach(pair -> values.put(pair.key, pair.value));
+    return values;
   }
 
   private void awaitBoth(CountDownLatch started) throws InterruptedException {
