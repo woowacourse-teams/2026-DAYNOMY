@@ -33,7 +33,7 @@ EnvironmentFile={deployment.APP}/daynomy.env
 Environment=MALLOC_ARENA_MAX=2
 ExecCondition=/usr/bin/python3 {BOOT_HELPER} --owns-slot {slot}
 ExecStartPre=/usr/bin/python3 {BOOT_HELPER} --prepare-slot {slot}
-ExecStart=/usr/lib/jvm/java-21-amazon-corretto.aarch64/bin/java -Xmx128m -XX:TieredStopAtLevel=1 -XX:+ExitOnOutOfMemoryError -Ddaynomy.deployment.slot={slot} -Ddaynomy.deployment.directory={deployment.STATE} -jar {deployment.STATE}/{slot}.jar --server.address=127.0.0.1 --server.port={api} --management.server.address=127.0.0.1 --management.server.port={management} --server.shutdown=graceful --spring.lifecycle.timeout-per-shutdown-phase=120s --spring.task.scheduling.shutdown.await-termination=true --spring.task.scheduling.shutdown.await-termination-period=120s
+ExecStart=/usr/lib/jvm/java-21-amazon-corretto.aarch64/bin/java -Xmx128m -XX:TieredStopAtLevel=1 -XX:+ExitOnOutOfMemoryError -Ddaynomy.deployment.slot={slot} -Ddaynomy.deployment.directory={deployment.STATE} -jar {deployment.STATE}/{slot}.jar --server.address=127.0.0.1 --server.port={api} --management.server.address=127.0.0.1 --management.server.port={management} --management.endpoints.web.exposure.include=health,prometheus,deploymenttasks --server.shutdown=graceful --spring.lifecycle.timeout-per-shutdown-phase=120s --spring.task.scheduling.shutdown.await-termination=true --spring.task.scheduling.shutdown.await-termination-period=120s
 Restart=on-failure
 RestartSec=5
 TimeoutStopSec=150
@@ -58,7 +58,17 @@ def idle_original_jobs():
         raise RuntimeError('Original scheduled jobs are not confirmed idle; retry outside a batch window')
 
 
-def preflight(artifact):
+def validate_initial_migrations(before, after, allow_shared_state_migration=False):
+    if before == after:
+        return
+    added = set(after) - set(before)
+    reviewed = {'BOOT-INF/classes/db/migration/V98__share_sessions_and_guest_analysis_trials.sql'}
+    unchanged = all(after.get(name) == checksum for name, checksum in before.items())
+    if not (allow_shared_state_migration and unchanged and added == reviewed):
+        raise RuntimeError('Schema migration mismatch; only the explicitly reviewed shared-state addition is allowed')
+
+
+def preflight(artifact,allow_shared_state_migration=False):
     if os.geteuid()!=0: raise RuntimeError('Run as root')
     if BOOT_HELPER.exists(): raise RuntimeError('Boot recovery helper already exists; review before replacing')
     if deployment.STATE.exists(): raise RuntimeError('Already bootstrapped or unfinished state; inspect backup instead of rerunning')
@@ -81,7 +91,7 @@ def preflight(artifact):
     with zipfile.ZipFile(old) as archive:
         before={n:hashlib.sha256(archive.read(n)).hexdigest() for n in archive.namelist()
                 if n.startswith('BOOT-INF/classes/db/migration/') and n.endswith('.sql')}
-    if before!=deployment.migrations(artifact): raise RuntimeError('Schema migration mismatch')
+    validate_initial_migrations(before,deployment.migrations(artifact),allow_shared_state_migration)
     if deployment.available()<deployment.RESERVE+150*1024*1024:
         raise RuntimeError('Insufficient memory reserve for controlled restart')
     if ALLOY.read_text().count('matches = "_SYSTEMD_UNIT=daynomy.service"')!=1:
@@ -97,9 +107,9 @@ def preflight(artifact):
     return old,site
 
 
-def apply(artifact,expected_sha256):
+def apply(artifact,expected_sha256,allow_shared_state_migration=False):
     import hashlib
-    old,site=preflight(artifact)
+    old,site=preflight(artifact,allow_shared_state_migration)
     if hashlib.sha256(old.read_bytes()).hexdigest()!=expected_sha256:
         raise RuntimeError('Original production artifact changed')
     idle_original_jobs()
@@ -176,14 +186,16 @@ def main():
     parser.add_argument('--artifact',required=True,type=Path)
     parser.add_argument('--apply',action='store_true')
     parser.add_argument('--expected-current-sha256')
+    parser.add_argument('--allow-shared-state-migration',action='store_true',
+                        help='First install only: allow the reviewed additive V98 session/task tables')
     args=parser.parse_args()
     artifact=args.artifact.resolve(strict=True)
     if args.apply:
         if not args.expected_current_sha256 or not re.fullmatch('[a-f0-9]{64}',args.expected_current_sha256):
             parser.error('--apply requires --expected-current-sha256')
-        apply(artifact,args.expected_current_sha256)
+        apply(artifact,args.expected_current_sha256,args.allow_shared_state_migration)
     else:
-        old,_=preflight(artifact)
+        old,_=preflight(artifact,args.allow_shared_state_migration)
         print(json.dumps({'preflight':'passed','current':str(old),'next_step':'observe baseline then apply'}))
 
 

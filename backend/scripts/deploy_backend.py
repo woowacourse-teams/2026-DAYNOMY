@@ -62,15 +62,18 @@ def available():
 
 def probe(slot):
     _, api, management = SLOTS[slot]
-    with urllib.request.urlopen(f'http://127.0.0.1:{management}/actuator/health', timeout=3) as response:
-        if json.load(response)['status'] != 'UP':
-            raise RuntimeError('Candidate health is not UP')
+    for path in ('health', 'health/readiness'):
+        with urllib.request.urlopen(f'http://127.0.0.1:{management}/actuator/{path}', timeout=3) as response:
+            if json.load(response)['status'] != 'UP':
+                raise RuntimeError('Candidate health/readiness is not UP')
     with urllib.request.urlopen(f'http://127.0.0.1:{api}/api/news?page=1&size=1', timeout=3) as response:
         if response.headers.get('X-Daynomy-Slot') != slot:
             raise RuntimeError('Candidate slot header mismatch')
         body = json.load(response)
         if not isinstance(body.get('items'), list):
             raise RuntimeError('Candidate news response mismatch')
+    # Validate observability before sending public requests; a busy executor is valid.
+    tasks_idle(slot)
 
 
 def proxy_probe(slot):
@@ -79,12 +82,49 @@ def proxy_probe(slot):
             raise RuntimeError('Public proxy did not reach expected slot')
 
 
+def tasks_idle(slot):
+    # Only query the slot's loopback management port, never the public proxy.
+    management = SLOTS[slot][2]
+    with urllib.request.urlopen(
+            f'http://127.0.0.1:{management}/actuator/deploymenttasks', timeout=3) as response:
+        status = json.load(response)
+    if status.get('slot') != slot or not isinstance(status.get('executors'), dict):
+        raise RuntimeError('Invalid background task status')
+    executors = status['executors']
+    required = {'portfolioAnalysisTaskExecutor', 'portfolioPriceHistoryTaskExecutor'}
+    if not required.issubset(executors):
+        raise RuntimeError('Required background executors are not observed')
+    for counts in executors.values():
+        if not isinstance(counts, dict) or any(
+                type(counts.get(key)) is not int or counts[key] < 0
+                for key in ('active', 'queued', 'pending')):
+            raise RuntimeError('Invalid background task counts')
+    return all(counts['active'] == 0 and counts['queued'] == 0 and counts['pending'] == 0
+               for counts in executors.values())
+
+
+def wait_tasks(slot, timeout=300):
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            if tasks_idle(slot):
+                return True
+        except Exception:
+            # Unknown status must preserve the JVM, not kill an unobserved task.
+            pass
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(0.5)
+
+
 def migrations(path):
     with zipfile.ZipFile(path) as archive:
         if archive.testzip() is not None:
             raise RuntimeError('JAR checksum validation failed')
         if 'BOOT-INF/classes/org/grit/daynomy/deployment/DeploymentSchedulingConfig.class' not in archive.namelist():
             raise RuntimeError('JAR lacks deployment ownership support')
+        if 'BOOT-INF/classes/org/grit/daynomy/deployment/DeploymentTasksEndpoint.class' not in archive.namelist():
+            raise RuntimeError('JAR lacks background task drain support')
         return {name: hashlib.sha256(archive.read(name)).hexdigest()
                 for name in archive.namelist() if name.startswith('BOOT-INF/classes/db/migration/') and name.endswith('.sql')}
 
@@ -173,8 +213,9 @@ def deploy(artifact, version):
     pending = STATE / 'retirement.json'
     if pending.exists():
         record = json.loads(pending.read_text())
-        if not wait_workers(record['workers'], timeout=0):
-            raise RuntimeError('Previous public requests are still draining')
+        if (not wait_workers(record['workers'], timeout=0)
+                or not wait_tasks(record['slot'], timeout=0)):
+            raise RuntimeError('Previous requests or background tasks are still draining')
         command('systemctl', 'stop', SLOTS[record['slot']][0])
         candidate_override(record['slot'], False)
         pending.unlink()
@@ -245,7 +286,7 @@ def deploy(artifact, version):
             proxy_probe(old)
             with jobs_lock():
                 atomic(STATE / 'active-slot', old + '\n')
-        if wait_workers(rollback_workers):
+        if wait_workers(rollback_workers) and wait_tasks(new):
             command('systemctl', 'stop', SLOTS[new][0])
             candidate_override(new, False)
         else:
@@ -257,7 +298,7 @@ def deploy(artifact, version):
     score(new, -500)
     score(old, 500)
     retired = False
-    if wait_workers(workers):
+    if wait_workers(workers) and wait_tasks(old):
         try:
             command('systemctl', 'stop', SLOTS[old][0])
             retired = True

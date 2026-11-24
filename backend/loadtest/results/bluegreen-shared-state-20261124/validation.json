@@ -1,0 +1,173 @@
+{
+  "scope": "Implementation and local validation only; production remains unchanged",
+  "source_base": "897f272b8b42a0cece5fa9ef48dc18403ca82e33",
+  "java_validation": {
+    "tests": 2274,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 5
+  },
+  "python_controller_tests": {
+    "tests": 23,
+    "failures": 0,
+    "runtime": "production-equivalent Corretto lab image Python 3.9"
+  },
+  "initial_handoff": {
+    "jar_sha256": "f130e3773c6baa5880e56fc4349dc9dde0b3f718e3932e0115ed33472a3f2ae7",
+    "final_revision": false,
+    "warning": "Before immediate-session-flush fix and exact pending counters. Not final production approval evidence.",
+    "http": {
+      "base_url": "http://127.0.0.1:8090",
+      "requested_rps": 10,
+      "duration_seconds": 300,
+      "planned_requests": 3000,
+      "completed_requests": 3000,
+      "successes": 3000,
+      "failures": 0,
+      "dropped_iterations": 0,
+      "complete": true,
+      "request_duration_ms": {
+        "max": 203.595958,
+        "avg": 2.7931780059999936,
+        "p(95)": 5.3570628499999975,
+        "p(99)": 11.328498829999983
+      },
+      "observed_slots": [
+        "blue",
+        "green",
+        "blue"
+      ],
+      "scheduler_audit": {
+        "starts_by_slot": {
+          "blue": 4,
+          "green": 1
+        },
+        "inactive_executions": 0,
+        "cross_jvm_overlaps": 0
+      }
+    },
+    "workload": {
+      "planned": 3000,
+      "successes": 3000,
+      "failures": 0,
+      "dropped": 0,
+      "operations": {
+        "trade": {
+          "p(99)": 350.43999999999954,
+          "max": 848,
+          "avg": 39.08,
+          "p(95)": 56.54999999999999
+        },
+        "calculate": {
+          "p(99)": 96.58999999999989,
+          "max": 667,
+          "avg": 12.788148148148148,
+          "p(95)": 15
+        },
+        "read": {
+          "avg": 6.355333333333333,
+          "p(95)": 10,
+          "p(99)": 27.009999999999987,
+          "max": 314
+        }
+      },
+      "completed_requests": 3000,
+      "dropped_iterations": 0,
+      "complete": true
+    },
+    "pair": {
+      "combined_limit_mib": 800,
+      "ready": true,
+      "validated": true,
+      "oom_kill": 0,
+      "peak_cgroup_mib": 800.02,
+      "memory_events": {
+        "low": 0,
+        "high": 0,
+        "max": 279,
+        "oom": 0,
+        "oom_kill": 0,
+        "oom_group_kill": 0
+      },
+      "memory_pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=11994\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=8499",
+      "green_still_ready": true,
+      "integrity": {
+        "snapshots": 3000,
+        "quantity_mismatches": 0,
+        "purchase_mismatches": 0,
+        "snapshot_value_mismatches": 0
+      },
+      "trade_integrity": {
+        "accepted_http_trades": 195,
+        "seed_buy_histories": 6000,
+        "actual_buy_histories": 6195,
+        "consistent": true
+      }
+    }
+  },
+  "final_shared_state_smoke": {
+    "jar_sha256": "9968d29cc845800f012e6fb26543a306734b6b7d969f9d10770f0ba3c64fba97",
+    "before_retirement": {
+      "start_status": 202,
+      "task_id_shared": true,
+      "synthetic_task_final_status": "FAILED",
+      "observed_executors": [
+        "newsPublishAiExecutor",
+        "portfolioAnalysisExecutorV2",
+        "portfolioAnalysisTaskExecutor",
+        "portfolioPriceHistoryTaskExecutor"
+      ],
+      "pending_before_retirement": 0
+    },
+    "after_retirement": {
+      "old_app_stopped": true,
+      "task_state_retained": true,
+      "another_session_status": 404,
+      "api_port_management_status": 404
+    },
+    "memory_events": {
+      "low": 0,
+      "high": 0,
+      "max": 41,
+      "oom": 0,
+      "oom_kill": 0,
+      "oom_group_kill": 0
+    },
+    "peak_cgroup_mib": 800.0,
+    "scope": "Local two real JVMs, shared PostgreSQL and session cookie; invalid-asset failure state, not AI success or production availability."
+  },
+  "production": {
+    "observed_at_utc": "2026-11-24T12:50:10Z",
+    "method": "Read-only Safari AWS Session Manager; values transcribed from visible completed terminal output",
+    "instance_id": "i-0c863ab4dc205e273",
+    "release": "f361d6f96a1a3db002ed8ce0642af832f5e4aa39",
+    "java_pid": 1502,
+    "available_kib_samples": [
+      398376,
+      399032,
+      399224,
+      397904,
+      399288
+    ],
+    "sample_interval_seconds": 2,
+    "available_median_mib": 389.6796875,
+    "java_rss_kib": 701504,
+    "service_memory_current_bytes": 728571904,
+    "codedeploy_state": "inactive",
+    "swap_total_kib": 2097148,
+    "swap_free_kib_all_samples": 2097148,
+    "candidate_start_required_mib": 656,
+    "initial_restart_preflight_required_mib": 406,
+    "configuration_changed": false,
+    "deployment_executed": false,
+    "note": "Short idle samples do not establish peak-load capacity. Both current candidate and initial-restart memory preflight conditions fail."
+  },
+  "before_after_production_metrics": "not measured",
+  "raw_evidence": "Personal local .local/bluegreen-shared-state-* directories; not included in Git",
+  "known_limits": [
+    "Full final-artifact Nginx mixed-load handoff remains to be repeated.",
+    "All external collectors, real mail and AI long-running success paths are not covered by the two-JVM smoke.",
+    "Memory ceilings were reached; zero OOM does not mean adequate operating headroom.",
+    "Current development JAR includes unrelated dev changes and is not a production release artifact."
+  ]
+}
