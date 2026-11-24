@@ -234,6 +234,7 @@ class DevelopmentTargetTest(unittest.TestCase):
         self.assertEqual(bootstrap.deployment.SLOTS['green'][0], 'daynomy-dev-green')
         self.assertEqual(bootstrap.deployment.PUBLIC_ORIGIN, 'https://dev.daynomy.com')
         self.assertIn('-Xmx192m',text)
+        self.assertIn('-XX:+UseSerialGC',text)
 
     def test_failed_or_restored_memory_profile_cannot_be_installed(self):
         bootstrap.configure_environment('development')
@@ -246,8 +247,11 @@ class DevelopmentTargetTest(unittest.TestCase):
                     with self.assertRaisesRegex(RuntimeError,'memory profile first'):
                         bootstrap.require_development_memory_profile()
                 unit.write_text(good)
-                with patch.object(bootstrap.deployment,'command',side_effect=['101','0']),patch.object(Path,'read_bytes',return_value=('java\0'+bootstrap.DEVELOPMENT_JVM_FLAGS.replace(' ','\0')+'\0-jar\0/current.jar\0').encode()):
+                with patch.object(bootstrap.deployment,'command',side_effect=['101','0','-XX:+UseSerialGC']),patch.object(Path,'read_bytes',return_value=('java\0'+bootstrap.DEVELOPMENT_JVM_FLAGS.replace(' ','\0')+'\0-jar\0/current.jar\0').encode()):
                     bootstrap.require_development_memory_profile()
+                with patch.object(bootstrap.deployment,'command',side_effect=['101','0','-XX:+UseG1GC']),patch.object(Path,'read_bytes',return_value=('java\0'+bootstrap.DEVELOPMENT_JVM_FLAGS.replace(' ','\0')+'\0').encode()):
+                    with self.assertRaisesRegex(RuntimeError,'GC differs'):
+                        bootstrap.require_development_memory_profile()
                 with patch.object(bootstrap.deployment,'command',side_effect=['101','1']),patch.object(Path,'read_bytes',return_value=('java\0'+bootstrap.DEVELOPMENT_JVM_FLAGS.replace(' ','\0')+'\0').encode()):
                     with self.assertRaisesRegex(RuntimeError,'restarted'):
                         bootstrap.require_development_memory_profile()
@@ -265,6 +269,7 @@ class DevelopmentTargetTest(unittest.TestCase):
         self.assertNotEqual(bootstrap.deployment.STATE, development_state)
         self.assertEqual(bootstrap.deployment.PUBLIC_ORIGIN, 'https://daynomy.com')
         self.assertIn('--environment production --owns-slot blue', bootstrap.unit('blue'))
+        self.assertNotIn('UseSerialGC',bootstrap.unit('blue'))
 
 
 if __name__=='__main__':unittest.main()

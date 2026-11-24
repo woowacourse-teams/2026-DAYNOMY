@@ -36,7 +36,7 @@ def configure_environment(environment):
 
 def unit(slot):
     _, api, management = deployment.SLOTS[slot]
-    flags=DEVELOPMENT_JVM_FLAGS if deployment.ENVIRONMENT=='development' else '-Xmx128m -XX:TieredStopAtLevel=1 -XX:+ExitOnOutOfMemoryError'
+    flags=(DEVELOPMENT_JVM_FLAGS+' -XX:+UseSerialGC') if deployment.ENVIRONMENT=='development' else '-Xmx128m -XX:TieredStopAtLevel=1 -XX:+ExitOnOutOfMemoryError'
     return f'''[Unit]
 Description=DAYNOMY backend {slot}
 After=network-online.target nginx.service
@@ -140,6 +140,11 @@ def require_development_memory_profile():
     if (any(flag.encode() not in arguments for flag in DEVELOPMENT_JVM_FLAGS.split())
             or deployment.command('systemctl','show',deployment.SLOTS['blue'][0],'-p','NRestarts','--value')!='0'):
         raise RuntimeError('Running development JVM differs from the validated profile or restarted')
+    flags=deployment.command('timeout','15','/usr/lib/jvm/java-21-amazon-corretto.aarch64/bin/java',
+                             '-Xmx32m','-XX:TieredStopAtLevel=1','-m',
+                             'jdk.jcmd/sun.tools.jcmd.JCmd',pid,'VM.flags')
+    if '-XX:+UseSerialGC' not in flags.split():
+        raise RuntimeError('Running development GC differs from the tested SerialGC profile')
 
 
 def preflight(artifact,allow_shared_state_migration=False):
