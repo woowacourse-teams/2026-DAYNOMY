@@ -135,10 +135,10 @@ jobs:
               print("kernel_release:", os.uname().release)
               unit_lines = capture(["systemctl", "list-units", "--type=service", "--all", "--plain", "--no-legend"])[1].splitlines()
               units = [line.split()[0] for line in unit_lines if line.split() and line.split()[0].startswith("actions.runner.") and ("backend-dev" in line.split()[0] or "frontend-dev" in line.split()[0])]
-              units += ["daynomy-dev.service", "codedeploy-agent.service", "alloy.service", "docker.service"]
+              units += ["daynomy-dev.service", "daynomy-dev-green.service", "daynomy-backend-dev.slice", "codedeploy-agent.service", "alloy.service", "docker.service"]
               for unit in units:
                   cg = capture(["systemctl", "show", unit, "-p", "ControlGroup", "--value"])[1].strip()
-                  if not cg.startswith("/system.slice/") or ".." in cg:
+                  if not re.fullmatch(r"/[A-Za-z0-9_./@-]+", cg) or ".." in pathlib.PurePosixPath(cg).parts:
                       continue
                   root = pathlib.Path("/sys/fs/cgroup") / cg.lstrip("/")
                   values = {}
@@ -241,7 +241,14 @@ jobs:
 
           if Path('/sys/devices/virtual/dmi/id/board_asset_tag').read_text().strip() != 'i-0f2e92d9c7bd8fe06':
               raise RuntimeError('Development instance required')
-          pid = subprocess.check_output(['systemctl', 'show', 'daynomy-dev', '-p', 'MainPID', '--value'], text=True).strip()
+          owner = Path('/home/ec2-user/backend/deployment-dev/active-slot')
+          slot = owner.read_text().strip() if owner.exists() else None
+          if slot not in (None, 'blue', 'green'):
+              raise RuntimeError('Unknown development slot')
+          unit = 'daynomy-dev-green' if slot == 'green' else 'daynomy-dev'
+          pid = subprocess.check_output(['systemctl', 'show', unit, '-p', 'MainPID', '--value'], text=True).strip()
+          memory = {line.split(':')[0]: line.split(':')[1].strip() for line in Path('/proc/' + pid + '/status').read_text().splitlines() if line.split(':')[0] in ('VmRSS', 'VmSwap')}
+          print(json.dumps({'development_jvm': unit, 'slot': slot, 'memory': memory}), flush=True)
           dump = subprocess.check_output(['timeout', '15', '/usr/lib/jvm/java-21-amazon-corretto.aarch64/bin/java', '-Xmx32m', '-XX:TieredStopAtLevel=1', '-m', 'jdk.jcmd/sun.tools.jcmd.JCmd', pid, 'Thread.print'], text=True)
           for block in re.split(r'\n(?=")', dump):
               name = re.match(r'"([A-Za-z0-9_. -]+)"', block)
