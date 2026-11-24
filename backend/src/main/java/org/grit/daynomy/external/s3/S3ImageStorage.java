@@ -2,14 +2,19 @@ package org.grit.daynomy.external.s3;
 
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.common.logging.ExternalTransportFailure;
 import org.grit.daynomy.common.logging.LogEvent;
+import org.grit.daynomy.common.logging.SanitizedLogException;
 import org.grit.daynomy.config.properties.S3Properties;
 import org.grit.daynomy.external.ExternalErrorCode;
+import org.slf4j.spi.LoggingEventBuilder;
 import org.springframework.stereotype.Component;
 import software.amazon.awssdk.core.exception.SdkClientException;
+import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
@@ -22,6 +27,8 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 public class S3ImageStorage {
 
   private static final String CACHE_CONTROL = "public, max-age=31536000, immutable";
+  private static final Pattern SAFE_PROVIDER_IDENTIFIER =
+      Pattern.compile("[A-Za-z0-9][A-Za-z0-9_.-]{0,127}");
 
   private final S3Client s3Client;
   private final S3Properties s3Properties;
@@ -63,15 +70,24 @@ public class S3ImageStorage {
           .addKeyValue("durationMs", elapsedMillis(startedAt))
           .log(LogEvent.EXTERNAL_UPLOAD_COMPLETED.message());
     } catch (S3Exception | SdkClientException exception) {
-      log.atWarn()
-          .addKeyValue("event", LogEvent.EXTERNAL_UPLOAD_FAILED.code())
-          .addKeyValue("provider", "s3")
-          .addKeyValue("relativeKey", relativeKey)
-          .addKeyValue("durationMs", elapsedMillis(startedAt))
-          .addKeyValue("exceptionType", exception.getClass().getSimpleName())
-          .setCause(exception)
-          .log(LogEvent.EXTERNAL_UPLOAD_FAILED.message());
+      var event =
+          log.atWarn()
+              .addKeyValue("event", LogEvent.EXTERNAL_UPLOAD_FAILED.code())
+              .addKeyValue("provider", "s3")
+              .addKeyValue("relativeKey", relativeKey)
+              .addKeyValue("durationMs", elapsedMillis(startedAt))
+              .addKeyValue("exceptionType", exception.getClass().getSimpleName())
+              .setCause(SanitizedLogException.from(exception));
+      addFailureDetails(event, exception);
+      event.log(LogEvent.EXTERNAL_UPLOAD_FAILED.message());
       throw new BusinessException(ExternalErrorCode.S3_IMAGE_STORAGE_FAILED);
+    } catch (BusinessException exception) {
+      logConfigurationFailure(
+          LogEvent.EXTERNAL_UPLOAD_FAILED,
+          "uploadImage",
+          "INVALID_STORAGE_CONFIGURATION",
+          relativeKey);
+      throw exception;
     }
   }
 
@@ -90,6 +106,11 @@ public class S3ImageStorage {
 
     String baseUrl = s3Properties.publicBaseUrl();
     if (baseUrl == null || baseUrl.isBlank()) {
+      logConfigurationFailure(
+          LogEvent.EXTERNAL_DELETE_FAILED,
+          "deleteImage",
+          "PUBLIC_BASE_URL_NOT_CONFIGURED",
+          null);
       return;
     }
 
@@ -119,21 +140,35 @@ public class S3ImageStorage {
           .addKeyValue("durationMs", elapsedMillis(startedAt))
           .log(LogEvent.EXTERNAL_DELETE_COMPLETED.message());
     } catch (S3Exception | SdkClientException exception) {
-      log.atWarn()
-          .addKeyValue("event", LogEvent.EXTERNAL_DELETE_FAILED.code())
-          .addKeyValue("provider", "s3")
-          .addKeyValue("relativeKey", relativeKey)
-          .addKeyValue("durationMs", elapsedMillis(startedAt))
-          .addKeyValue("exceptionType", exception.getClass().getSimpleName())
-          .setCause(exception)
-          .log(LogEvent.EXTERNAL_DELETE_FAILED.message());
+      var event =
+          log.atWarn()
+              .addKeyValue("event", LogEvent.EXTERNAL_DELETE_FAILED.code())
+              .addKeyValue("provider", "s3")
+              .addKeyValue("relativeKey", relativeKey)
+              .addKeyValue("durationMs", elapsedMillis(startedAt))
+              .addKeyValue("exceptionType", exception.getClass().getSimpleName())
+              .setCause(SanitizedLogException.from(exception));
+      addFailureDetails(event, exception);
+      event.log(LogEvent.EXTERNAL_DELETE_FAILED.message());
       throw new BusinessException(ExternalErrorCode.S3_IMAGE_STORAGE_FAILED);
+    } catch (BusinessException exception) {
+      logConfigurationFailure(
+          LogEvent.EXTERNAL_DELETE_FAILED,
+          "deleteImage",
+          "INVALID_STORAGE_CONFIGURATION",
+          relativeKey);
+      throw exception;
     }
   }
 
   private String publicUrl(String relativeKey) {
     String baseUrl = s3Properties.publicBaseUrl();
     if (baseUrl == null || baseUrl.isBlank()) {
+      logConfigurationFailure(
+          LogEvent.EXTERNAL_UPLOAD_FAILED,
+          "uploadImage",
+          "PUBLIC_BASE_URL_NOT_CONFIGURED",
+          relativeKey);
       throw new BusinessException(ExternalErrorCode.S3_IMAGE_STORAGE_FAILED);
     }
 
@@ -170,6 +205,21 @@ public class S3ImageStorage {
     return fileName;
   }
 
+  private void logConfigurationFailure(
+      LogEvent event, String operation, String reasonCode, String relativeKey) {
+    var logEvent =
+        log.atWarn()
+            .addKeyValue("event", event.code())
+            .addKeyValue("provider", "s3")
+            .addKeyValue("operation", operation)
+            .addKeyValue("reasonCode", reasonCode)
+            .addKeyValue("retryable", false);
+    if (relativeKey != null) {
+      logEvent.addKeyValue("relativeKey", relativeKey);
+    }
+    logEvent.log(event.message());
+  }
+
   private String bucket() {
     if (s3Properties.bucket() == null || s3Properties.bucket().isBlank()) {
       throw new BusinessException(ExternalErrorCode.S3_IMAGE_STORAGE_FAILED);
@@ -190,6 +240,47 @@ public class S3ImageStorage {
 
   private long elapsedMillis(long startedAt) {
     return TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt);
+  }
+
+  private void addFailureDetails(LoggingEventBuilder event, SdkException exception) {
+    if (exception instanceof S3Exception s3Exception) {
+      String errorCode =
+          s3Exception.awsErrorDetails() == null
+              ? null
+              : safeIdentifier(s3Exception.awsErrorDetails().errorCode());
+      event
+          .addKeyValue("responseStatus", s3Exception.statusCode())
+          .addKeyValue(
+              "failureCategory", s3FailureCategory(s3Exception.statusCode(), errorCode))
+          .addKeyValue("retryable", s3Exception.retryable());
+      if (errorCode != null) {
+        event.addKeyValue("providerErrorCode", errorCode);
+      }
+      String requestId = safeIdentifier(s3Exception.requestId());
+      if (requestId != null) {
+        event.addKeyValue("providerRequestId", requestId);
+      }
+      return;
+    }
+    ExternalTransportFailure.from(exception).addTo(event);
+  }
+
+  private String s3FailureCategory(int status, String errorCode) {
+    if ("SlowDown".equals(errorCode)) {
+      return "RATE_LIMITED";
+    }
+    return switch (status) {
+      case 401 -> "AUTHENTICATION_FAILED";
+      case 403 -> "PERMISSION_DENIED";
+      case 404 -> "NOT_FOUND";
+      case 408 -> "REQUEST_TIMEOUT";
+      case 429 -> "RATE_LIMITED";
+      default -> status >= 500 ? "SERVER_ERROR" : "PROVIDER_ERROR";
+    };
+  }
+
+  private String safeIdentifier(String value) {
+    return value != null && SAFE_PROVIDER_IDENTIFIER.matcher(value).matches() ? value : null;
   }
 
   public record StoredImage(String relativeKey, String publicUrl) {}

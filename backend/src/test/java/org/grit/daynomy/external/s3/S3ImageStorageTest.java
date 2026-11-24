@@ -23,6 +23,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.slf4j.LoggerFactory;
+import software.amazon.awssdk.awscore.exception.AwsErrorDetails;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
@@ -169,6 +170,26 @@ class S3ImageStorageTest {
 
     assertThatThrownBy(() -> storage.upload(new byte[] {1}, "webp", "image/webp"))
         .isInstanceOf(BusinessException.class);
+
+    assertThat(keyValues(logEvent(LogEvent.EXTERNAL_UPLOAD_FAILED)))
+        .containsEntry("provider", "s3")
+        .containsEntry("operation", "uploadImage")
+        .containsEntry("reasonCode", "PUBLIC_BASE_URL_NOT_CONFIGURED")
+        .containsEntry("retryable", false);
+  }
+
+  @Test
+  void deleteIfManagedLogsWhenBaseUrlIsMissing() {
+    storage = new S3ImageStorage(s3Client, new S3Properties(REGION, BUCKET, "daynomy", ""));
+
+    storage.deleteIfManaged("https://images.example.com/daynomy/news-image.webp");
+
+    org.mockito.Mockito.verifyNoInteractions(s3Client);
+    assertThat(keyValues(logEvent(LogEvent.EXTERNAL_DELETE_FAILED)))
+        .containsEntry("provider", "s3")
+        .containsEntry("operation", "deleteImage")
+        .containsEntry("reasonCode", "PUBLIC_BASE_URL_NOT_CONFIGURED")
+        .containsEntry("retryable", false);
   }
 
   @Test
@@ -180,7 +201,13 @@ class S3ImageStorageTest {
   @Test
   void uploadConvertsS3FailureToBusinessException() {
     given(s3Client.putObject(any(PutObjectRequest.class), any(RequestBody.class)))
-        .willThrow(S3Exception.builder().message("access denied").build());
+        .willThrow(
+            S3Exception.builder()
+                .message("access denied")
+                .statusCode(403)
+                .requestId("request-123")
+                .awsErrorDetails(AwsErrorDetails.builder().errorCode("AccessDenied").build())
+                .build());
 
     assertThatThrownBy(() -> storage.upload(new byte[] {1}, "webp", "image/webp"))
         .isInstanceOf(BusinessException.class);
@@ -191,9 +218,16 @@ class S3ImageStorageTest {
     assertThat(keyValues(log))
         .containsEntry("event", LogEvent.EXTERNAL_UPLOAD_FAILED.code())
         .containsEntry("provider", "s3")
+        .containsEntry("responseStatus", 403)
+        .containsEntry("failureCategory", "PERMISSION_DENIED")
+        .containsEntry("providerErrorCode", "AccessDenied")
+        .containsEntry("providerRequestId", "request-123")
+        .containsEntry("retryable", false)
         .containsKey("relativeKey");
     assertThat(keyValues(log).get("relativeKey").toString()).endsWith(".webp");
-    assertThat(log.getThrowableProxy()).isNotNull();
+    assertThat(log.getThrowableProxy().getClassName())
+        .isEqualTo("org.grit.daynomy.common.logging.SanitizedLogException");
+    assertThat(log.getThrowableProxy().getMessage()).doesNotContain("access denied");
   }
 
   @Test
@@ -215,7 +249,9 @@ class S3ImageStorageTest {
         .containsEntry("event", LogEvent.EXTERNAL_DELETE_FAILED.code())
         .containsEntry("provider", "s3")
         .containsEntry("relativeKey", "news-image.webp");
-    assertThat(log.getThrowableProxy()).isNotNull();
+    assertThat(log.getThrowableProxy().getClassName())
+        .isEqualTo("org.grit.daynomy.common.logging.SanitizedLogException");
+    assertThat(log.getThrowableProxy().getMessage()).doesNotContain("access denied");
   }
 
   private Map<String, Object> keyValues(ILoggingEvent loggingEvent) {
