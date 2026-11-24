@@ -228,6 +228,28 @@ jobs:
               summarize(source, output.splitlines())
           PY
 
+      - name: Read development scheduler thread states
+        if: inputs.target_environment == 'development' && inputs.mode == 'diagnose'
+        run: |
+          sudo -n python3 -B - <<'PY'
+          import json
+          import re
+          import subprocess
+          from pathlib import Path
+
+          if Path('/sys/devices/virtual/dmi/id/board_asset_tag').read_text().strip() != 'i-0f2e92d9c7bd8fe06':
+              raise RuntimeError('Development instance required')
+          pid = subprocess.check_output(['systemctl', 'show', 'daynomy-dev', '-p', 'MainPID', '--value'], text=True).strip()
+          dump = subprocess.check_output(['timeout', '15', '/usr/lib/jvm/java-21-amazon-corretto.aarch64/bin/java', '-Xmx32m', '-XX:TieredStopAtLevel=1', '-m', 'jdk.jcmd/sun.tools.jcmd.JCmd', pid, 'Thread.print'], text=True)
+          for block in re.split(r'\n(?=")', dump):
+              name = re.match(r'"([A-Za-z0-9_. -]+)"', block)
+              if not name:
+                  continue
+              state = re.search(r'java.lang.Thread.State: ([A-Z_]+)', block)
+              frames = re.findall(r'^\s+at ((?:org\.grit\.daynomy|java\.util\.concurrent)[A-Za-z0-9_.$]+)', block, re.M)
+              print(json.dumps({'thread': name[1], 'state': state[1] if state else 'unknown', 'scheduled_queue_wait': 'ScheduledThreadPoolExecutor$DelayedWorkQueue.take' in block, 'task_frames': frames[:4]}))
+          PY
+
       - name: Read runner service supervision
         id: runner-service
         shell: bash
