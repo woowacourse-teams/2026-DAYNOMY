@@ -1,0 +1,29 @@
+{
+  "combined_limit_mib": 800,
+  "ready": true,
+  "validated": true,
+  "oom_kill": 0,
+  "peak_cgroup_mib": 800.03,
+  "memory_events": {
+    "low": 0,
+    "high": 0,
+    "max": 252,
+    "oom": 0,
+    "oom_kill": 0,
+    "oom_group_kill": 0
+  },
+  "memory_pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=3974\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=3945",
+  "green_still_ready": true,
+  "integrity": {
+    "snapshots": 3000,
+    "quantity_mismatches": 0,
+    "purchase_mismatches": 0,
+    "snapshot_value_mismatches": 0
+  },
+  "trade_integrity": {
+    "accepted_http_trades": 195,
+    "seed_buy_histories": 6000,
+    "actual_buy_histories": 6195,
+    "consistent": true
+  }
+}
