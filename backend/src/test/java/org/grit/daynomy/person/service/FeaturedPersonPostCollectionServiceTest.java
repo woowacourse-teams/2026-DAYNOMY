@@ -7,11 +7,18 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.never;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.common.logging.LogEvent;
 import org.grit.daynomy.content.domain.ContentSourceType;
 import org.grit.daynomy.content.service.ContentTranslationService;
 import org.grit.daynomy.external.openai.OpenAiSocialPostSearchClient;
@@ -25,12 +32,15 @@ import org.grit.daynomy.person.dto.FeaturedPersonPostResponse;
 import org.grit.daynomy.person.exception.FeaturedPersonErrorCode;
 import org.grit.daynomy.person.repository.FeaturedPersonPostRepository;
 import org.grit.daynomy.person.repository.FeaturedPersonRepository;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.slf4j.LoggerFactory;
 
 @ExtendWith(MockitoExtension.class)
 class FeaturedPersonPostCollectionServiceTest {
@@ -42,6 +52,25 @@ class FeaturedPersonPostCollectionServiceTest {
   @Mock private FeaturedPersonService featuredPersonService;
   @Mock private ContentTranslationService contentTranslationService;
   @InjectMocks private FeaturedPersonPostCollectionService collectionService;
+  private final Logger logger =
+      (Logger) LoggerFactory.getLogger(FeaturedPersonPostCollectionService.class);
+  private final ListAppender<ILoggingEvent> appender = new ListAppender<>();
+  private Level originalLevel;
+
+  @BeforeEach
+  void setUpLogging() {
+    originalLevel = logger.getLevel();
+    logger.setLevel(Level.DEBUG);
+    appender.start();
+    logger.addAppender(appender);
+  }
+
+  @AfterEach
+  void tearDownLogging() {
+    logger.detachAppender(appender);
+    logger.setLevel(originalLevel);
+    appender.stop();
+  }
 
   @Test
   void collectStoresOnlyNewCandidatesFromConfiguredProfiles() {
@@ -188,6 +217,45 @@ class FeaturedPersonPostCollectionServiceTest {
   }
 
   @Test
+  void collectLogsInvalidPublishedDateCountWithoutLoggingRawValue() {
+    FeaturedPerson person = org.mockito.Mockito.mock(FeaturedPerson.class);
+    given(person.getXProfileUrl()).willReturn("https://x.com/elonmusk");
+    given(personRepository.findById(1L)).willReturn(Optional.of(person));
+    given(
+            socialPostSearchClient.searchProfiles(
+                "https://x.com/elonmusk",
+                null,
+                LocalDate.parse("2026-10-10"),
+                LocalDate.parse("2026-10-12")))
+        .willReturn(
+            List.of(
+                new SocialPostCandidate(
+                    SocialPostCandidate.Platform.X,
+                    "날짜 오류 게시물",
+                    "https://x.com/elonmusk/status/12345",
+                    "private-invalid-date")));
+    given(
+            featuredPersonService.normalizePostUrl(
+                "https://x.com/elonmusk/status/12345", ContentSourceType.X))
+        .willReturn("https://x.com/elonmusk/status/12345");
+    given(contentTranslationService.translateTitleIfEnglish("날짜 오류 게시물"))
+        .willReturn("날짜 오류 게시물");
+    given(postRepository.findByPersonIdAndStatusOrderByCreatedAtDescIdDesc(any(), any()))
+        .willReturn(List.of());
+
+    collectionService.collect(1L, LocalDate.parse("2026-10-10"), LocalDate.parse("2026-10-12"));
+
+    ILoggingEvent event = logEvent(LogEvent.CONTENT_COLLECTION_DATE_PARSE_FAILED);
+    assertThat(event.getLevel()).isEqualTo(Level.WARN);
+    assertThat(keyValues(event))
+        .containsEntry("personId", 1L)
+        .containsEntry("socialInvalidPublishedDateCount", 1)
+        .containsEntry("youtubeInvalidPublishedDateCount", 0)
+        .containsEntry("invalidPublishedDateCount", 1);
+    assertThat(event.getFormattedMessage()).doesNotContain("private-invalid-date");
+  }
+
+  @Test
   void approveMarksPostApproved() {
     FeaturedPersonPost candidate = org.mockito.Mockito.mock(FeaturedPersonPost.class);
     given(candidate.getStatus()).willReturn(FeaturedPersonPostStatus.PENDING);
@@ -236,5 +304,18 @@ class FeaturedPersonPostCollectionServiceTest {
 
     assertThat(response).isEqualTo(expected);
     then(candidate).should().approve(any(Instant.class));
+  }
+
+  private Map<String, Object> keyValues(ILoggingEvent loggingEvent) {
+    Map<String, Object> values = new HashMap<>();
+    loggingEvent.getKeyValuePairs().forEach(pair -> values.put(pair.key, pair.value));
+    return values;
+  }
+
+  private ILoggingEvent logEvent(LogEvent event) {
+    return appender.list.stream()
+        .filter(loggingEvent -> event.code().equals(keyValues(loggingEvent).get("event")))
+        .findFirst()
+        .orElseThrow();
   }
 }

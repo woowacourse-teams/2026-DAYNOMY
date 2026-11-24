@@ -22,6 +22,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.common.logging.ExternalTransportFailure;
 import org.grit.daynomy.common.logging.LogEvent;
 import org.grit.daynomy.external.ExternalErrorCode;
 import org.jsoup.Jsoup;
@@ -31,6 +32,7 @@ import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
 
 @Slf4j
 @Component
@@ -184,7 +186,9 @@ public class OpenAiSocialPostSearchClient {
         restrictDate
             ? " Search only posts published from " + from + " through " + to + " inclusive."
             : " Do not restrict the search by publication date.";
-    return execute(
+    long startedAt = System.nanoTime();
+    List<SocialPostCandidate> generatedCandidates =
+        execute(
             "searchProfilePosts",
             "Find up to 10 public posts authored only by these exact official profiles: "
                 + target
@@ -198,11 +202,26 @@ public class OpenAiSocialPostSearchClient {
                 + " YYYY-MM-DD only when clearly confirmed."
                 + dateHint
                 + " Never guess a date; return an empty publishedDate when it cannot"
-                + " be confirmed.")
-        .stream()
-        .filter(candidate -> belongsToProfile(candidate, xHandle, threadsHandle))
-        .filter(candidate -> !restrictDate || isWithinPeriod(candidate.publishedDate(), from, to))
-        .toList();
+                + " be confirmed.");
+    List<SocialPostCandidate> profileMatchedCandidates =
+        generatedCandidates.stream()
+            .filter(candidate -> belongsToProfile(candidate, xHandle, threadsHandle))
+            .toList();
+    List<SocialPostCandidate> acceptedCandidates =
+        profileMatchedCandidates.stream()
+            .filter(
+                candidate ->
+                    !restrictDate || isWithinPeriod(candidate.publishedDate(), from, to))
+            .toList();
+    int profileRejectedCount = generatedCandidates.size() - profileMatchedCandidates.size();
+    int dateRejectedCount = profileMatchedCandidates.size() - acceptedCandidates.size();
+    logFilteredResults(
+        generatedCandidates.size(),
+        acceptedCandidates.size(),
+        profileRejectedCount,
+        dateRejectedCount,
+        startedAt);
+    return acceptedCandidates;
   }
 
   private boolean isWithinPeriod(String value, LocalDate from, LocalDate to) {
@@ -212,6 +231,14 @@ public class OpenAiSocialPostSearchClient {
 
   private List<SocialPostCandidate> execute(String operation, String input) {
     if (properties.apiKey() == null || properties.apiKey().isBlank()) {
+      log.atError()
+          .addKeyValue("event", LogEvent.EXTERNAL_API_FAILED.code())
+          .addKeyValue("api", "OPENAI_SOCIAL_SEARCH")
+          .addKeyValue("operation", operation)
+          .addKeyValue("errorCode", ExternalErrorCode.AI_SOCIAL_SEARCH_FAILED.code())
+          .addKeyValue("reasonCode", "API_KEY_NOT_CONFIGURED")
+          .addKeyValue("retryable", false)
+          .log(LogEvent.EXTERNAL_API_FAILED.message());
       throw searchFailed();
     }
 
@@ -231,25 +258,28 @@ public class OpenAiSocialPostSearchClient {
               .body(requestBody(input))
               .retrieve()
               .body(String.class);
-      List<SocialPostCandidate> candidates = parseCandidates(response);
+      SocialPostParseResult parseResult = parseCandidates(response);
+      List<SocialPostCandidate> candidates = parseResult.candidates();
+      logInvalidPublishedDates(operation, parseResult.invalidPublishedDateCount(), startedAt);
       log.atInfo()
           .addKeyValue("event", LogEvent.EXTERNAL_API_COMPLETED.code())
           .addKeyValue("api", "OPENAI_SOCIAL_SEARCH")
           .addKeyValue("operation", operation)
-          .addKeyValue("responseCount", candidates.size())
+          .addKeyValue("generatedCount", candidates.size())
           .addKeyValue("durationMs", elapsedMillis(startedAt))
           .log(LogEvent.EXTERNAL_API_COMPLETED.message());
       return candidates;
     } catch (HttpStatusCodeException exception) {
-      log.atError()
-          .addKeyValue("event", LogEvent.EXTERNAL_API_FAILED.code())
-          .addKeyValue("api", "OPENAI_SOCIAL_SEARCH")
-          .addKeyValue("operation", operation)
-          .addKeyValue("responseStatus", exception.getStatusCode().value())
-          .addKeyValue("durationMs", elapsedMillis(startedAt))
-          .addKeyValue("errorCode", ExternalErrorCode.AI_SOCIAL_SEARCH_FAILED.code())
-          .addKeyValue("exceptionType", exception.getClass().getSimpleName())
-          .log(LogEvent.EXTERNAL_API_FAILED.message());
+      var event =
+          log.atError()
+              .addKeyValue("event", LogEvent.EXTERNAL_API_FAILED.code())
+              .addKeyValue("api", "OPENAI_SOCIAL_SEARCH")
+              .addKeyValue("operation", operation)
+              .addKeyValue("durationMs", elapsedMillis(startedAt))
+              .addKeyValue("errorCode", ExternalErrorCode.AI_SOCIAL_SEARCH_FAILED.code())
+              .addKeyValue("exceptionType", exception.getClass().getSimpleName());
+      OpenAiHttpFailure.from(exception).addTo(event);
+      event.log(LogEvent.EXTERNAL_API_FAILED.message());
       throw searchFailed();
     } catch (BusinessException exception) {
       log.atError()
@@ -262,14 +292,18 @@ public class OpenAiSocialPostSearchClient {
           .log(LogEvent.EXTERNAL_API_FAILED.message());
       throw exception;
     } catch (RuntimeException exception) {
-      log.atError()
-          .addKeyValue("event", LogEvent.EXTERNAL_API_FAILED.code())
-          .addKeyValue("api", "OPENAI_SOCIAL_SEARCH")
-          .addKeyValue("operation", operation)
-          .addKeyValue("durationMs", elapsedMillis(startedAt))
-          .addKeyValue("errorCode", ExternalErrorCode.AI_SOCIAL_SEARCH_FAILED.code())
-          .addKeyValue("exceptionType", exception.getClass().getSimpleName())
-          .log(LogEvent.EXTERNAL_API_FAILED.message());
+      var event =
+          log.atError()
+              .addKeyValue("event", LogEvent.EXTERNAL_API_FAILED.code())
+              .addKeyValue("api", "OPENAI_SOCIAL_SEARCH")
+              .addKeyValue("operation", operation)
+              .addKeyValue("durationMs", elapsedMillis(startedAt))
+              .addKeyValue("errorCode", ExternalErrorCode.AI_SOCIAL_SEARCH_FAILED.code())
+              .addKeyValue("exceptionType", exception.getClass().getSimpleName());
+      if (exception instanceof RestClientException) {
+        ExternalTransportFailure.from(exception).addTo(event);
+      }
+      event.log(LogEvent.EXTERNAL_API_FAILED.message());
       throw searchFailed();
     }
   }
@@ -332,7 +366,7 @@ public class OpenAiSocialPostSearchClient {
             List.of("items")));
   }
 
-  private List<SocialPostCandidate> parseCandidates(String response) {
+  private SocialPostParseResult parseCandidates(String response) {
     try {
       JsonNode output = OBJECT_MAPPER.readTree(response).path("output");
       if (!output.isArray()) {
@@ -355,11 +389,17 @@ public class OpenAiSocialPostSearchClient {
       }
 
       Map<String, SocialPostCandidate> candidates = new LinkedHashMap<>();
+      int invalidPublishedDateCount = 0;
       for (JsonNode item : outputItems(output)) {
         Optional<SocialPostCandidate> parsedCandidate =
             candidate(item.path("title").asText(), item.path("url").asText());
         if (parsedCandidate.isEmpty()) {
           continue;
+        }
+        String rawPublishedDate = item.path("publishedDate").asText();
+        Optional<LocalDate> publishedDate = parsePublishedDate(rawPublishedDate);
+        if (!rawPublishedDate.isBlank() && publishedDate.isEmpty()) {
+          invalidPublishedDateCount++;
         }
         SocialPostCandidate source = sources.get(parsedCandidate.get().url());
         if (source == null) {
@@ -370,12 +410,11 @@ public class OpenAiSocialPostSearchClient {
             verifyThreadsPost(
                     parsedCandidate.get().url(),
                     parsedCandidate.get().title(),
-                    item.path("publishedDate").asText())
+                    rawPublishedDate)
                 .ifPresent(candidate -> candidates.putIfAbsent(candidate.url(), candidate));
           }
           continue;
         }
-        Optional<LocalDate> publishedDate = parsePublishedDate(item.path("publishedDate").asText());
         candidates.putIfAbsent(
             source.url(),
             new SocialPostCandidate(
@@ -384,13 +423,15 @@ public class OpenAiSocialPostSearchClient {
                 source.url(),
                 publishedDate.map(LocalDate::toString).orElse("")));
       }
-      return List.copyOf(candidates.values());
+      return new SocialPostParseResult(
+          List.copyOf(candidates.values()), invalidPublishedDateCount);
     } catch (Exception exception) {
       throw searchFailed();
     }
   }
 
   private Optional<SocialPostCandidate> verifyXPost(String url, String fallbackTitle) {
+    long startedAt = System.nanoTime();
     try {
       String response =
           xOembedClient
@@ -417,12 +458,14 @@ public class OpenAiSocialPostSearchClient {
           new SocialPostCandidate(
               SocialPostCandidate.Platform.X, title, verified.get().url(), publishedDate));
     } catch (RuntimeException | JsonProcessingException exception) {
+      logVerificationFailure("X_OEMBED", "REQUEST_FAILED", null, exception, startedAt);
       return Optional.empty();
     }
   }
 
   private Optional<SocialPostCandidate> verifyThreadsPost(
       String url, String title, String publishedDate) {
+    long startedAt = System.nanoTime();
     try {
       URI postUri = URI.create(url);
       URI validationUri = threadsValidationBaseUri.resolve(postUri.getRawPath());
@@ -434,6 +477,8 @@ public class OpenAiSocialPostSearchClient {
                   .build(),
               HttpResponse.BodyHandlers.discarding());
       if (response.statusCode() < 200 || response.statusCode() >= 300) {
+        logVerificationFailure(
+            "THREADS", "NON_SUCCESS_STATUS", response.statusCode(), null, startedAt);
         return Optional.empty();
       }
       URI canonicalUri = THREADS_PUBLIC_BASE_URI.resolve(response.uri().getRawPath());
@@ -451,10 +496,38 @@ public class OpenAiSocialPostSearchClient {
               parsePublishedDate(publishedDate).map(LocalDate::toString).orElse("")));
     } catch (InterruptedException exception) {
       Thread.currentThread().interrupt();
+      logVerificationFailure("THREADS", "INTERRUPTED", null, exception, startedAt);
       return Optional.empty();
     } catch (IOException | RuntimeException exception) {
+      logVerificationFailure("THREADS", "REQUEST_FAILED", null, exception, startedAt);
       return Optional.empty();
     }
+  }
+
+  private void logVerificationFailure(
+      String api, String reasonCode, Integer responseStatus, Throwable exception, long startedAt) {
+    var event =
+        log.atWarn()
+            .addKeyValue("event", LogEvent.EXTERNAL_API_FAILED.code())
+            .addKeyValue("api", api)
+            .addKeyValue("operation", "verifyPost")
+            .addKeyValue("reasonCode", reasonCode)
+            .addKeyValue("durationMs", elapsedMillis(startedAt));
+    Integer resolvedStatus = responseStatus;
+    if (exception != null) {
+      event.addKeyValue("errorType", exception.getClass().getSimpleName());
+      if (resolvedStatus == null && exception instanceof HttpStatusCodeException http) {
+        resolvedStatus = http.getStatusCode().value();
+      } else if (exception instanceof RestClientException
+          || (exception instanceof IOException
+              && !(exception instanceof JsonProcessingException))) {
+        ExternalTransportFailure.from(exception).addTo(event);
+      }
+    }
+    if (resolvedStatus != null) {
+      event.addKeyValue("responseStatus", resolvedStatus);
+    }
+    event.log(LogEvent.EXTERNAL_API_FAILED.message());
   }
 
   private boolean sameXAuthor(String postUrl, String authorUrl) {
@@ -604,6 +677,42 @@ public class OpenAiSocialPostSearchClient {
     }
   }
 
+  private void logFilteredResults(
+      int generatedCount,
+      int acceptedCount,
+      int profileRejectedCount,
+      int dateRejectedCount,
+      long startedAt) {
+    if (profileRejectedCount == 0 && dateRejectedCount == 0) {
+      return;
+    }
+    log.atWarn()
+        .addKeyValue("event", LogEvent.EXTERNAL_API_PARTIAL_RESPONSE.code())
+        .addKeyValue("api", "OPENAI_SOCIAL_SEARCH")
+        .addKeyValue("operation", "searchProfilePosts")
+        .addKeyValue("generatedCount", generatedCount)
+        .addKeyValue("acceptedCount", acceptedCount)
+        .addKeyValue("profileRejectedCount", profileRejectedCount)
+        .addKeyValue("dateRejectedCount", dateRejectedCount)
+        .addKeyValue("durationMs", elapsedMillis(startedAt))
+        .log(LogEvent.EXTERNAL_API_PARTIAL_RESPONSE.message());
+  }
+
+  private void logInvalidPublishedDates(
+      String operation, int invalidPublishedDateCount, long startedAt) {
+    if (invalidPublishedDateCount == 0) {
+      return;
+    }
+    log.atWarn()
+        .addKeyValue("event", LogEvent.EXTERNAL_API_PARTIAL_RESPONSE.code())
+        .addKeyValue("api", "OPENAI_SOCIAL_SEARCH")
+        .addKeyValue("operation", operation)
+        .addKeyValue("reasonCode", "INVALID_PUBLISHED_DATE")
+        .addKeyValue("invalidPublishedDateCount", invalidPublishedDateCount)
+        .addKeyValue("durationMs", elapsedMillis(startedAt))
+        .log(LogEvent.EXTERNAL_API_PARTIAL_RESPONSE.message());
+  }
+
   private String profileHandle(String profileUrl, SocialPostCandidate.Platform platform) {
     if (profileUrl == null || profileUrl.isBlank()) {
       return null;
@@ -631,6 +740,9 @@ public class OpenAiSocialPostSearchClient {
   private BusinessException searchFailed() {
     return new BusinessException(ExternalErrorCode.AI_SOCIAL_SEARCH_FAILED);
   }
+
+  private record SocialPostParseResult(
+      List<SocialPostCandidate> candidates, int invalidPublishedDateCount) {}
 
   private static int toMillis(Duration duration) {
     return Math.toIntExact(duration.toMillis());

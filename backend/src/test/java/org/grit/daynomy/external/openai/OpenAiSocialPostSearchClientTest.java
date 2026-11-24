@@ -3,6 +3,10 @@ package org.grit.daynomy.external.openai;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.net.URI;
@@ -14,24 +18,37 @@ import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
 import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.common.logging.LogEvent;
 import org.grit.daynomy.external.ExternalErrorCode;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 
 class OpenAiSocialPostSearchClientTest {
 
   private final ObjectMapper objectMapper = new ObjectMapper();
   private MockWebServer server;
+  private final Logger logger =
+      (Logger) LoggerFactory.getLogger(OpenAiSocialPostSearchClient.class);
+  private final ListAppender<ILoggingEvent> appender = new ListAppender<>();
+  private Level originalLevel;
 
   @BeforeEach
   void setUp() throws Exception {
     server = new MockWebServer();
     server.start();
+    originalLevel = logger.getLevel();
+    logger.setLevel(Level.DEBUG);
+    appender.start();
+    logger.addAppender(appender);
   }
 
   @AfterEach
   void tearDown() throws Exception {
+    logger.detachAppender(appender);
+    logger.setLevel(originalLevel);
+    appender.stop();
     server.shutdown();
   }
 
@@ -124,6 +141,38 @@ class OpenAiSocialPostSearchClientTest {
   }
 
   @Test
+  void invalidPublishedDateLogsAggregateWithoutRawValue() throws Exception {
+    server.enqueue(
+        jsonResponse(
+            searchResponse(
+                List.of(
+                    Map.of(
+                        "title", "삼성전자 실적", "url", "https://x.com/market/status/12345")),
+                List.of(
+                    Map.of(
+                        "title",
+                        "삼성전자 실적",
+                        "url",
+                        "https://x.com/market/status/12345",
+                        "publishedDate",
+                        "private-invalid-date")))));
+    OpenAiSocialPostSearchClient client = newClient("test-key");
+
+    assertThat(client.search("삼성전자"))
+        .singleElement()
+        .satisfies(candidate -> assertThat(candidate.publishedDate()).isEmpty());
+
+    ILoggingEvent event = logEvent(LogEvent.EXTERNAL_API_PARTIAL_RESPONSE);
+    assertThat(event.getLevel()).isEqualTo(Level.WARN);
+    assertThat(keyValues(event))
+        .containsEntry("api", "OPENAI_SOCIAL_SEARCH")
+        .containsEntry("operation", "searchPosts")
+        .containsEntry("reasonCode", "INVALID_PUBLISHED_DATE")
+        .containsEntry("invalidPublishedDateCount", 1);
+    assertThat(event.getFormattedMessage()).doesNotContain("private-invalid-date");
+  }
+
+  @Test
   void sourceSearchKeepsPostsRegardlessOfDateAndFiltersAuthors() throws Exception {
     server.enqueue(
         jsonResponse(
@@ -192,6 +241,13 @@ class OpenAiSocialPostSearchClientTest {
             "https://x.com/elonmusk/status/22222",
             "https://www.threads.com/@elonmusk/post/ABC");
     assertThat(candidates.get(2).publishedDate()).isEmpty();
+    assertThat(keyValues(logEvent(LogEvent.EXTERNAL_API_PARTIAL_RESPONSE)))
+        .containsEntry("api", "OPENAI_SOCIAL_SEARCH")
+        .containsEntry("operation", "searchProfilePosts")
+        .containsEntry("generatedCount", 6)
+        .containsEntry("acceptedCount", 4)
+        .containsEntry("profileRejectedCount", 2)
+        .containsEntry("dateRejectedCount", 0);
     JsonNode requestBody = objectMapper.readTree(server.takeRequest().getBody().readUtf8());
     assertThat(requestBody.path("input").asText())
         .contains("authored only by these exact official profiles")
@@ -308,6 +364,13 @@ class OpenAiSocialPostSearchClientTest {
         .extracting(exception -> ((BusinessException) exception).errorCode())
         .isEqualTo(ExternalErrorCode.AI_SOCIAL_SEARCH_FAILED);
     assertThat(server.getRequestCount()).isZero();
+    ILoggingEvent event = logEvent(LogEvent.EXTERNAL_API_FAILED);
+    assertThat(event.getLevel()).isEqualTo(Level.ERROR);
+    assertThat(keyValues(event))
+        .containsEntry("api", "OPENAI_SOCIAL_SEARCH")
+        .containsEntry("operation", "searchPosts")
+        .containsEntry("reasonCode", "API_KEY_NOT_CONFIGURED")
+        .containsEntry("retryable", false);
   }
 
   @Test
@@ -352,5 +415,18 @@ class OpenAiSocialPostSearchClientTest {
                     "message",
                     "content",
                     List.of(Map.of("type", "output_text", "text", outputText))))));
+  }
+
+  private Map<String, Object> keyValues(ILoggingEvent loggingEvent) {
+    Map<String, Object> values = new java.util.HashMap<>();
+    loggingEvent.getKeyValuePairs().forEach(pair -> values.put(pair.key, pair.value));
+    return values;
+  }
+
+  private ILoggingEvent logEvent(LogEvent event) {
+    return appender.list.stream()
+        .filter(loggingEvent -> event.code().equals(keyValues(loggingEvent).get("event")))
+        .findFirst()
+        .orElseThrow();
   }
 }
