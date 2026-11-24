@@ -13,13 +13,16 @@ def startup_diagnostics(journal):
     """Extract code identifiers only; never publish raw application log messages."""
     patterns = {
         'exceptions': r'\b(?:[a-zA-Z_$][\w$]*\.)+[A-Z][\w$]*(?:Exception|Error)\b',
-        'beans': r"(?:bean with name|parameter named) ['\"]([A-Za-z][\w.]{0,120})['\"]",
+        'beans': r"(?:bean with name|parameter named|reference to bean|named) ['\"]([A-Za-z][\w.]{0,120})['\"]",
+        'exception_names': r'\b([A-Z][A-Za-z0-9]*(?:Exception|Error))\b',
         'missing_types': r"(?:bean of type|No qualifying bean of type) ['\"]([\w.$]+)['\"]",
         'properties': r"Could not resolve placeholder ['\"]([\w.-]+)['\"]",
         'sql_states': r'SQL State\s*:\s*([A-Z0-9]{5})\b',
         'schema_errors': r'((?:relation|column) "[a-z][a-z0-9_]*" (?:already exists|does not exist))',
         'migrations': r'\b(V\d+__[A-Za-z0-9_]+\.sql)\b',
         'frames': r'\bat ((?:[A-Za-z_$][\w$]*\.)+[\w$<>]+\([A-Za-z_$][\w$]*\.java:\d+\))',
+        'known_failures': r'(?:Unable to start web server|Failed to initialize JPA EntityManagerFactory|Validate failed|Migration checksum mismatch|Failed to obtain JDBC Connection|Connection refused|OutOfMemoryError|Not a managed type|Schema-validation: missing table|APPLICATION FAILED TO START|Failed to bind properties|NoSuchMethodError|ClassNotFoundException)',
+        'config_symbols': r'\b(?:class|method|field|constructor) ([A-Za-z_$][\w.$<>]+)\b',
     }
     findings = {key: set() for key in patterns}
     for line in journal.splitlines():
@@ -29,6 +32,12 @@ def startup_diagnostics(journal):
             continue
         if not isinstance(message, str):
             continue
+        try:
+            structured = json.loads(message)
+            if isinstance(structured, dict):
+                message = '\n'.join(value for value in structured.values() if isinstance(value, str))
+        except ValueError:
+            pass
         for key, pattern in patterns.items():
             findings[key].update(re.findall(pattern, message))
     return {key: sorted(values)[:80] for key, values in findings.items() if values}
