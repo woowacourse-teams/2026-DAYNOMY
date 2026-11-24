@@ -126,7 +126,8 @@ class NewsPublishAiServiceTest {
     assertThat(appender.list)
         .noneMatch(
             loggingEvent ->
-                LogEvent.AI_NEWS_GENERATION_FAILED.code()
+                LogEvent.AI_NEWS_GENERATION_FAILED
+                    .code()
                     .equals(keyValues(loggingEvent).get("event")));
   }
 
