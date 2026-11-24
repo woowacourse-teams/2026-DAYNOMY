@@ -10,6 +10,18 @@ on:
 
   workflow_dispatch:
     inputs:
+      development_existing_release_operation:
+        description: Explicit operation using the inspected already-running development JAR
+        type: choice
+        options:
+          - none
+          - bootstrap
+          - switch
+        default: none
+      release_trial_counter:
+        description: Numeric suffix for immutable same-release switching trials
+        type: string
+        default: "1"
       development_memory_trial:
         description: Explicit development-only 1GiB swap and bounded JVM experiment
         type: boolean
@@ -48,7 +60,7 @@ concurrency:
 
 jobs:
   build:
-    if: (github.event_name != 'workflow_dispatch' || !inputs.verify_only) && !inputs.development_memory_trial
+    if: github.event_name != 'workflow_dispatch' || (!inputs.verify_only && !inputs.development_memory_trial && inputs.development_existing_release_operation == 'none')
     name: Test and build backend
     runs-on: ubuntu-latest
 
@@ -112,7 +124,7 @@ jobs:
           retention-days: 7
 
   heavy-tests:
-    if: (github.event_name != 'workflow_dispatch' || !inputs.verify_only) && !inputs.development_memory_trial
+    if: github.event_name != 'workflow_dispatch' || (!inputs.verify_only && !inputs.development_memory_trial && inputs.development_existing_release_operation == 'none')
     name: Test heavy preparation tools
     runs-on: ubuntu-latest
 
@@ -152,7 +164,8 @@ jobs:
     if: >
       github.ref == 'refs/heads/dev' &&
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
-      !inputs.verify_only && !inputs.development_memory_trial
+      !inputs.verify_only && !inputs.development_memory_trial &&
+      (github.event_name != 'workflow_dispatch' || inputs.development_existing_release_operation == 'none')
     name: Deploy backend development
     needs: [build, heavy-tests]
 
@@ -262,7 +275,7 @@ jobs:
         run: python3 backend/scripts/inspect_backend_development.py
 
   verify-development:
-    if: github.event_name == 'workflow_dispatch' && inputs.verify_only && !inputs.development_memory_trial && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/chore/BE/#943')
+    if: github.event_name == 'workflow_dispatch' && inputs.verify_only && !inputs.development_memory_trial && inputs.development_existing_release_operation == 'none' && github.ref == 'refs/heads/dev'
     name: Verify development without deployment
     runs-on: [self-hosted, Linux, ARM64, backend-dev]
     timeout-minutes: 5
@@ -313,7 +326,7 @@ jobs:
           PYINSPECT
 
   development-memory:
-    if: github.event_name == 'workflow_dispatch' && inputs.development_memory_trial && !inputs.verify_only && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/chore/BE/#943')
+    if: github.event_name == 'workflow_dispatch' && inputs.development_memory_trial && !inputs.verify_only && inputs.development_existing_release_operation == 'none' && github.ref == 'refs/heads/dev'
     name: Prepare and observe bounded development memory
     runs-on: [self-hosted, Linux, ARM64, backend-dev]
     environment: development
@@ -330,5 +343,31 @@ jobs:
             --apply --expected-current-sha256 "$EXPECTED_CURRENT_SHA256" \
             --observe-seconds "$OBSERVE_SECONDS"
       - name: Verify current development API
+        if: always()
+        run: python3 backend/scripts/inspect_backend_development.py
+
+  development-existing-release:
+    if: github.event_name == 'workflow_dispatch' && inputs.development_existing_release_operation != 'none' && !inputs.verify_only && !inputs.development_memory_trial && github.ref == 'refs/heads/dev'
+    name: Explicit development operation on verified release
+    runs-on: [self-hosted, Linux, ARM64, backend-dev]
+    environment: development
+    timeout-minutes: 20
+    steps:
+      - name: Checkout reviewed development controller
+        uses: actions/checkout@v6
+      - name: Run selected development operation with JAR identity guard
+        env:
+          OPERATION: ${{ inputs.development_existing_release_operation }}
+          EXPECTED_CURRENT_SHA256: ${{ inputs.expected_current_sha256 }}
+          RELEASE_COUNTER: ${{ inputs.release_trial_counter }}
+        run: |
+          if ! [[ "$RELEASE_COUNTER" =~ ^[0-9]{1,4}$ ]]; then
+            echo "Release trial counter must contain 1..4 digits."
+            exit 1
+          fi
+          sudo -n python3 backend/scripts/operate_backend_development.py \
+            --operation "$OPERATION" --expected-current-sha256 "$EXPECTED_CURRENT_SHA256" \
+            --version "${GITHUB_SHA}-bg${RELEASE_COUNTER}" --apply
+      - name: Verify active development slot and API
         if: always()
         run: python3 backend/scripts/inspect_backend_development.py
