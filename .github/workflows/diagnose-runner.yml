@@ -55,6 +55,8 @@ jobs:
           import re
           import shutil
           import subprocess
+          import time
+          import urllib.request
           import sys
 
           environment = os.environ.get("DIAGNOSTIC_ENVIRONMENT", "development")
@@ -248,6 +250,18 @@ jobs:
               state = re.search(r'java.lang.Thread.State: ([A-Z_]+)', block)
               frames = re.findall(r'^\s+at ((?:org\.grit\.daynomy|java\.util\.concurrent)[A-Za-z0-9_.$]+)', block, re.M)
               print(json.dumps({'thread': name[1], 'state': state[1] if state else 'unknown', 'scheduled_queue_wait': 'ScheduledThreadPoolExecutor$DelayedWorkQueue.take' in block, 'task_frames': frames[:4]}))
+          for sample in range(3):
+              with urllib.request.urlopen('http://127.0.0.1:8081/actuator/prometheus', timeout=10) as response:
+                  metrics = response.read().decode()
+              values = {}
+              for line in metrics.splitlines():
+                  metric = re.fullmatch(r'(daynomy_league_calculation_(?:latest_profiles|last_completed_epoch_seconds|latest_run_failed|duration_seconds_count))(?:\{([^}]*)\})? ([0-9.eE+-]+)', line)
+                  if metric:
+                      outcome = re.search(r'outcome="(target|succeeded|failed)"', metric[2] or '')
+                      values[metric[1] + (':' + outcome[1] if outcome else '')] = float(metric[3])
+              print(json.dumps({'league_progress_sample': sample, 'epoch_seconds': int(time.time()), 'values': values}), flush=True)
+              if sample < 2:
+                  time.sleep(15)
           PY
 
       - name: Read runner service supervision
