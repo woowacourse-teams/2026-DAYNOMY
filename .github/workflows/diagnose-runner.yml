@@ -254,6 +254,8 @@ jobs:
           memory = {line.split(':')[0]: line.split(':')[1].strip() for line in Path('/proc/' + pid + '/status').read_text().splitlines() if line.split(':')[0] in ('VmRSS', 'VmSwap')}
           print(json.dumps({'development_jvm': unit, 'slot': slot, 'memory': memory}), flush=True)
           dump = subprocess.check_output(['timeout', '15', '/usr/lib/jvm/java-21-amazon-corretto.aarch64/bin/java', '-Xmx32m', '-XX:TieredStopAtLevel=1', '-m', 'jdk.jcmd/sun.tools.jcmd.JCmd', pid, 'Thread.print'], text=True)
+          flags = subprocess.check_output(['timeout', '15', '/usr/lib/jvm/java-21-amazon-corretto.aarch64/bin/java', '-Xmx32m', '-XX:TieredStopAtLevel=1', '-m', 'jdk.jcmd/sun.tools.jcmd.JCmd', pid, 'VM.flags'], text=True)
+          print(json.dumps({'actual_jvm_collectors': {name: '-XX:+' + name in flags.split() for name in ('UseSerialGC', 'UseG1GC', 'UseParallelGC', 'UseZGC')}, 'slot': slot}), flush=True)
           for block in re.split(r'\n(?=")', dump):
               name = re.match(r'"([A-Za-z0-9_. -]+)"', block)
               if not name:
