@@ -7,17 +7,30 @@ import { tourAnalysis } from '../../src/features/portfolio/components/portfolioT
 afterEach(cleanup);
 
 describe('리뷰 분석 결과 표시', () => {
-  it('전체 분석과 종목 상세를 전환하며 출처와 점수 설명을 바로 표시한다', () => {
+  it('제안 구성 맥락을 유지하고 출처와 점수 설명을 접어서 표시한다', () => {
     const view = render(
-      <PortfolioReviewAnalysisResult analysis={tourAnalysis} title="검토 분석" />,
+      <PortfolioReviewAnalysisResult
+        analysis={tourAnalysis}
+        title="제안 구성 AI 분석"
+        portfolioLabel="개선안 포트폴리오"
+        contextNote="실제 보유에는 반영되지 않은 개선안 분석이에요."
+      />,
     );
-    expect(view.getByText(/체험용 예시입니다/)).toBeTruthy();
+    expect(view.getByRole('heading', { name: '제안 구성 AI 분석' })).toBeTruthy();
+    expect(view.getByText('실제 보유에는 반영되지 않은 개선안 분석이에요.')).toBeTruthy();
+    expect(view.getByText(/체험용 예시예요/)).toBeTruthy();
     expect(view.getByText(/예상 수익률이나 상승 확률은 아니에요/)).toBeTruthy();
-    expect(view.container.querySelector('details')).toBeNull();
+    const details = view.container.querySelectorAll('details');
+    expect(details).toHaveLength(2);
+    expect(details[0].hasAttribute('open')).toBe(false);
+    expect(details[1].hasAttribute('open')).toBe(false);
+    fireEvent.click(details[0].querySelector('summary')!);
+    fireEvent.click(details[1].querySelector('summary')!);
     expect(
       view.getByRole('link', { name: '체험용 가상 소식 · 실제 뉴스가 아닙니다' }),
     ).toBeTruthy();
     fireEvent.click(view.getByRole('button', { name: /삼성전자\s*TOP 1/ }));
+    expect(view.getByRole('button', { name: '삼성전자 분석 보기' })).toBeTruthy();
     expect(view.getByText(tourAnalysis.impacts[0].expectedReaction)).toBeTruthy();
     expect(view.getByText(tourAnalysis.impacts[0].outlook)).toBeTruthy();
     expect(
@@ -26,8 +39,9 @@ describe('리뷰 분석 결과 표시', () => {
     expect(
       view.getByRole('link', { name: '체험용 가상 소식 · 실제 뉴스가 아닙니다' }),
     ).toBeTruthy();
-    fireEvent.click(view.getByRole('button', { name: '전체 포트폴리오 분석 보기' }));
-    expect(view.getByText(/체험용 예시입니다/)).toBeTruthy();
+    fireEvent.click(view.getByRole('button', { name: '삼성전자 분석 보기' }));
+    expect(view.getByText(/체험용 예시예요/)).toBeTruthy();
+    expect(view.getByRole('button', { name: '개선안 포트폴리오 분석 보기' })).toBeTruthy();
   });
 
   it('부분 공개에서는 전체 점수·요약·출처·제외 종목을 표시하지 않는다', () => {

@@ -164,15 +164,25 @@
   gap: 8px;
 }
 
-.portfolio-share-actions button,
-.portfolio-share-link button {
+.portfolio-share-actions :is(button, a),
+.portfolio-share-link :is(button, a) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   border: 1px solid #31588a;
   border-radius: 9px;
   background: #31588a;
   color: #fff;
   padding: 10px 14px;
+  font: inherit;
   font-weight: 700;
+  text-decoration: none;
   cursor: pointer;
+}
+
+.portfolio-share-link a {
+  text-decoration: none;
 }
 
 .portfolio-share-actions button:disabled {
@@ -207,6 +217,16 @@
   border: 1px solid #cfd9ea;
   border-radius: 9px;
   padding: 10px;
+}
+
+.portfolio-share-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .portfolio-share-reviews ul:not(.portfolio-review-result *) {
@@ -929,6 +949,33 @@
   font-variant-numeric: tabular-nums;
 }
 
+.portfolio-simulation-table input[readonly] {
+  border-color: #e4e9f0;
+  background: #f4f6f9;
+  color: #344054;
+  cursor: default;
+}
+
+.portfolio-simulation-automatic-badge {
+  display: block;
+  width: max-content;
+  margin: 5px 0 0 auto;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #edf3fa;
+  color: #31588a;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.portfolio-review-simulation-editor .portfolio-simulation-automatic-help {
+  margin: 4px 0 0;
+  color: #667085;
+  font-size: 0.75rem;
+  line-height: 1.6;
+}
+
 .portfolio-simulation-table th[scope='row'] {
   padding-right: 16px;
   overflow-wrap: anywhere;
@@ -1194,6 +1241,13 @@
   padding: 11px 16px;
   text-decoration: none;
   font-weight: 700;
+}
+
+.portfolio-simulation-automatic-help {
+  margin: 10px 0 0;
+  color: #667085;
+  font-size: 0.75rem;
+  line-height: 1.6;
 }
 
 .portfolio-public-share-state {
@@ -1563,14 +1617,29 @@
 }
 
 .portfolio-share-link > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: stretch;
 }
 
-.portfolio-share-link button {
+.portfolio-share-link :is(button, a) {
   display: inline-flex;
+  min-height: 44px;
   align-items: center;
+  justify-content: center;
   gap: 7px;
   white-space: nowrap;
+}
+
+.portfolio-share-link a {
+  border-color: #bfc8d5;
+  background: #fff;
+  color: #34445b;
+}
+
+.portfolio-share-link :is(button, a):focus-visible {
+  outline: 2px solid #31588a;
+  outline-offset: 2px;
 }
 
 .portfolio-share-history {
@@ -1578,13 +1647,21 @@
   padding-top: 18px;
 }
 
-.portfolio-share-history > summary {
-  cursor: pointer;
+.portfolio-share-history-heading {
+  display: flex;
+  margin-bottom: 18px;
+  align-items: center;
+  gap: 7px;
   color: #344054;
   font-weight: 700;
 }
 
-.portfolio-share-history > summary span {
+.portfolio-share-history-heading h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.portfolio-share-history-heading span {
   display: inline-grid;
   min-width: 23px;
   height: 23px;
@@ -1593,10 +1670,6 @@
   border-radius: 999px;
   background: #f2f4f7;
   font-size: 0.76rem;
-}
-
-.portfolio-share-history[open] > summary {
-  margin-bottom: 18px;
 }
 
 /* Public review room */
@@ -2152,11 +2225,11 @@
 }
 
 .portfolio-public-review .portfolio-reply-compose {
-  padding: 16px;
-  border: 1px solid #e4e7ec;
-  background: #fff;
-  border-radius: 12px;
-  gap: 12px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  border-radius: 0;
+  gap: 8px;
 }
 
 .portfolio-public-review .portfolio-reply-compose label {
@@ -2164,8 +2237,7 @@
   font-weight: 500;
 }
 
-.portfolio-public-review .portfolio-reply-compose > button {
-  justify-self: end;
+.portfolio-public-review .portfolio-reply-compose-footer > button {
   background: #182230;
   border-color: #182230;
   font-size: 0.8125rem;
@@ -2373,11 +2445,6 @@
   font-weight: 600;
 }
 
-.portfolio-public-main > .portfolio-review-result .portfolio-analysis-heading h2 {
-  font-size: 1.125rem;
-  font-weight: 700;
-}
-
 .portfolio-public-share-state a {
   background: #182230;
 }
@@ -2488,8 +2555,8 @@
   }
 
   .portfolio-public-review .portfolio-reply-compose {
-    padding: 12px;
-    border-radius: 8px;
+    padding: 0;
+    border-radius: 0;
   }
 
   .portfolio-public-review .portfolio-share-actions button {
@@ -2543,5 +2610,558 @@
 
   body:has(.portfolio-public-share-page) .feedback-trigger {
     display: none;
+  }
+}
+
+/* Review request history */
+.portfolio-share-history {
+  padding-top: 20px;
+}
+
+.portfolio-share-history-heading {
+  display: flex;
+  min-height: 32px;
+  margin-bottom: 12px;
+  align-items: center;
+  gap: 7px;
+}
+
+.portfolio-share-history-heading h2 {
+  margin: 0;
+  color: #182230;
+  font-size: 1rem;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+}
+
+.portfolio-share-history-heading span {
+  display: inline-grid;
+  min-width: 23px;
+  height: 23px;
+  place-items: center;
+  border-radius: 999px;
+  background: #edf1f6;
+  color: #526077;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.portfolio-share-history > ul {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.portfolio-share-history > ul > li {
+  display: block;
+  padding: 0;
+  border: 0;
+}
+
+.portfolio-share-history-item {
+  overflow: hidden;
+  border: 1px solid #d8dee8;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.portfolio-share-history-item > header {
+  display: grid;
+  min-height: 76px;
+  padding: 14px 16px;
+  align-items: center;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  gap: 6px 12px;
+  color: #182230;
+}
+
+.portfolio-share-history-item > header > strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #182230;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.portfolio-share-history-status {
+  display: inline-flex;
+  min-height: 24px;
+  padding: 3px 8px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #edf1f6;
+  color: #526077;
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.portfolio-share-history-status.is-active {
+  background: #eaf6ef;
+  color: #1f6845;
+}
+
+.portfolio-share-history-expiry,
+.portfolio-share-history-count {
+  color: #526077;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.portfolio-share-history-count {
+  color: #31588a;
+  font-weight: 700;
+}
+
+.portfolio-share-history-body {
+  display: grid;
+  padding: 0 18px 18px;
+  border-top: 1px solid #e4e7ec;
+}
+
+.portfolio-share-history-review {
+  min-width: 0;
+  padding: 22px 0 6px;
+}
+
+.portfolio-share-history-review > header {
+  display: flex;
+  margin-bottom: 4px;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.portfolio-share-history-review h3,
+.portfolio-share-history-context > h3 {
+  margin: 0;
+  color: #182230;
+  font-size: 1rem;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+}
+
+.portfolio-share-history-review > header p {
+  margin: 5px 0 0;
+  color: #526077;
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.portfolio-share-history-review .portfolio-share-reviews {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.portfolio-share-history-review .portfolio-share-reviews > li {
+  position: relative;
+  padding: 18px 0 18px 42px;
+  border: 0;
+  border-radius: 0;
+}
+
+.portfolio-share-history-review .portfolio-share-reviews > li + li {
+  border-top: 1px solid #e4e7ec;
+}
+
+.portfolio-share-history-review .portfolio-comment-avatar {
+  position: absolute;
+  top: 18px;
+  left: 0;
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border-radius: 50%;
+  background: #edf1f6;
+  color: #65748a;
+}
+
+.portfolio-share-history-review :is(.portfolio-review-meta, .portfolio-reply-meta) {
+  display: flex;
+  min-height: 32px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 4px 9px;
+}
+
+.portfolio-share-history-review :is(.portfolio-review-meta, .portfolio-reply-meta) strong {
+  color: #182230;
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+.portfolio-share-history-review .portfolio-share-reviews time:not(.portfolio-review-result *) {
+  color: #526077;
+  font-size: 0.75rem;
+}
+
+.portfolio-share-history-review .portfolio-share-reviews li > p:not(.portfolio-review-result *) {
+  margin: 7px 0 0;
+  color: #34445b;
+  font-size: 0.875rem;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.portfolio-share-history-review .portfolio-reply-thread {
+  display: grid;
+  margin-top: 8px;
+  padding: 0;
+  gap: 8px;
+  border: 0;
+}
+
+.portfolio-share-history-review .portfolio-reply-actions,
+.portfolio-share-history-review .portfolio-reply-primary-actions {
+  display: flex;
+  align-items: center;
+}
+
+.portfolio-share-history-review .portfolio-reply-primary-actions {
+  min-height: 44px;
+}
+
+.portfolio-share-history-review :is(.portfolio-reply-disclosure, .portfolio-reply-toggle) {
+  display: inline-flex;
+  min-height: 44px;
+  padding: 8px 0;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: transparent;
+  color: #41628f;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.portfolio-share-history-review .portfolio-reply-disclosure + .portfolio-reply-toggle {
+  min-height: 20px;
+  margin-left: 14px;
+  padding-left: 14px;
+  border-left: 1px solid #d8dee8;
+}
+
+.portfolio-share-history-review .portfolio-reply-caret {
+  transition: transform 160ms ease-out;
+}
+
+.portfolio-share-history-review
+  .portfolio-reply-disclosure[aria-expanded='false']
+  .portfolio-reply-caret {
+  transform: rotate(-90deg);
+}
+
+.portfolio-share-history-review .portfolio-reply-thread > ul {
+  display: grid;
+  margin: 4px 0 4px 12px;
+  padding: 0 0 0 16px;
+  gap: 14px;
+  border-left: 1px solid #d8dee8;
+  list-style: none;
+}
+
+.portfolio-share-history-review .portfolio-reply-thread > ul > li {
+  position: relative;
+  display: grid;
+  min-height: 32px;
+  padding: 0 44px 0 40px;
+  grid-template-columns: minmax(0, 1fr);
+  border: 0;
+  background: transparent;
+}
+
+.portfolio-share-history-review .portfolio-reply-avatar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 50%;
+  background: #edf1f6;
+  color: #65748a;
+}
+
+.portfolio-share-history-review .portfolio-reply-owner-badge {
+  margin-left: 6px;
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: #edf1f6;
+  color: #526077;
+  font-size: 0.6875rem;
+  font-weight: 700;
+}
+
+.portfolio-share-history-review .portfolio-reply-menu {
+  position: absolute;
+  top: -6px;
+  right: 0;
+}
+
+.portfolio-share-history-review .portfolio-reply-menu > summary {
+  display: grid;
+  width: 44px;
+  min-height: 44px;
+  place-items: center;
+  color: #65748a;
+  cursor: pointer;
+  list-style: none;
+}
+
+.portfolio-share-history-review .portfolio-reply-menu-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+.portfolio-share-history-review .portfolio-reply-controls {
+  position: absolute;
+  z-index: 3;
+  top: 38px;
+  right: 0;
+  display: flex;
+  min-width: 112px;
+  padding: 6px;
+  flex-direction: column;
+  border: 1px solid #d8dee8;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 10px 26px rgba(16, 33, 58, 0.12);
+}
+
+.portfolio-share-history-review .portfolio-reply-controls button {
+  min-height: 40px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #34445b;
+  font: inherit;
+  font-size: 0.8125rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.portfolio-share-history-review .portfolio-reply-compose {
+  display: grid;
+  padding: 14px 0 4px;
+  gap: 10px;
+  border: 0;
+  background: transparent;
+}
+
+.portfolio-share-history-review .portfolio-reply-compose label {
+  display: grid;
+  gap: 7px;
+  color: #34445b;
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+.portfolio-share-history-review .portfolio-reply-compose textarea,
+.portfolio-share-history-review .portfolio-reply-editor textarea {
+  width: 100%;
+  min-height: 96px;
+  resize: vertical;
+  border: 1px solid #bfc8d5;
+  border-radius: 8px;
+  padding: 12px;
+  background: #fff;
+  color: #182230;
+  font: inherit;
+  line-height: 1.6;
+}
+
+.portfolio-share-history-review .portfolio-reply-compose-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.portfolio-share-history-review .portfolio-reply-compose-footer small {
+  color: #526077;
+  font-size: 0.75rem;
+}
+
+.portfolio-share-history-review .portfolio-reply-compose-footer button {
+  min-height: 44px;
+  border: 0;
+  border-radius: 8px;
+  padding: 9px 14px;
+  background: #182230;
+  color: #fff;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+.portfolio-share-history-context {
+  display: grid;
+  padding: 22px 0;
+  gap: 14px;
+  border-top: 1px solid #e4e7ec;
+}
+
+.portfolio-share-history-assets {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
+  gap: 12px;
+  align-items: baseline;
+}
+
+.portfolio-share-history-assets > span {
+  color: #526077;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.portfolio-share-history-assets > p {
+  margin: 0;
+  color: #34445b;
+  font-size: 0.8125rem;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+
+.portfolio-share-history-review button:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.portfolio-share-history-empty {
+  margin: 0;
+  padding: 22px 0;
+  color: #526077;
+  font-size: 0.8125rem;
+  line-height: 1.65;
+}
+
+.portfolio-share-history-manage {
+  display: grid;
+  padding-top: 16px;
+  gap: 10px;
+  border-top: 1px solid #e4e7ec;
+}
+
+.portfolio-share-history-manage > p {
+  margin: 0;
+  color: #526077;
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.portfolio-share-history-manage > .portfolio-share-actions {
+  display: flex;
+  flex-wrap: wrap;
+  margin: 0;
+  justify-content: flex-start;
+  gap: 8px;
+}
+
+.portfolio-share-history-manage > .portfolio-share-actions :is(button, a) {
+  min-height: 44px;
+  border-radius: 7px;
+  padding: 8px 12px;
+}
+
+.portfolio-share-close {
+  width: 44px;
+  height: 44px;
+}
+
+.portfolio-share-assets-heading button {
+  min-height: 44px;
+}
+
+@media (max-width: 640px) {
+  .portfolio-share-link > div {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .portfolio-share-link input {
+    grid-column: 1 / -1;
+  }
+
+  .portfolio-share-history-item > header {
+    min-height: 0;
+    padding: 14px;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 6px 10px;
+  }
+
+  .portfolio-share-history-item > header > strong {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    white-space: normal;
+  }
+
+  .portfolio-share-history-expiry {
+    grid-column: 1 / 3;
+    grid-row: 3;
+  }
+
+  .portfolio-share-history-count {
+    grid-column: 3;
+    grid-row: 3;
+  }
+
+  .portfolio-share-history-body {
+    padding: 0 14px 14px;
+  }
+
+  .portfolio-share-history-review .portfolio-share-reviews > li {
+    padding-left: 0;
+  }
+
+  .portfolio-share-history-review .portfolio-comment-avatar {
+    position: static;
+    float: left;
+    margin: 0 10px 6px 0;
+  }
+
+  .portfolio-share-history-review .portfolio-reply-thread > ul {
+    margin-left: 0;
+    padding-left: 10px;
+  }
+
+  .portfolio-share-history-review .portfolio-reply-thread > ul > li {
+    padding-right: 40px;
+    padding-left: 36px;
+  }
+
+  .portfolio-share-history-assets {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+
+  .portfolio-share-history-review .portfolio-reply-compose-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .portfolio-share-history-manage > .portfolio-share-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .portfolio-share-history-manage > .portfolio-share-actions :is(button, a),
+  .portfolio-share-history-review .portfolio-reply-compose-footer button {
+    width: 100%;
   }
 }

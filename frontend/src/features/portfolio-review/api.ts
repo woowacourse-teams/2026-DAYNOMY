@@ -7,6 +7,8 @@ import type {
   PortfolioAnalysisPublicShare,
   PortfolioAnalysisComment,
   PortfolioAnalysisShareCreated,
+  PortfolioReviewProposal,
+  PortfolioReviewProposalAsset,
 } from './types';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -88,6 +90,7 @@ function isOwnerShare(value: unknown): value is PortfolioAnalysisOwnerShare {
   return (
     isRecord(value) &&
     Number.isSafeInteger(value.id) &&
+    (value.token === null || typeof value.token === 'string') &&
     (value.analysisId === null || Number.isSafeInteger(value.analysisId)) &&
     typeof value.question === 'string' &&
     hasValidExplanation(value) &&
@@ -140,6 +143,63 @@ function requirePublicShare(value: unknown): PortfolioAnalysisPublicShare {
   return value as PortfolioAnalysisPublicShare;
 }
 
+function isReviewProposalAsset(value: unknown): value is PortfolioReviewProposalAsset {
+  return (
+    isRecord(value) &&
+    Number.isSafeInteger(value.assetId) &&
+    typeof value.assetId === 'number' &&
+    value.assetId > 0 &&
+    typeof value.assetName === 'string' &&
+    value.assetName.trim().length > 0 &&
+    value.assetName.length <= 100 &&
+    isSimulationCategory(value.category) &&
+    typeof value.weight === 'number' &&
+    Number.isFinite(value.weight) &&
+    value.weight > 0 &&
+    value.weight <= 100
+  );
+}
+
+function isReviewProposal(value: unknown): value is PortfolioReviewProposal {
+  if (
+    !isRecord(value) ||
+    !Number.isSafeInteger(value.id) ||
+    typeof value.id !== 'number' ||
+    value.id <= 0 ||
+    !Number.isSafeInteger(value.shareId) ||
+    typeof value.shareId !== 'number' ||
+    value.shareId <= 0 ||
+    !Number.isSafeInteger(value.commentId) ||
+    typeof value.commentId !== 'number' ||
+    value.commentId <= 0 ||
+    !Array.isArray(value.assets) ||
+    value.assets.length === 0 ||
+    value.assets.length > 50 ||
+    !value.assets.every(isReviewProposalAsset) ||
+    !isDate(value.createdAt) ||
+    !isDate(value.updatedAt)
+  )
+    return false;
+  const assetIds = new Set(value.assets.map((asset) => asset.assetId));
+  const assetNames = new Set(value.assets.map((asset) => asset.assetName.trim().toLowerCase()));
+  const weights = value.assets.map((asset) => Math.round(asset.weight * 100));
+  const validPrecision = value.assets.every(
+    (asset, index) => Math.abs(asset.weight * 100 - weights[index]) < 1e-8,
+  );
+  const total = weights.reduce((sum, weight) => sum + weight, 0);
+  return (
+    assetIds.size === value.assets.length &&
+    assetNames.size === value.assets.length &&
+    validPrecision &&
+    total === 10_000
+  );
+}
+
+function requireReviewProposal(value: unknown) {
+  if (!isReviewProposal(value)) throw new Error('저장한 개선안 응답 형식이 올바르지 않습니다.');
+  return value;
+}
+
 export async function getPortfolioAnalysisShares(signal?: AbortSignal) {
   return requireOwnerShares(
     await request<unknown>('/api/users/me/portfolio/analysis/shares', { signal }),
@@ -160,25 +220,26 @@ export async function createPortfolioAnalysisShare(
   );
 }
 
+export async function reissuePortfolioAnalysisShare(shareId: number) {
+  return requireCreated(
+    await requestWithCsrf<unknown>(`/api/users/me/portfolio/analysis/shares/${shareId}/reissue`, {
+      method: 'POST',
+    }),
+  );
+}
+
+export async function getOwnerPortfolioAnalysisShare(shareId: number, signal?: AbortSignal) {
+  return requirePublicShare(
+    await request<unknown>(`/api/users/me/portfolio/analysis/shares/${shareId}`, { signal }),
+  );
+}
+
 export async function revokePortfolioAnalysisShare(shareId: number) {
   const response = await requestWithCsrf<unknown>(
     `/api/users/me/portfolio/analysis/shares/${shareId}/revoke`,
     { method: 'POST' },
   );
   if (!isOwnerShare(response)) throw new Error('공유 중단 응답 형식이 올바르지 않습니다.');
-  return response;
-}
-
-export async function updatePortfolioShareExplanation(shareId: number, content: string) {
-  const response = await requestWithCsrf<unknown>(
-    `/api/users/me/portfolio/analysis/shares/${shareId}/explanation`,
-    {
-      method: 'PUT',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ content }),
-    },
-  );
-  if (!isOwnerShare(response)) throw new Error('추가 설명 응답 형식이 올바르지 않습니다.');
   return response;
 }
 
@@ -348,4 +409,38 @@ export async function analyzeReviewSimulation(
   if (!isPortfolioAnalysisResponse(response))
     throw new Error('임시 포트폴리오 분석 응답 형식이 올바르지 않습니다.');
   return response;
+}
+
+export async function getPortfolioReviewProposals(shareId: number, signal?: AbortSignal) {
+  const response = await request<unknown>(
+    `/api/users/me/portfolio/analysis/shares/${shareId}/proposals`,
+    { signal },
+  );
+  if (!Array.isArray(response) || !response.every(isReviewProposal))
+    throw new Error('저장한 개선안 목록 응답 형식이 올바르지 않습니다.');
+  return response;
+}
+
+export async function savePortfolioReviewProposal(
+  shareId: number,
+  commentId: number,
+  assets: { assetId: number; weight: number }[],
+) {
+  return requireReviewProposal(
+    await requestWithCsrf<unknown>(
+      `/api/users/me/portfolio/analysis/shares/${shareId}/comments/${commentId}/proposal`,
+      {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ assets }),
+      },
+    ),
+  );
+}
+
+export function deletePortfolioReviewProposal(shareId: number, commentId: number) {
+  return requestWithCsrf<void>(
+    `/api/users/me/portfolio/analysis/shares/${shareId}/comments/${commentId}/proposal`,
+    { method: 'DELETE' },
+  );
 }

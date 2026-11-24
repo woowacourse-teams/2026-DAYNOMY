@@ -17,6 +17,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import org.grit.daynomy.asset.domain.Asset;
+import org.grit.daynomy.asset.domain.AssetCategory;
 import org.grit.daynomy.asset.domain.StockDailyPrice;
 import org.grit.daynomy.asset.domain.StockMarket;
 import org.grit.daynomy.asset.repository.AssetRepository;
@@ -95,6 +96,11 @@ class PortfolioAnalysisShareAcceptanceTest extends SharedDatabaseTest {
             .extract();
     String token = created.path("token");
     int shareId = created.path("share.id");
+    String listedToken = created.path("share.token");
+    assertThat(listedToken).isEqualTo(token);
+    assertThat(shares.findById((long) shareId).orElseThrow().getEncryptedToken())
+        .startsWith("v1.")
+        .doesNotContain(token);
 
     client(reviewer)
         .body(Map.of("content", " a "))
@@ -229,6 +235,7 @@ class PortfolioAnalysisShareAcceptanceTest extends SharedDatabaseTest {
         .get(OWNER_API)
         .then()
         .statusCode(200)
+        .body("[0].token", equalTo(token))
         .body("[0].comments", hasSize(2))
         .body("[0].sharedAssets", hasSize(1))
         .body("[0].comments[1].replies", hasSize(2))
@@ -368,6 +375,88 @@ class PortfolioAnalysisShareAcceptanceTest extends SharedDatabaseTest {
   }
 
   @Test
+  void ownerPersistsAndUpdatesOneReviewProposalPerComment() {
+    Member owner = member("검토안 작성자");
+    Member reviewer = member("검토안 제안자");
+    Member outsider = member("검토안 외부인");
+    PortfolioAnalysis analysis = analysis(owner);
+    String suffix = UUID.randomUUID().toString();
+    Asset samsung = assets.save(new Asset("삼성전자", AssetCategory.STOCK, "S-" + suffix));
+    Asset etf = assets.save(new Asset("KODEX 200", AssetCategory.ETF, "E-" + suffix));
+    var created =
+        client(owner)
+            .body(
+                Map.of(
+                    "analysisId",
+                    analysis.getId(),
+                    "question",
+                    "댓글 제안을 검토안으로 저장하고 싶어요.",
+                    "assetNames",
+                    List.of("삼성전자")))
+            .post(OWNER_API)
+            .then()
+            .statusCode(200)
+            .extract();
+    String token = created.path("token");
+    int shareId = created.path("share.id");
+    int commentId =
+        client(reviewer)
+            .body(Map.of("content", "ETF를 함께 편입해 분산해 보세요."))
+            .header(SHARE_TOKEN_HEADER, token)
+            .post(PUBLIC_API + "/comments")
+            .then()
+            .statusCode(200)
+            .extract()
+            .path("id");
+    String proposalApi = OWNER_API + "/" + shareId + "/comments/" + commentId + "/proposal";
+
+    int proposalId =
+        client(owner)
+            .body(Map.of("assets", List.of(Map.of("assetId", samsung.getId(), "weight", 100))))
+            .put(proposalApi)
+            .then()
+            .statusCode(200)
+            .body("shareId", equalTo(shareId))
+            .body("commentId", equalTo(commentId))
+            .body("assets", hasSize(1))
+            .body("assets[0].assetName", equalTo("삼성전자"))
+            .extract()
+            .path("id");
+    client(owner)
+        .body(
+            Map.of(
+                "assets",
+                List.of(
+                    Map.of("assetId", samsung.getId(), "weight", 60),
+                    Map.of("assetId", etf.getId(), "weight", 40))))
+        .put(proposalApi)
+        .then()
+        .statusCode(200)
+        .body("id", equalTo(proposalId))
+        .body("assets", hasSize(2));
+
+    client(owner)
+        .get(OWNER_API + "/" + shareId + "/proposals")
+        .then()
+        .statusCode(200)
+        .body("$", hasSize(1))
+        .body("[0].id", equalTo(proposalId))
+        .body("[0].assets[1].assetName", equalTo("KODEX 200"));
+    client(outsider)
+        .get(OWNER_API + "/" + shareId + "/proposals")
+        .then()
+        .statusCode(404)
+        .body("code", equalTo("PORTFOLIO_ANALYSIS_SHARE_NOT_FOUND"));
+
+    client(owner).delete(proposalApi).then().statusCode(204);
+    client(owner)
+        .get(OWNER_API + "/" + shareId + "/proposals")
+        .then()
+        .statusCode(200)
+        .body("$", hasSize(0));
+  }
+
+  @Test
   void revokedLinkStopsPublicAccessButKeepsCommentsForTheOwner() {
     Member owner = member("작성자");
     Member reviewer = member("리뷰어");
@@ -407,7 +496,160 @@ class PortfolioAnalysisShareAcceptanceTest extends SharedDatabaseTest {
         .get(OWNER_API)
         .then()
         .body("[0].status", equalTo("REVOKED"))
+        .body("[0].token", nullValue())
         .body("[0].comments", hasSize(1));
+    client(owner)
+        .get(OWNER_API + "/" + shareId)
+        .then()
+        .statusCode(200)
+        .body("ownerShare.id", equalTo(shareId))
+        .body("ownerShare.status", equalTo("REVOKED"))
+        .body("ownerShare.comments", hasSize(1));
+  }
+
+  @Test
+  void reissuesTheSameRequestWhileKeepingItsComments() {
+    Member owner = member("재발급 작성자");
+    Member reviewer = member("재발급 리뷰어");
+    PortfolioAnalysis analysis = analysis(owner);
+    var created =
+        client(owner)
+            .body(
+                Map.of(
+                    "analysisId",
+                    analysis.getId(),
+                    "question",
+                    "기존 의견을 유지한 채 링크를 다시 발급하고 싶어요.",
+                    "assetNames",
+                    List.of("삼성전자")))
+            .post(OWNER_API)
+            .then()
+            .statusCode(200)
+            .extract();
+    String oldToken = created.path("token");
+    int shareId = created.path("share.id");
+    client(reviewer)
+        .body(Map.of("content", "재발급 뒤에도 남아야 하는 의견입니다."))
+        .header(SHARE_TOKEN_HEADER, oldToken)
+        .post(PUBLIC_API + "/comments")
+        .then()
+        .statusCode(200);
+
+    var reissued =
+        client(owner)
+            .post(OWNER_API + "/" + shareId + "/reissue")
+            .then()
+            .statusCode(200)
+            .body("share.id", equalTo(shareId))
+            .body("share.status", equalTo("ACTIVE"))
+            .body("share.comments", hasSize(1))
+            .extract();
+    String newToken = reissued.path("token");
+
+    assertThat(newToken).isNotEqualTo(oldToken).isEqualTo(reissued.path("share.token"));
+    given().port(port).header(SHARE_TOKEN_HEADER, oldToken).get(PUBLIC_API).then().statusCode(404);
+    given()
+        .port(port)
+        .header(SHARE_TOKEN_HEADER, newToken)
+        .get(PUBLIC_API)
+        .then()
+        .statusCode(200)
+        .body("question", equalTo("기존 의견을 유지한 채 링크를 다시 발급하고 싶어요."));
+    client(owner)
+        .get(OWNER_API)
+        .then()
+        .statusCode(200)
+        .body("$", hasSize(1))
+        .body("[0].id", equalTo(shareId))
+        .body("[0].token", equalTo(newToken))
+        .body("[0].comments", hasSize(1));
+  }
+
+  @Test
+  void newLinkKeepsPreviousLinkAndCommentsActiveIndependently() {
+    Member owner = member("링크 재발급 작성자");
+    Member reviewer = member("링크 재발급 리뷰어");
+    PortfolioAnalysis analysis = analysis(owner);
+    Map<String, Object> firstRequest =
+        Map.of(
+            "analysisId",
+            analysis.getId(),
+            "question",
+            "첫 번째 링크에서 포트폴리오 의견을 받고 싶어요.",
+            "assetNames",
+            List.of("삼성전자"));
+
+    var firstCreated =
+        client(owner).body(firstRequest).post(OWNER_API).then().statusCode(200).extract();
+    String firstToken = firstCreated.path("token");
+    int firstShareId = firstCreated.path("share.id");
+    client(reviewer)
+        .body(Map.of("content", "첫 번째 링크에만 남아야 하는 의견입니다."))
+        .header(SHARE_TOKEN_HEADER, firstToken)
+        .post(PUBLIC_API + "/comments")
+        .then()
+        .statusCode(200);
+    client(owner)
+        .body(Map.of("content", "첫 번째 링크에만 남아야 하는 추가 설명입니다."))
+        .put(OWNER_API + "/" + firstShareId + "/explanation")
+        .then()
+        .statusCode(200);
+
+    var secondCreated =
+        client(owner)
+            .body(
+                Map.of(
+                    "analysisId",
+                    analysis.getId(),
+                    "question",
+                    "새 링크에서 다시 포트폴리오 의견을 받고 싶어요.",
+                    "assetNames",
+                    List.of("삼성전자")))
+            .post(OWNER_API)
+            .then()
+            .statusCode(200)
+            .extract();
+    String secondToken = secondCreated.path("token");
+    int secondShareId = secondCreated.path("share.id");
+
+    assertThat(secondShareId).isNotEqualTo(firstShareId);
+    given()
+        .port(port)
+        .header(SHARE_TOKEN_HEADER, firstToken)
+        .get(PUBLIC_API)
+        .then()
+        .statusCode(200)
+        .body("additionalExplanation", equalTo("첫 번째 링크에만 남아야 하는 추가 설명입니다."));
+    client(reviewer)
+        .header(SHARE_TOKEN_HEADER, firstToken)
+        .get(PUBLIC_API)
+        .then()
+        .statusCode(200)
+        .body("myComments", hasSize(1));
+    client(reviewer)
+        .header(SHARE_TOKEN_HEADER, secondToken)
+        .get(PUBLIC_API)
+        .then()
+        .statusCode(200)
+        .body("additionalExplanation", nullValue())
+        .body("myComments", hasSize(0));
+    client(owner)
+        .header(SHARE_TOKEN_HEADER, secondToken)
+        .get(PUBLIC_API)
+        .then()
+        .statusCode(200)
+        .body("ownerShare.id", equalTo(secondShareId))
+        .body("ownerShare.comments", hasSize(0));
+    client(owner)
+        .get(OWNER_API)
+        .then()
+        .statusCode(200)
+        .body("[0].id", equalTo(secondShareId))
+        .body("[0].status", equalTo("ACTIVE"))
+        .body("[0].comments", hasSize(0))
+        .body("[1].id", equalTo(firstShareId))
+        .body("[1].status", equalTo("ACTIVE"))
+        .body("[1].comments", hasSize(1));
   }
 
   @Test
@@ -500,7 +742,7 @@ class PortfolioAnalysisShareAcceptanceTest extends SharedDatabaseTest {
     prices.saveAndFlush(
         new StockDailyPrice(asset, LocalDate.now().minusDays(1), new BigDecimal("80000")));
     Map<String, Object> request =
-        Map.of("question", "동시에 공유해도 링크가 하나만 남아야 해요.", "assetNames", List.of("동시 공유 종목"));
+        Map.of("question", "동시에 공유해도 링크별 의견은 분리되어야 해요.", "assetNames", List.of("동시 공유 종목"));
     var first = client(owner).body(request);
     var second = client(owner).body(request);
     var start = new CountDownLatch(1);
@@ -513,10 +755,12 @@ class PortfolioAnalysisShareAcceptanceTest extends SharedDatabaseTest {
 
       assertThat(List.of(firstRequest.join(), secondRequest.join())).doesNotContainNull();
     }
-    assertThat(
-            shares.findAllByOwnerIdOrderByCreatedAtDescIdDesc(owner.getId()).stream()
-                .filter(share -> share.getAnalysisId() == null))
-        .hasSize(1);
+    var createdShares =
+        shares.findAllByOwnerIdOrderByCreatedAtDescIdDesc(owner.getId()).stream()
+            .filter(share -> share.getAnalysisId() == null)
+            .toList();
+    assertThat(createdShares).hasSize(2);
+    assertThat(createdShares).allMatch(share -> share.getRevokedAt() == null);
   }
 
   @Test

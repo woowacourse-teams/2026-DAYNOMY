@@ -64,6 +64,7 @@ class PortfolioAnalysisShareVisibilityTest {
             null,
             null,
             mock(PortfolioAnalysisShareRateLimiter.class),
+            mock(PortfolioShareTokenCipher.class),
             Clock.fixed(now, ZoneOffset.UTC),
             null);
     var response = service.getPublic("test-token", viewerId, "127.0.0.1");

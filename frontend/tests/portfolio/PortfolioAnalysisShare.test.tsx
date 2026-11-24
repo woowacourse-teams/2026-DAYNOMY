@@ -2,7 +2,7 @@
 
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { AuthContext } from '../../src/auth/AuthContext';
 import { PortfolioAnalysisSharePanel } from '../../src/features/portfolio-review/PortfolioAnalysisSharePanel';
 import PortfolioAnalysisSharePage from '../../src/features/portfolio-review/PortfolioAnalysisSharePage';
@@ -36,6 +36,7 @@ const analysisAssets = [
 
 const ownerShare = {
   id: 3,
+  token: 'raw-share-token',
   analysisId: 7,
   question: '반도체 비중이 너무 높은지 의견을 듣고 싶어요.',
   additionalExplanation: null,
@@ -46,6 +47,38 @@ const ownerShare = {
   allAssetsShared: true,
   sharedAssets: analysisAssets,
   comments: [],
+};
+
+const savedProposal = {
+  id: 17,
+  shareId: ownerShare.id,
+  commentId: comment.id,
+  assets: [
+    { assetId: 1, assetName: '삼성전자', category: 'STOCK', weight: 50 },
+    { assetId: 2, assetName: 'SK하이닉스', category: 'STOCK', weight: 50 },
+  ],
+  createdAt: '2026-11-23T00:00:00Z',
+  updatedAt: '2026-11-23T00:00:00Z',
+};
+
+const secondComment = {
+  ...comment,
+  id: 10,
+  content: '레버리지 비중은 더 낮추는 편이 좋겠어요.',
+  createdAt: '2026-11-13T01:00:00Z',
+  updatedAt: '2026-11-13T01:00:00Z',
+};
+
+const secondProposal = {
+  ...savedProposal,
+  id: 18,
+  commentId: secondComment.id,
+  assets: [
+    { assetId: 1, assetName: '삼성전자', category: 'STOCK', weight: 80 },
+    { assetId: 2, assetName: 'SK하이닉스', category: 'STOCK', weight: 20 },
+  ],
+  createdAt: '2026-11-23T01:00:00Z',
+  updatedAt: '2026-11-23T01:00:00Z',
 };
 
 const publicShare = {
@@ -142,99 +175,11 @@ describe('포트폴리오 분석 의견 요청', () => {
     );
   });
 
-  it('비회원에게 공개 설명을 질문 아래 표시하고 댓글과 분리한다', async () => {
-    const explanation = '3년 이상 투자할 계획입니다.\n분산도 함께 고민하고 있어요.';
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(() =>
-        Promise.resolve(
-          response({
-            ...publicShare,
-            additionalExplanation: explanation,
-            additionalExplanationUpdatedAt: comment.updatedAt,
-          }),
-        ),
-      ),
-    );
-    const view = render(
-      <MemoryRouter initialEntries={['/portfolio/analysis/share#test-token']}>
-        <AuthContext.Provider
-          value={{ isLoggedIn: false, memberId: null, loading: false, role: null }}
-        >
-          <PortfolioAnalysisSharePage />
-        </AuthContext.Provider>
-      </MemoryRouter>,
-    );
-    const section = await view.findByRole('region', { name: '작성자 추가 설명' });
-    expect(section.textContent).toContain(explanation);
-    expect(section.closest('.portfolio-public-share-hero')).not.toBeNull();
-    expect(view.queryByRole('button', { name: '설명 수정' })).toBeNull();
-    expect(view.queryByText(comment.content)).toBeNull();
-  });
-
-  it('관리 창에서 공개 설명을 작성하고 실패 시 유지하며 수정하거나 내릴 수 있다', async () => {
-    let attempts = 0;
-    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input);
-      if (url.endsWith('/api/auth/csrf'))
-        return Promise.resolve(response({ headerName: 'X-XSRF-TOKEN', token: 'csrf' }));
-      if (url.endsWith('/api/users/me/portfolio/analysis/shares') && !init?.method)
-        return Promise.resolve(response([ownerShare]));
-      if (
-        url.endsWith('/api/users/me/portfolio/analysis/shares/3/explanation') &&
-        init?.method === 'PUT'
-      ) {
-        attempts += 1;
-        if (attempts === 1)
-          return Promise.resolve(
-            response({ code: 'INTERNAL_SERVER_ERROR', message: '저장 실패' }, 500),
-          );
-        const content = JSON.parse(String(init.body)).content;
-        return Promise.resolve(
-          response({
-            ...ownerShare,
-            additionalExplanation: content || null,
-            additionalExplanationUpdatedAt: content ? comment.updatedAt : null,
-          }),
-        );
-      }
-      throw new Error(`unexpected request: ${url}`);
-    });
-    vi.stubGlobal('fetch', fetchMock);
-    const view = render(<PortfolioAnalysisSharePanel analysisId={7} assets={analysisAssets} />);
-    fireEvent.click(view.getByRole('button', { name: '의견 받기' }));
-    fireEvent.click(await view.findByRole('button', { name: '설명 추가' }));
-    expect(view.getByText('링크를 가진 모든 사람에게 공개돼요.')).toBeTruthy();
-    const input = view.getByRole('textbox', { name: '추가 설명 내용' });
-    expect(view.getByRole('button', { name: '추가 설명 공개' }).hasAttribute('disabled')).toBe(
-      true,
-    );
-    fireEvent.change(input, { target: { value: '<잘못된 설명>' } });
-    expect(view.getByRole('button', { name: '추가 설명 공개' }).hasAttribute('disabled')).toBe(
-      true,
-    );
-    fireEvent.change(input, { target: { value: '장기 투자 목적입니다.' } });
-    fireEvent.click(view.getByRole('button', { name: '추가 설명 공개' }));
-    await view.findByRole('alert');
-    expect((input as HTMLTextAreaElement).value).toBe('장기 투자 목적입니다.');
-    fireEvent.click(view.getByRole('button', { name: '추가 설명 공개' }));
-    expect(await view.findByText('공유 페이지에 추가 설명을 공개했어요.')).toBeTruthy();
-    expect(view.getByText('장기 투자 목적입니다.')).toBeTruthy();
-    expect(view.queryByRole('textbox', { name: '추가 설명 내용' })).toBeNull();
-    fireEvent.click(view.getByRole('button', { name: '설명 수정' }));
-    fireEvent.change(view.getByRole('textbox', { name: '추가 설명 내용' }), {
-      target: { value: '' },
-    });
-    fireEvent.click(view.getByRole('button', { name: '설명 내리기' }));
-    expect(await view.findByText('추가 설명을 내렸어요.')).toBeTruthy();
-    expect(view.getByRole('button', { name: '설명 추가' })).toBeTruthy();
-    expect(attempts).toBe(3);
-  });
-
   it.each([
     undefined,
     'invalid',
     {},
+    { ...ownerShare, token: 42 },
     { ...ownerShare, status: 'UNKNOWN' },
     { ...ownerShare, comments: null },
     { ...ownerShare, comments: [{ ...comment, replies: [{}] }] },
@@ -263,6 +208,8 @@ describe('포트폴리오 분석 의견 요청', () => {
         return Promise.resolve(
           response({ ...publicShare, ownerShare: { ...ownerShare, comments: [comment] } }),
         );
+      if (url.endsWith('/api/users/me/portfolio/analysis/shares/3/proposals'))
+        return Promise.resolve(response([]));
       if (url.endsWith('/api/auth/csrf'))
         return Promise.resolve(response({ headerName: 'X-XSRF-TOKEN', token: 'csrf' }));
       if (
@@ -294,6 +241,12 @@ describe('포트폴리오 분석 의견 요청', () => {
       </MemoryRouter>,
     );
     expect(await view.findByRole('heading', { name: '받은 의견 1개' })).toBeTruthy();
+    expect(view.getByRole('link', { name: '받은 의견 1개 보기' }).getAttribute('href')).toBe(
+      '#portfolio-public-review',
+    );
+    expect(
+      view.container.querySelector('.portfolio-public-share-page.is-owner-view'),
+    ).not.toBeNull();
     expect(view.getByText(comment.content)).toBeTruthy();
     expect(view.queryByRole('textbox', { name: '새 댓글' })).toBeNull();
     expect(view.queryByRole('textbox', { name: '리뷰어님 댓글에 답글' })).toBeNull();
@@ -316,6 +269,12 @@ describe('포트폴리오 분석 의견 요청', () => {
     ).toBe(reply.content);
     fireEvent.click(view.getByRole('button', { name: '답글 등록' }));
     expect(await view.findByText(reply.content)).toBeTruthy();
+    const replyDisclosure = view.getByRole('button', { name: '답글 1개' });
+    expect(replyDisclosure.getAttribute('aria-expanded')).toBe('true');
+    fireEvent.click(replyDisclosure);
+    expect(view.queryByText(reply.content)).toBeNull();
+    fireEvent.click(replyDisclosure);
+    expect(await view.findByText(reply.content)).toBeTruthy();
     expect(view.queryByRole('textbox', { name: '리뷰어님 댓글에 답글' })).toBeNull();
     expect(document.activeElement).toBe(view.getByRole('button', { name: '답글 달기' }));
     fireEvent.click(view.getByRole('button', { name: '답글 달기' }));
@@ -327,20 +286,194 @@ describe('포트폴리오 분석 의견 요청', () => {
       '/api/users/me/portfolio/analysis/shares/3/comments/9/replies',
       expect.objectContaining({ method: 'POST', body: JSON.stringify({ content: reply.content }) }),
     );
+    fireEvent.click(view.getByRole('button', { name: '작성자 답글 관리' }));
     fireEvent.click(view.getByRole('button', { name: /^수정$/ }));
     fireEvent.change(view.getByRole('textbox', { name: '작성자 답글 수정' }), {
       target: { value: '답글을 수정했어요.' },
     });
     fireEvent.click(view.getByRole('button', { name: '수정 저장' }));
     expect(await view.findByText('답글을 수정했어요.')).toBeTruthy();
+    fireEvent.click(view.getByRole('button', { name: '작성자 답글 관리' }));
     fireEvent.click(view.getByRole('button', { name: /^삭제$/ }));
     await waitFor(() => expect(view.queryByText('답글을 수정했어요.')).toBeNull());
+  });
+
+  it('작성자는 저장한 개선안을 다시 불러오고 명시적으로 삭제한다', async () => {
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith('/api/portfolio/analysis/shares'))
+        return Promise.resolve(
+          response({ ...publicShare, ownerShare: { ...ownerShare, comments: [comment] } }),
+        );
+      if (url.endsWith('/api/users/me/portfolio/analysis/shares/3/proposals'))
+        return Promise.resolve(response([savedProposal]));
+      if (url.endsWith('/api/auth/csrf'))
+        return Promise.resolve(response({ headerName: 'X-XSRF-TOKEN', token: 'csrf' }));
+      if (url.endsWith('/comments/9/proposal') && init?.method === 'DELETE')
+        return Promise.resolve(response(null, 204));
+      throw new Error(`unexpected request: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const view = render(
+      <MemoryRouter initialEntries={['/portfolio/analysis/share#owner-token']}>
+        <AuthContext.Provider value={{ isLoggedIn: true, memberId: 1, loading: false, role: null }}>
+          <PortfolioAnalysisSharePage />
+        </AuthContext.Provider>
+      </MemoryRouter>,
+    );
+
+    expect(await view.findByRole('heading', { name: '댓글 의견 반영 결과' })).toBeTruthy();
+    expect(view.queryByRole('combobox', { name: '저장한 개선안' })).toBeNull();
+    expect(view.getByText(`“${comment.content}”`)).toBeTruthy();
+    expect(view.getByRole('list', { name: '저장한 개선안 구성' }).textContent).toContain(
+      '삼성전자비중50.00%',
+    );
+    expect(view.getByRole('button', { name: /^저장한 개선안 수정/ })).toBeTruthy();
+    expect(view.getByRole('button', { name: '저장된 개선안 다시 분석' })).toBeTruthy();
+    expect(view.queryByRole('heading', { name: '제안 구성 분석 결과' })).toBeNull();
+
+    fireEvent.click(view.getByRole('button', { name: '개선안 삭제' }));
+    await waitFor(() =>
+      expect(view.queryByRole('heading', { name: '댓글 의견 반영 결과' })).toBeNull(),
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/users/me/portfolio/analysis/shares/3/comments/9/proposal',
+      expect.objectContaining({ method: 'DELETE' }),
+    );
+  });
+
+  it('저장한 개선안을 편집하지 않고 바로 다시 분석한다', async () => {
+    const simulationPath = '/api/users/me/portfolio/analysis/shares/3/comments/9/simulation';
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith('/api/portfolio/analysis/shares'))
+        return Promise.resolve(
+          response({ ...publicShare, ownerShare: { ...ownerShare, comments: [comment] } }),
+        );
+      if (url.endsWith('/api/users/me/portfolio/analysis/shares/3/proposals'))
+        return Promise.resolve(response([savedProposal]));
+      if (url.endsWith('/api/auth/csrf'))
+        return Promise.resolve(response({ headerName: 'X-XSRF-TOKEN', token: 'csrf' }));
+      if (url.endsWith(simulationPath) && init?.method === 'POST')
+        return Promise.resolve(response(publicShare.analysis));
+      throw new Error(`unexpected request: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const view = render(
+      <MemoryRouter initialEntries={['/portfolio/analysis/share#owner-token']}>
+        <AuthContext.Provider value={{ isLoggedIn: true, memberId: 1, loading: false, role: null }}>
+          <PortfolioAnalysisSharePage />
+        </AuthContext.Provider>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(await view.findByRole('button', { name: '저장된 개선안 다시 분석' }));
+
+    expect(await view.findByRole('heading', { name: '이 구성의 AI 분석' })).toBeTruthy();
+    expect(view.getByRole('button', { name: '다시 분석' })).toBeTruthy();
+    expect(view.queryByRole('button', { name: '저장된 개선안 다시 분석' })).toBeNull();
+    expect(fetchMock).toHaveBeenCalledWith(
+      simulationPath,
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          assets: [
+            { assetName: '삼성전자', weight: 50 },
+            { assetName: 'SK하이닉스', weight: 50 },
+          ],
+        }),
+      }),
+    );
+  });
+
+  it('댓글별로 저장한 개선안을 선택해 구성과 원댓글을 함께 확인한다', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.endsWith('/api/portfolio/analysis/shares'))
+          return Promise.resolve(
+            response({
+              ...publicShare,
+              ownerShare: { ...ownerShare, comments: [comment, secondComment] },
+            }),
+          );
+        if (url.endsWith('/api/users/me/portfolio/analysis/shares/3/proposals'))
+          return Promise.resolve(response([secondProposal, savedProposal]));
+        throw new Error(`unexpected request: ${url}`);
+      }),
+    );
+    const view = render(
+      <MemoryRouter initialEntries={['/portfolio/analysis/share#owner-token']}>
+        <AuthContext.Provider value={{ isLoggedIn: true, memberId: 1, loading: false, role: null }}>
+          <PortfolioAnalysisSharePage />
+        </AuthContext.Provider>
+      </MemoryRouter>,
+    );
+
+    expect(await view.findByText('저장한 개선안 2개')).toBeTruthy();
+    const selector = view.getByRole('combobox', { name: '저장한 개선안' });
+    expect(view.getByRole('option', { name: `1. ${comment.content}` })).toBeTruthy();
+    expect(view.getByRole('option', { name: `2. ${secondComment.content}` })).toBeTruthy();
+    expect(view.getByText(`“${secondComment.content}”`)).toBeTruthy();
+    expect(view.getByRole('list', { name: '저장한 개선안 구성' }).textContent).toContain(
+      '삼성전자비중80.00%',
+    );
+
+    fireEvent.change(selector, { target: { value: String(savedProposal.id) } });
+    expect(view.getByText(`“${comment.content}”`)).toBeTruthy();
+    expect(view.getByRole('list', { name: '저장한 개선안 구성' }).textContent).toContain(
+      '삼성전자비중50.00%',
+    );
+    expect((selector as HTMLSelectElement).value).toBe(String(savedProposal.id));
+  });
+
+  it('저장한 개선안 조회 실패를 본문에서 다시 시도한다', async () => {
+    let attempts = 0;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.endsWith('/api/portfolio/analysis/shares'))
+          return Promise.resolve(
+            response({ ...publicShare, ownerShare: { ...ownerShare, comments: [comment] } }),
+          );
+        if (url.endsWith('/api/users/me/portfolio/analysis/shares/3/proposals'))
+          return Promise.resolve(
+            ++attempts === 1
+              ? response({ message: '개선안을 불러오지 못했어요.' }, 503)
+              : response([savedProposal]),
+          );
+        throw new Error(`unexpected request: ${url}`);
+      }),
+    );
+    const view = render(
+      <MemoryRouter initialEntries={['/portfolio/analysis/share#owner-token']}>
+        <AuthContext.Provider value={{ isLoggedIn: true, memberId: 1, loading: false, role: null }}>
+          <PortfolioAnalysisSharePage />
+        </AuthContext.Provider>
+      </MemoryRouter>,
+    );
+
+    expect((await view.findByRole('alert')).textContent).toContain('개선안을 불러오지 못했어요.');
+    fireEvent.click(view.getByRole('button', { name: '다시 불러오기' }));
+    expect(await view.findByRole('heading', { name: '댓글 의견 반영 결과' })).toBeTruthy();
+    expect(attempts).toBe(2);
   });
 
   it('받은 의견이 없는 작성자에게 빈 상태를 표시한다', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn(() => Promise.resolve(response({ ...publicShare, ownerShare }))),
+      vi.fn((input: RequestInfo | URL) =>
+        Promise.resolve(
+          response(
+            String(input).endsWith('/api/users/me/portfolio/analysis/shares/3/proposals')
+              ? []
+              : { ...publicShare, ownerShare },
+          ),
+        ),
+      ),
     );
     const view = render(
       <MemoryRouter initialEntries={['/portfolio/analysis/share#owner-token']}>
@@ -375,6 +508,12 @@ describe('포트폴리오 분석 의견 요청', () => {
 
     const link = await view.findByLabelText('공유 링크');
     expect((link as HTMLInputElement).value).toContain('/portfolio/analysis/share#raw-share-token');
+    expect(view.getByRole('link', { name: /공유 화면 열기/ }).getAttribute('href')).toContain(
+      '/portfolio/analysis/share#raw-share-token',
+    );
+    expect(view.getByRole('link', { name: /공유 화면 열기/ }).getAttribute('target')).toBe(
+      '_blank',
+    );
     expect(fetchMock).toHaveBeenCalledWith(
       '/api/users/me/portfolio/analysis/shares',
       expect.objectContaining({
@@ -463,7 +602,7 @@ describe('포트폴리오 분석 의견 요청', () => {
     expect(privacyNote.textContent).toContain(
       '매수가·공유 당시 가격·수량·평가금액·손익 금액은 비공개입니다.',
     );
-    expect(view.getByRole('heading', { name: '공개한 종목 1개' })).toBeTruthy();
+    expect(view.getByRole('heading', { name: '종목별 구성 1개' })).toBeTruthy();
     const allocation = view.getByRole('img', {
       name: '전체 포트폴리오 기준 공개 종목 비중: 삼성전자 60%',
     });
@@ -473,7 +612,8 @@ describe('포트폴리오 분석 의견 요청', () => {
     expect(view.queryByText('70,000원')).toBeNull();
     expect(view.queryByText('80,000원')).toBeNull();
     expect(view.getByText('+14.29%')).toBeTruthy();
-    expect(view.getByText('2026.01.10')).toBeTruthy();
+    expect(view.queryByText('2026.01.10')).toBeNull();
+    expect(view.container.querySelector('.portfolio-public-asset-context')).toBeNull();
     expect(view.getByText('익명 투자자')).toBeTruthy();
     expect(view.queryByText('포트폴리오 공유')).toBeNull();
     expect(view.queryByText(/회원_fa09/)).toBeNull();
@@ -496,21 +636,160 @@ describe('포트폴리오 분석 의견 요청', () => {
       throw new Error(`unexpected request: ${url}`);
     });
     vi.stubGlobal('fetch', fetchMock);
+    const writeText = vi.fn(() => Promise.resolve());
+    vi.stubGlobal('navigator', { clipboard: { writeText } });
 
     const view = render(<PortfolioAnalysisSharePanel analysisId={7} assets={analysisAssets} />);
     fireEvent.click(view.getByRole('button', { name: '의견 받기' }));
 
     expect(await view.findByText(comment.content)).toBeTruthy();
+    expect(view.getByRole('link', { name: '공유 화면 보기' }).getAttribute('href')).toBe(
+      `/portfolio/analysis/share/owner/${pastShare.id}`,
+    );
+    fireEvent.click(view.getByRole('button', { name: '링크 복사' }));
+    await waitFor(() =>
+      expect(writeText).toHaveBeenCalledWith(
+        `${window.location.origin}/portfolio/analysis/share#raw-share-token`,
+      ),
+    );
+    expect(view.getByLabelText('공유 링크')).toBeTruthy();
     fireEvent.click(view.getByRole('button', { name: `${pastShare.question} 공유 중단` }));
     expect(await view.findByText('공유를 중단했어요. 받은 의견은 유지됩니다.')).toBeTruthy();
+    expect(view.queryByLabelText('공유 링크')).toBeNull();
     expect(fetchMock).toHaveBeenCalledWith(
       `/api/users/me/portfolio/analysis/shares/${pastShare.id}/revoke`,
       expect.objectContaining({ method: 'POST' }),
     );
   });
 
+  it('원본 토큰이 없는 기존 요청은 의견을 유지한 채 링크를 다시 발급한다', async () => {
+    const legacyShare = { ...ownerShare, token: null, comments: [comment] };
+    const reissued = { ...legacyShare, token: 'new-share-token' };
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith('/api/users/me/portfolio/analysis/shares') && !init?.method)
+        return Promise.resolve(response([legacyShare]));
+      if (url.endsWith('/api/auth/csrf'))
+        return Promise.resolve(response({ headerName: 'X-XSRF-TOKEN', token: 'csrf' }));
+      if (
+        url.endsWith(`/api/users/me/portfolio/analysis/shares/${legacyShare.id}/reissue`) &&
+        init?.method === 'POST'
+      )
+        return Promise.resolve(response({ share: reissued, token: 'new-share-token' }));
+      throw new Error(`unexpected request: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+    const view = render(<PortfolioAnalysisSharePanel analysisId={7} assets={analysisAssets} />);
+    fireEvent.click(view.getByRole('button', { name: '의견 받기' }));
+    fireEvent.click(await view.findByRole('button', { name: '링크 다시 발급' }));
+
+    expect(
+      await view.findByText('의견과 대화는 유지하고 7일 링크를 다시 발급했어요.'),
+    ).toBeTruthy();
+    expect(view.getByText(comment.content)).toBeTruthy();
+    expect(view.getAllByRole('button', { name: '링크 복사' })).toHaveLength(2);
+    expect(fetchMock).toHaveBeenCalledWith(
+      `/api/users/me/portfolio/analysis/shares/${legacyShare.id}/reissue`,
+      expect.objectContaining({ method: 'POST' }),
+    );
+  });
+
+  it('작성자는 토큰 없이 이전 요청의 공유 화면에 다시 들어간다', async () => {
+    const ownerResponse = {
+      ...publicShare,
+      additionalExplanation: '장기 투자 관점에서 분산 여부를 함께 보고 싶어요.',
+      additionalExplanationUpdatedAt: '2026-11-13T02:00:00Z',
+      canComment: false,
+      ownerShare: { ...ownerShare, comments: [comment] },
+    };
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith('/api/users/me/portfolio/analysis/shares/3'))
+        return Promise.resolve(response(ownerResponse));
+      if (url.endsWith('/api/users/me/portfolio/analysis/shares/3/proposals'))
+        return Promise.resolve(response([]));
+      throw new Error(`unexpected request: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const view = render(
+      <MemoryRouter initialEntries={['/portfolio/analysis/share/owner/3']}>
+        <AuthContext.Provider
+          value={{ isLoggedIn: true, memberId: 1, loading: false, role: 'USER' }}
+        >
+          <Routes>
+            <Route
+              path="/portfolio/analysis/share/owner/:shareId"
+              element={<PortfolioAnalysisSharePage />}
+            />
+          </Routes>
+        </AuthContext.Provider>
+      </MemoryRouter>,
+    );
+
+    expect(await view.findByRole('heading', { name: ownerShare.question })).toBeTruthy();
+    expect(view.getByRole('heading', { name: '작성자 추가 설명' })).toBeTruthy();
+    expect(view.getByText('장기 투자 관점에서 분산 여부를 함께 보고 싶어요.')).toBeTruthy();
+    expect(view.getByText(comment.content)).toBeTruthy();
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/users/me/portfolio/analysis/shares/3',
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
+  });
+
+  it('모든 이전 요청과 답글을 추가 클릭 없이 바로 보여준다', async () => {
+    const reply = {
+      id: 31,
+      authorNickname: '작성자',
+      content: '의견 감사합니다.',
+      fromOwner: true,
+      editable: true,
+      createdAt: comment.createdAt,
+      updatedAt: comment.updatedAt,
+    };
+    const latest = {
+      ...ownerShare,
+      id: 4,
+      analysisId: 6,
+      comments: [{ ...comment, replies: [reply] }],
+    };
+    const older = {
+      ...ownerShare,
+      id: 5,
+      analysisId: 5,
+      question: '현금 비중을 더 늘려야 할까요?',
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(response([latest, older]))),
+    );
+
+    const view = render(<PortfolioAnalysisSharePanel analysisId={7} assets={analysisAssets} />);
+    fireEvent.click(view.getByRole('button', { name: '의견 받기' }));
+    await view.findByText(latest.question);
+
+    const historyHeading = view.getByRole('heading', { name: '이전 의견 요청' });
+    expect(historyHeading.closest('details')).toBeNull();
+    const items = view.container.querySelectorAll<HTMLElement>('.portfolio-share-history-item');
+    expect(items).toHaveLength(2);
+    expect(view.container.querySelector('.portfolio-share-history-item > summary')).toBeNull();
+    expect(view.getByText(comment.content)).toBeTruthy();
+    expect(view.getByText(reply.content)).toBeTruthy();
+    expect(view.getByText(older.question)).toBeTruthy();
+  });
+
   it('비회원은 민감정보 없이 공유 결과를 보고 로그인 후 의견 작성을 선택한다', async () => {
-    const fetchMock = vi.fn(() => Promise.resolve(response(publicShare)));
+    const fetchMock = vi.fn(() =>
+      Promise.resolve(
+        response({
+          ...publicShare,
+          additionalExplanation: '수익률보다 변동성을 낮추는 방향을 우선하고 있어요.',
+          additionalExplanationUpdatedAt: '2026-11-13T02:00:00Z',
+        }),
+      ),
+    );
     vi.stubGlobal('fetch', fetchMock);
 
     const view = render(
@@ -522,11 +801,43 @@ describe('포트폴리오 분석 의견 요청', () => {
     );
 
     expect(await view.findByRole('heading', { name: ownerShare.question })).toBeTruthy();
+    expect(view.getByRole('heading', { name: '작성자 추가 설명' })).toBeTruthy();
+    expect(view.getByText('수익률보다 변동성을 낮추는 방향을 우선하고 있어요.')).toBeTruthy();
+    expect(
+      view.container.querySelector<HTMLTimeElement>(
+        '.portfolio-public-explanation time[datetime="2026-11-13T02:00:00Z"]',
+      ),
+    ).not.toBeNull();
+    expect(
+      view.container.querySelector('.portfolio-public-share-page.is-reviewer-view'),
+    ).not.toBeNull();
+    expect(view.container.querySelector('.portfolio-review-room-header')).toBeNull();
+    expect(view.getByText(/링크 공개 기한/).closest('.portfolio-public-main')).not.toBeNull();
+    expect(view.getByRole('button', { name: '삼성전자, 보유 비중 60%, 긍정 영향' })).toBeTruthy();
+    expect(view.container.querySelector('.portfolio-review-result.is-full-layout')).not.toBeNull();
+    expect(view.queryByRole('heading', { name: /종목별 구성/ })).toBeNull();
+    expect(view.getByRole('heading', { name: '공개한 종목 구성 1개' })).toBeTruthy();
+    expect(view.getByText('전체 포트폴리오 기준 비중이며, 선택한 종목만 표시해요.')).toBeTruthy();
+    expect(
+      view.queryByRole('img', {
+        name: '전체 포트폴리오 기준 공개 종목 비중: 삼성전자 60%',
+      }),
+    ).toBeNull();
+    const compositionTable = view.getByRole('table', { name: '공개 포트폴리오 구성' });
+    expect(compositionTable.textContent).toContain('종목시장비중');
+    expect(view.getAllByRole('columnheader').map((header) => header.textContent)).toEqual([
+      '종목',
+      '시장',
+      '비중',
+    ]);
+    expect(
+      view.container.querySelector<HTMLElement>('.portfolio-public-weight-line span')?.style.width,
+    ).toBe('60%');
     expect(view.getAllByText('삼성전자').length).toBeGreaterThan(0);
     expect(view.queryByRole('heading', { name: 'AI 포트폴리오 분석' })).toBeNull();
     expect(view.getByText(/일부 종목만 공개되어/)).toBeTruthy();
     expect(view.queryByText('평균 매수가')).toBeNull();
-    expect(view.getByText('수익률')).toBeTruthy();
+    expect(view.queryByText('수익률')).toBeNull();
     expect(view.queryByText(/보유 수량/)).toBeNull();
     expect(view.getByText('로그인하고 의견을 나눠보세요.')).toBeTruthy();
     expect(view.queryByRole('textbox', { name: '새 댓글' })).toBeNull();
@@ -586,14 +897,16 @@ describe('포트폴리오 분석 의견 요청', () => {
     );
 
     const textarea = await view.findByRole('textbox', { name: '새 댓글' });
-    expect(view.queryByRole('link', { name: '의견 남기기' })).toBeNull();
+    expect(view.getByRole('link', { name: '의견 남기기' }).getAttribute('href')).toBe(
+      '#portfolio-public-review',
+    );
     fireEvent.change(textarea, { target: { value: '한' } });
     expect(view.getByText('의견은 2자 이상 입력해 주세요.')).toBeTruthy();
-    expect(view.getByRole('button', { name: '의견 남기기' }).hasAttribute('disabled')).toBe(true);
+    expect(view.getByRole('button', { name: '의견 보내기' }).hasAttribute('disabled')).toBe(true);
     fireEvent.change(textarea, { target: { value: '<의견>' } });
     expect(view.getByText('< 또는 > 문자는 사용할 수 없어요.')).toBeTruthy();
     fireEvent.change(textarea, { target: { value: comment.content } });
-    fireEvent.click(view.getByRole('button', { name: '의견 남기기' }));
+    fireEvent.click(view.getByRole('button', { name: '의견 보내기' }));
 
     await waitFor(() => expect(view.getByRole('button', { name: '수정' })).toBeTruthy());
     expect(view.getByText('댓글을 남겼어요.')).toBeTruthy();

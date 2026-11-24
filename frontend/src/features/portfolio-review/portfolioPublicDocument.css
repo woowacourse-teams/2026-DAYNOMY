@@ -1,610 +1,1985 @@
-/* Holdings supply context beside the analysis; discussion follows both. */
+body:has(.portfolio-public-share-page) {
+  background: #fff;
+}
+
 .portfolio-public-share-page {
-  padding-block: 32px;
+  width: 100%;
+  min-height: 100svh;
+  margin: 0;
+  padding: 0;
+  color: #10213a;
+  background: #fff;
 }
+
 .portfolio-public-share-hero {
-  padding: 0 0 24px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-height: 0;
+  margin: 0;
+  padding: 0 0 28px;
+  align-items: center;
+  gap: 12px 24px;
   border-bottom: 1px solid #e4e7ec;
+  background: transparent;
 }
+
 .portfolio-public-share-owner {
-  margin-bottom: 16px;
-  gap: 10px;
-}
-.portfolio-public-expiry {
-  margin-left: 8px;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin: 0;
   padding: 0;
   border: 0;
 }
-.portfolio-public-share-hero h1 {
-  max-width: 800px;
+
+.portfolio-public-share-owner > strong,
+.portfolio-public-share-owner > span {
+  color: #10213a;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.portfolio-public-share-hero > h1 {
+  grid-column: 1 / -1;
+  max-width: none;
   margin: 0;
-  font-size: 1.25rem;
-  font-weight: 600;
-  line-height: 1.6;
+  color: #0b172b;
+  font-size: clamp(1.125rem, 1.7vw, 1.5rem);
+  font-weight: 720;
+  letter-spacing: -0.025em;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
 }
+
 .portfolio-public-explanation {
-  max-width: 840px;
-  margin-top: 24px;
-  padding: 16px 20px;
-  border-radius: 8px;
-  background: #f2f6fa;
+  grid-column: 1 / -1;
+  display: grid;
+  margin: 4px 0 0;
+  padding-top: 18px;
+  gap: 8px;
+  border-top: 1px solid #edf0f4;
 }
+
 .portfolio-public-explanation > div {
   display: flex;
-  flex-wrap: wrap;
   align-items: baseline;
-  gap: 4px 12px;
+  justify-content: space-between;
+  gap: 16px;
 }
+
 .portfolio-public-explanation h2,
-.portfolio-share-explanation-editor h3 {
-  margin: 0;
-  font-size: 0.875rem;
-  font-weight: 600;
-  line-height: 1.5;
-  color: #213e65;
-}
+.portfolio-public-explanation p,
 .portfolio-public-explanation time {
-  color: #52677e;
+  margin: 0;
+}
+
+.portfolio-public-explanation h2 {
+  color: #344054;
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+.portfolio-public-explanation time {
+  color: #8491a3;
   font-size: 0.75rem;
+  white-space: nowrap;
 }
-.portfolio-public-explanation > p,
-.portfolio-share-explanation-copy {
-  margin: 12px 0 0;
-  color: #344054;
-  font-size: 0.9375rem;
-  line-height: 1.8;
-  white-space: pre-wrap;
+
+.portfolio-public-explanation p {
+  color: #52637a;
+  font-size: 0.875rem;
+  line-height: 1.65;
   overflow-wrap: anywhere;
+  white-space: pre-wrap;
 }
-.portfolio-share-explanation-editor {
-  padding: 16px 20px;
-  border: 1px solid #dce5ef;
-  border-radius: 8px;
-  background: #f7f9fc;
-}
-.portfolio-share-explanation-editor > header {
-  display: flex;
+
+.portfolio-public-question-expiry {
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-.portfolio-share-explanation-editor > header p {
-  margin: 4px 0 0;
-  color: #52677e;
+  justify-self: end;
+  gap: 6px;
+  color: #65748a;
   font-size: 0.8125rem;
-  line-height: 1.6;
+  white-space: nowrap;
 }
-.portfolio-share-explanation-editor > header > button {
-  flex-shrink: 0;
-  min-height: 44px;
-  padding: 8px 12px;
-  border: 1px solid #c6d3e2;
-  border-radius: 6px;
-  background: #fff;
-  color: #213e65;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  cursor: pointer;
-}
-.portfolio-share-explanation-editor > header > button:hover:not(:disabled) {
-  background: #edf3f9;
-}
-.portfolio-share-explanation-editor form {
-  display: grid;
-  gap: 8px;
-  margin-top: 16px;
-}
-.portfolio-share-explanation-editor label {
-  color: #344054;
-  font-size: 0.8125rem;
-  font-weight: 500;
-}
-.portfolio-share-explanation-editor textarea {
-  box-sizing: border-box;
-  width: 100%;
-  min-height: 120px;
-  resize: vertical;
-  border: 1px solid #c6d3e2;
-  border-radius: 6px;
-  padding: 12px;
-  background: #fff;
-  color: #344054;
-  font: inherit;
-  font-size: 1rem;
-  line-height: 1.7;
-}
-.portfolio-share-explanation-editor textarea:focus-visible {
-  border-color: #31588a;
-  outline: 2px solid #31588a;
-  outline-offset: -1px;
-}
-.portfolio-share-explanation-editor textarea::placeholder {
-  color: #667085;
-}
-.portfolio-share-explanation-meta {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 4px 12px;
-  color: #667085;
-}
-.portfolio-share-explanation-meta .is-error {
-  color: #b42318;
-}
-.portfolio-share-explanation-editor .portfolio-share-actions {
-  justify-content: flex-end;
-  margin-top: 8px;
-}
-.portfolio-share-explanation-editor .portfolio-share-actions button {
-  border-radius: 6px;
-  font-size: 0.8125rem;
-}
+
 .portfolio-public-content {
-  margin-top: 24px;
-  gap: 32px;
-}
-.portfolio-public-main {
-  grid-template-columns: minmax(280px, 0.85fr) minmax(0, 1.85fr);
+  display: grid;
+  grid-template-columns: minmax(0, 1.95fr) minmax(340px, 1fr);
+  gap: 0;
+  margin: 0;
   align-items: start;
-  gap: 40px;
 }
+
+.portfolio-public-main {
+  display: grid;
+  min-width: 0;
+  padding: 44px clamp(28px, 3.3vw, 48px) 72px var(--page-side-padding);
+  gap: 48px;
+  border-right: 1px solid #d8dee8;
+}
+
 .portfolio-public-main:not(:has(> .portfolio-review-result)) {
   grid-template-columns: minmax(0, 1fr);
 }
-.portfolio-public-main:not(:has(> .portfolio-review-result)) .portfolio-public-asset-list article {
-  grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
+
+.portfolio-public-assets {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.portfolio-public-section-heading {
+  display: block;
+}
+
+.portfolio-public-section-heading > div {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.portfolio-public-section-heading h2 {
+  display: flex;
+  margin: 0;
+  align-items: baseline;
+  gap: 10px;
+  color: #0b172b;
+  font-size: 1.625rem;
+  font-weight: 750;
+  letter-spacing: -0.03em;
+  line-height: 1.35;
+}
+
+.portfolio-public-section-heading .portfolio-public-count {
+  color: #65748a;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.portfolio-public-privacy-note {
+  display: flex;
+  margin: 12px 0 0;
+  align-items: flex-start;
+  gap: 8px;
+  color: #65748a;
+  font-size: 0.8125rem;
+  line-height: 1.65;
+}
+
+.portfolio-public-privacy-note svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
+.portfolio-public-allocation {
+  display: grid;
+  margin: 28px 0 30px;
+  gap: 8px;
+}
+
+.portfolio-public-allocation-bar {
+  display: flex;
+  width: 100%;
+  height: 56px;
+  overflow: hidden;
+  border-radius: 8px;
+  background: #edf1f6;
+}
+
+.portfolio-public-allocation-bar > span {
+  display: grid;
+  min-width: 0;
+  flex-grow: 0;
+  flex-shrink: 1;
+  place-items: center;
+  color: #0b172b;
+  font-size: 0.9375rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+}
+
+.portfolio-public-allocation-bar > span:first-child {
+  color: #fff;
+}
+
+.portfolio-public-allocation-bar > span > span {
+  overflow: hidden;
+  padding-inline: 4px;
+  text-overflow: clip;
+  white-space: nowrap;
+}
+
+.portfolio-public-allocation > p {
+  margin: 0;
+  color: #65748a;
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.portfolio-public-asset-list {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid #d8dee8;
+}
+
+.portfolio-public-asset-list article {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.65fr) 64px minmax(150px, 1fr) auto;
+  min-width: 0;
+  padding: 24px 8px;
+  align-items: center;
+  gap: 22px;
+  border: 0;
+  border-bottom: 1px solid #d8dee8;
+  border-radius: 0;
+  background: transparent;
+}
+
+.portfolio-public-asset-list article:last-child {
+  padding-bottom: 24px;
+  border-bottom: 1px solid #d8dee8;
+}
+
+.portfolio-public-asset-list article > header {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+}
+
+.portfolio-public-asset-color {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 10px;
+  border-radius: 3px;
+}
+
+.portfolio-public-asset-list article > header > div {
+  min-width: 0;
+}
+
+.portfolio-public-asset-list h3 {
+  margin: 0;
+  overflow: hidden;
+  color: #0b172b;
+  font-size: 1.0625rem;
+  font-weight: 700;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.portfolio-public-asset-list article > header span {
+  display: block;
+  margin-top: 3px;
+  overflow: hidden;
+  color: #718096;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.portfolio-public-weight {
+  color: #0b172b;
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.portfolio-public-weight-bar {
+  height: 14px;
+  overflow: hidden;
+  border-radius: 5px;
+  background: #e7ecf2;
+}
+
+.portfolio-public-weight-bar > span {
+  display: block;
+  height: 100%;
+  min-width: 3px;
+  border-radius: inherit;
+}
+
+.portfolio-public-assets.is-summary .portfolio-public-section-heading h2 {
+  font-size: 1.125rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.portfolio-public-assets.is-summary .portfolio-public-privacy-note {
+  max-width: 65ch;
+  margin-top: 8px;
+  color: #6b7482;
+}
+
+.portfolio-public-partial-note {
+  margin: 6px 0 0 26px;
+  color: #596575;
+  font-size: 0.75rem;
+  line-height: 1.6;
+}
+
+.portfolio-public-asset-table-head,
+.portfolio-public-assets.is-summary .portfolio-public-asset-list article {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 88px minmax(150px, 0.8fr);
   align-items: center;
   gap: 24px;
-  padding-block: 18px;
 }
-.portfolio-public-main:not(:has(> .portfolio-review-result)) .portfolio-public-holding-metrics {
-  grid-template-columns: 0.8fr 1.2fr 0.8fr;
+
+.portfolio-public-asset-table-head {
+  margin-top: 28px;
+  padding: 0 0 10px;
+  border-bottom: 1px solid #cfd5dd;
+  color: #596575;
+  font-size: 0.6875rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+}
+
+.portfolio-public-asset-table-head span:last-child {
   text-align: right;
 }
-.portfolio-public-assets {
-  padding: 24px;
-  border: 0;
-  border-radius: 12px;
-  background: #f6f7f9;
+
+.portfolio-public-assets.is-summary .portfolio-public-asset-list {
+  border-top: 0;
 }
-.portfolio-public-section-heading h2,
-.portfolio-public-main > .portfolio-review-result .portfolio-analysis-heading h2,
-.portfolio-public-review h2:not(.portfolio-review-result *) {
-  font-size: 1rem;
-  font-weight: 650;
-  line-height: 1.5;
+
+.portfolio-public-assets.is-summary .portfolio-public-asset-list article {
+  padding: 15px 0;
 }
-.portfolio-public-section-heading h2 {
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.portfolio-public-section-heading .portfolio-public-count {
-  font-size: 0.8125rem;
-}
-.portfolio-public-allocation {
-  margin-block: 20px 4px;
-}
-.portfolio-public-allocation-bar {
-  height: 6px;
-  border-radius: 2px;
-}
-.portfolio-public-privacy-note {
-  margin-top: 12px;
-  font-size: 0.8125rem;
-  line-height: 1.7;
-}
-.portfolio-public-asset-list article {
-  grid-template-columns: minmax(0, 1fr);
-  gap: 14px;
-  padding-block: 20px;
-}
-.portfolio-public-asset-list article:last-child {
-  border-bottom: 0;
-  padding-bottom: 12px;
-}
-.portfolio-public-asset-list h3 {
+
+.portfolio-public-assets.is-summary .portfolio-public-asset-list h3 {
   font-size: 0.9375rem;
-  word-break: keep-all;
+  font-weight: 650;
 }
-.portfolio-public-holding-metrics {
-  grid-template-columns: repeat(auto-fit, minmax(82px, 1fr));
-  gap: 12px 8px;
-  text-align: left;
-}
-.portfolio-public-holding-metrics dd {
+
+.portfolio-public-asset-market {
+  color: #596575;
   font-size: 0.8125rem;
 }
-.portfolio-public-share-analyzed {
-  border-top: 1px solid #e4e7ec;
-  margin-top: 8px;
-  padding-top: 12px;
-  line-height: 1.7;
-}
-.portfolio-public-main > .portfolio-review-result {
-  padding: 0;
-  border: 0;
-  container-type: normal;
-}
-.portfolio-public-main > .portfolio-review-result .portfolio-analysis-heading {
-  margin-bottom: 20px;
-}
-.portfolio-public-main > .portfolio-review-result .portfolio-analysis-layout {
-  grid-template-columns: minmax(0, 1fr);
-  gap: 24px;
-}
-.portfolio-public-main > .portfolio-review-result .portfolio-analysis-overview {
-  display: block;
-  padding: 0 0 16px;
-  background: transparent;
-  border-radius: 0;
-  border-bottom: 1px solid #e4e7ec;
-}
-/* The buttons retain chart selection without duplicating the holdings list. */
-.portfolio-public-main > .portfolio-review-result .portfolio-analysis-donut-wrap,
-.portfolio-public-main > .portfolio-review-result .portfolio-analysis-overview-heading,
-.portfolio-public-main > .portfolio-review-result .portfolio-weight-caption,
-.portfolio-public-main > .portfolio-review-result .portfolio-asset-analysis {
-  display: none;
-}
-.portfolio-public-main > .portfolio-review-result .portfolio-asset-selector {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.portfolio-public-main > .portfolio-review-result .portfolio-asset-list {
-  display: contents;
-}
-.portfolio-public-main > .portfolio-review-result .portfolio-overall-option {
-  margin: 0;
-  padding: 0;
-  border: 0;
-}
-.portfolio-public-main > .portfolio-review-result .portfolio-asset-row {
-  display: flex;
+
+.portfolio-public-weight-cell {
+  display: grid;
+  grid-template-columns: minmax(48px, 1fr) auto;
   align-items: center;
-  gap: 7px;
-  min-height: 44px;
-  padding: 8px 12px;
-  border: 1px solid #e4e7ec;
-  border-radius: 6px;
-  background: #fff;
-  color: #475467;
+  gap: 14px;
 }
-.portfolio-public-main > .portfolio-review-result .portfolio-asset-row.is-selected {
-  border-color: #31588a;
-  background: #edf3f9;
-  color: #213e65;
-}
-.portfolio-public-main > .portfolio-review-result .portfolio-asset-row:hover:not(:disabled) {
-  background: #f2f4f7;
-}
-.portfolio-public-main > .portfolio-review-result .portfolio-asset-dot {
-  flex: 0 0 6px;
-  width: 6px;
-  height: 6px;
-}
-.portfolio-public-main > .portfolio-review-result .portfolio-asset-name {
+
+.portfolio-public-weight-line {
   display: block;
-  max-width: 180px;
-  font-size: 0.8125rem;
-  line-height: 1.5;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+  height: 2px;
   overflow: hidden;
+  background: #dfe4ea;
 }
-.portfolio-public-main > .portfolio-review-result .portfolio-asset-row strong {
-  min-width: 0;
-  font-size: 0.75rem;
+
+.portfolio-public-weight-line > span {
+  display: block;
+  height: 100%;
+  min-width: 2px;
+  background: #203853;
 }
-.portfolio-public-main > .portfolio-review-result .portfolio-impact-detail {
-  padding: 0;
+
+.portfolio-public-assets.is-summary .portfolio-public-weight {
+  font-size: 0.875rem;
+  font-weight: 650;
 }
-.portfolio-public-main > .portfolio-review-result .portfolio-detail-header {
-  grid-template-columns: minmax(0, 1fr);
-  gap: 12px;
+
+.portfolio-public-return {
+  display: grid;
+  margin: 0;
+  justify-items: end;
+  gap: 3px;
+  white-space: nowrap;
 }
-.portfolio-public-main > .portfolio-review-result .portfolio-detail-header h3 {
-  margin-top: 6px;
-  font-size: 1.125rem;
+
+.portfolio-public-return dt,
+.portfolio-public-return dd {
+  margin: 0;
+}
+
+.portfolio-public-return dt {
+  color: #718096;
+  font-size: 0.6875rem;
+  line-height: 1.35;
+}
+
+.portfolio-public-return dd {
+  color: #34445b;
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.portfolio-public-return.is-gain dd {
+  color: #b4232c;
+}
+
+.portfolio-public-return.is-loss dd {
+  color: #245d9d;
+}
+
+.portfolio-public-summary {
+  margin: 32px 0 0;
+  border: 1px solid #d8e4f5;
+  border-radius: 6px;
+  padding: 18px 20px;
+  background: #edf4ff;
+  color: #10213a;
+  font-size: 0.9375rem;
+  font-weight: 650;
+  line-height: 1.65;
   overflow-wrap: anywhere;
 }
-.portfolio-public-main > .portfolio-review-result .portfolio-detail-badge-group {
-  flex-direction: row;
-  flex-wrap: wrap;
-  justify-self: start;
-  align-items: center;
+
+.portfolio-public-share-analyzed,
+.portfolio-public-excluded {
+  margin: 12px 0 0;
+  color: #718096;
+  font-size: 0.75rem;
+  line-height: 1.6;
 }
-.portfolio-public-main > .portfolio-review-result .portfolio-detail-copy p {
-  font-size: 0.9375rem;
-  line-height: 1.85;
+
+.portfolio-public-main > .portfolio-review-result {
+  margin: 0;
 }
+
+.portfolio-public-mobile-review-link {
+  display: none;
+}
+
 .portfolio-public-review {
-  padding-block: 24px 0;
-  gap: 12px;
-  border-top: 1px solid #d0d5dd;
+  position: sticky;
+  top: 24px;
+  display: grid;
+  width: 100%;
+  max-height: calc(100svh - 48px);
+  margin: 0;
+  padding: 44px var(--page-side-padding) 48px clamp(24px, 2.6vw, 40px);
+  align-self: start;
+  gap: 20px;
+  overflow-y: auto;
+  border: 0;
+  border-radius: 0;
+  background: #fff;
+  box-shadow: none;
+  font-size: 0.875rem;
 }
+
 .portfolio-public-review > * {
   width: 100%;
+  max-width: none;
 }
-.portfolio-public-review > * {
-  max-width: 840px;
-}
+
 .portfolio-public-review-heading {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 8px 16px;
-  margin-bottom: 0;
-}
-.portfolio-public-review-heading > h3 {
+  display: grid;
   margin: 0;
-  color: #182230;
-  font-size: 1rem;
-  font-weight: 650;
+  gap: 10px;
+}
+
+.portfolio-public-review h2:not(.portfolio-review-result *) {
+  margin: 0;
+  color: #0b172b;
+  font-size: 1.625rem;
+  font-weight: 750;
+  letter-spacing: -0.03em;
+  line-height: 1.35;
+}
+
+.portfolio-public-review-prompt,
+.portfolio-public-owner-note {
+  margin: 8px 0 0;
+  color: #27364c;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1.6;
+}
+
+.portfolio-public-comment-form {
+  display: grid;
+  gap: 14px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.portfolio-public-comment-form:focus-within {
+  outline: 0;
+}
+
+.portfolio-public-comment-compose {
+  display: grid;
+  gap: 8px;
+}
+
+.portfolio-public-comment-form .portfolio-public-comment-compose textarea,
+.portfolio-public-review textarea {
+  width: 100%;
+  min-height: 300px;
+  resize: vertical;
+  border: 1px solid #bfc8d5;
+  border-radius: 8px;
+  padding: 16px;
+  background: #fff;
+  color: #10213a;
+  font: inherit;
+  font-size: 0.9375rem;
+  line-height: 1.65;
+  caret-color: #3d6de0;
+}
+
+.portfolio-public-review textarea::placeholder {
+  color: #6b7482;
+}
+
+.portfolio-public-review textarea:focus-visible {
+  border-color: #3d6de0;
+  outline: 2px solid rgba(61, 109, 224, 0.24);
+  outline-offset: 1px;
+}
+
+.portfolio-public-comment-meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  color: #6b7482;
+}
+
+.portfolio-public-comment-meta small {
+  font-size: 0.75rem;
+}
+
+.portfolio-public-comment-meta .is-error,
+.portfolio-reply-editor .is-error,
+.portfolio-share-error {
+  color: #b42318;
+}
+
+.portfolio-public-comment-footer {
+  display: grid;
+  gap: 12px;
+}
+
+.portfolio-public-comment-privacy {
+  display: flex;
+  margin: 0;
+  align-items: center;
+  gap: 8px;
+  color: #65748a;
+  font-size: 0.8125rem;
   line-height: 1.5;
 }
-.portfolio-public-review-heading .portfolio-public-owner-note {
+
+.portfolio-public-comment-privacy img {
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
+  flex: 0 0 auto;
+}
+
+.portfolio-public-comment-footer .portfolio-share-notice,
+.portfolio-public-comment-form > .portfolio-share-error {
   margin: 0;
   font-size: 0.8125rem;
 }
+
+.portfolio-public-comment-footer .portfolio-share-actions {
+  display: block;
+  margin: 0;
+}
+
+.portfolio-public-review .portfolio-share-actions button:not(.is-secondary) {
+  width: 100%;
+  min-height: 52px;
+  border: 1px solid #3d6de0;
+  border-radius: 8px;
+  padding: 12px 16px;
+  background: #3d6de0;
+  color: #fff;
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.portfolio-public-review .portfolio-share-actions button:hover:not(:disabled) {
+  background: #2f5fc9;
+}
+
+.portfolio-public-review .portfolio-share-actions button:disabled {
+  border-color: #aebbd0;
+  background: #aebbd0;
+  cursor: default;
+}
+
+.portfolio-public-login {
+  display: grid;
+  gap: 14px;
+  padding: 20px;
+  border-radius: 8px;
+  background: #f4f7fb;
+}
+
+.portfolio-public-review .portfolio-public-login p {
+  margin: 0;
+  color: #526077;
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+
+.portfolio-public-login a {
+  display: inline-flex;
+  min-height: 48px;
+  padding: 10px 16px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: #3d6de0;
+  color: #fff;
+  font-size: 0.875rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.portfolio-public-review .portfolio-share-reviews {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
 .portfolio-public-review .portfolio-share-reviews > li {
   position: relative;
-  padding-left: 44px;
+  padding: 20px 0 20px 44px;
+  border: 0;
+  border-top: 1px solid #d8dee8;
+  border-radius: 0;
 }
+
+.portfolio-public-review .portfolio-share-reviews > li:first-child {
+  border-top: 0;
+}
+
 .portfolio-comment-avatar {
   position: absolute;
   top: 20px;
   left: 0;
   display: grid;
-  place-items: center;
   width: 32px;
   height: 32px;
+  place-items: center;
   border-radius: 50%;
-  background: #f2f4f7;
-  color: #667085;
+  background: #edf1f6;
+  color: #65748a;
 }
-.portfolio-share-reviews > li:first-child .portfolio-comment-avatar {
-  top: 0;
+
+.portfolio-public-review :is(.portfolio-review-meta, .portfolio-reply-meta) {
+  display: flex;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 6px 10px;
 }
-.portfolio-public-review .portfolio-share-reviews {
-  margin-top: 0;
-}
+
 .portfolio-public-review :is(.portfolio-review-meta, .portfolio-reply-meta) strong {
+  color: #10213a;
   font-size: 0.8125rem;
-  overflow-wrap: anywhere;
+  font-weight: 700;
 }
+
+.portfolio-public-review .portfolio-share-reviews time:not(.portfolio-review-result *) {
+  color: #718096;
+  font-size: 0.75rem;
+}
+
 .portfolio-public-review .portfolio-share-reviews li p:not(.portfolio-review-result *) {
-  margin-top: 8px;
+  margin: 8px 0 0;
+  color: #34445b;
   font-size: 0.875rem;
-  line-height: 1.75;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
 }
-.portfolio-public-review .portfolio-reply-thread > ul {
-  margin-left: 0;
-  padding-left: 20px;
-  gap: 20px;
-}
-.portfolio-public-review .portfolio-reply-thread > ul > li {
-  position: relative;
-  padding: 0;
-  background: transparent;
-}
-.portfolio-public-review
-  .portfolio-share-reviews
-  li:has(> .portfolio-reply-controls)
-  > :is(.portfolio-review-meta, .portfolio-reply-meta) {
-  padding-right: 88px;
-  min-height: 28px;
-}
+
 .portfolio-public-review .portfolio-reply-controls {
   position: absolute;
-  top: 0;
+  top: -8px;
   right: 0;
-  margin-top: 0;
-  gap: 4px;
-}
-.portfolio-public-review .portfolio-reply-controls button {
-  min-height: 28px;
-  min-width: 36px;
-  padding: 4px;
-}
-.portfolio-public-review .portfolio-share-reviews > li + li > .portfolio-reply-controls {
-  top: 20px;
-}
-.portfolio-public-review .portfolio-reply-compose {
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
+  display: flex;
+  margin: 0;
+  justify-content: flex-end;
   gap: 12px;
 }
-.portfolio-public-review .portfolio-reply-compose label {
-  grid-column: 1 / -1;
+
+.portfolio-public-review .portfolio-reply-controls button,
+.portfolio-public-review .portfolio-share-actions .is-secondary {
+  min-height: 44px;
+  border: 0;
+  border-radius: 6px;
+  padding: 5px 8px;
+  background: transparent;
+  color: #41628f;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.portfolio-public-review .portfolio-reply-controls button {
+  border-radius: 0;
+  padding-inline: 0;
+}
+
+.portfolio-public-review .portfolio-reply-thread {
+  display: grid;
+  gap: 0;
+  margin-top: 10px;
+  padding: 0;
+  border: 0;
+}
+
+.portfolio-public-review .portfolio-reply-actions {
+  display: block;
+  margin: 0;
+}
+
+.portfolio-public-review .portfolio-reply-primary-actions {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 0;
+}
+
+.portfolio-public-review :is(.portfolio-reply-disclosure, .portfolio-reply-toggle) {
+  display: inline-flex;
+  min-height: 44px;
+  padding: 8px 0;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: transparent;
+  color: #41628f;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.portfolio-public-review .portfolio-reply-disclosure + .portfolio-reply-toggle {
+  min-height: 20px;
+  margin-left: 14px;
+  border-left: 1px solid #d8dee8;
+  padding-left: 14px;
+}
+
+.portfolio-public-review .portfolio-reply-caret {
+  transition: transform 160ms ease-out;
+}
+
+.portfolio-public-review .portfolio-reply-disclosure[aria-expanded='false'] .portfolio-reply-caret {
+  transform: rotate(-90deg);
+}
+
+.portfolio-public-review .portfolio-reply-thread > ul {
+  display: grid;
+  gap: 16px;
+  margin: 12px 0 0 28px;
+  padding: 0;
+  border: 0;
+  list-style: none;
+}
+
+.portfolio-public-review .portfolio-reply-thread > ul > li {
+  position: relative;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) 44px;
+  padding: 0;
+  align-items: start;
+  column-gap: 10px;
+  border-radius: 0;
+  background: transparent;
+}
+
+.portfolio-public-review .portfolio-reply-avatar {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 50%;
+  background: #edf1f6;
+  color: #65748a;
+}
+
+.portfolio-public-review .portfolio-reply-thread .portfolio-reply-meta {
+  grid-column: 2;
+  min-width: 0;
+  min-height: 30px;
+  padding: 0;
+  align-items: center;
+  gap: 2px 8px;
+}
+
+.portfolio-public-review .portfolio-reply-meta strong {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+}
+
+.portfolio-public-review .portfolio-reply-author-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.portfolio-public-review .portfolio-reply-owner-badge {
+  flex: 0 0 auto;
+  margin-left: 6px;
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: #edf1f6;
+  color: #526077;
+  font-size: 0.6875rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.portfolio-public-review .portfolio-reply-thread > ul > li > p:not(.portfolio-review-result *) {
+  grid-column: 2 / -1;
+  margin-top: 3px;
+}
+
+.portfolio-public-review .portfolio-reply-menu {
+  position: relative;
+  grid-column: 3;
+  grid-row: 1;
+  justify-self: end;
+}
+
+.portfolio-public-review .portfolio-reply-menu > summary {
+  display: grid;
+  width: 44px;
+  min-height: 44px;
+  margin-top: -7px;
+  place-items: center;
+  border-radius: 6px;
+  color: #65748a;
+  cursor: pointer;
+  list-style: none;
+}
+
+.portfolio-public-review .portfolio-reply-menu > summary::-webkit-details-marker {
+  display: none;
+}
+
+.portfolio-public-review .portfolio-reply-menu-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  clip-path: inset(50%);
+}
+
+.portfolio-public-review .portfolio-reply-menu > summary:hover,
+.portfolio-public-review .portfolio-reply-menu[open] > summary {
+  background: #f2f4f7;
+  color: #203853;
+}
+
+.portfolio-public-review .portfolio-reply-menu .portfolio-reply-controls {
+  top: 38px;
+  right: 0;
+  z-index: 2;
+  display: grid;
+  min-width: 92px;
+  padding: 5px;
+  gap: 0;
+  border: 1px solid #d8dee8;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 10px 28px rgb(16 33 58 / 12%);
+}
+
+.portfolio-public-review .portfolio-reply-menu .portfolio-reply-controls button {
+  min-height: 36px;
+  border-radius: 5px;
+  padding: 7px 10px;
+  text-align: left;
+}
+
+.portfolio-public-review .portfolio-reply-menu .portfolio-reply-controls button:hover {
+  background: #f2f4f7;
+}
+
+.portfolio-public-review .portfolio-reply-editor {
+  grid-column: 2 / -1;
+}
+
+.portfolio-public-review .portfolio-reply-compose,
+.portfolio-public-review .portfolio-reply-editor {
+  display: grid;
   gap: 8px;
 }
-.portfolio-public-review .portfolio-reply-compose > button {
-  grid-column: 2;
-  margin: 0;
-  border-radius: 6px;
-  min-height: 36px;
-  padding: 8px 12px;
-}
-.portfolio-public-review .portfolio-reply-compose textarea {
-  min-height: 64px;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-  line-height: 1.6;
-}
-.portfolio-public-review .portfolio-reply-compose textarea:focus {
-  outline: none;
-  border: 0;
-  box-shadow: none;
-}
-.portfolio-public-review .portfolio-reply-actions {
-  gap: 4px 16px;
-}
-.portfolio-public-review textarea {
-  font-size: 0.9375rem;
-}
-.portfolio-public-comment-form {
+
+.portfolio-public-review .portfolio-reply-compose label,
+.portfolio-public-review .portfolio-reply-editor label {
   display: grid;
+  gap: 6px;
+}
+
+.portfolio-public-review .portfolio-reply-compose textarea,
+.portfolio-public-review .portfolio-reply-editor textarea {
+  min-height: 84px;
+}
+
+.portfolio-public-review .portfolio-reply-compose {
+  margin-top: 12px;
+}
+
+.portfolio-public-review .portfolio-reply-compose-footer {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: space-between;
   gap: 12px;
-  padding: 16px;
-  border: 1px solid #d0d5dd;
-  border-radius: 8px;
-  background: #fff;
 }
-.portfolio-public-comment-form:focus-within {
-  outline: 2px solid #31588a;
-  outline-offset: -1px;
-}
-.portfolio-public-comment-form .portfolio-public-comment-compose textarea {
-  min-height: 96px;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-  outline: none;
-}
-.portfolio-public-comment-form .portfolio-public-comment-meta {
-  align-items: baseline;
-  font-size: 0.8125rem;
-  line-height: 1.5;
-}
-.portfolio-public-comment-form .portfolio-public-comment-meta small {
-  font-size: inherit;
-}
-.portfolio-public-comment-meta > small:last-child {
-  flex-shrink: 0;
-}
-.portfolio-public-comment-footer {
+
+.portfolio-public-review .portfolio-reply-editor .portfolio-share-actions {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 8px 16px;
+  justify-content: flex-end;
+  gap: 12px;
 }
-.portfolio-public-comment-footer .portfolio-share-notice {
-  margin: 0;
-  font-size: 0.8125rem;
-  color: #1b5e3b;
-}
-.portfolio-public-comment-footer .portfolio-share-actions {
-  margin-left: auto;
-}
-.portfolio-public-comment-footer .portfolio-share-actions button {
+
+.portfolio-public-review
+  .portfolio-reply-editor
+  .portfolio-share-actions
+  button:not(.is-secondary) {
   width: auto;
+  min-height: 44px;
   border-radius: 6px;
+  padding: 8px 12px;
   font-size: 0.8125rem;
 }
-.portfolio-public-comment-form > .portfolio-share-error {
+
+.portfolio-public-review .portfolio-reply-editor .portfolio-share-actions .is-secondary {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.portfolio-public-review .portfolio-reply-compose-footer > button {
+  flex: 0 0 auto;
+  min-height: 44px;
+  border: 1px solid #3d6de0;
+  border-radius: 6px;
+  padding: 7px 11px;
+  background: #3d6de0;
+  color: #fff;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+.portfolio-public-review .portfolio-reply-secondary-action {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #e4e8ee;
+}
+
+.portfolio-public-review .portfolio-reply-secondary-action .portfolio-review-simulation {
   margin: 0;
-  font-size: 0.8125rem;
 }
-.portfolio-public-comment-form + .portfolio-share-reviews {
-  padding-top: 12px;
-}
-.portfolio-public-review .portfolio-share-reviews > li:first-child {
-  padding-top: 0;
-}
-.portfolio-public-review .portfolio-reply-compose {
-  border: 1px solid #d0d5dd;
+
+.portfolio-public-review .portfolio-review-simulation > button.portfolio-review-simulation-trigger {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) 16px;
+  width: 100%;
+  min-height: 56px;
+  border: 0;
   border-radius: 8px;
-  padding: 12px 16px;
+  padding: 8px;
+  align-items: center;
+  gap: 10px;
+  background: transparent;
+  color: #34445b;
+  font: inherit;
+  text-align: left;
+}
+
+.portfolio-public-review
+  .portfolio-review-simulation
+  > button.portfolio-review-simulation-trigger:hover {
+  background: #f5f7fa;
+  text-decoration: none;
+}
+
+.portfolio-review-simulation-trigger > svg:first-child {
+  color: #41628f;
+}
+
+.portfolio-review-simulation-trigger > svg:last-child {
+  color: #718096;
+}
+
+.portfolio-review-simulation-trigger > span {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.portfolio-review-simulation-trigger strong {
+  color: #203853;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.portfolio-public-review .portfolio-review-simulation-trigger small {
+  color: #718096;
+  font-size: 0.75rem;
+  line-height: 1.45;
+}
+
+.portfolio-sheet.portfolio-review-simulation-dialog {
+  width: min(720px, calc(100vw - 32px));
+  max-width: none;
+  max-height: min(840px, calc(100dvh - 32px));
+  margin: auto;
+  overflow: auto;
+  border: 0;
+  border-radius: 16px;
+  padding: 0;
+  background: #fff;
+  color: #10213a;
+  box-shadow: 0 28px 80px 8px rgb(17 24 32 / 22%);
+}
+
+.portfolio-review-simulation-dialog::backdrop {
+  background: rgb(16 33 58 / 48%);
+}
+
+.portfolio-review-simulation-dialog > .portfolio-sheet-content {
+  min-width: 0;
+}
+
+.portfolio-review-simulation-dialog .portfolio-review-simulation-editor {
+  border: 0;
+  border-radius: 0;
   background: #fff;
 }
-.portfolio-public-review .portfolio-reply-compose:focus-within {
-  border-color: #31588a;
+
+.portfolio-review-simulation-dialog .portfolio-review-simulation-editor > header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 44px;
+  padding: 28px 28px 20px;
+  align-items: start;
+  gap: 6px 20px;
+}
+
+.portfolio-review-simulation-dialog .portfolio-review-simulation-editor > header > :not(button) {
+  grid-column: 1;
+}
+
+.portfolio-review-simulation-dialog .portfolio-simulation-close {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  display: grid;
+  width: 44px;
+  min-height: 44px;
+  place-items: center;
+  border-radius: 8px;
+  padding: 0;
+  background: transparent;
+  color: #596575;
+}
+
+.portfolio-review-simulation-dialog .portfolio-simulation-close:hover {
+  background: #f2f4f7;
+  color: #182230;
+}
+
+.portfolio-review-simulation-dialog
+  .portfolio-review-simulation-editor
+  :is(.portfolio-simulation-stock-addition, .portfolio-simulation-composition) {
+  padding-inline: 28px;
+}
+
+.portfolio-review-simulation-dialog .portfolio-simulation-footer {
+  padding: 20px 28px 28px;
+}
+
+.portfolio-review-simulation-dialog
+  .portfolio-review-simulation-editor
+  .portfolio-simulation-result {
+  margin-inline: 0;
+}
+
+.portfolio-simulation-result-view {
+  display: grid;
+  gap: 28px;
+  padding: 0 28px 28px;
+}
+
+.portfolio-simulation-snapshot > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.portfolio-simulation-snapshot h4 {
+  margin: 0;
+  color: #182230;
+  font-size: 0.9375rem;
+  font-weight: 700;
+}
+
+.portfolio-public-review .portfolio-simulation-snapshot header p {
+  margin: 4px 0 0;
+  color: #65748a;
+  font-size: 0.8125rem;
+  line-height: 1.55;
+}
+
+.portfolio-review-simulation button.portfolio-simulation-edit-again {
+  display: inline-flex;
+  min-height: 44px;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #d8dee8;
+  background: #fff;
+  color: #34445b;
+  font-weight: 650;
+}
+
+.portfolio-review-simulation button.portfolio-simulation-edit-again:hover {
+  border-color: #bfc8d5;
+  background: #f5f7fa;
+}
+
+.portfolio-simulation-snapshot > ul {
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid #d8dee8;
+  list-style: none;
+}
+
+.portfolio-simulation-snapshot > ul > li {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) auto 80px;
+  min-height: 60px;
+  padding: 10px 0;
+  align-items: center;
+  gap: 18px;
+  border-bottom: 1px solid #e8ecf1;
+}
+
+.portfolio-simulation-snapshot > ul > li > strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: #203853;
+  font-size: 0.875rem;
+  font-weight: 650;
+}
+
+.portfolio-simulation-snapshot-values {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #718096;
+}
+
+.portfolio-simulation-snapshot-values > span {
+  display: grid;
+  min-width: 62px;
+  gap: 2px;
+  text-align: right;
+}
+
+.portfolio-simulation-snapshot-values small {
+  color: #718096;
+  font-size: 0.6875rem;
+  line-height: 1.3;
+}
+
+.portfolio-simulation-snapshot-values b {
+  color: #34445b;
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+}
+
+.portfolio-simulation-difference {
+  justify-self: end;
+  color: #2f67cf;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.portfolio-simulation-difference.is-unchanged {
+  color: #718096;
+  font-weight: 500;
+}
+
+.portfolio-public-review p.portfolio-simulation-snapshot-note {
+  display: flex;
+  margin: 12px 0 0;
+  align-items: flex-start;
+  gap: 7px;
+  color: #65748a;
+  font-size: 0.75rem;
+  line-height: 1.55;
+}
+
+.portfolio-simulation-snapshot-note svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+.portfolio-review-simulation-dialog .portfolio-simulation-result-view .portfolio-simulation-result {
+  margin: 0;
+  padding-top: 28px;
+  border-top: 1px solid #d8dee8;
+}
+
+.portfolio-public-proposal-result {
+  display: grid;
+  min-width: 0;
+  padding-top: 40px;
+  gap: 24px;
+  border-top: 1px solid #d8dee8;
+}
+
+.portfolio-public-proposal-heading {
+  display: grid;
+  min-width: 0;
+  gap: 20px;
+}
+
+.portfolio-public-proposal-heading > div:first-child {
+  min-width: 0;
+  max-width: 72ch;
+}
+
+.portfolio-public-proposal-heading h2 {
+  margin: 0;
+  color: #0b172b;
+  font-size: 1.625rem;
+  font-weight: 750;
+  letter-spacing: -0.03em;
+  line-height: 1.35;
+  word-break: keep-all;
+}
+
+.portfolio-public-proposal-heading p,
+.portfolio-public-proposal-result .portfolio-simulation-snapshot header p,
+.portfolio-public-proposal-result p.portfolio-simulation-snapshot-note {
+  margin: 8px 0 0;
+  color: #65748a;
+  font-size: 0.8125rem;
+  line-height: 1.65;
+}
+
+.portfolio-public-proposal-heading .portfolio-public-proposal-source {
+  max-width: 68ch;
+  margin-top: 10px;
+  color: #34445b;
+  font-size: 0.875rem;
+  font-weight: 650;
+  line-height: 1.6;
+}
+
+.portfolio-public-proposal-tools {
+  display: flex;
+  width: 100%;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 24px;
+}
+
+.portfolio-proposal-selector {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.portfolio-proposal-selector-count {
+  color: #65748a;
+  font-size: 0.75rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.portfolio-proposal-selector select {
+  min-height: 44px;
+  border: 1px solid #bfc8d5;
+  border-radius: 7px;
+  background: #fff;
+  color: #203853;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+.portfolio-proposal-selector select {
+  max-width: 320px;
+  padding: 9px 32px 9px 12px;
+  cursor: pointer;
+}
+
+.portfolio-proposal-selector select:hover,
+.portfolio-proposal-selector select:focus-visible {
+  border-color: #8f9caf;
+}
+
+.portfolio-proposal-selector select:focus-visible {
   outline: 2px solid #31588a;
-  outline-offset: -1px;
+  outline-offset: 2px;
 }
-@media (max-width: 1000px) {
-  .portfolio-public-main {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 32px;
-  }
+
+.portfolio-proposal-selector select:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.portfolio-public-proposal-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
+.portfolio-public-proposal-actions button {
+  display: inline-flex;
+  min-height: 44px;
+  padding: 9px 13px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid #bfc8d5;
+  border-radius: 7px;
+  background: #fff;
+  color: #203853;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.portfolio-public-proposal-actions button:hover:not(:disabled) {
+  border-color: #8f9caf;
+  background: #f5f7fa;
+}
+
+.portfolio-public-proposal-actions button.is-primary {
+  border-color: #18283d;
+  background: #18283d;
+  color: #fff;
+}
+
+.portfolio-public-proposal-actions button.is-primary:hover:not(:disabled) {
+  border-color: #233a57;
+  background: #233a57;
+}
+
+.portfolio-public-proposal-actions button.is-danger {
+  padding-inline: 8px;
+  border-color: transparent;
+  background: transparent;
+  color: #9f2d2d;
+}
+
+.portfolio-public-proposal-actions button.is-danger:hover:not(:disabled) {
+  border-color: transparent;
+  background: #fff5f4;
+}
+
+.portfolio-public-proposal-actions button:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.portfolio-public-proposal-result .portfolio-simulation-snapshot h3 {
+  margin: 0;
+  color: #182230;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.portfolio-public-proposal-result .portfolio-simulation-snapshot > ul > li {
+  grid-template-columns: minmax(120px, 1fr) auto 80px;
+}
+
+.portfolio-public-proposal-result.is-saved-only .portfolio-simulation-snapshot > ul > li {
+  grid-template-columns: minmax(120px, 1fr) auto;
+}
+
+.portfolio-public-proposal-result .portfolio-simulation-snapshot-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+}
+
+.portfolio-public-proposal-analysis-empty {
+  display: flex;
+  padding-top: 24px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  border-top: 1px solid #d8dee8;
+}
+
+.portfolio-public-proposal-analysis-empty h3 {
+  margin: 0;
+  color: #182230;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.portfolio-public-proposal-analysis-empty p {
+  margin: 6px 0 0;
+  color: #65748a;
+  font-size: 0.8125rem;
+  line-height: 1.65;
+}
+
+.portfolio-public-proposal-analysis-empty button {
+  display: inline-flex;
+  min-height: 44px;
+  flex: 0 0 auto;
+  padding: 10px 15px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid #18283d;
+  border-radius: 7px;
+  background: #18283d;
+  color: #fff;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.portfolio-public-proposal-analysis-empty button:hover:not(:disabled) {
+  background: #233a57;
+}
+
+.portfolio-public-proposal-analysis-empty button:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.portfolio-public-proposal-result > .portfolio-simulation-result {
+  min-width: 0;
+  margin: 0;
+  padding-top: 24px;
+  border-top: 1px solid #d8dee8;
+}
+
+.portfolio-public-proposal-result .portfolio-review-result.is-full-layout {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.portfolio-simulation-analysis-comparison {
+  display: grid;
+  gap: 18px;
+  margin-bottom: 24px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid #d8dee8;
+}
+
+.portfolio-simulation-analysis-comparison h3 {
+  margin: 0;
+  color: #182230;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.portfolio-simulation-analysis-comparison header > p,
+.portfolio-simulation-analysis-comparison > p {
+  margin: 6px 0 0;
+  color: #58677c;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+}
+
+.portfolio-simulation-analysis-comparison dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+  border-top: 1px solid #e4e9f0;
+}
+
+.portfolio-simulation-analysis-comparison dl > div {
+  min-width: 0;
+  padding: 16px 0;
+  border-bottom: 1px solid #e4e9f0;
+}
+
+.portfolio-simulation-analysis-comparison dl > div:nth-child(odd) {
+  padding-right: 24px;
+}
+
+.portfolio-simulation-analysis-comparison dl > div:nth-child(even) {
+  padding-left: 24px;
+  border-left: 1px solid #e4e9f0;
+}
+
+.portfolio-simulation-analysis-comparison dt {
+  margin-bottom: 10px;
+  color: #58677c;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.portfolio-simulation-analysis-comparison dd {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 16px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+}
+
+.portfolio-simulation-analysis-comparison dd > span {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.portfolio-simulation-analysis-comparison dd small {
+  color: #667085;
+  font-size: 0.6875rem;
+}
+
+.portfolio-simulation-analysis-comparison dd strong {
+  color: #203853;
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.portfolio-simulation-analysis-comparison dd > svg {
+  color: #7a8798;
+}
+
+.portfolio-simulation-analysis-comparison .portfolio-simulation-score-change {
+  color: #31588a;
+  font-weight: 700;
+}
+
+.portfolio-public-proposal-loading,
+.portfolio-public-proposal-error {
+  margin: 0;
+  color: #65748a;
+  font-size: 0.8125rem;
+}
+
+.portfolio-public-proposal-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #b42318;
+}
+
+.portfolio-public-proposal-error p {
+  margin: 0;
+}
+
+.portfolio-public-proposal-error button {
+  min-height: 40px;
+  flex: 0 0 auto;
+  border: 1px solid #bfc8d5;
+  border-radius: 7px;
+  padding: 7px 11px;
+  background: #fff;
+  color: #34445b;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.portfolio-share-empty {
+  margin: 0;
+  padding: 18px;
+  border-radius: 8px;
+  background: #f4f7fb;
+  color: #65748a;
+  line-height: 1.7;
+}
+
+.portfolio-public-share-state {
+  display: grid;
+  width: min(560px, calc(100% - 32px));
+  margin: 64px auto;
+  padding: 48px 32px;
+  justify-items: center;
+  gap: 18px;
+  border: 1px solid #d8dee8;
+  border-radius: 12px;
+  background: #fff;
+  text-align: center;
+}
+
+.portfolio-public-share-state h1 {
+  margin: 0;
+  font-size: 1.5rem;
+  letter-spacing: -0.025em;
+}
+
+.portfolio-public-share-state p {
+  margin: 0;
+  color: #65748a;
+  line-height: 1.7;
+}
+
+.portfolio-public-share-state > svg {
+  color: #3d6de0;
+}
+
+.portfolio-public-share-state a {
+  display: inline-flex;
+  min-height: 44px;
+  padding: 10px 16px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: #0e2238;
+  color: #fff;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.portfolio-public-share-page :is(a, button, textarea, summary, input):focus-visible {
+  outline: 2px solid #3d6de0;
+  outline-offset: 3px;
+}
+
+.portfolio-public-share-page ::selection {
+  background: #dbe7ff;
+  color: #10213a;
+}
+
+@media (max-width: 1100px) {
   .portfolio-public-asset-list article {
-    grid-template-columns: minmax(0, 1fr) 300px;
-    align-items: center;
-    gap: 20px;
+    grid-template-columns: minmax(130px, 0.65fr) 56px minmax(120px, 0.8fr) auto;
+    gap: 14px;
   }
 }
-@media (max-width: 640px) {
-  .portfolio-public-share-page {
-    padding-block: 24px 32px;
-  }
-  .portfolio-public-share-hero {
-    padding-bottom: 24px;
-  }
-  .portfolio-public-share-owner {
-    margin-bottom: 16px;
-  }
-  .portfolio-public-expiry {
-    flex-basis: 100%;
-    margin-left: 0;
-    padding-left: 42px;
-    font-size: 0.75rem;
-  }
-  .portfolio-public-share-hero h1 {
-    font-size: 1.125rem;
-  }
+
+@media (max-width: 900px) {
   .portfolio-public-content {
-    margin-top: 24px;
-    gap: 28px;
-  }
-  .portfolio-public-assets {
-    padding: 20px 16px;
-  }
-  .portfolio-public-asset-list article {
     grid-template-columns: minmax(0, 1fr);
-    gap: 12px;
-    padding-block: 16px;
   }
-  .portfolio-public-main:not(:has(> .portfolio-review-result))
-    .portfolio-public-asset-list
-    article {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 12px;
-    padding-block: 16px;
+
+  .portfolio-public-main {
+    padding-inline: var(--page-side-padding);
+    border-right: 0;
   }
-  .portfolio-public-main:not(:has(> .portfolio-review-result)) .portfolio-public-holding-metrics {
-    grid-template-columns: repeat(auto-fit, minmax(82px, 1fr));
-    text-align: left;
+
+  .portfolio-public-review {
+    position: static;
+    max-height: none;
+    padding: 36px var(--page-side-padding) 56px;
+    overflow: visible;
+    border-top: 1px solid #d8dee8;
+    background: #fff;
   }
+
+  .portfolio-public-mobile-review-link {
+    display: inline-flex;
+    min-height: 48px;
+    padding: 11px 14px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #bfc8d5;
+    border-radius: 8px;
+    background: #fff;
+    color: #203853;
+    font-size: 0.875rem;
+    font-weight: 700;
+    text-decoration: none;
+  }
+
+  .portfolio-public-comment-form .portfolio-public-comment-compose textarea,
   .portfolio-public-review textarea {
-    font-size: 1rem;
+    min-height: 180px;
   }
-  .portfolio-public-review .portfolio-reply-compose {
-    padding: 12px;
-    gap: 8px;
+}
+
+@media (max-width: 640px) {
+  .portfolio-sheet.portfolio-review-simulation-dialog {
+    width: 100%;
+    max-height: 100dvh;
+    margin: auto 0 0;
+    border-radius: 16px 16px 0 0;
   }
-  .portfolio-public-review .portfolio-reply-compose small {
+
+  .portfolio-review-simulation-dialog .portfolio-review-simulation-editor > header {
+    padding: 22px 18px 18px;
+  }
+
+  .portfolio-review-simulation-dialog
+    .portfolio-review-simulation-editor
+    :is(.portfolio-simulation-stock-addition, .portfolio-simulation-composition) {
+    padding-inline: 18px;
+  }
+
+  .portfolio-review-simulation-dialog .portfolio-simulation-footer {
+    padding: 18px;
+  }
+
+  .portfolio-review-simulation-dialog
+    .portfolio-review-simulation-editor
+    .portfolio-simulation-result {
+    margin-inline: 0;
+  }
+
+  .portfolio-simulation-result-view {
+    gap: 22px;
+    padding: 0 18px 24px;
+  }
+
+  .portfolio-simulation-snapshot > header {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .portfolio-review-simulation button.portfolio-simulation-edit-again {
+    align-self: flex-start;
+  }
+
+  .portfolio-simulation-snapshot > ul > li {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px 12px;
+  }
+
+  .portfolio-simulation-snapshot > ul > li > strong {
     grid-column: 1 / -1;
   }
-  .portfolio-public-review .portfolio-reply-compose > button {
+
+  .portfolio-simulation-difference {
     grid-column: 2;
   }
+
+  .portfolio-simulation-snapshot-values {
+    grid-column: 1;
+  }
+
+  .portfolio-simulation-snapshot-values > span {
+    min-width: 58px;
+  }
+
+  .portfolio-public-proposal-result {
+    padding-top: 32px;
+    gap: 24px;
+  }
+
+  .portfolio-public-proposal-heading {
+    gap: 16px;
+  }
+
+  .portfolio-public-proposal-heading h2 {
+    font-size: 1.375rem;
+  }
+
+  .portfolio-public-proposal-actions {
+    width: 100%;
+  }
+
+  .portfolio-public-proposal-tools {
+    align-items: stretch;
+    flex-direction: column;
+    justify-content: flex-start;
+  }
+
+  .portfolio-proposal-selector,
+  .portfolio-proposal-selector select {
+    width: 100%;
+    max-width: none;
+  }
+
+  .portfolio-proposal-selector {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .portfolio-public-proposal-actions button {
+    flex: 1;
+  }
+
+  .portfolio-public-proposal-actions button.is-danger {
+    flex: 0 0 auto;
+  }
+
+  .portfolio-public-proposal-analysis-empty {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .portfolio-public-proposal-analysis-empty button {
+    width: 100%;
+  }
+
+  .portfolio-public-proposal-result .portfolio-simulation-snapshot > ul > li {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .portfolio-simulation-analysis-comparison {
+    margin-bottom: 24px;
+    padding-bottom: 24px;
+  }
+
+  .portfolio-simulation-analysis-comparison dl {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .portfolio-simulation-analysis-comparison dl > div:nth-child(odd),
+  .portfolio-simulation-analysis-comparison dl > div:nth-child(even) {
+    padding: 14px 0;
+    border-left: 0;
+  }
+
+  .portfolio-public-share-hero {
+    grid-template-columns: minmax(0, 1fr);
+    min-height: 0;
+    padding: 0 0 24px;
+    gap: 10px;
+  }
+
+  .portfolio-public-share-owner {
+    padding: 0;
+    border: 0;
+  }
+
+  .portfolio-public-share-owner > strong,
+  .portfolio-public-share-owner > span {
+    font-size: 0.8125rem;
+  }
+
+  .portfolio-public-share-hero > h1 {
+    font-size: 1.125rem;
+  }
+
+  .portfolio-public-question-expiry {
+    justify-self: start;
+    font-size: 0.75rem;
+  }
+
+  .portfolio-public-main {
+    padding: 32px var(--page-side-padding) 48px;
+    gap: 36px;
+  }
+
+  .portfolio-public-section-heading h2,
+  .portfolio-public-review h2:not(.portfolio-review-result *) {
+    font-size: 1.375rem;
+  }
+
+  .portfolio-public-privacy-note {
+    font-size: 0.75rem;
+  }
+
+  .portfolio-public-allocation {
+    margin: 24px 0;
+  }
+
+  .portfolio-public-allocation-bar {
+    height: 44px;
+  }
+
+  .portfolio-public-allocation-bar > span {
+    font-size: 0.75rem;
+  }
+
+  .portfolio-public-asset-list article {
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding: 20px 0;
+    gap: 12px 16px;
+  }
+
+  .portfolio-public-assets.is-summary .portfolio-public-asset-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .portfolio-public-asset-table-head,
+  .portfolio-public-assets.is-summary .portfolio-public-asset-list article {
+    grid-template-columns: minmax(0, 1fr) 64px 112px;
+    gap: 14px;
+  }
+
+  .portfolio-public-weight-cell {
+    gap: 10px;
+  }
+
+  .portfolio-public-weight {
+    grid-column: 2;
+  }
+
+  .portfolio-public-weight-bar {
+    grid-column: 1 / -1;
+    height: 12px;
+  }
+
+  .portfolio-public-return {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: baseline;
+    justify-self: end;
+    gap: 6px;
+  }
+
+  .portfolio-public-summary {
+    padding: 16px;
+    font-size: 0.875rem;
+  }
+
+  .portfolio-public-review {
+    padding: 32px var(--page-side-padding) 48px;
+  }
+
+  .portfolio-public-comment-form .portfolio-public-comment-compose textarea,
+  .portfolio-public-review textarea {
+    min-height: 160px;
+    font-size: 1rem;
+  }
+
   .portfolio-public-review .portfolio-share-reviews > li {
     padding-left: 0;
   }
-  .portfolio-public-review .portfolio-review-meta {
-    padding-left: 44px;
-    min-height: 36px;
-  }
-  .portfolio-public-review-heading {
-    display: grid;
-    gap: 4px;
-  }
-  .portfolio-public-review .portfolio-reply-meta strong {
-    min-width: 0;
-  }
-  .portfolio-public-review .portfolio-reply-controls button {
-    min-height: 36px;
-  }
-  .portfolio-public-main > .portfolio-review-result .portfolio-asset-row {
-    padding-inline: 10px;
-  }
-  .portfolio-public-main > .portfolio-review-result .portfolio-asset-name {
-    max-width: 160px;
+
+  .portfolio-comment-avatar {
+    position: static;
+    float: left;
+    margin: 0 10px 8px 0;
   }
 }

@@ -10,6 +10,7 @@ import org.grit.daynomy.exchangerate.service.ExchangeRateRequestLimiter;
 import org.grit.daynomy.exchangerate.service.ExchangeRateService;
 import org.grit.daynomy.league.service.LeagueRankingCache;
 import org.grit.daynomy.league.service.LeagueReviewGuideRateLimiter;
+import org.grit.daynomy.portfolio.service.PortfolioAnalysisShareRateLimiter;
 import org.grit.daynomy.portfolio.service.PortfolioPriceHistoryService;
 import org.springframework.context.ApplicationContext;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
@@ -39,6 +40,7 @@ public class DatabaseIsolationListener extends AbstractTestExecutionListener {
                     .clear());
     clearMaps(context, ContentInteractionRateLimiter.class, "requests");
     clearMaps(context, LeagueReviewGuideRateLimiter.class, "requests");
+    clearMaps(context, PortfolioAnalysisShareRateLimiter.class, "requests");
     context
         .getBeansOfType(LeagueRankingCache.class)
         .values()

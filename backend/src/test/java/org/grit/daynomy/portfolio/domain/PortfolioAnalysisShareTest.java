@@ -17,7 +17,12 @@ class PortfolioAnalysisShareTest {
   void renewsTheLinkWithoutChangingItsSourceAnalysis() {
     var share = share();
 
-    share.renew("  반도체 비중이 너무 높은지 의견을 받고 싶어요.  ", "b".repeat(64), snapshot(), NOW.plusSeconds(100));
+    share.renew(
+        "  반도체 비중이 너무 높은지 의견을 받고 싶어요.  ",
+        "b".repeat(64),
+        "encrypted-token-2",
+        snapshot(),
+        NOW.plusSeconds(100));
 
     assertThat(share.getAnalysisId()).isEqualTo(7L);
     assertThat(share.getQuestion()).isEqualTo("반도체 비중이 너무 높은지 의견을 받고 싶어요.");
@@ -32,7 +37,7 @@ class PortfolioAnalysisShareTest {
     assertThat(share.getAdditionalExplanation()).isEqualTo("장기 투자 목적입니다.\n분산도 함께 고민하고 있어요.");
     assertThat(share.getAdditionalExplanationUpdatedAt()).isEqualTo(NOW);
 
-    share.renew("어때?", "b".repeat(64), snapshot(), NOW.plusSeconds(100));
+    share.renew("어때?", "b".repeat(64), "encrypted-token-2", snapshot(), NOW.plusSeconds(100));
     assertThat(share.getAdditionalExplanation()).startsWith("장기 투자");
     assertThatThrownBy(() -> share.updateAdditionalExplanation("a".repeat(2001), NOW))
         .isInstanceOf(IllegalArgumentException.class);
@@ -48,7 +53,7 @@ class PortfolioAnalysisShareTest {
   void acceptsAShortQuestion() {
     var share = share();
 
-    share.renew("어때?", "b".repeat(64), snapshot(), NOW.plusSeconds(100));
+    share.renew("어때?", "b".repeat(64), "encrypted-token-2", snapshot(), NOW.plusSeconds(100));
 
     assertThat(share.getQuestion()).isEqualTo("어때?");
   }
@@ -66,6 +71,21 @@ class PortfolioAnalysisShareTest {
   }
 
   @Test
+  void reissuesTheSameShareWithoutChangingItsQuestionOrSnapshot() {
+    var share = share();
+    var originalSnapshot = share.getSnapshot();
+    share.revoke(NOW);
+
+    share.reissue("b".repeat(64), "encrypted-token-2", NOW.plusSeconds(200));
+
+    assertThat(share.getQuestion()).isEqualTo("반도체 종목 비중에 대한 의견을 받고 싶어요.");
+    assertThat(share.getSnapshot()).isSameAs(originalSnapshot);
+    assertThat(share.getTokenHash()).isEqualTo("b".repeat(64));
+    assertThat(share.getEncryptedToken()).isEqualTo("encrypted-token-2");
+    assertThat(share.status(NOW)).isEqualTo(PortfolioAnalysisShare.Status.ACTIVE);
+  }
+
+  @Test
   void rejectsMarkupInQuestionsAndComments() {
     Member commenter =
         Member.createGoogleMember("commenter", "commenter@example.com", "댓글 작성자", "");
@@ -74,7 +94,11 @@ class PortfolioAnalysisShareTest {
             () ->
                 share()
                     .renew(
-                        "<b>이 질문은 허용되지 않아요</b>", "c".repeat(64), snapshot(), NOW.plusSeconds(100)))
+                        "<b>이 질문은 허용되지 않아요</b>",
+                        "c".repeat(64),
+                        "encrypted-token-3",
+                        snapshot(),
+                        NOW.plusSeconds(100)))
         .isInstanceOf(IllegalArgumentException.class);
     assertThatThrownBy(() -> PortfolioAnalysisComment.root(share(), commenter, "<b>나쁜 입력입니다</b>"))
         .isInstanceOf(IllegalArgumentException.class);
@@ -102,7 +126,13 @@ class PortfolioAnalysisShareTest {
   private PortfolioAnalysisShare share() {
     Member owner = Member.createGoogleMember("owner", "owner@example.com", "작성자", "");
     return PortfolioAnalysisShare.create(
-        owner, 7L, "반도체 종목 비중에 대한 의견을 받고 싶어요.", "a".repeat(64), snapshot(), NOW.plusSeconds(60));
+        owner,
+        7L,
+        "반도체 종목 비중에 대한 의견을 받고 싶어요.",
+        "a".repeat(64),
+        "encrypted-token-1",
+        snapshot(),
+        NOW.plusSeconds(60));
   }
 
   private PortfolioAnalysisPublicSnapshot snapshot() {

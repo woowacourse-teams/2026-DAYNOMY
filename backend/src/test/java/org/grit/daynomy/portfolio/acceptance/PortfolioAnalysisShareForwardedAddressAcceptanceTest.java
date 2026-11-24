@@ -52,6 +52,7 @@ class PortfolioAnalysisShareForwardedAddressAcceptanceTest extends SharedDatabas
             1L,
             "프록시 뒤에서도 사용자별로 조회 제한을 적용해 주세요.",
             hash(rawToken),
+            "encrypted-token",
             snapshot(),
             Instant.now().plusSeconds(60)));
 

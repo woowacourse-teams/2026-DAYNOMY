@@ -45,6 +45,7 @@ public final class PortfolioAnalysisShareDto {
 
   public record OwnerResponse(
       Long id,
+      String token,
       Long analysisId,
       String question,
       String additionalExplanation,

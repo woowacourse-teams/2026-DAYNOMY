@@ -1,4 +1,4 @@
-.portfolio-review-result {
+.portfolio-review-result.is-compact-layout {
   --button-primary: #31588a;
   container: portfolio-review / inline-size;
   min-width: 0;
@@ -9,20 +9,20 @@
   color: #182230;
 }
 
-.portfolio-review-result .portfolio-analysis-heading {
+.portfolio-review-result.is-compact-layout .portfolio-analysis-heading {
   margin-bottom: 16px;
   padding: 0;
   border: 0;
 }
 
-.portfolio-review-result .portfolio-analysis-heading h2 {
+.portfolio-review-result.is-compact-layout .portfolio-analysis-heading h2 {
   color: #182230;
   font-size: 16px;
   font-weight: 600;
   line-height: 1.5;
 }
 
-.portfolio-review-result .portfolio-analysis-layout {
+.portfolio-review-result.is-compact-layout .portfolio-analysis-layout {
   grid-template-columns: minmax(0, 1fr);
   align-items: start;
   gap: 24px;
@@ -30,7 +30,7 @@
   padding: 0;
 }
 
-.portfolio-review-result .portfolio-analysis-overview {
+.portfolio-review-result.is-compact-layout .portfolio-analysis-overview {
   display: grid;
   grid-template-columns: 160px minmax(0, 1fr);
   gap: 8px 20px;
@@ -40,24 +40,24 @@
   background: #f8fafc;
 }
 
-.portfolio-review-result .portfolio-analysis-overview-heading,
-.portfolio-review-result .portfolio-asset-selector,
-.portfolio-review-result .portfolio-weight-caption {
+.portfolio-review-result.is-compact-layout .portfolio-analysis-overview-heading,
+.portfolio-review-result.is-compact-layout .portfolio-asset-selector,
+.portfolio-review-result.is-compact-layout .portfolio-weight-caption {
   grid-column: 2;
 }
 
-.portfolio-review-result .portfolio-weight-caption {
+.portfolio-review-result.is-compact-layout .portfolio-weight-caption {
   margin: 0;
   text-align: left;
 }
 
-.portfolio-review-result .portfolio-analysis-overview-heading h3 {
+.portfolio-review-result.is-compact-layout .portfolio-analysis-overview-heading h3 {
   color: #475467;
   font-size: 14px;
   font-weight: 600;
 }
 
-.portfolio-review-result .portfolio-analysis-donut-wrap {
+.portfolio-review-result.is-compact-layout .portfolio-analysis-donut-wrap {
   grid-column: 1;
   grid-row: 1 / 4;
   align-self: center;
@@ -65,7 +65,7 @@
   margin: 0;
 }
 
-.portfolio-review-result .portfolio-donut-center strong {
+.portfolio-review-result.is-compact-layout .portfolio-donut-center strong {
   font-size: 13px;
   font-weight: 600;
   white-space: normal;
@@ -73,42 +73,37 @@
   overflow-wrap: anywhere;
 }
 
-.portfolio-review-result .portfolio-donut-center b {
+.portfolio-review-result.is-compact-layout .portfolio-donut-center b {
   font-size: 24px;
   font-weight: 700;
 }
 
-.portfolio-review-result .portfolio-asset-row {
+.portfolio-review-result.is-compact-layout .portfolio-asset-row {
   min-height: 44px;
   border-radius: 8px;
   font-size: 13px;
 }
 
-.portfolio-review-result .portfolio-asset-row.is-selected {
-  background: #eaf0f7;
-  color: #182230;
-}
-
-.portfolio-review-result .portfolio-asset-row strong {
+.portfolio-review-result.is-compact-layout .portfolio-asset-row strong {
   font-weight: 600;
 }
 
-.portfolio-review-result .portfolio-impact-detail {
+.portfolio-review-result.is-compact-layout .portfolio-impact-detail {
   padding: 4px 0 0;
 }
 
-.portfolio-review-result .portfolio-detail-header {
+.portfolio-review-result.is-compact-layout .portfolio-detail-header {
   grid-template-columns: minmax(0, 1fr) auto;
   min-height: 0;
   gap: 16px;
 }
 
-.portfolio-review-result .portfolio-detail-header > div:first-child > span {
+.portfolio-review-result.is-compact-layout .portfolio-detail-header > div:first-child > span {
   color: #667085;
   font-weight: 500;
 }
 
-.portfolio-review-result .portfolio-detail-header h3 {
+.portfolio-review-result.is-compact-layout .portfolio-detail-header h3 {
   margin-top: 8px;
   color: #182230;
   font-size: 18px;
@@ -116,58 +111,102 @@
   line-height: 1.45;
 }
 
-.portfolio-review-result .portfolio-detail-badge-group {
+.portfolio-review-result.is-compact-layout .portfolio-detail-badge-group {
   width: auto;
 }
 
-.portfolio-review-result .portfolio-direction-badge {
+.portfolio-review-result.is-compact-layout .portfolio-direction-badge {
   font-weight: 600;
 }
 
-.portfolio-review-result .portfolio-detail-badge-group small {
+.portfolio-review-result.is-compact-layout .portfolio-detail-badge-group small {
   color: #667085;
   font-size: 12px;
   font-weight: 400;
 }
 
-.portfolio-review-result .portfolio-detail-copy {
+.portfolio-review-result.is-compact-layout .portfolio-detail-copy {
   margin-top: 16px;
   gap: 16px;
 }
 
-.portfolio-review-result .portfolio-detail-copy p {
+.portfolio-review-result.is-compact-layout .portfolio-detail-copy p {
   color: #344054;
   font-size: 15px;
   line-height: 1.8;
 }
 
-.portfolio-review-result .portfolio-evidence {
+.portfolio-review-result.is-compact-layout .portfolio-evidence {
   position: static;
   margin-top: 24px;
   padding-top: 16px;
   border-top: 1px solid #e4e7ec;
 }
 
-.portfolio-review-result .portfolio-evidence h4 {
-  margin: 0 0 8px;
-  color: #31588a;
-  font-size: 13px;
-  font-weight: 600;
+.portfolio-review-result .portfolio-weight-caption,
+.portfolio-review-result .portfolio-asset-analysis,
+.portfolio-review-result .portfolio-detail-badge-group small {
+  color: #58677c;
 }
 
-.portfolio-review-result .portfolio-score-panel {
+.portfolio-review-result .portfolio-score-guide dt {
+  color: #58677c;
+}
+
+.portfolio-review-result .portfolio-donut-segment.is-interactive:focus-visible {
+  filter: drop-shadow(0 0 1px #182230) drop-shadow(0 0 4px rgba(24, 34, 48, 0.35));
+}
+
+.portfolio-review-result .portfolio-asset-analysis.positive,
+.portfolio-review-result .portfolio-donut-center.positive,
+.portfolio-review-result
+  .portfolio-impact-detail.positive
+  .portfolio-detail-header
+  > div:first-child
+  > span,
+.portfolio-review-result .portfolio-impact-detail.positive .portfolio-direction-badge {
+  color: #b4232d;
+}
+
+.portfolio-review-result .portfolio-asset-analysis.negative,
+.portfolio-review-result .portfolio-donut-center.negative,
+.portfolio-review-result
+  .portfolio-impact-detail.negative
+  .portfolio-detail-header
+  > div:first-child
+  > span,
+.portfolio-review-result .portfolio-impact-detail.negative .portfolio-direction-badge {
+  color: #195f9f;
+}
+
+.portfolio-review-result .portfolio-asset-analysis.neutral,
+.portfolio-review-result .portfolio-donut-center.neutral,
+.portfolio-review-result
+  .portfolio-impact-detail.neutral
+  .portfolio-detail-header
+  > div:first-child
+  > span,
+.portfolio-review-result .portfolio-impact-detail.neutral .portfolio-direction-badge {
+  color: #475467;
+}
+
+.portfolio-review-result .portfolio-detail-header h3 {
+  overflow-wrap: anywhere;
+}
+
+.portfolio-review-result.is-compact-layout .portfolio-score-panel {
   margin-top: 24px;
   padding: 0;
   border-top: 1px solid #e4e7ec;
 }
 
-.portfolio-review-result .portfolio-score-guide {
+.portfolio-review-result.is-compact-layout .portfolio-score-guide {
   padding: 16px 0 0;
   border: 0;
   background: transparent;
 }
 
-.portfolio-review-result .portfolio-score-guide h3 {
+.portfolio-review-result.is-compact-layout .portfolio-score-guide h3 {
   color: #667085;
   font-weight: 500;
 }
@@ -178,66 +217,66 @@
   font-size: 13px;
 }
 
-.portfolio-review-result .portfolio-asset-list > li {
+.portfolio-review-result.is-compact-layout .portfolio-asset-list > li {
   margin: 0;
   padding: 0;
   border: 0;
   border-radius: 0;
 }
 
-.portfolio-review-result .portfolio-evidence-sources > li {
+.portfolio-review-result.is-compact-layout .portfolio-evidence-sources > li {
   border-top: 0;
   border-left: 0;
   border-right: 0;
   border-radius: 0;
 }
 
-.portfolio-review-result .portfolio-evidence-sources > li:last-child {
+.portfolio-review-result.is-compact-layout .portfolio-evidence-sources > li:last-child {
   padding-bottom: 0;
   border-bottom: 0;
 }
 
-.portfolio-review-result .portfolio-asset-row:disabled {
+.portfolio-review-result.is-compact-layout .portfolio-asset-row:disabled {
   cursor: default;
 }
 
 @container portfolio-review (max-width: 440px) {
-  .portfolio-review-result .portfolio-analysis-overview {
+  .portfolio-review-result.is-compact-layout .portfolio-analysis-overview {
     grid-template-columns: minmax(0, 1fr) 144px;
     gap: 8px;
     padding: 12px;
   }
 
-  .portfolio-review-result .portfolio-analysis-overview > * {
+  .portfolio-review-result.is-compact-layout .portfolio-analysis-overview > * {
     grid-column: 1 / -1;
     grid-row: auto;
   }
 
-  .portfolio-review-result .portfolio-analysis-overview-heading {
+  .portfolio-review-result.is-compact-layout .portfolio-analysis-overview-heading {
     grid-column: 1;
     grid-row: 1;
     align-self: center;
   }
 
-  .portfolio-review-result .portfolio-analysis-donut-wrap {
+  .portfolio-review-result.is-compact-layout .portfolio-analysis-donut-wrap {
     grid-column: 2;
     grid-row: 1;
     width: 144px;
     margin: 0;
   }
 
-  .portfolio-review-result .portfolio-donut-center strong {
+  .portfolio-review-result.is-compact-layout .portfolio-donut-center strong {
     display: -webkit-box;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
     overflow: hidden;
   }
 
-  .portfolio-review-result .portfolio-asset-list {
+  .portfolio-review-result.is-compact-layout .portfolio-asset-list {
     max-height: 168px;
   }
 
-  .portfolio-review-result .portfolio-asset-name {
+  .portfolio-review-result.is-compact-layout .portfolio-asset-name {
     display: -webkit-box;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
@@ -245,12 +284,12 @@
     overflow: hidden;
   }
 
-  .portfolio-review-result .portfolio-detail-header {
+  .portfolio-review-result.is-compact-layout .portfolio-detail-header {
     grid-template-columns: minmax(0, 1fr);
     gap: 12px;
   }
 
-  .portfolio-review-result .portfolio-detail-badge-group {
+  .portfolio-review-result.is-compact-layout .portfolio-detail-badge-group {
     flex-direction: row;
     flex-wrap: wrap;
     align-items: center;
@@ -260,20 +299,20 @@
 }
 
 @media (max-width: 520px) {
-  .portfolio-review-result .portfolio-asset-name {
+  .portfolio-review-result.is-compact-layout .portfolio-asset-name {
     white-space: normal;
     overflow-wrap: anywhere;
   }
 
-  .portfolio-review-result .portfolio-asset-row {
+  .portfolio-review-result.is-compact-layout .portfolio-asset-row {
     min-height: 44px;
   }
 
-  .portfolio-review-result .portfolio-detail-header h3 {
+  .portfolio-review-result.is-compact-layout .portfolio-detail-header h3 {
     overflow-wrap: anywhere;
   }
 
-  .portfolio-review-result .portfolio-detail-badge-group {
+  .portfolio-review-result.is-compact-layout .portfolio-detail-badge-group {
     width: auto;
     flex-direction: row;
     flex-wrap: wrap;
@@ -282,9 +321,43 @@
     text-align: left;
   }
 
-  .portfolio-simulation-result .portfolio-review-result {
+  .portfolio-simulation-result .portfolio-review-result.is-compact-layout {
     padding-inline: 0;
     border: 0;
     background: transparent;
+  }
+}
+
+.portfolio-review-result.is-full-layout {
+  container: portfolio-review / inline-size;
+}
+
+@container portfolio-review (max-width: 680px) {
+  .portfolio-review-result.is-full-layout .portfolio-analysis-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .portfolio-review-result.is-full-layout .portfolio-analysis-overview {
+    padding: 0 0 24px;
+    border-right: 0;
+    border-bottom: 1px solid #e6e9f0;
+  }
+
+  .portfolio-review-result.is-full-layout .portfolio-impact-detail {
+    padding: 24px 0;
+  }
+
+  .portfolio-review-result.is-full-layout .portfolio-detail-header {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 18px;
+  }
+
+  .portfolio-review-result.is-full-layout .portfolio-detail-badge-group {
+    width: auto;
+    align-items: center;
+    justify-self: start;
+    flex-direction: row;
+    flex-wrap: wrap;
+    text-align: left;
   }
 }
