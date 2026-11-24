@@ -96,9 +96,11 @@ class BootstrapTest(unittest.TestCase):
     def test_initial_schema_change_requires_explicit_shared_state_opt_in(self):
         before={'BOOT-INF/classes/db/migration/V1__existing.sql':'original'}
         after=dict(before)
-        after['BOOT-INF/classes/db/migration/V98__share_sessions_and_guest_analysis_trials.sql']='reviewed'
+        after['BOOT-INF/classes/db/migration/V99__share_sessions_and_guest_analysis_trials.sql']='reviewed'
         with self.assertRaisesRegex(RuntimeError,'Schema migration mismatch'):
             bootstrap.validate_initial_migrations(before,after)
+        bootstrap.validate_initial_migrations(before,after,True)
+        after['BOOT-INF/classes/db/migration/V98__create_portfolio_transaction_requests.sql']='existing-trade'
         bootstrap.validate_initial_migrations(before,after,True)
 
     def test_shared_state_opt_in_never_allows_changed_or_other_migrations(self):
@@ -106,6 +108,7 @@ class BootstrapTest(unittest.TestCase):
         for after in [
             {'BOOT-INF/classes/db/migration/V1__existing.sql':'changed'},
             {**before,'BOOT-INF/classes/db/migration/V99__unreviewed.sql':'other'},
+            {**before,'BOOT-INF/classes/db/migration/V98__create_portfolio_transaction_requests.sql':'existing-trade'},
             {},
         ]:
             with self.assertRaisesRegex(RuntimeError,'Schema migration mismatch'):

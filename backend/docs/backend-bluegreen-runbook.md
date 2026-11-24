@@ -102,12 +102,12 @@ root 소유의 `/usr/local/libexec/daynomy/deploy_backend.py --prepare-slot`이 
 
 ## 공유 상태와 비동기 종료 보호 추가 (2026-11-24 후속 작업)
 
-- 사용자 승인으로 V98의 Spring Session 두 테이블과 비회원 분석 상태 테이블을 추가했다.
+- 사용자 승인으로 V99의 Spring Session 두 테이블과 비회원 분석 상태 테이블을 추가했다.
   기존 PostgreSQL을 사용하며 신규 서버를 추가하지 않는다.
 - 앱 메모리에 있던 비회원 체험 상태는 세션 ID 해시별 DB 문서로 변경했다. 두 앱의
   동시 예약은 DB 행 잠금으로 조정한다. AI 호출은 상태 트랜잭션 밖에서 수행한다.
   세션 유효 기간을 연장하지 않으며 문서는 24시간 비활성 후 시간 단위로 정리한다.
-- 최초 설치 때만 --allow-shared-state-migration을 명시할 수 있다. 검토된 V98만 추가
+- 최초 설치 때만 --allow-shared-state-migration을 명시할 수 있다. 검토된 V99와, 기존 V98이 없는 JAR에서는 거래 요청 V98 원본만 함께 추가
   가능하며 기존 SQL 수정·삭제는 허용하지 않는다. 추가 테이블은 실패 복구 시 남겨 둔다.
   기존 메모리 세션을 DB 세션으로 이전하는 기능은 없으므로 최초 이관 시 세션 초기화와
   진행 중 작업 부재를 확인해야 한다. 최초 설치를 무중단 전환 실적으로 보고하지 않는다.
@@ -159,10 +159,18 @@ root 소유의 `/usr/local/libexec/daynomy/deploy_backend.py --prepare-slot`이 
   inspect_backend_development.py로 실제 unit·환경 파일 경로·Nginx 사이트를 확인하고,
   bootstrap_backend.py --environment development --artifact ... --site ...
   --environment-file ...로 사전 검사한다. 통과 후에만 --expected-current-sha256 ...
-  --apply를 추가한다. 개발 DB에 V98이 이미 적용된 경우 SQL 추가 허용 옵션은 필요 없다.
+  --apply를 추가한다. 개발 DB에 V99가 이미 적용된 경우 SQL 추가 허용 옵션은 필요 없다.
   SSM 대신 개발 CD를 bootstrap_bluegreen=true로 수동 실행할 수도 있다.
   nginx_site·backend_environment_file은 직전 inspect 결과와 일치시킨다.
   이 실행도 동일한 사전 검사와 JAR 해시 검사를 통과해야 하며 메모리 기준을 우회하지 않는다.
 - 설치 후 같은 제어기로 새 버전 전환과 이전 버전 복구를 검증한다. 저장 성공·원장 및
   스냅샷 일치·배치 실행·분석 작업 조회·메모리를 별도로 대조하며, 개발 서버 결과를
   운영 성과로 표기하지 않는다. 운영 최초 이관과 자동 배포 전환은 후속 작업이다.
+
+## 개발 DB 마이그레이션 충돌 수정 (2026-11-25)
+
+- 실제 dev DB의 V98은 `V98__create_portfolio_transaction_requests.sql`, 체크섬 `-569021117`이다.
+- 공유 세션을 V98로 배포해 검증에 실패하고 이전 JAR로 자동 원복됐다. DB 이력은 수정하지 않는다.
+- 적용된 거래 V98을 동일 원본으로 보존하고, 세션·비회원 상태 테이블은 V99로 추가한다.
+- 실제 V98 상태에서 V99 업그레이드 후 기존 체크섬·테이블 식별자 보존과 세 테이블 생성을 검증한다.
+- 임시 이슈 브랜치 진단과 암호화 로그 수집 코드는 수정 PR에서 제외한다.
