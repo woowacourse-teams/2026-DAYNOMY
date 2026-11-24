@@ -42,6 +42,8 @@ def startup_diagnostics(journal):
             message = json.loads(line).get('MESSAGE', '')
         except (ValueError, AttributeError):
             continue
+        if isinstance(message, list) and all(isinstance(byte, int) and 0 <= byte <= 255 for byte in message):
+            message = bytes(message).decode('utf-8', errors='replace')
         if not isinstance(message, str):
             continue
         try:
@@ -70,12 +72,23 @@ def main():
         'systemctl', 'show', 'daynomy-dev', '-p', 'ActiveState', '-p', 'MainPID',
         '-p', 'FragmentPath', '-p', 'EnvironmentFiles', '-p', 'DropInPaths'], text=True)
     print(service, flush=True)
+    limits = subprocess.check_output([
+        'systemctl', 'show', 'daynomy-dev', '-p', 'MemoryCurrent', '-p', 'MemoryPeak',
+        '-p', 'MemoryMax', '-p', 'MemorySwapMax', '-p', 'Result', '-p', 'NRestarts'], text=True)
+    print(limits, flush=True)
+    pid = subprocess.check_output(['systemctl', 'show', 'daynomy-dev', '-p', 'MainPID', '--value'], text=True).strip()
+    if pid.isdigit() and pid != '0':
+        options = Path('/proc/' + pid + '/cmdline').read_bytes().decode().split('\0')
+        print(json.dumps({'jvm_memory_options': [option for option in options if re.fullmatch(
+            r'-X(?:mx|ms|ss)\d+[kKmMgG]?|-XX:(?:MaxRAMPercentage|InitialRAMPercentage|MaxMetaspaceSize|ReservedCodeCacheSize)=[\d.]+[kKmMgG]?', option)]}), flush=True)
     journal = subprocess.run([
         'sudo', '-n', 'journalctl', '-u', 'daynomy-dev', '--since', '45 minutes ago',
-        '--grep', 'Exception|ERROR|Caused|Error|APPLICATION|Description|Action|JPA|entityManager|Flyway|Migration',
+        '--grep', 'Exception|ERROR|Caused|Error|APPLICATION|Description|Action|JPA|entityManager|Flyway|Migration|exited|Failed|oom|Killed',
         '-n', '2000', '-o', 'json', '--no-pager'], capture_output=True, text=True)
     print(json.dumps({'startup_diagnostics_exit': journal.returncode,
                       'startup_diagnostics': startup_diagnostics(journal.stdout)}), flush=True)
+    statuses = sorted(set(re.findall(r'(?:status=|result [\'\"])([0-9A-Za-z/-]+)', journal.stdout)))
+    print(json.dumps({'historical_exit_statuses': statuses}), flush=True)
     print(json.dumps({'memory': {line.split(':')[0]: line.split(':')[1].strip()
                                for line in Path('/proc/meminfo').read_text().splitlines()
                                if line.split(':')[0] in ('MemTotal', 'MemAvailable', 'SwapTotal', 'SwapFree')}}), flush=True)
