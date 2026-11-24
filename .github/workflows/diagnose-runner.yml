@@ -135,10 +135,10 @@ jobs:
               print("kernel_release:", os.uname().release)
               unit_lines = capture(["systemctl", "list-units", "--type=service", "--all", "--plain", "--no-legend"])[1].splitlines()
               units = [line.split()[0] for line in unit_lines if line.split() and line.split()[0].startswith("actions.runner.") and ("backend-dev" in line.split()[0] or "frontend-dev" in line.split()[0])]
-              units += ["daynomy-dev.service", "codedeploy-agent.service", "alloy.service", "docker.service"]
+              units += ["daynomy-dev.service", "daynomy-dev-green.service", "daynomy-backend-dev.slice", "codedeploy-agent.service", "alloy.service", "docker.service"]
               for unit in units:
                   cg = capture(["systemctl", "show", unit, "-p", "ControlGroup", "--value"])[1].strip()
-                  if not cg.startswith("/system.slice/") or ".." in cg:
+                  if not re.fullmatch(r"/[A-Za-z0-9_./@-]+", cg) or ".." in pathlib.PurePosixPath(cg).parts:
                       continue
                   root = pathlib.Path("/sys/fs/cgroup") / cg.lstrip("/")
                   values = {}
@@ -226,6 +226,49 @@ jobs:
                   code, output = capture(["sudo", "-n", *args])
               print(f"{source}: query_exit={code} inspected_lines={len(output.splitlines())}")
               summarize(source, output.splitlines())
+          PY
+
+      - name: Read development scheduler thread states
+        if: inputs.target_environment == 'development' && inputs.mode == 'diagnose'
+        run: |
+          sudo -n python3 -B - <<'PY'
+          import json
+          import re
+          import subprocess
+          import time
+          import urllib.request
+          from pathlib import Path
+
+          if Path('/sys/devices/virtual/dmi/id/board_asset_tag').read_text().strip() != 'i-0f2e92d9c7bd8fe06':
+              raise RuntimeError('Development instance required')
+          owner = Path('/home/ec2-user/backend/deployment-dev/active-slot')
+          slot = owner.read_text().strip() if owner.exists() else None
+          if slot not in (None, 'blue', 'green'):
+              raise RuntimeError('Unknown development slot')
+          unit = 'daynomy-dev-green' if slot == 'green' else 'daynomy-dev'
+          pid = subprocess.check_output(['systemctl', 'show', unit, '-p', 'MainPID', '--value'], text=True).strip()
+          memory = {line.split(':')[0]: line.split(':')[1].strip() for line in Path('/proc/' + pid + '/status').read_text().splitlines() if line.split(':')[0] in ('VmRSS', 'VmSwap')}
+          print(json.dumps({'development_jvm': unit, 'slot': slot, 'memory': memory}), flush=True)
+          dump = subprocess.check_output(['timeout', '15', '/usr/lib/jvm/java-21-amazon-corretto.aarch64/bin/java', '-Xmx32m', '-XX:TieredStopAtLevel=1', '-m', 'jdk.jcmd/sun.tools.jcmd.JCmd', pid, 'Thread.print'], text=True)
+          for block in re.split(r'\n(?=")', dump):
+              name = re.match(r'"([A-Za-z0-9_. -]+)"', block)
+              if not name:
+                  continue
+              state = re.search(r'java.lang.Thread.State: ([A-Z_]+)', block)
+              frames = re.findall(r'^\s+at ((?:org\.grit\.daynomy|java\.util\.concurrent)[A-Za-z0-9_.$]+)', block, re.M)
+              print(json.dumps({'thread': name[1], 'state': state[1] if state else 'unknown', 'scheduled_queue_wait': 'ScheduledThreadPoolExecutor$DelayedWorkQueue.take' in block, 'task_frames': frames[:4]}))
+          for sample in range(3):
+              with urllib.request.urlopen('http://127.0.0.1:8081/actuator/prometheus', timeout=10) as response:
+                  metrics = response.read().decode()
+              values = {}
+              for line in metrics.splitlines():
+                  metric = re.fullmatch(r'(daynomy_league_calculation_(?:latest_profiles|last_completed_epoch_seconds|latest_run_failed|duration_seconds_count))(?:\{([^}]*)\})? ([0-9.eE+-]+)', line)
+                  if metric:
+                      outcome = re.search(r'outcome="(target|succeeded|failed)"', metric[2] or '')
+                      values[metric[1] + (':' + outcome[1] if outcome else '')] = float(metric[3])
+              print(json.dumps({'league_progress_sample': sample, 'epoch_seconds': int(time.time()), 'values': values}), flush=True)
+              if sample < 2:
+                  time.sleep(15)
           PY
 
       - name: Read runner service supervision

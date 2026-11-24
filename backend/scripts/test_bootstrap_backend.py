@@ -1,4 +1,5 @@
 import hashlib
+import io
 import tempfile
 import unittest
 from pathlib import Path
@@ -13,14 +14,18 @@ class BootstrapTest(unittest.TestCase):
         self.app=self.root/'app'; self.app.mkdir()
         self.systemd=self.root/'systemd'; self.systemd.mkdir()
         self.site=self.root/'daynomy-site.conf'; self.site.write_text('original nginx')
+        self.snippet=self.root/'analysis-snippet.conf'; self.snippet.write_text('proxy_pass http://127.0.0.1:8080;\n')
         self.alloy=self.root/'config.alloy'; self.alloy.write_text('matches = "_SYSTEMD_UNIT=daynomy.service"')
         self.unit=self.systemd/'daynomy.service'; self.unit.write_text('original unit')
         self.old=self.app/'old.jar'; self.old.write_bytes(b'original immutable release')
         self.artifact=self.app/'new.jar'; self.artifact.write_bytes(b'new release')
         self.calls=[]
         p=patch.object(bootstrap,'idle_original_jobs');p.start();self.addCleanup(p.stop)
+        for name in ('candidate_override','score'):
+            p=patch.object(bootstrap.deployment,name);p.start();self.addCleanup(p.stop)
         for target,name,value in [
             (bootstrap,'BOOT_HELPER',self.root/'boot/deploy_backend.py'),(bootstrap,'SYSTEMD',self.systemd),(bootstrap,'SITE',self.site),(bootstrap,'ALLOY',self.alloy),
+            (bootstrap,'DEVELOPMENT_API_SNIPPET',self.snippet),
             (bootstrap.deployment,'APP',self.app),(bootstrap.deployment,'STATE',self.app/'deployment'),
             (bootstrap.deployment,'ROUTE',self.root/'upstream.conf')]:
             p=patch.object(target,name,value); p.start(); self.addCleanup(p.stop)
@@ -127,6 +132,60 @@ class BootstrapTest(unittest.TestCase):
         after['BOOT-INF/classes/db/migration/V98__create_portfolio_transaction_requests.sql']='existing-trade'
         bootstrap.validate_initial_migrations(before,after,True)
 
+    def test_identical_completed_development_release_starts_as_standby_green(self):
+        def standby_ready(slot):
+            self.assertEqual(slot,'green')
+            self.assertEqual((self.app/'deployment/active-slot').read_text(),'blue\n')
+        bootstrap.deployment.probe.side_effect=standby_ready
+        probes=0
+        def proxy_ready(slot):
+            nonlocal probes
+            probes+=1
+            standby_ready(slot)
+            if probes==1:raise RuntimeError('Previous Nginx workers still active')
+        bootstrap.deployment.proxy_probe.side_effect=proxy_ready
+        with patch.object(bootstrap.deployment,'ENVIRONMENT','development'), patch.object(bootstrap,'completed_development_recalculation') as completed:
+            bootstrap.apply(self.old,hashlib.sha256(self.old.read_bytes()).hexdigest(),reuse_initialized_development_release=True)
+        completed.assert_called_once()
+        self.assertIn(('systemctl','start','daynomy-green'),self.calls)
+        self.assertNotIn(('systemctl','start','daynomy'),self.calls)
+        self.assertEqual((self.app/'deployment/active-slot').read_text(),'green\n')
+        self.assertEqual((self.app/'deployment/green.jar').resolve(),(self.app/'deployment/blue.jar').resolve())
+        self.assertEqual(bootstrap.deployment.ROUTE.read_text(),bootstrap.deployment.route('green'))
+        self.assertEqual(bootstrap.deployment.candidate_override.call_args_list[0].args,('green',True))
+        self.assertEqual(bootstrap.deployment.candidate_override.call_args_list[-1].args,('green',False))
+        self.assertEqual(probes,2)
+
+    def test_initialized_handover_rejects_another_jar_or_production(self):
+        with patch.object(bootstrap.deployment,'ENVIRONMENT','development'):
+            with self.assertRaisesRegex(RuntimeError,'identical development JAR'):
+                bootstrap.apply(self.artifact,hashlib.sha256(self.old.read_bytes()).hexdigest(),reuse_initialized_development_release=True)
+        with self.assertRaisesRegex(RuntimeError,'identical development JAR'):
+            bootstrap.apply(self.old,hashlib.sha256(self.old.read_bytes()).hexdigest(),reuse_initialized_development_release=True)
+        self.assertFalse(self.calls)
+
+    def test_unfinished_recalculation_does_not_stop_original(self):
+        with patch.object(bootstrap.deployment,'ENVIRONMENT','development'), patch.object(bootstrap,'completed_development_recalculation',side_effect=RuntimeError('not completed')):
+            with self.assertRaisesRegex(RuntimeError,'not completed'):
+                bootstrap.apply(self.old,hashlib.sha256(self.old.read_bytes()).hexdigest(),reuse_initialized_development_release=True)
+        self.assertFalse(self.calls)
+        self.assertFalse((self.app/'deployment').exists())
+
+    def test_failed_standby_start_restores_original_and_stops_green(self):
+        def fail_green(*args):
+            self.calls.append(args)
+            if args==('systemctl','start','daynomy-green'):
+                raise RuntimeError('Injected standby start failure')
+            return ''
+        bootstrap.deployment.command.side_effect=fail_green
+        with patch.object(bootstrap.deployment,'ENVIRONMENT','development'), patch.object(bootstrap,'completed_development_recalculation'):
+            with self.assertRaisesRegex(RuntimeError,'Injected standby start failure'):
+                bootstrap.apply(self.old,hashlib.sha256(self.old.read_bytes()).hexdigest(),reuse_initialized_development_release=True)
+        self.assertIn(('systemctl','stop','daynomy-green'),self.calls)
+        self.assertIn(('systemctl','start','daynomy'),self.calls)
+        self.assertEqual(self.unit.read_text(),'original unit')
+        self.assertEqual(self.site.read_text(),'original nginx')
+
     def test_shared_state_opt_in_never_allows_changed_or_other_migrations(self):
         before={'BOOT-INF/classes/db/migration/V1__existing.sql':'original'}
         for after in [
@@ -137,6 +196,28 @@ class BootstrapTest(unittest.TestCase):
         ]:
             with self.assertRaisesRegex(RuntimeError,'Schema migration mismatch'):
                 bootstrap.validate_initial_migrations(before,after,True)
+
+class RecalculationCompletionTest(unittest.TestCase):
+    def metrics(self,succeeded=10,target=10,failed=0,last=123,run_failed=0):
+        return ('daynomy_league_calculation_latest_profiles{application="daynomy",outcome="target"} '+str(target)+'\n'
+                'daynomy_league_calculation_latest_profiles{application="daynomy",outcome="succeeded"} '+str(succeeded)+'\n'
+                'daynomy_league_calculation_latest_profiles{application="daynomy",outcome="failed"} '+str(failed)+'\n'
+                'daynomy_league_calculation_latest_run_failed{application="daynomy"} '+str(run_failed)+'\n'
+                'daynomy_league_calculation_last_completed_epoch_seconds{application="daynomy"} '+str(last)+'\n')
+
+    def check(self,metrics):
+        with patch.object(bootstrap.urllib.request,'urlopen',return_value=io.BytesIO(metrics.encode())):
+            bootstrap.completed_development_recalculation()
+
+    def test_success_requires_all_profiles_and_completed_run(self):
+        self.check(self.metrics())
+
+    def test_running_failed_empty_or_missing_metrics_are_rejected(self):
+        for metrics in [self.metrics(succeeded=9),self.metrics(failed=1),self.metrics(last=0),
+                        self.metrics(run_failed=1),self.metrics(target=0,succeeded=0),'']:
+            with self.subTest(metrics=metrics),self.assertRaisesRegex(RuntimeError,'recalculation'):
+                self.check(metrics)
+
 
 class DevelopmentTargetTest(unittest.TestCase):
     def tearDown(self):

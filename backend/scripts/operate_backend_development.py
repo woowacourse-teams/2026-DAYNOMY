@@ -1,15 +1,59 @@
 #!/usr/bin/env python3
 """Explicit development-only bootstrap/switch of the already verified running JAR."""
 import argparse
+import contextlib
 import fcntl
 import hashlib
 import json
 import os
 import re
+import subprocess
+import threading
+import time
 from pathlib import Path
 
 import bootstrap_backend
 import deploy_backend
+
+
+def transition_sample():
+    row={'at_ms':int(time.time()*1000),'jvms':{}}
+    row['available_kib']=int(re.search(r'^MemAvailable:\s+(\d+)',Path('/proc/meminfo').read_text(),re.M)[1])
+    for slot,(unit,_,_) in deploy_backend.SLOTS.items():
+        pid=subprocess.check_output(['systemctl','show',unit,'-p','MainPID','--value'],text=True,timeout=3).strip()
+        if not pid.isdigit():raise RuntimeError('Unexpected JVM PID')
+        if pid=='0':continue
+        try:status=Path('/proc/'+pid+'/status').read_text()
+        except FileNotFoundError:continue  # A retiring JVM may exit between reads.
+        row['jvms'][slot]={key:int(match[1]) for key in ('VmRSS','VmSwap')
+                           if (match:=re.search(r'^'+key+r':\s+(\d+)',status,re.M))}
+    cg=subprocess.check_output(['systemctl','show',deploy_backend.SLICE,'-p','ControlGroup','--value'],text=True,timeout=3).strip()
+    if cg.startswith('/') and '..' not in Path(cg).parts:
+        root=Path('/sys/fs/cgroup')/cg.lstrip('/')
+        for name in ('memory.current','memory.peak','memory.max','memory.swap.current','memory.swap.max'):
+            try:row[name]=int((root/name).read_text().strip())
+            except (FileNotFoundError,ValueError):pass
+        try:row['memory.events']={key:int(value) for key,value in (line.split() for line in (root/'memory.events').read_text().splitlines())}
+        except FileNotFoundError:pass
+    return row
+
+
+@contextlib.contextmanager
+def observe_transition():
+    stopped=threading.Event()
+    def sample():
+        try:print(json.dumps({'development_transition_sample':transition_sample()}),flush=True)
+        except Exception as error:print(json.dumps({'development_transition_observation_error':type(error).__name__}),flush=True)
+    def observe():
+        while not stopped.wait(2):sample()
+    sample()
+    observer=threading.Thread(target=observe,daemon=True)
+    observer.start()
+    try:yield
+    finally:
+        stopped.set()
+        observer.join(timeout=12)
+        sample()
 
 
 def current_artifact(app):
@@ -48,12 +92,13 @@ def main():
     memory_state.mkdir(mode=0o700, exist_ok=True)
     with (memory_state / 'operations.lock').open('a+') as operations:
         fcntl.flock(operations, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        if args.operation == 'bootstrap':
-            bootstrap_backend.apply(artifact, checksum)
-        else:
-            with (deploy_backend.STATE / 'deploy.lock').open('a+') as deployment:
-                fcntl.flock(deployment, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                deploy_backend.deploy(artifact, args.version or '')
+        with observe_transition():
+            if args.operation == 'bootstrap':
+                bootstrap_backend.apply(artifact, checksum, reuse_initialized_development_release=True)
+            else:
+                with (deploy_backend.STATE / 'deploy.lock').open('a+') as deployment:
+                    fcntl.flock(deployment, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    deploy_backend.deploy(artifact, args.version or '')
 
 
 if __name__ == '__main__':

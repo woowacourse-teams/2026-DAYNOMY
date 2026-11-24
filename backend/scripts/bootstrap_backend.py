@@ -11,6 +11,7 @@ import re
 import shutil
 import tempfile
 import time
+import urllib.request
 from pathlib import Path
 import deploy_backend as deployment
 
@@ -66,6 +67,23 @@ def idle_original_jobs():
     if not schedulers or any('ScheduledThreadPoolExecutor$DelayedWorkQueue.take' not in block
                              for block in schedulers):
         raise RuntimeError('Original scheduled jobs are not confirmed idle; retry outside a batch window')
+
+
+def completed_development_recalculation():
+    with urllib.request.urlopen('http://127.0.0.1:8081/actuator/prometheus',timeout=10) as response:
+        metrics=response.read().decode()
+    def value(name,outcome=None):
+        for line in metrics.splitlines():
+            match=re.fullmatch(re.escape(name)+r'(?:\{([^}]*)\})? ([0-9.eE+-]+)',line)
+            if match and (outcome is None or f'outcome="{outcome}"' in (match[1] or '')):
+                return float(match[2])
+        raise RuntimeError('Original recalculation completion metric unavailable')
+    target=value('daynomy_league_calculation_latest_profiles','target')
+    if (target<=0 or value('daynomy_league_calculation_latest_profiles','succeeded')!=target
+            or value('daynomy_league_calculation_latest_profiles','failed')!=0
+            or value('daynomy_league_calculation_latest_run_failed')!=0
+            or value('daynomy_league_calculation_last_completed_epoch_seconds')<=0):
+        raise RuntimeError('Original development recalculation has not completed successfully')
 
 
 def validate_initial_migrations(before, after, allow_shared_state_migration=False):
@@ -164,14 +182,18 @@ def stage_initial_release(artifact):
         if temporary is not None: temporary.unlink(missing_ok=True)
 
 
-def apply(artifact,expected_sha256,allow_shared_state_migration=False):
+def apply(artifact,expected_sha256,allow_shared_state_migration=False,reuse_initialized_development_release=False):
     import hashlib
+    if reuse_initialized_development_release and (deployment.ENVIRONMENT!='development' or hashlib.sha256(artifact.read_bytes()).hexdigest()!=expected_sha256):
+        raise RuntimeError('Initialized release handover requires the identical development JAR')
     old,site=preflight(artifact,allow_shared_state_migration)
     routes=routing_files(site)
     if SITE.read_text()!=site:
         raise RuntimeError('Nginx changed after preflight')
     if hashlib.sha256(old.read_bytes()).hexdigest()!=expected_sha256:
         raise RuntimeError('Original production artifact changed')
+    if reuse_initialized_development_release:
+        completed_development_recalculation()
     idle_original_jobs()
     # Runner temporary artifacts disappear after a job. Units must use a durable release.
     artifact=stage_initial_release(artifact)
@@ -185,6 +207,8 @@ def apply(artifact,expected_sha256,allow_shared_state_migration=False):
         deployment.atomic(deployment.STATE/name,data)
         shutil.chown(deployment.STATE/name,user='ec2-user',group='ec2-user')
     (deployment.STATE/'blue.jar').symlink_to(artifact)
+    if reuse_initialized_development_release:
+        (deployment.STATE/'green.jar').symlink_to(artifact)
     BOOT_HELPER.parent.mkdir(parents=True,exist_ok=True)
     deployment.atomic(BOOT_HELPER,Path(__file__).with_name('deploy_backend.py').read_text(),mode=0o755)
     try:
@@ -204,23 +228,50 @@ def apply(artifact,expected_sha256,allow_shared_state_migration=False):
         deployment.command('systemctl','daemon-reload')
         # Old management port 8081 must be free before Nginx binds its stable proxy.
         deployment.command('systemctl','reload','nginx')
-        deployment.command('systemctl','start',deployment.SLOTS['blue'][0])
+        initial='green' if reuse_initialized_development_release else 'blue'
+        if reuse_initialized_development_release:
+            # The identical old release has finished its startup work. Start as a
+            # standby so ownership-wrapped initialization is not repeated.
+            deployment.candidate_override('green',True)
+        deployment.command('systemctl','start',deployment.SLOTS[initial][0])
         for attempt in range(90):
             try:
-                deployment.probe('blue'); deployment.proxy_probe('blue')
+                deployment.probe(initial)
+                if not reuse_initialized_development_release:
+                    deployment.proxy_probe(initial)
                 break
             except Exception:
                 if attempt==89: raise
                 time.sleep(1)
         if deployment.available()<deployment.RESERVE: raise RuntimeError('Post-restart memory reserve breached')
+        if reuse_initialized_development_release:
+            with deployment.jobs_lock():
+                deployment.atomic(deployment.ROUTE,deployment.route('green'))
+                deployment.command('nginx','-t')
+                deployment.command('systemctl','reload','nginx')
+                for attempt in range(10):
+                    try:
+                        deployment.proxy_probe('green')
+                        break
+                    except Exception:
+                        if attempt==9: raise
+                        time.sleep(.5)
+                deployment.atomic(deployment.STATE/'active-slot','green\n')
+            deployment.score('green',-500)
+            deployment.candidate_override('green',False)
         deployment.command('systemctl','enable',deployment.SLOTS['blue'][0],deployment.SLOTS['green'][0])
-        print(json.dumps({'bootstrapped':True,'backup':str(backup),'active':'blue'}))
+        print(json.dumps({'bootstrapped':True,'backup':str(backup),'active':initial,
+                          'identical_initialized_development_handover':reuse_initialized_development_release}))
     except BaseException as failure:
         recovery_errors=[]
         def recover(*args):
             try: deployment.command(*args)
             except Exception: recovery_errors.append(' '.join(args[:3]))
         recover('systemctl','stop',deployment.SLOTS['blue'][0])
+        if reuse_initialized_development_release:
+            recover('systemctl','stop',deployment.SLOTS['green'][0])
+            try: deployment.candidate_override('green',False)
+            except Exception: recovery_errors.append('clear green candidate override')
         shutil.copy2(backup/(deployment.SLOTS['blue'][0]+'.service'),SYSTEMD/(deployment.SLOTS['blue'][0]+'.service'))
         for path in routes:
             shutil.copy2(backup/path.name,path)
