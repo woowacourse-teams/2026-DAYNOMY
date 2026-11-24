@@ -98,4 +98,34 @@ class BootstrapTest(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError,'Schema migration mismatch'):
                 bootstrap.validate_initial_migrations(before,after,True)
 
+class DevelopmentTargetTest(unittest.TestCase):
+    def tearDown(self):
+        bootstrap.configure_environment('production')
+
+    def test_development_units_never_start_production_services(self):
+        bootstrap.configure_environment('development')
+        text = bootstrap.unit('green')
+        self.assertIn('/deployment-dev/green.jar', text)
+        self.assertIn('--environment development --owns-slot green', text)
+        self.assertIn('SyslogIdentifier=daynomy-dev', text)
+        self.assertIn('Slice=daynomy-backend-dev.slice', text)
+        self.assertEqual(bootstrap.deployment.SLOTS['blue'][0], 'daynomy-dev')
+        self.assertEqual(bootstrap.deployment.SLOTS['green'][0], 'daynomy-dev-green')
+        self.assertEqual(bootstrap.deployment.PUBLIC_ORIGIN, 'https://dev.daynomy.com')
+
+    def test_development_target_rejects_a_production_instance(self):
+        bootstrap.configure_environment('development')
+        with patch.object(Path, 'read_text', return_value='i-0c863ab4dc205e273'):
+            with self.assertRaisesRegex(RuntimeError, 'target instance'):
+                bootstrap.deployment.require_target_instance()
+
+    def test_production_target_remains_separate(self):
+        bootstrap.configure_environment('development')
+        development_state = bootstrap.deployment.STATE
+        bootstrap.configure_environment('production')
+        self.assertNotEqual(bootstrap.deployment.STATE, development_state)
+        self.assertEqual(bootstrap.deployment.PUBLIC_ORIGIN, 'https://daynomy.com')
+        self.assertIn('--environment production --owns-slot blue', bootstrap.unit('blue'))
+
+
 if __name__=='__main__':unittest.main()

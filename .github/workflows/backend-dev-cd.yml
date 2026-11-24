@@ -9,6 +9,11 @@ on:
       - ".github/workflows/backend-dev-cd.yml"
 
   workflow_dispatch:
+    inputs:
+      verify_only:
+        description: Read development instance and API status without deploying
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -19,6 +24,7 @@ concurrency:
 
 jobs:
   build:
+    if: github.event_name != 'workflow_dispatch' || !inputs.verify_only
     name: Test and build backend
     runs-on: ubuntu-latest
 
@@ -82,6 +88,7 @@ jobs:
           retention-days: 7
 
   heavy-tests:
+    if: github.event_name != 'workflow_dispatch' || !inputs.verify_only
     name: Test heavy preparation tools
     runs-on: ubuntu-latest
 
@@ -120,7 +127,8 @@ jobs:
   deploy:
     if: >
       github.ref == 'refs/heads/dev' &&
-      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      !inputs.verify_only
     name: Deploy backend development
     needs: [build, heavy-tests]
 
@@ -133,6 +141,9 @@ jobs:
     environment: development
 
     steps:
+      - name: Checkout development deployment tools
+        uses: actions/checkout@v6
+
       - name: Download deployment JAR
         uses: actions/download-artifact@v8
         with:
@@ -149,6 +160,14 @@ jobs:
           ARTIFACT="${RUNNER_TEMP}/daynomy-backend-dev/daynomy-${APP_VERSION}.jar"
           RELEASE="${APP_DIR}/releases/daynomy-${APP_VERSION}.jar"
           PREVIOUS="$(readlink -f "${APP_DIR}/current.jar" || true)"
+
+          # Bootstrap is an explicit one-time operation. Before it, retain restart deployment.
+          if [ -d "${APP_DIR}/deployment-dev" ]; then
+            sudo -n python3 backend/scripts/deploy_backend.py \
+              --environment development \
+              --artifact "$ARTIFACT" --version "$APP_VERSION"
+            exit 0
+          fi
 
           rollback() {
             echo "Rolling back development backend."
@@ -197,3 +216,18 @@ jobs:
           fi
 
           echo "Development backend deployment completed: ${APP_VERSION}"
+
+      - name: Verify development instance and API
+        if: always()
+        run: python3 backend/scripts/inspect_backend_development.py
+
+  verify-development:
+    if: github.event_name == 'workflow_dispatch' && inputs.verify_only && github.ref == 'refs/heads/dev'
+    name: Verify development without deployment
+    runs-on: [self-hosted, Linux, ARM64, backend-dev]
+    timeout-minutes: 5
+    steps:
+      - name: Checkout verification tools
+        uses: actions/checkout@v6
+      - name: Read development instance and API status
+        run: python3 backend/scripts/inspect_backend_development.py

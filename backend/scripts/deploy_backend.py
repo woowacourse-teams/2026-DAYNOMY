@@ -21,6 +21,32 @@ STATE = APP / 'deployment'
 ROUTE = Path('/etc/nginx/conf.d/daynomy-backend-upstream.conf')
 SLOTS = {'blue': ('daynomy', 8080, 8181), 'green': ('daynomy-green', 8082, 8182)}
 RESERVE = 256 * 1024 * 1024
+ENVIRONMENT = 'production'
+PUBLIC_ORIGIN = 'https://daynomy.com'
+EXPECTED_INSTANCE = 'i-0c863ab4dc205e273'
+SLICE = 'daynomy-backend.slice'
+
+
+def configure_environment(environment):
+    global ENVIRONMENT, STATE, ROUTE, SLOTS, PUBLIC_ORIGIN, EXPECTED_INSTANCE, SLICE
+    if environment not in ('production', 'development'):
+        raise RuntimeError('Unsupported deployment environment')
+    ENVIRONMENT = environment
+    development = environment == 'development'
+    STATE = APP / ('deployment-dev' if development else 'deployment')
+    ROUTE = Path('/etc/nginx/conf.d/' + ('daynomy-backend-dev-upstream.conf' if development
+                                        else 'daynomy-backend-upstream.conf'))
+    service = 'daynomy-dev' if development else 'daynomy'
+    SLOTS = {'blue': (service, 8080, 8181), 'green': (service + '-green', 8082, 8182)}
+    PUBLIC_ORIGIN = 'https://dev.daynomy.com' if development else 'https://daynomy.com'
+    EXPECTED_INSTANCE = 'i-0f2e92d9c7bd8fe06' if development else 'i-0c863ab4dc205e273'
+    SLICE = 'daynomy-backend-dev.slice' if development else 'daynomy-backend.slice'
+
+
+def require_target_instance():
+    actual = Path('/sys/devices/virtual/dmi/id/board_asset_tag').read_text().strip()
+    if actual != EXPECTED_INSTANCE:
+        raise RuntimeError('Deployment target instance does not match the selected environment')
 
 
 def command(*args):
@@ -77,7 +103,7 @@ def probe(slot):
 
 
 def proxy_probe(slot):
-    with urllib.request.urlopen('https://daynomy.com/api/news?page=1&size=1', timeout=5) as response:
+    with urllib.request.urlopen(PUBLIC_ORIGIN + '/api/news?page=1&size=1', timeout=5) as response:
         if response.headers.get('X-Daynomy-Slot') != slot:
             raise RuntimeError('Public proxy did not reach expected slot')
 
@@ -306,7 +332,7 @@ def deploy(artifact, version):
             pass  # Keep the healthy new slot serving; retry retirement on the next deployment.
     if not retired:
         atomic(pending, json.dumps({'slot': old, 'workers': workers}))
-    command('systemctl', 'enable', 'daynomy', 'daynomy-green')
+    command('systemctl', 'enable', SLOTS['blue'][0], SLOTS['green'][0])
     candidate_override(new, False)
     atomic(STATE / 'last-deployment.json', json.dumps({
         'active': new, 'previous': old, 'release': str(release), 'previous_release': str(old_jar),
@@ -335,6 +361,7 @@ def prepare_slot(slot):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--environment', choices=('development', 'production'), default='production')
     parser.add_argument('--artifact', type=Path)
     parser.add_argument('--version')
     parser.add_argument('--owns-slot', choices=SLOTS)
@@ -342,6 +369,8 @@ def main():
     args = parser.parse_args()
     if os.geteuid() != 0:
         parser.error('Run as root')
+    configure_environment(args.environment)
+    require_target_instance()
     if args.owns_slot:
         raise SystemExit(0 if owns_slot(args.owns_slot) else 1)
     if args.prepare_slot:

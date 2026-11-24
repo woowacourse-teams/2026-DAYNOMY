@@ -40,8 +40,8 @@
 - 준비·설정·공개 API·메모리 검증 실패 시 원래 HTTP 경로를 먼저 복구하고 배치 소유권을 원복한다.
 - `last-deployment.json`의 previous_release를 같은 명령에 전달하면 이전 버전도 준비 후 전환한다.
   DB 변경은 별도 호환성 검토가 필요하며 이 스크립트는 변경된 Flyway SQL을 거절한다.
-- 현재 main의 기존 재시작 workflow와 동시에 사용하지 않는다. 새 workflow가 병합되기 전에는
-  배포 동결을 유지해야 한다. 본 브랜치의 workflow만 두 포트 제어기를 호출한다.
+- 운영 workflow 변경은 이번 dev 반영에서 제외한다. 운영 서버를 최초 이관할 때는
+  기존 재시작 workflow와 동시에 사용하지 않도록 별도 연결·배포 동결 계획이 필요하다.
 
 ## 운영 커밋 기준 사전 검증
 
@@ -143,3 +143,23 @@ root 소유의 `/usr/local/libexec/daynomy/deploy_backend.py --prepare-slot`이 
   최대 800MiB, max 41회, OOM 0회다. 정상 AI 완료 결과 보존은 별도 DB 테스트 결과다.
 - 최종 아티팩트의 전체 Nginx 혼합 부하·모든 외부 배치 장기 시험과 운영 전후 측정은 남아 있다.
   두 메모리 시험 모두 제한에 닿았으므로 여유 자원 확보 완료로 해석하지 않는다.
+
+## 개발 서버 반영과 검증
+
+- 이번 PR의 대상은 dev다. 운영 backend-cd.yml은 변경하지 않는다. 개발 CD는 최초
+  설치 전에는 기존 daynomy-dev 재시작을 유지한다. deployment-dev 디렉터리가 있으면
+  --environment development로 전환 제어기를 실행한다. 불완전한 설치 상태에서
+  재시작 방식으로 자동 우회하지 않는다.
+- 개발 대상은 i-0f2e92d9c7bd8fe06으로 제한한다. 개발 서비스는 daynomy-dev와
+  daynomy-dev-green, 상태 디렉터리는 deployment-dev, 공개 검증 주소는
+  https://dev.daynomy.com이다. CLI의 환경과 실제 EC2 ID가 다르면 변경을 거절한다.
+- 머지 후 개발 CD의 실제 실행 결과에서 JAR 해시·API·메모리·Nginx 경로를 확인한다.
+  backend-dev-cd.yml을 verify_only=true로 수동 실행하면 배포 없이 같은 상태를 조회한다.
+- 최초 설치는 관측기로 재시작 기준값을 기록하면서 다음 순서로 진행한다.
+  inspect_backend_development.py로 실제 unit·환경 파일 경로·Nginx 사이트를 확인하고,
+  bootstrap_backend.py --environment development --artifact ... --site ...
+  --environment-file ...로 사전 검사한다. 통과 후에만 --expected-current-sha256 ...
+  --apply를 추가한다. 개발 DB에 V98이 이미 적용된 경우 SQL 추가 허용 옵션은 필요 없다.
+- 설치 후 같은 제어기로 새 버전 전환과 이전 버전 복구를 검증한다. 저장 성공·원장 및
+  스냅샷 일치·배치 실행·분석 작업 조회·메모리를 별도로 대조하며, 개발 서버 결과를
+  운영 성과로 표기하지 않는다. 운영 최초 이관과 자동 배포 전환은 후속 작업이다.
