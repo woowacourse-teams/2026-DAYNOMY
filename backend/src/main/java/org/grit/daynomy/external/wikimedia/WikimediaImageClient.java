@@ -18,11 +18,12 @@ import org.grit.daynomy.common.logging.LogEvent;
 import org.grit.daynomy.external.ExternalErrorCode;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.ClientHttpResponse;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestClientResponseException;
 
 @Slf4j
 @Component
@@ -101,7 +102,7 @@ public class WikimediaImageClient {
     } catch (BusinessException exception) {
       logFailed("searchImages", null, exception, startedAt);
       throw exception;
-    } catch (HttpStatusCodeException exception) {
+    } catch (RestClientResponseException exception) {
       logFailed("searchImages", exception.getStatusCode().value(), exception, startedAt);
       throw new BusinessException(ExternalErrorCode.WIKIMEDIA_IMAGE_REQUEST_FAILED);
     } catch (RestClientException exception) {
@@ -123,7 +124,7 @@ public class WikimediaImageClient {
               .exchange(
                   (request, response) -> {
                     if (!response.getStatusCode().is2xxSuccessful()) {
-                      throw new RestClientException("Wikimedia Commons image download failed");
+                      throw httpFailure(response);
                     }
                     byte[] content = readContent(response.getBody());
                     return new DownloadedImage(
@@ -141,13 +142,23 @@ public class WikimediaImageClient {
     } catch (BusinessException exception) {
       logFailed("downloadImage", null, exception, startedAt);
       throw exception;
-    } catch (HttpStatusCodeException exception) {
+    } catch (RestClientResponseException exception) {
       logFailed("downloadImage", exception.getStatusCode().value(), exception, startedAt);
       throw new BusinessException(ExternalErrorCode.WIKIMEDIA_IMAGE_REQUEST_FAILED);
     } catch (RestClientException | IllegalArgumentException exception) {
       logFailed("downloadImage", null, exception, startedAt);
       throw new BusinessException(ExternalErrorCode.WIKIMEDIA_IMAGE_REQUEST_FAILED);
     }
+  }
+
+  static RestClientResponseException httpFailure(ClientHttpResponse response) throws IOException {
+    return new RestClientResponseException(
+        "Wikimedia Commons image download failed",
+        response.getStatusCode(),
+        response.getStatusText(),
+        response.getHeaders(),
+        new byte[0],
+        null);
   }
 
   private byte[] readContent(InputStream input) throws IOException {

@@ -193,6 +193,23 @@ class S3ImageStorageTest {
   }
 
   @Test
+  void configurationFailureDoesNotLogRejectedRelativeKey() {
+    String rejectedKey = "alice@example.com/private.webp";
+
+    assertThatThrownBy(
+            () ->
+                storage.deleteIfManaged(
+                    "https://test-bucket.s3.ap-northeast-2.amazonaws.com/daynomy/" + rejectedKey))
+        .isInstanceOf(BusinessException.class);
+
+    Map<String, Object> values = keyValues(logEvent(LogEvent.EXTERNAL_DELETE_FAILED));
+    assertThat(values)
+        .containsEntry("reasonCode", "INVALID_STORAGE_CONFIGURATION")
+        .doesNotContainKey("relativeKey");
+    assertThat(values.values()).noneMatch(value -> value.toString().contains("alice@example.com"));
+  }
+
+  @Test
   void rejectsNestedObjectKey() {
     assertThatThrownBy(() -> storage.upload(new byte[] {1}, "news/image.webp", "image/webp"))
         .isInstanceOf(BusinessException.class);
@@ -228,6 +245,25 @@ class S3ImageStorageTest {
     assertThat(log.getThrowableProxy().getClassName())
         .isEqualTo("org.grit.daynomy.common.logging.SanitizedLogException");
     assertThat(log.getThrowableProxy().getMessage()).doesNotContain("access denied");
+  }
+
+  @Test
+  void uploadLogsSlowDownAsRetryableRateLimit() {
+    given(s3Client.putObject(any(PutObjectRequest.class), any(RequestBody.class)))
+        .willThrow(
+            S3Exception.builder()
+                .message("slow down")
+                .statusCode(503)
+                .awsErrorDetails(AwsErrorDetails.builder().errorCode("SlowDown").build())
+                .build());
+
+    assertThatThrownBy(() -> storage.upload(new byte[] {1}, "webp", "image/webp"))
+        .isInstanceOf(BusinessException.class);
+
+    assertThat(keyValues(logEvent(LogEvent.EXTERNAL_UPLOAD_FAILED)))
+        .containsEntry("responseStatus", 503)
+        .containsEntry("failureCategory", "RATE_LIMITED")
+        .containsEntry("retryable", true);
   }
 
   @Test

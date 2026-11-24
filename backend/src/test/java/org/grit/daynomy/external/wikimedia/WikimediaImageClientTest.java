@@ -22,7 +22,9 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.mock.http.client.MockClientHttpResponse;
 
 class WikimediaImageClientTest {
 
@@ -141,6 +143,15 @@ class WikimediaImageClientTest {
     assertThat(keyValues(logEvent(LogEvent.EXTERNAL_API_FAILED)))
         .containsEntry("operation", "downloadImage")
         .containsEntry("responseStatus", 503);
+  }
+
+  @Test
+  void downloadHttpFailurePreservesResponseStatus() throws Exception {
+    var response = new MockClientHttpResponse(new byte[0], HttpStatus.SERVICE_UNAVAILABLE);
+
+    var exception = WikimediaImageClient.httpFailure(response);
+
+    assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
   }
 
   @Test

@@ -83,10 +83,7 @@ public class S3ImageStorage {
       throw new BusinessException(ExternalErrorCode.S3_IMAGE_STORAGE_FAILED);
     } catch (BusinessException exception) {
       logConfigurationFailure(
-          LogEvent.EXTERNAL_UPLOAD_FAILED,
-          "uploadImage",
-          "INVALID_STORAGE_CONFIGURATION",
-          relativeKey);
+          LogEvent.EXTERNAL_UPLOAD_FAILED, "uploadImage", "INVALID_STORAGE_CONFIGURATION");
       throw exception;
     }
   }
@@ -107,7 +104,7 @@ public class S3ImageStorage {
     String baseUrl = s3Properties.publicBaseUrl();
     if (baseUrl == null || baseUrl.isBlank()) {
       logConfigurationFailure(
-          LogEvent.EXTERNAL_DELETE_FAILED, "deleteImage", "PUBLIC_BASE_URL_NOT_CONFIGURED", null);
+          LogEvent.EXTERNAL_DELETE_FAILED, "deleteImage", "PUBLIC_BASE_URL_NOT_CONFIGURED");
       return;
     }
 
@@ -150,10 +147,7 @@ public class S3ImageStorage {
       throw new BusinessException(ExternalErrorCode.S3_IMAGE_STORAGE_FAILED);
     } catch (BusinessException exception) {
       logConfigurationFailure(
-          LogEvent.EXTERNAL_DELETE_FAILED,
-          "deleteImage",
-          "INVALID_STORAGE_CONFIGURATION",
-          relativeKey);
+          LogEvent.EXTERNAL_DELETE_FAILED, "deleteImage", "INVALID_STORAGE_CONFIGURATION");
       throw exception;
     }
   }
@@ -162,10 +156,7 @@ public class S3ImageStorage {
     String baseUrl = s3Properties.publicBaseUrl();
     if (baseUrl == null || baseUrl.isBlank()) {
       logConfigurationFailure(
-          LogEvent.EXTERNAL_UPLOAD_FAILED,
-          "uploadImage",
-          "PUBLIC_BASE_URL_NOT_CONFIGURED",
-          relativeKey);
+          LogEvent.EXTERNAL_UPLOAD_FAILED, "uploadImage", "PUBLIC_BASE_URL_NOT_CONFIGURED");
       throw new BusinessException(ExternalErrorCode.S3_IMAGE_STORAGE_FAILED);
     }
 
@@ -202,19 +193,14 @@ public class S3ImageStorage {
     return fileName;
   }
 
-  private void logConfigurationFailure(
-      LogEvent event, String operation, String reasonCode, String relativeKey) {
-    var logEvent =
-        log.atWarn()
-            .addKeyValue("event", event.code())
-            .addKeyValue("provider", "s3")
-            .addKeyValue("operation", operation)
-            .addKeyValue("reasonCode", reasonCode)
-            .addKeyValue("retryable", false);
-    if (relativeKey != null) {
-      logEvent.addKeyValue("relativeKey", relativeKey);
-    }
-    logEvent.log(event.message());
+  private void logConfigurationFailure(LogEvent event, String operation, String reasonCode) {
+    log.atWarn()
+        .addKeyValue("event", event.code())
+        .addKeyValue("provider", "s3")
+        .addKeyValue("operation", operation)
+        .addKeyValue("reasonCode", reasonCode)
+        .addKeyValue("retryable", false)
+        .log(event.message());
   }
 
   private String bucket() {
@@ -245,10 +231,11 @@ public class S3ImageStorage {
           s3Exception.awsErrorDetails() == null
               ? null
               : safeIdentifier(s3Exception.awsErrorDetails().errorCode());
+      String failureCategory = s3FailureCategory(s3Exception.statusCode(), errorCode);
       event
           .addKeyValue("responseStatus", s3Exception.statusCode())
-          .addKeyValue("failureCategory", s3FailureCategory(s3Exception.statusCode(), errorCode))
-          .addKeyValue("retryable", s3Exception.retryable());
+          .addKeyValue("failureCategory", failureCategory)
+          .addKeyValue("retryable", isRetryable(failureCategory));
       if (errorCode != null) {
         event.addKeyValue("providerErrorCode", errorCode);
       }
@@ -272,6 +259,13 @@ public class S3ImageStorage {
       case 408 -> "REQUEST_TIMEOUT";
       case 429 -> "RATE_LIMITED";
       default -> status >= 500 ? "SERVER_ERROR" : "PROVIDER_ERROR";
+    };
+  }
+
+  private boolean isRetryable(String failureCategory) {
+    return switch (failureCategory) {
+      case "REQUEST_TIMEOUT", "RATE_LIMITED", "SERVER_ERROR" -> true;
+      default -> false;
     };
   }
 
