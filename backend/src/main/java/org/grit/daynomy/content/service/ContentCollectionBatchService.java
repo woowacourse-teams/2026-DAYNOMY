@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.common.logging.LogEvent;
+import org.grit.daynomy.common.logging.SanitizedLogException;
 import org.grit.daynomy.content.dto.ContentCollectionBatchResultResponse;
 import org.grit.daynomy.content.dto.ContentCollectionResultResponse;
 import org.grit.daynomy.content.exception.ContentErrorCode;
@@ -60,7 +61,7 @@ public class ContentCollectionBatchService {
               .addKeyValue("event", LogEvent.CONTENT_COLLECTION_FAILED.code())
               .addKeyValue("sourceId", source.getId())
               .addKeyValue("exceptionType", exception.getClass().getSimpleName())
-              .setCause(exception)
+              .setCause(SanitizedLogException.from(exception))
               .log(LogEvent.CONTENT_COLLECTION_FAILED.message());
         }
       }

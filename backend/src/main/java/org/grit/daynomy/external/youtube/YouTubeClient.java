@@ -11,12 +11,14 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.common.logging.ExternalTransportFailure;
 import org.grit.daynomy.common.logging.LogEvent;
 import org.grit.daynomy.external.ExternalErrorCode;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
 
 @Slf4j
 @Component
@@ -68,16 +70,17 @@ public class YouTubeClient {
               .retrieve()
               .body(String.class);
       List<YouTubeVideoCandidate> candidates = parseCandidates(response);
+      logInvalidPublishedDates("searchVideos", candidates, startedAt);
       logCompleted("searchVideos", candidates.size(), startedAt);
       return candidates;
     } catch (HttpStatusCodeException exception) {
-      logFailed("searchVideos", exception.getStatusCode().value(), exception, startedAt);
+      logFailed("searchVideos", exception, startedAt);
       throw new BusinessException(ExternalErrorCode.YOUTUBE_API_REQUEST_FAILED);
     } catch (BusinessException exception) {
-      logFailed("searchVideos", null, exception, startedAt);
+      logFailed("searchVideos", exception, startedAt);
       throw exception;
     } catch (RuntimeException exception) {
-      logFailed("searchVideos", null, exception, startedAt);
+      logFailed("searchVideos", exception, startedAt);
       throw new BusinessException(ExternalErrorCode.YOUTUBE_API_REQUEST_FAILED);
     }
   }
@@ -142,6 +145,7 @@ public class YouTubeClient {
               .filter(
                   candidate -> isWithinPeriod(candidate.publishedAt(), fromInclusive, toExclusive))
               .toList();
+      logInvalidPublishedDates("searchProfileVideos", candidates, startedAt);
       log.atInfo()
           .addKeyValue("event", LogEvent.EXTERNAL_API_COMPLETED.code())
           .addKeyValue("api", "YOUTUBE")
@@ -152,13 +156,13 @@ public class YouTubeClient {
           .log(LogEvent.EXTERNAL_API_COMPLETED.message());
       return filteredCandidates;
     } catch (HttpStatusCodeException exception) {
-      logFailed("searchProfileVideos", exception.getStatusCode().value(), exception, startedAt);
+      logFailed("searchProfileVideos", exception, startedAt);
       throw new BusinessException(ExternalErrorCode.YOUTUBE_API_REQUEST_FAILED);
     } catch (BusinessException exception) {
-      logFailed("searchProfileVideos", null, exception, startedAt);
+      logFailed("searchProfileVideos", exception, startedAt);
       throw exception;
     } catch (RuntimeException exception) {
-      logFailed("searchProfileVideos", null, exception, startedAt);
+      logFailed("searchProfileVideos", exception, startedAt);
       throw new BusinessException(ExternalErrorCode.YOUTUBE_API_REQUEST_FAILED);
     }
   }
@@ -174,6 +178,10 @@ public class YouTubeClient {
     try {
       YouTubeChannel channel = resolveChannel(profileUrl);
       if (channel == null || channel.uploadsPlaylistId() == null) {
+        logChannelUnavailable(
+            "listChannelUploads",
+            channel == null ? "CHANNEL_NOT_FOUND" : "UPLOADS_PLAYLIST_NOT_FOUND",
+            startedAt);
         return List.of();
       }
       List<YouTubeVideoCandidate> candidates = new ArrayList<>();
@@ -211,16 +219,17 @@ public class YouTubeClient {
               .filter(
                   candidate -> isWithinPeriod(candidate.publishedAt(), fromInclusive, toExclusive))
               .toList();
+      logInvalidPublishedDates("listChannelUploads", candidates, startedAt);
       logCompleted("listChannelUploads", filtered.size(), startedAt);
       return filtered;
     } catch (HttpStatusCodeException exception) {
-      logFailed("listChannelUploads", exception.getStatusCode().value(), exception, startedAt);
+      logFailed("listChannelUploads", exception, startedAt);
       throw new BusinessException(ExternalErrorCode.YOUTUBE_API_REQUEST_FAILED);
     } catch (BusinessException exception) {
-      logFailed("listChannelUploads", null, exception, startedAt);
+      logFailed("listChannelUploads", exception, startedAt);
       throw exception;
     } catch (RuntimeException exception) {
-      logFailed("listChannelUploads", null, exception, startedAt);
+      logFailed("listChannelUploads", exception, startedAt);
       throw new BusinessException(ExternalErrorCode.YOUTUBE_API_REQUEST_FAILED);
     }
   }
@@ -403,6 +412,42 @@ public class YouTubeClient {
         .log(LogEvent.EXTERNAL_API_REQUESTED.message());
   }
 
+  private void logChannelUnavailable(String operation, String reasonCode, long startedAt) {
+    log.atWarn()
+        .addKeyValue("event", LogEvent.EXTERNAL_API_FAILED.code())
+        .addKeyValue("api", "YOUTUBE")
+        .addKeyValue("operation", operation)
+        .addKeyValue("reasonCode", reasonCode)
+        .addKeyValue("durationMs", elapsedMillis(startedAt))
+        .log(LogEvent.EXTERNAL_API_FAILED.message());
+  }
+
+  private void logInvalidPublishedDates(
+      String operation, List<YouTubeVideoCandidate> candidates, long startedAt) {
+    long invalidPublishedDateCount =
+        candidates.stream().filter(candidate -> !isPublishedAtValid(candidate.publishedAt())).count();
+    if (invalidPublishedDateCount == 0) {
+      return;
+    }
+    log.atWarn()
+        .addKeyValue("event", LogEvent.EXTERNAL_API_PARTIAL_RESPONSE.code())
+        .addKeyValue("api", "YOUTUBE")
+        .addKeyValue("operation", operation)
+        .addKeyValue("reasonCode", "INVALID_PUBLISHED_AT")
+        .addKeyValue("invalidPublishedDateCount", invalidPublishedDateCount)
+        .addKeyValue("durationMs", elapsedMillis(startedAt))
+        .log(LogEvent.EXTERNAL_API_PARTIAL_RESPONSE.message());
+  }
+
+  private boolean isPublishedAtValid(String value) {
+    try {
+      Instant.parse(value);
+      return true;
+    } catch (DateTimeParseException exception) {
+      return false;
+    }
+  }
+
   private void logCompleted(String operation, int responseCount, long startedAt) {
     log.atInfo()
         .addKeyValue("event", LogEvent.EXTERNAL_API_COMPLETED.code())
@@ -413,8 +458,7 @@ public class YouTubeClient {
         .log(LogEvent.EXTERNAL_API_COMPLETED.message());
   }
 
-  private void logFailed(
-      String operation, Integer responseStatus, RuntimeException exception, long startedAt) {
+  private void logFailed(String operation, RuntimeException exception, long startedAt) {
     var event =
         log.atError()
             .addKeyValue("event", LogEvent.EXTERNAL_API_FAILED.code())
@@ -423,8 +467,10 @@ public class YouTubeClient {
             .addKeyValue("durationMs", elapsedMillis(startedAt))
             .addKeyValue("errorCode", ExternalErrorCode.YOUTUBE_API_REQUEST_FAILED.code())
             .addKeyValue("exceptionType", exception.getClass().getSimpleName());
-    if (responseStatus != null) {
-      event.addKeyValue("responseStatus", responseStatus);
+    if (exception instanceof HttpStatusCodeException httpException) {
+      YouTubeHttpFailure.from(httpException).addTo(event);
+    } else if (exception instanceof RestClientException) {
+      ExternalTransportFailure.from(exception).addTo(event);
     }
     event.log(LogEvent.EXTERNAL_API_FAILED.message());
   }
