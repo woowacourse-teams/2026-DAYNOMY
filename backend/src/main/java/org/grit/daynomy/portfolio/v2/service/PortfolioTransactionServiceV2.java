@@ -27,6 +27,7 @@ import org.grit.daynomy.portfolio.repository.PortfolioRepository;
 import org.grit.daynomy.portfolio.service.OriginalPortfolioChanged;
 import org.grit.daynomy.portfolio.service.PortfolioExchangeRateService;
 import org.grit.daynomy.portfolio.service.PortfolioLedgerCalculator;
+import org.grit.daynomy.portfolio.service.PortfolioTransactionIdempotencyService;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -50,12 +51,23 @@ public class PortfolioTransactionServiceV2 {
   private final PortfolioSnapshotServiceV2 snapshotService;
   private final PortfolioExchangeRateService exchangeRates;
   private final PlatformTransactionManager transactionManager;
+  private final PortfolioTransactionIdempotencyService idempotency;
   private final ApplicationEventPublisher events;
 
   public PortfolioTransactionResponse transact(Long memberId, PortfolioTransactionRequest request) {
     var rates = exchangeRates.forMember(memberId, request.assetId(), request.tradeDate());
     return new TransactionTemplate(transactionManager)
         .execute(status -> transactInTransaction(memberId, request, rates));
+  }
+
+  public PortfolioTransactionResponse transact(
+      Long memberId, PortfolioTransactionRequest request, String requestKey) {
+    return idempotency.execute(
+        memberId,
+        requestKey,
+        request,
+        () -> exchangeRates.forMember(memberId, request.assetId(), request.tradeDate()),
+        rates -> transactInTransaction(memberId, request, rates));
   }
 
   private PortfolioTransactionResponse transactInTransaction(

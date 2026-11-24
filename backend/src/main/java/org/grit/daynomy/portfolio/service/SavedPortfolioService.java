@@ -58,6 +58,7 @@ public class SavedPortfolioService {
   private final PortfolioSnapshotTransactionService snapshotTransactionService;
   private final PortfolioExchangeRateService exchangeRates;
   private final PlatformTransactionManager transactionManager;
+  private final PortfolioTransactionIdempotencyService idempotency;
   private final ApplicationEventPublisher events;
   private final PortfolioTransactionImportRepository importRepository;
 
@@ -269,6 +270,16 @@ public class SavedPortfolioService {
     var rates = exchangeRates.forMember(memberId, request.assetId(), request.tradeDate());
     return new TransactionTemplate(transactionManager)
         .execute(status -> transactInTransaction(memberId, request, rates, true));
+  }
+
+  public PortfolioTransactionResponse transact(
+      Long memberId, PortfolioTransactionRequest request, String requestKey) {
+    return idempotency.execute(
+        memberId,
+        requestKey,
+        request,
+        () -> exchangeRates.forMember(memberId, request.assetId(), request.tradeDate()),
+        rates -> transactInTransaction(memberId, request, rates, true));
   }
 
   private PortfolioTransactionResponse transactInTransaction(
