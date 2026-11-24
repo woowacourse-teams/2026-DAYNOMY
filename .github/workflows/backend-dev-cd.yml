@@ -10,6 +10,7 @@ on:
       # Updating them alone must not restart an unchanged application.
       - "!backend/scripts/**"
       - "!backend/docs/**"
+      - "!backend/loadtest/**"
 
   workflow_dispatch:
     inputs:

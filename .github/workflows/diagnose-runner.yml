@@ -271,6 +271,12 @@ jobs:
                       outcome = re.search(r'outcome="(target|succeeded|failed)"', metric[2] or '')
                       values[metric[1] + (':' + outcome[1] if outcome else '')] = float(metric[3])
               print(json.dumps({'league_progress_sample': sample, 'epoch_seconds': int(time.time()), 'values': values}), flush=True)
+              heap = {}
+              for line in metrics.splitlines():
+                  metric = re.fullmatch(r'jvm_memory_(used|committed|max)_bytes\{([^}]*)\} ([0-9.eE+-]+)', line)
+                  if metric and 'area="heap"' in metric[2] and float(metric[3]) >= 0:
+                      heap[metric[1]] = heap.get(metric[1], 0) + float(metric[3])
+              print(json.dumps({'jvm_heap_sample': sample, 'epoch_seconds': int(time.time()), 'bytes': heap}), flush=True)
               if sample < 2:
                   time.sleep(15)
           PY
