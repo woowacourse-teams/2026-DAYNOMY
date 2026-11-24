@@ -26,6 +26,12 @@ def main():
     slot = owner.read_text().strip() if owner.exists() else None
     if slot not in (None, 'blue', 'green'):
         raise RuntimeError('Unexpected development slot')
+    active_unit='daynomy-dev-green' if slot=='green' else 'daynomy-dev'
+    properties=dict(line.split('=',1) for line in subprocess.check_output([
+        'systemctl','show',active_unit,'-p','ActiveState','-p','MainPID','-p','NRestarts'],text=True).splitlines())
+    print(json.dumps({'active_service':active_unit,'properties':properties}),flush=True)
+    if properties['ActiveState']!='active' or properties['MainPID']=='0' or properties['NRestarts']!='0':
+        raise RuntimeError('Active development JVM is stopped or restarted')
     jar = (app / ('deployment-dev/' + slot + '.jar') if slot else app / 'current.jar').resolve(strict=True)
     print(json.dumps({'active_slot': slot, 'release': jar.name,
                       'jar_sha256': hashlib.sha256(jar.read_bytes()).hexdigest()}), flush=True)

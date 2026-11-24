@@ -1,5 +1,6 @@
 import tempfile
 import io
+from urllib.error import HTTPError
 import unittest
 from unittest.mock import patch
 from pathlib import Path
@@ -8,18 +9,20 @@ import operate_backend_development as operations
 
 class ActiveArtifactTest(unittest.TestCase):
     def test_proxy_repair_preserves_app_owner_and_rolls_back_failed_health(self):
-        for status in ('UP','DOWN'):
+        for status in ('UP','DOWN','RELOAD'):
             with self.subTest(status=status),tempfile.TemporaryDirectory() as folder:
                 root=Path(folder);state=root/'state';state.mkdir()
                 owner=state/'active-slot';owner.write_text('green\n')
                 route=root/'proxy.conf';route.write_text('previous proxy')
                 helper=root/'helper.py';helper.write_text('previous helper')
                 calls=[]
-                with patch.object(operations.deploy_backend,'STATE',state),patch.object(operations.deploy_backend,'ROUTE',route),patch.object(operations.bootstrap_backend,'BOOT_HELPER',helper),patch.object(operations.deploy_backend,'probe'),patch.object(operations.deploy_backend,'proxy_probe'),patch.object(operations.deploy_backend,'command',side_effect=lambda *args:calls.append(args)),patch.object(operations.urllib.request,'urlopen',return_value=io.BytesIO(('{"status":"'+status+'"}').encode())):
-                    if status=='UP':
+                responses=([HTTPError('http://localhost',400,'old worker',None,None),io.BytesIO(b'{"status":"UP"}')] if status=='RELOAD' else [io.BytesIO(('{"status":"'+status+'"}').encode()) for _ in range(10)])
+                with patch.object(operations.deploy_backend,'STATE',state),patch.object(operations.deploy_backend,'ROUTE',route),patch.object(operations.bootstrap_backend,'BOOT_HELPER',helper),patch.object(operations.deploy_backend,'probe'),patch.object(operations.deploy_backend,'proxy_probe'),patch.object(operations.deploy_backend,'command',side_effect=lambda *args:calls.append(args)),patch.object(operations.urllib.request,'urlopen',side_effect=responses) as request,patch.object(operations.time,'sleep'):
+                    if status!='DOWN':
                         operations.repair_proxy()
                         self.assertIn('proxy_set_header Host localhost;',route.read_text())
                         self.assertEqual(helper.read_text(),Path(operations.deploy_backend.__file__).read_text())
+                        self.assertEqual(request.call_count,2 if status=='RELOAD' else 1)
                     else:
                         with self.assertRaisesRegex(RuntimeError,'not UP'):operations.repair_proxy()
                         self.assertEqual(route.read_text(),'previous proxy')

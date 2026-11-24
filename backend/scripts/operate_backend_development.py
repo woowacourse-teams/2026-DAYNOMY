@@ -75,10 +75,17 @@ def repair_proxy():
     previous=deploy_backend.ROUTE.read_text()
     try:
         deploy_backend.prepare_slot(slot)
-        with urllib.request.urlopen('http://127.0.0.1:8081/actuator/health',timeout=5) as response:
-            if json.load(response).get('status')!='UP':
-                raise RuntimeError('Stable management proxy is not UP')
-        deploy_backend.proxy_probe(slot)
+        # Reload signals Nginx asynchronously; the previous worker can answer briefly.
+        for attempt in range(10):
+            try:
+                with urllib.request.urlopen('http://127.0.0.1:8081/actuator/health',timeout=5) as response:
+                    if json.load(response).get('status')!='UP':
+                        raise RuntimeError('Stable management proxy is not UP')
+                deploy_backend.proxy_probe(slot)
+                break
+            except Exception:
+                if attempt==9:raise
+                time.sleep(.5)
         # Keep boot recovery from reinstalling the obsolete proxy configuration.
         deploy_backend.atomic(bootstrap_backend.BOOT_HELPER,Path(deploy_backend.__file__).read_text(),mode=0o755)
     except Exception:
@@ -86,7 +93,7 @@ def repair_proxy():
         deploy_backend.command('nginx','-t')
         deploy_backend.command('systemctl','reload','nginx')
         raise
-    print(json.dumps({'development_proxy_repaired':True,'active':slot}),flush=True)
+    print(json.dumps({'development_proxy_repaired':True,'active':slot,'probe_attempts':attempt+1}),flush=True)
 
 
 def main():
