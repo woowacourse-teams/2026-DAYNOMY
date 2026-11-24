@@ -6,7 +6,10 @@ on:
       - dev
     paths:
       - "backend/**"
-      - ".github/workflows/backend-dev-cd.yml"
+      # Operational tools/docs use the explicit protected manual jobs below.
+      # Updating them alone must not restart an unchanged application.
+      - "!backend/scripts/**"
+      - "!backend/docs/**"
 
   workflow_dispatch:
     inputs:
