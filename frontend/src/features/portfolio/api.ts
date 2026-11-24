@@ -651,11 +651,18 @@ async function mutateTransaction(
   path: string,
   method: 'POST' | 'PATCH' | 'DELETE',
   body?: PortfolioTransactionRequest | PortfolioTransactionUpdateRequest,
+  requestKey?: string,
 ) {
   const response = await requestWithCsrf<unknown>(path, {
     method,
     ...(body
-      ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+      ? {
+          headers: {
+            'Content-Type': 'application/json',
+            ...(requestKey ? { 'Idempotency-Key': requestKey } : {}),
+          },
+          body: JSON.stringify(body),
+        }
       : {}),
   });
   if (
@@ -670,8 +677,8 @@ async function mutateTransaction(
   }
   return response as PortfolioTransactionResponse;
 }
-export function createPortfolioTransaction(body: PortfolioTransactionRequest) {
-  return mutateTransaction('/api/portfolio/transactions', 'POST', body);
+export function createPortfolioTransaction(body: PortfolioTransactionRequest, requestKey: string) {
+  return mutateTransaction('/api/portfolio/transactions', 'POST', body, requestKey);
 }
 export function updatePortfolioTransaction(id: number, body: PortfolioTransactionUpdateRequest) {
   return mutateTransaction(`/api/portfolio/transactions/${id}`, 'PATCH', body);
