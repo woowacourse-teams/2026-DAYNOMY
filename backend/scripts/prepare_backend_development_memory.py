@@ -22,7 +22,7 @@ SWAP = Path('/swapfile-daynomy-dev')
 FSTAB = Path('/etc/fstab')
 SYSCTL = Path('/etc/sysctl.d/90-daynomy-dev-memory.conf')
 MARKER = '# DAYNOMY issue 943 bounded development memory trial'
-FLAGS = '-Xmx128m -XX:TieredStopAtLevel=1 -XX:+ExitOnOutOfMemoryError'
+FLAGS = bootstrap_backend.DEVELOPMENT_JVM_FLAGS
 
 
 def run(*args, check=True, timeout=180):
@@ -45,7 +45,27 @@ def tuned_unit(original):
     updated, count = re.subn(pattern, lambda m: 'ExecStart=' + m[1] + ' ' + FLAGS + ' -jar /home/ec2-user/backend/current.jar', original, flags=re.M)
     if count != 1:
         raise RuntimeError('Unreviewed original Java command')
-    return updated.replace('[Service]\n', '[Service]\n' + MARKER + '\nEnvironment=MALLOC_ARENA_MAX=2\nMemoryMax=450M\nMemorySwapMax=0\n')
+    return updated.replace('[Service]\n', '[Service]\n' + MARKER + f'\nEnvironment=MALLOC_ARENA_MAX=2\nMemoryMax={bootstrap_backend.DEVELOPMENT_SINGLE_MEMORY_MIB}M\nMemorySwapMax=0\n')
+
+
+def backup_original_unit(original):
+    backup=BASE/'service.before'
+    if backup.exists():
+        if backup.read_text()!=original:
+            raise RuntimeError('Existing recovery baseline differs from the current original unit')
+    else:
+        shutil.copy2(UNIT,backup)
+
+
+def full_batch_is_idle():
+    try:
+        bootstrap_backend.completed_development_recalculation()
+        bootstrap_backend.idle_original_jobs()
+    except bootstrap_backend.DevelopmentBatchFailed:
+        raise
+    except RuntimeError:
+        return False
+    return True
 
 
 def snapshot():
@@ -128,7 +148,7 @@ def restore_unit():
     emit({'service_restored': True, 'swap_preserved_for_safe_recovery': True})
 
 
-def apply(expected_sha, seconds):
+def apply(expected_sha, seconds, require_full_batch=False):
     artifact = Path('/home/ec2-user/backend/current.jar').resolve(strict=True)
     if hashlib.sha256(artifact.read_bytes()).hexdigest() != expected_sha:
         raise RuntimeError('Deployed JAR changed; inspect latest dev before applying')
@@ -148,11 +168,9 @@ def apply(expected_sha, seconds):
     emit({'phase': 'before', 'sample': snapshot()})
     ensure_swap()
     if updated != original:
-        if (BASE / 'service.before').exists():
-            raise RuntimeError('Previous experiment backup exists; inspect before reapplying')
         bootstrap_backend.configure_environment('development')
         bootstrap_backend.idle_original_jobs()
-        shutil.copy2(UNIT, BASE / 'service.before')
+        backup_original_unit(original)
         try:
             # Apply MemoryMax only after stopping; never shrink the running 640MiB JVM.
             run('systemctl', 'stop', 'daynomy-dev')
@@ -170,9 +188,11 @@ def apply(expected_sha, seconds):
     rows = []
     durations = []
     client = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
-    until = time.monotonic() + seconds
+    full_batch_passed=False
     try:
         deploy_backend.reclaim_development_memory(health)
+        began=time.monotonic()
+        until=began+seconds
         while time.monotonic() < until:
             health()
             started = time.monotonic()
@@ -187,18 +207,27 @@ def apply(expected_sha, seconds):
             emit({'phase': 'observing', 'sample': row})
             if row['restarts']:
                 raise RuntimeError('Bounded JVM restarted during observation')
+            if row['MemAvailable']<256*1024:
+                raise RuntimeError('Development RAM reserve breached during observation')
+            if require_full_batch and len(rows)%6==0 and time.monotonic()-began>=120:
+                if full_batch_is_idle():
+                    full_batch_passed=True
+                    break
             time.sleep(5)
+        if require_full_batch and not full_batch_passed:
+            raise RuntimeError('Full development batch did not finish within the observation window')
     except BaseException:
         restore_unit()
         raise
     (BASE / 'samples.json').write_text(json.dumps(rows))
     available = sorted(row['MemAvailable'] for row in rows)
-    emit({'phase': 'completed', 'samples': len(rows), 'duration_seconds': seconds,
+    emit({'phase': 'completed', 'samples': len(rows), 'duration_seconds': round(time.monotonic()-began,2),
+          'required_full_batch':require_full_batch,'full_batch_passed':full_batch_passed,
           'min_available_kib': min(available), 'p10_available_kib': available[len(available)//10],
           'max_java_rss_kib': max(row['VmRSS'] for row in rows),
           'max_java_swap_kib': max(row['VmSwap'] for row in rows),
           'paired_smoke_p95_seconds': sorted(durations)[int((len(durations)-1)*.95)],
-          'candidate_memory_gate_passed': available[len(available)//10] >= 656 * 1024})
+          'candidate_memory_gate_passed': available[len(available)//10]*1024 >= deploy_backend.candidate_available_required()})
 
 
 def main():
@@ -207,15 +236,16 @@ def main():
     parser.add_argument('--restore', action='store_true')
     parser.add_argument('--expected-current-sha256')
     parser.add_argument('--observe-seconds', type=int, default=600)
+    parser.add_argument('--require-full-batch',action='store_true')
     args = parser.parse_args()
     if Path('/sys/devices/virtual/dmi/id/board_asset_tag').read_text().strip() != 'i-0f2e92d9c7bd8fe06':
         raise RuntimeError('Refusing non-development instance')
     if os.geteuid() != 0:
         raise RuntimeError('Run as root')
-    if not 120 <= args.observe_seconds <= 1800:
-        raise RuntimeError('Observation must be 120..1800 seconds')
+    if not 120 <= args.observe_seconds <= 7200:
+        raise RuntimeError('Observation must be 120..7200 seconds')
     if not args.apply and not args.restore:
-        emit({'plan': '1GiB swap for host, backend swap disabled, heap128m/C1/arena2, MemoryMax450M', 'sample': snapshot()})
+        emit({'plan': '1GiB swap for host, backend swap disabled, heap192m/C1/arena2, MemoryMax512M', 'sample': snapshot()})
         return
     BASE.mkdir(mode=0o700, exist_ok=True)
     with (BASE / 'operations.lock').open('w') as lock:
@@ -225,7 +255,7 @@ def main():
         else:
             if not re.fullmatch(r'[a-f0-9]{64}', args.expected_current_sha256 or ''):
                 raise RuntimeError('An inspected current JAR SHA256 is required')
-            apply(args.expected_current_sha256, args.observe_seconds)
+            apply(args.expected_current_sha256, args.observe_seconds,args.require_full_batch)
 
 
 if __name__ == '__main__':

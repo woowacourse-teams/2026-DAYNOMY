@@ -89,9 +89,13 @@ def available():
     return int(match[1]) * 1024
 
 
+def candidate_available_required():
+    return RESERVE + (480 if ENVIRONMENT=='development' else 400) * 1024 * 1024
+
+
 def reclaim_development_memory(verify):
     """Page out cold CI/management memory; never change limits or touch app/security cgroups."""
-    if ENVIRONMENT != 'development' or available() >= RESERVE + 432 * 1024 * 1024:
+    if ENVIRONMENT != 'development' or available() >= RESERVE + 512 * 1024 * 1024:
         return []
     if os.geteuid() != 0:
         raise RuntimeError('Development memory reclaim requires root')
@@ -124,7 +128,7 @@ for payload in (amount+' swappiness=200',amount):
         if not free_swap or int(free_swap[1]) < 256 * 1024:
             return samples
         for unit in units:
-            if available() >= RESERVE + 432 * 1024 * 1024:
+            if available() >= RESERVE + 512 * 1024 * 1024:
                 return samples
             try:
                 cg = command('systemctl', 'show', unit, '-p', 'ControlGroup', '--value')
@@ -327,9 +331,9 @@ def deploy(artifact, version):
         pending.unlink()
     if is_active(SLOTS[new][0]):
         raise RuntimeError('Inactive slot unexpectedly runs; refusing to interrupt it')
-    if available() < RESERVE + 400 * 1024 * 1024:
+    if available() < candidate_available_required():
         reclaim_development_memory(lambda: probe(old))
-    if available() < RESERVE + 400 * 1024 * 1024:
+    if available() < candidate_available_required():
         raise RuntimeError('Insufficient available memory to start a candidate safely')
     release = APP / 'releases' / ('daynomy-' + version + '.jar')
     if release.exists():

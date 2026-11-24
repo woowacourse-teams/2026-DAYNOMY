@@ -37,7 +37,7 @@ class ReclaimTest(unittest.TestCase):
 
     def reclaim(self,args,**kwargs):
         self.assertEqual(args[-2],str(self.group/'memory.reclaim'))
-        self.free=700*1024**2
+        self.free=800*1024**2
         (self.group/'memory.swap.current').write_text(str(64*1024**2))
         return SimpleNamespace(returncode=0)
 
@@ -53,6 +53,11 @@ class ReclaimTest(unittest.TestCase):
         with patch.object(deployment,'ENVIRONMENT','production'):
             self.assertEqual(deployment.reclaim_development_memory(self.verify),[])
         self.kernel.assert_not_called()
+
+    def test_larger_development_candidate_keeps_production_gate_unchanged(self):
+        self.assertEqual(deployment.candidate_available_required(),736*1024**2)
+        with patch.object(deployment,'ENVIRONMENT','production'):
+            self.assertEqual(deployment.candidate_available_required(),656*1024**2)
 
     def test_missing_swap_keeps_original_memory_gate(self):
         (self.proc/'meminfo').write_text('SwapTotal: 0 kB\nSwapFree: 0 kB\n')

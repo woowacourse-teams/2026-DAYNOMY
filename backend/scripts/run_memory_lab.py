@@ -32,7 +32,8 @@ def main():
                         help='Optional combined cgroup budget for two JVMs; no swap')
     parser.add_argument('--cases', nargs='+', choices=['default', 'heap256', 'heap192', 'heap192serial',
                                                      'heap256arena2', 'heap192arena2', 'heap128arena2',
-                                                     'heap192arena2c1', 'heap128arena2c1', 'heap96arena2c1'],
+                                                     'heap192arena2c1', 'heap128arena2c1', 'heap96arena2c1',
+                                                     'heap192arena2serialc1'],
                         default=['default', 'heap256', 'heap192'])
     args = parser.parse_args()
     if args.ownership_handoff and (args.workload != 'portfolio' or not args.pair_memory_mib or args.overlap_duration < 240 or len(args.cases) != 1):
@@ -124,6 +125,7 @@ def main():
                  'heap256arena2': ['-Xmx256m'], 'heap192arena2': ['-Xmx192m'],
                  'heap128arena2': ['-Xmx128m'],
                  'heap192arena2c1': ['-Xmx192m', '-XX:TieredStopAtLevel=1'],
+                 'heap192arena2serialc1': ['-Xmx192m', '-XX:TieredStopAtLevel=1', '-XX:+UseSerialGC'],
                  'heap128arena2c1': ['-Xmx128m', '-XX:TieredStopAtLevel=1'],
                  'heap96arena2c1': ['-Xmx96m', '-XX:TieredStopAtLevel=1']}
         for case in args.cases:

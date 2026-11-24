@@ -3,7 +3,8 @@ BEGIN;
 DO $$ BEGIN
   IF current_database() NOT IN ('memory_lab_default','memory_lab_heap256','memory_lab_heap192','memory_lab_heap192serial',
                               'memory_lab_heap256arena2','memory_lab_heap192arena2','memory_lab_heap128arena2',
-                              'memory_lab_heap192arena2c1','memory_lab_heap128arena2c1','memory_lab_heap96arena2c1') THEN
+                              'memory_lab_heap192arena2c1','memory_lab_heap128arena2c1','memory_lab_heap96arena2c1',
+                              'memory_lab_heap192arena2serialc1') THEN
     RAISE EXCEPTION 'Refusing non-lab database';
   END IF;
 END $$;
