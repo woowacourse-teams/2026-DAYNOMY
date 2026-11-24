@@ -35,9 +35,7 @@ public record ExternalTransportFailure(Category category, boolean retryable) {
   }
 
   public void addTo(LoggingEventBuilder event) {
-    event
-        .addKeyValue("failureCategory", category.name())
-        .addKeyValue("retryable", retryable);
+    event.addKeyValue("failureCategory", category.name()).addKeyValue("retryable", retryable);
   }
 
   public enum Category {

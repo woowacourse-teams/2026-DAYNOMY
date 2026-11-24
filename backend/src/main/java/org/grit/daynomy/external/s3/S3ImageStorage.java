@@ -107,10 +107,7 @@ public class S3ImageStorage {
     String baseUrl = s3Properties.publicBaseUrl();
     if (baseUrl == null || baseUrl.isBlank()) {
       logConfigurationFailure(
-          LogEvent.EXTERNAL_DELETE_FAILED,
-          "deleteImage",
-          "PUBLIC_BASE_URL_NOT_CONFIGURED",
-          null);
+          LogEvent.EXTERNAL_DELETE_FAILED, "deleteImage", "PUBLIC_BASE_URL_NOT_CONFIGURED", null);
       return;
     }
 
@@ -250,8 +247,7 @@ public class S3ImageStorage {
               : safeIdentifier(s3Exception.awsErrorDetails().errorCode());
       event
           .addKeyValue("responseStatus", s3Exception.statusCode())
-          .addKeyValue(
-              "failureCategory", s3FailureCategory(s3Exception.statusCode(), errorCode))
+          .addKeyValue("failureCategory", s3FailureCategory(s3Exception.statusCode(), errorCode))
           .addKeyValue("retryable", s3Exception.retryable());
       if (errorCode != null) {
         event.addKeyValue("providerErrorCode", errorCode);

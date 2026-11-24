@@ -238,8 +238,7 @@ class FeaturedPersonPostCollectionServiceTest {
             featuredPersonService.normalizePostUrl(
                 "https://x.com/elonmusk/status/12345", ContentSourceType.X))
         .willReturn("https://x.com/elonmusk/status/12345");
-    given(contentTranslationService.translateTitleIfEnglish("날짜 오류 게시물"))
-        .willReturn("날짜 오류 게시물");
+    given(contentTranslationService.translateTitleIfEnglish("날짜 오류 게시물")).willReturn("날짜 오류 게시물");
     given(postRepository.findByPersonIdAndStatusOrderByCreatedAtDescIdDesc(any(), any()))
         .willReturn(List.of());
 

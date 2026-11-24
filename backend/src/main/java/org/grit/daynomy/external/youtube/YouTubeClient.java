@@ -425,7 +425,9 @@ public class YouTubeClient {
   private void logInvalidPublishedDates(
       String operation, List<YouTubeVideoCandidate> candidates, long startedAt) {
     long invalidPublishedDateCount =
-        candidates.stream().filter(candidate -> !isPublishedAtValid(candidate.publishedAt())).count();
+        candidates.stream()
+            .filter(candidate -> !isPublishedAtValid(candidate.publishedAt()))
+            .count();
     if (invalidPublishedDateCount == 0) {
       return;
     }

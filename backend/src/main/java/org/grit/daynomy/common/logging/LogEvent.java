@@ -41,8 +41,7 @@ public enum LogEvent {
   CONTENT_COLLECTION_STARTED("content.collection.started", "외부 콘텐츠 수집 시작"),
   CONTENT_COLLECTION_COMPLETED("content.collection.completed", "외부 콘텐츠 수집 완료"),
   CONTENT_COLLECTION_SKIPPED("content.collection.skipped", "외부 콘텐츠 수집 스킵"),
-  CONTENT_COLLECTION_DATE_PARSE_FAILED(
-      "content.collection.date-parse.failed", "외부 콘텐츠 게시일 파싱 실패"),
+  CONTENT_COLLECTION_DATE_PARSE_FAILED("content.collection.date-parse.failed", "외부 콘텐츠 게시일 파싱 실패"),
   CONTENT_COLLECTION_FAILED("content.collection.failed", "외부 콘텐츠 수집 실패"),
 
   FEEDBACK_CREATED("feedback.created", "피드백 생성 완료"),

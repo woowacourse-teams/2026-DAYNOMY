@@ -194,8 +194,7 @@ public class WikimediaImageClient {
     return parseCandidates(response).stream()
         .filter(candidate -> candidate.title().equals(title))
         .findFirst()
-        .orElseThrow(
-            () -> new BusinessException(ExternalErrorCode.WIKIMEDIA_IMAGE_REQUEST_FAILED));
+        .orElseThrow(() -> new BusinessException(ExternalErrorCode.WIKIMEDIA_IMAGE_REQUEST_FAILED));
   }
 
   private List<WikimediaImageCandidate> parseCandidates(String response) {

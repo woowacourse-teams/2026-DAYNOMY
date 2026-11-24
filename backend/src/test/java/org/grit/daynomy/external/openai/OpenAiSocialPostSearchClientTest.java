@@ -145,9 +145,7 @@ class OpenAiSocialPostSearchClientTest {
     server.enqueue(
         jsonResponse(
             searchResponse(
-                List.of(
-                    Map.of(
-                        "title", "삼성전자 실적", "url", "https://x.com/market/status/12345")),
+                List.of(Map.of("title", "삼성전자 실적", "url", "https://x.com/market/status/12345")),
                 List.of(
                     Map.of(
                         "title",
@@ -288,12 +286,12 @@ class OpenAiSocialPostSearchClientTest {
                     "https://x.com/hankyungmedia",
                     "html",
                     """
-                    <blockquote class="twitter-tweet">
-                      <p lang="ko">연금 제도 개선 관련 소식입니다.</p>
-                      — 한국경제신문 (@hankyungmedia)
-                      <a href="https://x.com/hankyungmedia/status/2112436086752596201">October 20, 2026</a>
-                    </blockquote>
-                    """))));
+<blockquote class="twitter-tweet">
+  <p lang="ko">연금 제도 개선 관련 소식입니다.</p>
+  — 한국경제신문 (@hankyungmedia)
+  <a href="https://x.com/hankyungmedia/status/2112436086752596201">October 20, 2026</a>
+</blockquote>
+"""))));
     OpenAiSocialPostSearchClient client = newClient("test-key");
 
     var candidates =

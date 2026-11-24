@@ -103,10 +103,7 @@ public class FeaturedPersonPostCollectionService {
           }
           collected.add(
               new CollectedPost(
-                  ContentSourceType.YOUTUBE,
-                  video.title(),
-                  video.url(),
-                  publishedAt.value()));
+                  ContentSourceType.YOUTUBE, video.title(), video.url(), publishedAt.value()));
         }
       } catch (BusinessException exception) {
         if (firstFailure == null) {
