@@ -55,8 +55,6 @@ jobs:
           import re
           import shutil
           import subprocess
-          import time
-          import urllib.request
           import sys
 
           environment = os.environ.get("DIAGNOSTIC_ENVIRONMENT", "development")
@@ -237,6 +235,8 @@ jobs:
           import json
           import re
           import subprocess
+          import time
+          import urllib.request
           from pathlib import Path
 
           if Path('/sys/devices/virtual/dmi/id/board_asset_tag').read_text().strip() != 'i-0f2e92d9c7bd8fe06':
