@@ -222,6 +222,8 @@ jobs:
           for source, selector in (("runner-journal", ["--unit=actions.runner*"]), ("kernel-journal", ["--kernel"]), ("backend-journal", ["--unit=" + backend_service])):
               args = ["journalctl", *selector, "--since", f"{INCIDENT_START} UTC", "--until", f"{INCIDENT_END} UTC",
                       "--lines", "2000", "--no-pager", "--output=short-iso", "--utc", "--quiet"]
+              if source == "backend-journal":
+                  args += ["--grep", "OutOfMemoryError|Java heap space|Main process exited|Failed with result|oom-kill"]
               code, output = capture(args)
               # Only read journal entries; noninteractive sudo may be unavailable on this runner.
               if code != 0 or not output.strip():
