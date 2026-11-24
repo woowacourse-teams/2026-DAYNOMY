@@ -250,7 +250,7 @@ jobs:
         run: python3 backend/scripts/inspect_backend_development.py
 
   verify-development:
-    if: github.event_name == 'workflow_dispatch' && inputs.verify_only && github.ref == 'refs/heads/dev'
+    if: github.event_name == 'workflow_dispatch' && inputs.verify_only && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/chore/BE/#943')
     name: Verify development without deployment
     runs-on: [self-hosted, Linux, ARM64, backend-dev]
     timeout-minutes: 5
@@ -259,3 +259,43 @@ jobs:
         uses: actions/checkout@v6
       - name: Read development instance and API status
         run: python3 backend/scripts/inspect_backend_development.py
+      - name: Inspect development memory and routing configuration
+        run: |
+          sudo -n python3 - <<'PYINSPECT'
+          import json, pathlib, re, shutil, subprocess
+          P=pathlib.Path
+          if P('/sys/devices/virtual/dmi/id/board_asset_tag').read_text().strip()!='i-0f2e92d9c7bd8fe06':
+              raise SystemExit('Refusing non-development instance')
+          def call(*args):
+              return subprocess.run(args,capture_output=True,text=True,timeout=20)
+          pid=call('systemctl','show','daynomy-dev','-p','MainPID','--value').stdout.strip()
+          print(json.dumps({'disk_free_bytes':shutil.disk_usage('/').free,'swaps':P('/proc/swaps').read_text()}))
+          print(call('systemctl','show','daynomy-dev','-p','MemoryCurrent','-p','MemoryMax','-p','MemorySwapMax','-p','FragmentPath','-p','DropInPaths','-p','TimeoutStopUSec').stdout)
+          procs=[]
+          for d in P('/proc').glob('[0-9]*'):
+              try:
+                  text=(d/'status').read_text();rss=re.search(r'^VmRSS:\s+(\d+)',text,re.M)
+                  if rss:procs.append({'pid':int(d.name),'name':(d/'comm').read_text().strip(),'rss_kib':int(rss[1])})
+              except OSError:pass
+          print(json.dumps({'top_processes':sorted(procs,key=lambda p:p['rss_kib'],reverse=True)[:15]}))
+          exe=str((P('/proc')/pid/'exe').resolve())
+          environ=dict(v.split(b'=',1) for v in (P('/proc')/pid/'environ').read_bytes().split(b'\0') if b'=' in v)
+          opts=(P('/proc')/pid/'cmdline').read_bytes().decode().split('\0')
+          for k in (b'JAVA_TOOL_OPTIONS',b'JDK_JAVA_OPTIONS',b'_JAVA_OPTIONS'):
+              opts+=environ.get(k,b'').decode().split()
+          print(json.dumps({'java_executable':exe,'memory_flags':[v for v in opts if re.fullmatch(r'-X(?:mx|ms|ss)\d+[kKmMgG]?|-XX:(?:MaxRAMPercentage|InitialRAMPercentage|TieredStopAtLevel|MaxMetaspaceSize|ReservedCodeCacheSize)=[\d.]+[kKmMgG]?',v)],'has_jcmd_module':'jdk.jcmd@' in call(exe,'--list-modules').stdout}))
+          unit=P('/etc/systemd/system/daynomy-dev.service').read_text()
+          safe=[l for l in unit.splitlines() if re.fullmatch(r'(?:User|WorkingDirectory|EnvironmentFile|Slice|TimeoutStopSec|Restart|RestartSec|KillSignal|SyslogIdentifier|MemoryMax|MemorySwapMax)=[/A-Za-z0-9_. =-]+',l)]
+          print(json.dumps({'unit_settings':safe,'exec_start_count':len(re.findall(r'^ExecStart=',unit,re.M)),'exec_start_is_plain_java_jar':bool(re.search(r'^ExecStart=/[^ \n]+/java -jar /home/ec2-user/backend/current.jar(?: |$)',unit,re.M))}))
+          nginx=call('nginx','-T');current=None;selected={}
+          for line in nginx.stdout.splitlines():
+              m=re.fullmatch(r'# configuration file (.+):',line)
+              if m:current=m[1];continue
+              if current and re.fullmatch(r'\s*(?:server_name|listen|location|include|proxy_pass|proxy_read_timeout|proxy_send_timeout) [A-Za-z0-9_/. :;{}=^~*-]+',line):
+                  selected.setdefault(current,[]).append(line.strip())
+          print(json.dumps({'nginx_exit':nginx.returncode,'routing':selected}))
+          alloy=P('/etc/alloy/config.alloy')
+          print(json.dumps({'alloy_exists':alloy.exists(),'alloy_selectors':re.findall(r'matches\s*=\s*"([^"\n]*(?:_SYSTEMD_UNIT|SYSLOG_IDENTIFIER)[^"\n]*)"',alloy.read_text()) if alloy.exists() else []}))
+          print(call('systemctl','show','alloy','-p','ActiveState','-p','CanReload').stdout)
+          print(json.dumps({'tools':{name:shutil.which(name) for name in ['dd','mkswap','swapon','swapoff','sysctl','alloy']}}))
+          PYINSPECT
