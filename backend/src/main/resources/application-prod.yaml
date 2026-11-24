@@ -7,6 +7,8 @@ news:
   generation:
     economy:
       enabled: true
+    us:
+      enabled: ${US_NEWS_GENERATION_ENABLED:true}
 
 stock:
   us:
