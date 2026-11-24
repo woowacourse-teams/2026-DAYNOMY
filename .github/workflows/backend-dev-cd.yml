@@ -62,6 +62,43 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  prepare-development-workspace:
+    if: github.ref == 'refs/heads/dev'
+    name: Repair ownership of development Python cache
+    runs-on: [self-hosted, Linux, ARM64, backend-dev]
+    environment: development
+    timeout-minutes: 5
+    steps:
+      - name: Restore checkout access to cache from previous root execution
+        run: |
+          sudo -n python3 -B - <<'PY'
+          import os
+          import pwd
+          import re
+          from pathlib import Path
+
+          if Path('/sys/devices/virtual/dmi/id/board_asset_tag').read_text().strip() != 'i-0f2e92d9c7bd8fe06':
+              raise RuntimeError('Development instance required')
+          workspace = Path('/home/ec2-user/actions-runner-backend/_work/2026-DAYNOMY/2026-DAYNOMY')
+          cache = workspace / 'backend/scripts/__pycache__'
+          if cache.exists():
+              if cache.resolve() != cache or not cache.is_dir():
+                  raise RuntimeError('Unexpected Python cache path')
+              entries = list(cache.iterdir())
+              for entry in entries:
+                  if entry.is_symlink() or not entry.is_file() or not re.fullmatch(r'[A-Za-z_][A-Za-z_0-9]*\.cpython-\d+\.pyc', entry.name):
+                      raise RuntimeError('Unexpected file in Python cache')
+              runner = pwd.getpwnam('ec2-user')
+              for entry in entries:
+                  if entry.stat().st_uid == 0:
+                      os.chown(entry, runner.pw_uid, runner.pw_gid)
+              if cache.stat().st_uid == 0:
+                  os.chown(cache, runner.pw_uid, runner.pw_gid)
+              print('Development Python cache checkout ownership restored')
+          else:
+              print('No development Python cache needs repair')
+          PY
+
   build:
     if: github.event_name != 'workflow_dispatch' || (!inputs.verify_only && !inputs.development_memory_trial && inputs.development_existing_release_operation == 'none')
     name: Test and build backend
@@ -170,7 +207,7 @@ jobs:
       !inputs.verify_only && !inputs.development_memory_trial &&
       (github.event_name != 'workflow_dispatch' || inputs.development_existing_release_operation == 'none')
     name: Deploy backend development
-    needs: [build, heavy-tests]
+    needs: [build, heavy-tests, prepare-development-workspace]
 
     runs-on:
       - self-hosted
@@ -207,10 +244,10 @@ jobs:
           if [ "$BOOTSTRAP_BLUEGREEN" = "true" ]; then
             python3 backend/scripts/inspect_backend_development.py
             CURRENT_SHA="$(sha256sum "${APP_DIR}/current.jar" | awk '{print $1}')"
-            sudo -n python3 backend/scripts/bootstrap_backend.py \
+            sudo -n python3 -B backend/scripts/bootstrap_backend.py \
               --environment development --artifact "$ARTIFACT" \
               --site "$NGINX_SITE" --environment-file "$BACKEND_ENVIRONMENT_FILE"
-            sudo -n python3 backend/scripts/bootstrap_backend.py \
+            sudo -n python3 -B backend/scripts/bootstrap_backend.py \
               --environment development --artifact "$ARTIFACT" \
               --site "$NGINX_SITE" --environment-file "$BACKEND_ENVIRONMENT_FILE" \
               --expected-current-sha256 "$CURRENT_SHA" --apply
@@ -219,7 +256,7 @@ jobs:
 
           # Bootstrap is an explicit one-time operation. Before it, retain restart deployment.
           if [ -d "${APP_DIR}/deployment-dev" ]; then
-            sudo -n python3 backend/scripts/deploy_backend.py \
+            sudo -n python3 -B backend/scripts/deploy_backend.py \
               --environment development \
               --artifact "$ARTIFACT" --version "$APP_VERSION"
             exit 0
@@ -278,6 +315,7 @@ jobs:
         run: python3 backend/scripts/inspect_backend_development.py
 
   verify-development:
+    needs: [prepare-development-workspace]
     if: github.event_name == 'workflow_dispatch' && inputs.verify_only && !inputs.development_memory_trial && inputs.development_existing_release_operation == 'none' && github.ref == 'refs/heads/dev'
     name: Verify development without deployment
     runs-on: [self-hosted, Linux, ARM64, backend-dev]
@@ -329,6 +367,7 @@ jobs:
           PYINSPECT
 
   development-memory:
+    needs: [prepare-development-workspace]
     if: github.event_name == 'workflow_dispatch' && inputs.development_memory_trial && !inputs.verify_only && inputs.development_existing_release_operation == 'none' && github.ref == 'refs/heads/dev'
     name: Prepare and observe bounded development memory
     runs-on: [self-hosted, Linux, ARM64, backend-dev]
@@ -342,7 +381,7 @@ jobs:
           EXPECTED_CURRENT_SHA256: ${{ inputs.expected_current_sha256 }}
           OBSERVE_SECONDS: ${{ inputs.memory_observe_seconds }}
         run: |
-          sudo -n python3 backend/scripts/prepare_backend_development_memory.py \
+          sudo -n python3 -B backend/scripts/prepare_backend_development_memory.py \
             --apply --expected-current-sha256 "$EXPECTED_CURRENT_SHA256" \
             --observe-seconds "$OBSERVE_SECONDS"
       - name: Verify current development API
@@ -350,6 +389,7 @@ jobs:
         run: python3 backend/scripts/inspect_backend_development.py
 
   development-existing-release:
+    needs: [prepare-development-workspace]
     if: github.event_name == 'workflow_dispatch' && inputs.development_existing_release_operation != 'none' && !inputs.verify_only && !inputs.development_memory_trial && github.ref == 'refs/heads/dev'
     name: Explicit development operation on verified release
     runs-on: [self-hosted, Linux, ARM64, backend-dev]
@@ -368,7 +408,7 @@ jobs:
             echo "Release trial counter must contain 1..4 digits."
             exit 1
           fi
-          sudo -n python3 backend/scripts/operate_backend_development.py \
+          sudo -n python3 -B backend/scripts/operate_backend_development.py \
             --operation "$OPERATION" --expected-current-sha256 "$EXPECTED_CURRENT_SHA256" \
             --version "${GITHUB_SHA}-bg${RELEASE_COUNTER}" --apply
       - name: Verify active development slot and API
