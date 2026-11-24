@@ -1,5 +1,7 @@
 package org.grit.daynomy.asset.service;
 
+import static org.grit.daynomy.deployment.DeploymentOwnership.wrap;
+
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -34,6 +36,10 @@ public class UsMarketCalendarSyncService {
 
   @EventListener(ApplicationReadyEvent.class)
   public void initialize() {
+    wrap(this::initializeIfNeeded).run();
+  }
+
+  private void initializeIfNeeded() {
     LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
     LocalDate first = LocalDate.of(today.getYear() - 1, 1, 1);
     LocalDate last = LocalDate.of(today.getYear() + 1, 12, 31);

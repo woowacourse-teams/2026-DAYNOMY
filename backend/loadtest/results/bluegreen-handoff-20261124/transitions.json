@@ -1,0 +1,12 @@
+[
+  {
+    "slot": "green",
+    "lock_wait_seconds": 26.013,
+    "timestamp_ms": 1795507167263
+  },
+  {
+    "slot": "blue",
+    "lock_wait_seconds": 9.845,
+    "timestamp_ms": 1795507237707
+  }
+]

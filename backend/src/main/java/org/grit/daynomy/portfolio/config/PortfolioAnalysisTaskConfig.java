@@ -1,6 +1,7 @@
 package org.grit.daynomy.portfolio.config;
 
 import java.util.Map;
+import org.grit.daynomy.deployment.DeploymentTaskExecutor;
 import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -14,7 +15,7 @@ public class PortfolioAnalysisTaskConfig {
   @Bean("portfolioAnalysisTaskExecutor")
   ThreadPoolTaskExecutor analysisTaskExecutor(
       @Value("${portfolio.analysis.max-concurrent-tasks:4}") int concurrency) {
-    var executor = new ThreadPoolTaskExecutor();
+    var executor = new DeploymentTaskExecutor();
     executor.setThreadNamePrefix("portfolio-analysis-task-");
     executor.setCorePoolSize(concurrency);
     executor.setMaxPoolSize(concurrency);

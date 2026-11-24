@@ -1,5 +1,6 @@
 package org.grit.daynomy.portfolio.config;
 
+import org.grit.daynomy.deployment.DeploymentTaskExecutor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
@@ -9,7 +10,7 @@ public class PortfolioPriceHistoryTaskConfig {
 
   @Bean
   ThreadPoolTaskExecutor portfolioPriceHistoryTaskExecutor() {
-    var executor = new ThreadPoolTaskExecutor();
+    var executor = new DeploymentTaskExecutor();
     executor.setThreadNamePrefix("portfolio-price-history-");
     // 종목별 과거 수집은 예약 배치와 분리하되 동시 조회와 대기 작업의 메모리를 제한한다.
     executor.setCorePoolSize(1);

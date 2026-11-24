@@ -1,5 +1,6 @@
 package org.grit.daynomy.news.config;
 
+import org.grit.daynomy.deployment.DeploymentTaskExecutor;
 import org.slf4j.MDC;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -10,7 +11,7 @@ public class NewsPublishAiTaskConfig {
 
   @Bean("newsPublishAiExecutor")
   ThreadPoolTaskExecutor newsPublishAiExecutor() {
-    var executor = new ThreadPoolTaskExecutor();
+    var executor = new DeploymentTaskExecutor();
     executor.setThreadNamePrefix("news-publish-ai-");
     executor.setCorePoolSize(2);
     executor.setMaxPoolSize(2);
