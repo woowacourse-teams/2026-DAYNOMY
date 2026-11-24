@@ -1,4 +1,5 @@
 import tempfile
+import io
 import unittest
 from unittest.mock import patch
 from pathlib import Path
@@ -6,6 +7,26 @@ import operate_backend_development as operations
 
 
 class ActiveArtifactTest(unittest.TestCase):
+    def test_proxy_repair_preserves_app_owner_and_rolls_back_failed_health(self):
+        for status in ('UP','DOWN'):
+            with self.subTest(status=status),tempfile.TemporaryDirectory() as folder:
+                root=Path(folder);state=root/'state';state.mkdir()
+                owner=state/'active-slot';owner.write_text('green\n')
+                route=root/'proxy.conf';route.write_text('previous proxy')
+                helper=root/'helper.py';helper.write_text('previous helper')
+                calls=[]
+                with patch.object(operations.deploy_backend,'STATE',state),patch.object(operations.deploy_backend,'ROUTE',route),patch.object(operations.bootstrap_backend,'BOOT_HELPER',helper),patch.object(operations.deploy_backend,'probe'),patch.object(operations.deploy_backend,'proxy_probe'),patch.object(operations.deploy_backend,'command',side_effect=lambda *args:calls.append(args)),patch.object(operations.urllib.request,'urlopen',return_value=io.BytesIO(('{"status":"'+status+'"}').encode())):
+                    if status=='UP':
+                        operations.repair_proxy()
+                        self.assertIn('proxy_set_header Host localhost;',route.read_text())
+                        self.assertEqual(helper.read_text(),Path(operations.deploy_backend.__file__).read_text())
+                    else:
+                        with self.assertRaisesRegex(RuntimeError,'not UP'):operations.repair_proxy()
+                        self.assertEqual(route.read_text(),'previous proxy')
+                        self.assertEqual(helper.read_text(),'previous helper')
+                self.assertEqual(owner.read_text(),'green\n')
+                self.assertTrue(all(call in [('nginx','-t'),('systemctl','reload','nginx')] for call in calls))
+
     def test_transition_sampling_handles_retiring_jvm_and_uncreated_slice(self):
         def read(path):
             if str(path)=='/proc/meminfo':return 'MemAvailable: 700000 kB\n'

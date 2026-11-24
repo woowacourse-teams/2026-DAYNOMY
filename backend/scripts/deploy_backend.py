@@ -80,7 +80,7 @@ def route(slot):
     return (f'upstream daynomy_backend {{ server 127.0.0.1:{api}; }}\n'
             f'upstream daynomy_management {{ server 127.0.0.1:{management}; }}\n'
             'server { listen 127.0.0.1:8081; server_name localhost;\n'
-            ' location /actuator/ { proxy_pass http://daynomy_management; }\n'
+            ' location /actuator/ { proxy_set_header Host localhost; proxy_pass http://daynomy_management; }\n'
             ' location / { return 404; }\n}\n')
 
 
