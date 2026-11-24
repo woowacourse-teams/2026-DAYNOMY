@@ -55,7 +55,10 @@ def startup_diagnostics(journal):
         for key, pattern in patterns.items():
             findings[key].update(re.findall(pattern, message))
         # Emit only a fixed vocabulary from exception reasons, never arbitrary log tokens.
-        for reason in re.findall(r'(?:Exception|Error): ([^\n]{1,800})', message):
+        reasons = re.findall(r'(?:Exception|Error): ([^\n]{1,8000})', message)
+        if re.search(r'Exception|Error|ERROR|FAILED', message):
+            reasons.append(message[-12000:])
+        for reason in reasons:
             templates.add(' '.join(word.lower() if word.lower() in safe_words else '_'
                                    for word in re.findall(r'[A-Za-z]+', reason)))
     result = {key: sorted(values)[:80] for key, values in findings.items() if values}
