@@ -71,9 +71,11 @@ def validate_initial_migrations(before, after, allow_shared_state_migration=Fals
     if before == after:
         return
     added = set(after) - set(before)
-    reviewed = {'BOOT-INF/classes/db/migration/V98__share_sessions_and_guest_analysis_trials.sql'}
+    shared_state = 'BOOT-INF/classes/db/migration/V99__share_sessions_and_guest_analysis_trials.sql'
+    existing_trade = 'BOOT-INF/classes/db/migration/V98__create_portfolio_transaction_requests.sql'
+    reviewed = ({shared_state}, {existing_trade, shared_state})
     unchanged = all(after.get(name) == checksum for name, checksum in before.items())
-    if not (allow_shared_state_migration and unchanged and added == reviewed):
+    if not (allow_shared_state_migration and unchanged and added in reviewed):
         raise RuntimeError('Schema migration mismatch; only the explicitly reviewed shared-state addition is allowed')
 
 
@@ -226,7 +228,7 @@ def main():
     parser.add_argument('--apply',action='store_true')
     parser.add_argument('--expected-current-sha256')
     parser.add_argument('--allow-shared-state-migration',action='store_true',
-                        help='First install only: allow the reviewed additive V98 session/task tables')
+                        help='First install only: allow the reviewed additive V99 session/task tables')
     args=parser.parse_args()
     configure_environment(args.environment)
     deployment.require_target_instance()
