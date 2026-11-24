@@ -10,6 +10,7 @@ import re
 import subprocess
 import threading
 import time
+import urllib.request
 from pathlib import Path
 
 import bootstrap_backend
@@ -66,9 +67,31 @@ def current_artifact(app):
     return (app / 'current.jar').resolve(strict=True)
 
 
+def repair_proxy():
+    slot=(deploy_backend.STATE/'active-slot').read_text().strip()
+    if slot not in deploy_backend.SLOTS:
+        raise RuntimeError('Unknown active development slot')
+    deploy_backend.probe(slot)
+    previous=deploy_backend.ROUTE.read_text()
+    try:
+        deploy_backend.prepare_slot(slot)
+        with urllib.request.urlopen('http://127.0.0.1:8081/actuator/health',timeout=5) as response:
+            if json.load(response).get('status')!='UP':
+                raise RuntimeError('Stable management proxy is not UP')
+        deploy_backend.proxy_probe(slot)
+        # Keep boot recovery from reinstalling the obsolete proxy configuration.
+        deploy_backend.atomic(bootstrap_backend.BOOT_HELPER,Path(deploy_backend.__file__).read_text(),mode=0o755)
+    except Exception:
+        deploy_backend.atomic(deploy_backend.ROUTE,previous)
+        deploy_backend.command('nginx','-t')
+        deploy_backend.command('systemctl','reload','nginx')
+        raise
+    print(json.dumps({'development_proxy_repaired':True,'active':slot}),flush=True)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--operation', choices=('bootstrap', 'switch'), required=True)
+    parser.add_argument('--operation', choices=('bootstrap', 'switch', 'repair-proxy'), required=True)
     parser.add_argument('--expected-current-sha256', required=True)
     parser.add_argument('--version')
     parser.add_argument('--apply', action='store_true')
@@ -98,7 +121,10 @@ def main():
             else:
                 with (deploy_backend.STATE / 'deploy.lock').open('a+') as deployment:
                     fcntl.flock(deployment, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                    deploy_backend.deploy(artifact, args.version or '')
+                    if args.operation=='repair-proxy':
+                        repair_proxy()
+                    else:
+                        deploy_backend.deploy(artifact, args.version or '')
 
 
 if __name__ == '__main__':
