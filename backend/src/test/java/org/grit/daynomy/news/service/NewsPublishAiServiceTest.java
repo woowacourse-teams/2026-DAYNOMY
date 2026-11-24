@@ -87,7 +87,7 @@ class NewsPublishAiServiceTest {
   }
 
   @Test
-  void aiFailureIsPropagatedAfterBothCallsFinish() throws Exception {
+  void aiFailureIsPropagatedWithoutDuplicateLoggingAfterBothCallsFinish() throws Exception {
     RuntimeException failure = new RuntimeException("keyword failed");
     CountDownLatch marketStarted = new CountDownLatch(1);
     CountDownLatch releaseMarket = new CountDownLatch(1);
@@ -123,6 +123,11 @@ class NewsPublishAiServiceTest {
     }
 
     verify(marketAnalysisAiClient).analyze("뉴스 본문");
+    assertThat(appender.list)
+        .noneMatch(
+            loggingEvent ->
+                LogEvent.AI_NEWS_GENERATION_FAILED.code()
+                    .equals(keyValues(loggingEvent).get("event")));
   }
 
   @Test
