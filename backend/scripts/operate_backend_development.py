@@ -49,7 +49,7 @@ def main():
     with (memory_state / 'operations.lock').open('a+') as operations:
         fcntl.flock(operations, fcntl.LOCK_EX | fcntl.LOCK_NB)
         if args.operation == 'bootstrap':
-            bootstrap_backend.apply(artifact, checksum)
+            bootstrap_backend.apply(artifact, checksum, reuse_initialized_development_release=True)
         else:
             with (deploy_backend.STATE / 'deploy.lock').open('a+') as deployment:
                 fcntl.flock(deployment, fcntl.LOCK_EX | fcntl.LOCK_NB)
