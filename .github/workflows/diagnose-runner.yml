@@ -75,6 +75,7 @@ jobs:
           INCIDENT_START = incident_start.strftime("%Y-%m-%d %H:%M:%S")
           INCIDENT_END = incident_end.strftime("%Y-%m-%d %H:%M:%S")
           PATTERNS = {
+              "jvm-heap-exhaustion": r"OutOfMemoryError: Java heap space",
               "out-of-memory": r"out of memory|oom-kill|oom_reaper|killed process",
               "disk-full": r"no space left|disk full",
               "dns": r"could not resolve|name resolution|EAI_AGAIN|ENOTFOUND",
@@ -99,6 +100,7 @@ jobs:
           # One runnable privacy/classification/time-window check: extract this block with --check.
           assert classify("2026-10-06T09:18:22 ERROR Artifact download failed https://blob/?sig=PRIVATE") == ("artifact", "2026-10-06T09:18:22")
           assert classify("2026-10-06 08:59:00 received shutdown signal") == ("shutdown", "2026-10-06 08:59:00")
+          assert classify("2026-10-06 09:00:00 Terminating due to java.lang.OutOfMemoryError: Java heap space") == ("jvm-heap-exhaustion", "2026-10-06 09:00:00")
           assert classify("token=PRIVATE password=PRIVATE") is None
           assert in_window(INCIDENT_START.replace(" ", "T"))
           assert in_window(INCIDENT_END)
@@ -217,7 +219,7 @@ jobs:
               except OSError:
                   print(f"runner-log-{index}: unavailable")
 
-          for source, selector in (("runner-journal", ["--unit=actions.runner*"]), ("kernel-journal", ["--kernel"])):
+          for source, selector in (("runner-journal", ["--unit=actions.runner*"]), ("kernel-journal", ["--kernel"]), ("backend-journal", ["--unit=" + backend_service])):
               args = ["journalctl", *selector, "--since", f"{INCIDENT_START} UTC", "--until", f"{INCIDENT_END} UTC",
                       "--lines", "2000", "--no-pager", "--output=short-iso", "--utc", "--quiet"]
               code, output = capture(args)
