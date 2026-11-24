@@ -9,6 +9,31 @@ import urllib.request
 from pathlib import Path
 
 
+def startup_diagnostics(journal):
+    """Extract code identifiers only; never publish raw application log messages."""
+    patterns = {
+        'exceptions': r'\b(?:[a-zA-Z_$][\w$]*\.)+[A-Z][\w$]*(?:Exception|Error)\b',
+        'beans': r"(?:bean with name|parameter named) ['\"]([A-Za-z][\w.]{0,120})['\"]",
+        'missing_types': r"(?:bean of type|No qualifying bean of type) ['\"]([\w.$]+)['\"]",
+        'properties': r"Could not resolve placeholder ['\"]([\w.-]+)['\"]",
+        'sql_states': r'SQL State\s*:\s*([A-Z0-9]{5})\b',
+        'schema_errors': r'((?:relation|column) "[a-z][a-z0-9_]*" (?:already exists|does not exist))',
+        'migrations': r'\b(V\d+__[A-Za-z0-9_]+\.sql)\b',
+        'frames': r'\bat ((?:[A-Za-z_$][\w$]*\.)+[\w$<>]+\([A-Za-z_$][\w$]*\.java:\d+\))',
+    }
+    findings = {key: set() for key in patterns}
+    for line in journal.splitlines():
+        try:
+            message = json.loads(line).get('MESSAGE', '')
+        except (ValueError, AttributeError):
+            continue
+        if not isinstance(message, str):
+            continue
+        for key, pattern in patterns.items():
+            findings[key].update(re.findall(pattern, message))
+    return {key: sorted(values)[:80] for key, values in findings.items() if values}
+
+
 def main():
     instance = Path('/sys/devices/virtual/dmi/id/board_asset_tag').read_text().strip()
     if instance != 'i-0f2e92d9c7bd8fe06':
@@ -18,6 +43,11 @@ def main():
         'systemctl', 'show', 'daynomy-dev', '-p', 'ActiveState', '-p', 'MainPID',
         '-p', 'FragmentPath', '-p', 'EnvironmentFiles', '-p', 'DropInPaths'], text=True)
     print(service, flush=True)
+    journal = subprocess.run([
+        'sudo', '-n', 'journalctl', '-u', 'daynomy-dev', '--since', '45 minutes ago',
+        '-n', '2000', '-o', 'json', '--no-pager'], capture_output=True, text=True)
+    print(json.dumps({'startup_diagnostics_exit': journal.returncode,
+                      'startup_diagnostics': startup_diagnostics(journal.stdout)}), flush=True)
     print(json.dumps({'memory': {line.split(':')[0]: line.split(':')[1].strip()
                                for line in Path('/proc/meminfo').read_text().splitlines()
                                if line.split(':')[0] in ('MemTotal', 'MemAvailable', 'SwapTotal', 'SwapFree')}}), flush=True)

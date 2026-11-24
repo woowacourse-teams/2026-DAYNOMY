@@ -250,7 +250,7 @@ jobs:
         run: python3 backend/scripts/inspect_backend_development.py
 
   verify-development:
-    if: github.event_name == 'workflow_dispatch' && inputs.verify_only && github.ref == 'refs/heads/dev'
+    if: github.event_name == 'workflow_dispatch' && inputs.verify_only && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/chore/BE/#943')
     name: Verify development without deployment
     runs-on: [self-hosted, Linux, ARM64, backend-dev]
     timeout-minutes: 5
