@@ -259,3 +259,56 @@ jobs:
         uses: actions/checkout@v6
       - name: Read development instance and API status
         run: python3 backend/scripts/inspect_backend_development.py
+      - name: Export encrypted startup journal for local diagnosis
+        env:
+          DIAGNOSTIC_CERT: |
+            -----BEGIN CERTIFICATE-----
+            MIIEKTCCApGgAwIBAgIUWQATvYKBtKaY62QFjgomhGA5XlMwDQYJKoZIhvcNAQEL
+            BQAwJDEiMCAGA1UEAwwZZGF5bm9teS1sb2NhbC1kaWFnbm9zdGljczAeFw0yNjEx
+            MjQxNDU5NDdaFw0yNjExMjYxNDU5NDdaMCQxIjAgBgNVBAMMGWRheW5vbXktbG9j
+            YWwtZGlhZ25vc3RpY3MwggGiMA0GCSqGSIb3DQEBAQUAA4IBjwAwggGKAoIBgQCr
+            RybTjEPJydyVBC99bRgUXAfUB7CodEYGSI5oMbG56WI4zy7Cry/DBiEf9qRpvxbx
+            lSSpzq1kROAA+rIYpnyFTf3LQqNxsBrPoCdYfq+KIMRRwOykOYnQdr7nIAbf2FP0
+            HjlY1Tfo5bMRNN/+EJAGE6B0C/EmUl3CGZQHGTHq+3GsCxTvnV55xmop05mV4cQv
+            tZgjfa/+xihBn5NBnChsR/IY0KntE8rKjZHK9Uto4xmNoIQ+TUfHS93S4eLr0UJx
+            tNFfzLdemO9XolkJuS0P2aYGhI0rGI6qH+btumuQsZj1sq25xAiLjhGGmt0PJWnJ
+            kAJ6WQim2Q2y+D+4dt4mucjqORMB+BOEOREryGP82F97mPTKTf0RS/WuY2jrNX1L
+            4DrtluxS6e4qV450Xbu71JkPKz+bJpX6qvIYKXaZa/oloXc7Cq3serlPmDMB9YrA
+            VOZvTQJFuLvZXriH2LM6zunvb8TXXuQloLS01W6TmwgWh6anF5+8lZD9Afjw3ukC
+            AwEAAaNTMFEwHQYDVR0OBBYEFGYr3qsW5pYkGVez2TFjyokftWvoMB8GA1UdIwQY
+            MBaAFGYr3qsW5pYkGVez2TFjyokftWvoMA8GA1UdEwEB/wQFMAMBAf8wDQYJKoZI
+            hvcNAQELBQADggGBAIm3iKH/C4L7rEs30eQnzIwyO8xOBZ6OHWMOCU6lZIxw/qPo
+            RgTRtdU7qx84YOQ4wi1LSDW/DIpqiWOkrhtAuESUFok47PFRCCg6wrhTqaGFtYvI
+            33kBvTMGUSLJCbk/DWadyC+s3f8yzecFtyVKWzUTlnVU4y4jvd8DeyN2ApSqTNnQ
+            4AtdgEKIjRKJem/3LYJDg0XC719zEGcZEHjAz2qyQLiznvXODnpZbXngM5Ld9xVh
+            iHw0hRcTA50Q6tcF2pGVOjxSCuywBhuZHqTRv8aCKgraLYOfAQWU9mynKb8YWgPa
+            0lQdMxHkNNoJD3dM1RNv2dCbaDiwYvKtX0yOLTvaz6GUthM+RAAz9czzSIxrAu99
+            mF1ivjgXiQ1+6XzIi04BnkHuJCxj3SQQ1yUTRW3yqDOQNWzYsFdmerAhT2agqrZ1
+            OJXGifxXdWRyvQWaLfa3ydiytBL7mtXmMtG+Eg+qrxcpVmyqw1mT0RL+3z5apkkU
+            MhtDT1CdAtJK6fdytg==
+            -----END CERTIFICATE-----
+        run: |
+          python3 - <<'PYDIAG'
+          import os, pathlib, subprocess
+          instance = pathlib.Path('/sys/devices/virtual/dmi/id/board_asset_tag').read_text().strip()
+          if instance != 'i-0f2e92d9c7bd8fe06':
+              raise SystemExit('Refusing non-development instance')
+          root = pathlib.Path(os.environ['RUNNER_TEMP'])
+          cert = root / 'startup-diagnostic.crt'
+          cert.write_text(os.environ['DIAGNOSTIC_CERT'])
+          journal = subprocess.run(['sudo', '-n', 'journalctl', '-u', 'daynomy-dev',
+              '--since', '2026-11-24 14:34:00 UTC', '--until', '2026-11-24 14:39:00 UTC',
+              '-n', '10000', '-o', 'json', '--no-pager'], capture_output=True, check=True)
+          encrypted = subprocess.run(['openssl', 'cms', '-encrypt', '-binary', '-aes-256-cbc',
+              '-outform', 'DER', str(cert)], input=journal.stdout, capture_output=True, check=True)
+          output = root / 'startup-journal.der'
+          output.write_bytes(encrypted.stdout)
+          output.chmod(0o600)
+          print('Encrypted startup journal generated; no plaintext was logged.')
+          PYDIAG
+      - name: Upload encrypted startup journal
+        uses: actions/upload-artifact@v7
+        with:
+          name: encrypted-startup-diagnostics-943
+          path: ${{ runner.temp }}/startup-journal.der
+          retention-days: 1
