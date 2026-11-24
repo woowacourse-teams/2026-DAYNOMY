@@ -64,7 +64,6 @@ public class NewsPublishAiService {
       throw new BusinessException(ExternalErrorCode.AI_NEWS_GENERATION_FAILED);
     } catch (ExecutionException exception) {
       Throwable failure = exception.getCause() == null ? exception : exception.getCause();
-      logFailure("TASK_FAILED", failure, startedAt);
       throw propagate(failure);
     }
   }
