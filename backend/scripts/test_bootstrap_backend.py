@@ -78,6 +78,14 @@ class BootstrapTest(unittest.TestCase):
         self.assertIn(('systemctl','start','daynomy'),self.calls)
         self.assertIn(('systemctl','reload','nginx'),self.calls)
 
+    def test_initial_jar_survives_runner_artifact_cleanup(self):
+        self.apply()
+        original=self.artifact.read_bytes()
+        self.artifact.unlink()
+        installed=(self.app/'deployment/blue.jar').resolve(strict=True)
+        self.assertEqual(installed.parent,self.app/'releases')
+        self.assertEqual(installed.read_bytes(),original)
+
     def test_busy_original_batch_is_rejected_without_stopping_original(self):
         bootstrap.idle_original_jobs.side_effect=RuntimeError('Original scheduled jobs are not confirmed idle')
         with self.assertRaisesRegex(RuntimeError,'not confirmed idle'):self.apply()

@@ -116,12 +116,39 @@ def preflight(artifact,allow_shared_state_migration=False):
     return old,site
 
 
+def stage_initial_release(artifact):
+    import hashlib
+    checksum=hashlib.sha256(artifact.read_bytes()).hexdigest()
+    releases=deployment.APP/'releases'
+    releases.mkdir(exist_ok=True)
+    release=releases/('daynomy-bootstrap-'+checksum+'.jar')
+    if release.exists():
+        if hashlib.sha256(release.read_bytes()).hexdigest()!=checksum:
+            raise RuntimeError('Immutable bootstrap release has different bytes')
+        return release
+    temporary=None
+    try:
+        with tempfile.NamedTemporaryFile(dir=releases,prefix='.bootstrap-',delete=False) as stream:
+            temporary=Path(stream.name)
+            with artifact.open('rb') as source:
+                shutil.copyfileobj(source,stream)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.chmod(temporary,0o644)
+        os.replace(temporary,release)
+        return release
+    finally:
+        if temporary is not None: temporary.unlink(missing_ok=True)
+
+
 def apply(artifact,expected_sha256,allow_shared_state_migration=False):
     import hashlib
     old,site=preflight(artifact,allow_shared_state_migration)
     if hashlib.sha256(old.read_bytes()).hexdigest()!=expected_sha256:
         raise RuntimeError('Original production artifact changed')
     idle_original_jobs()
+    # Runner temporary artifacts disappear after a job. Units must use a durable release.
+    artifact=stage_initial_release(artifact)
     backup=deployment.APP/('bootstrap-backup-'+str(time.time_ns()))
     backup.mkdir(mode=0o700)
     for source in [SYSTEMD/(deployment.SLOTS['blue'][0]+'.service'),SITE,ALLOY]: shutil.copy2(source,backup/source.name)
