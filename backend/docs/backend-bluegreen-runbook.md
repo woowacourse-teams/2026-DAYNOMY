@@ -160,6 +160,9 @@ root 소유의 `/usr/local/libexec/daynomy/deploy_backend.py --prepare-slot`이 
   bootstrap_backend.py --environment development --artifact ... --site ...
   --environment-file ...로 사전 검사한다. 통과 후에만 --expected-current-sha256 ...
   --apply를 추가한다. 개발 DB에 V98이 이미 적용된 경우 SQL 추가 허용 옵션은 필요 없다.
+  SSM 대신 개발 CD를 bootstrap_bluegreen=true로 수동 실행할 수도 있다.
+  nginx_site·backend_environment_file은 직전 inspect 결과와 일치시킨다.
+  이 실행도 동일한 사전 검사와 JAR 해시 검사를 통과해야 하며 메모리 기준을 우회하지 않는다.
 - 설치 후 같은 제어기로 새 버전 전환과 이전 버전 복구를 검증한다. 저장 성공·원장 및
   스냅샷 일치·배치 실행·분석 작업 조회·메모리를 별도로 대조하며, 개발 서버 결과를
   운영 성과로 표기하지 않는다. 운영 최초 이관과 자동 배포 전환은 후속 작업이다.

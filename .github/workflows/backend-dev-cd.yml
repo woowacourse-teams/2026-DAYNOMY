@@ -14,6 +14,18 @@ on:
         description: Read development instance and API status without deploying
         type: boolean
         default: false
+      bootstrap_bluegreen:
+        description: Explicit one-time development two-slot installation after inspection
+        type: boolean
+        default: false
+      nginx_site:
+        description: Reviewed development Nginx site path for initial installation
+        type: string
+        default: /etc/nginx/conf.d/daynomy-site.conf
+      backend_environment_file:
+        description: Existing development backend environment file path
+        type: string
+        default: /home/ec2-user/backend/daynomy.env
 
 permissions:
   contents: read
@@ -153,6 +165,9 @@ jobs:
       - name: Deploy and verify
         env:
           APP_VERSION: ${{ github.sha }}
+          BOOTSTRAP_BLUEGREEN: ${{ inputs.bootstrap_bluegreen }}
+          NGINX_SITE: ${{ inputs.nginx_site }}
+          BACKEND_ENVIRONMENT_FILE: ${{ inputs.backend_environment_file }}
         run: |
           set -Eeuo pipefail
 
@@ -160,6 +175,19 @@ jobs:
           ARTIFACT="${RUNNER_TEMP}/daynomy-backend-dev/daynomy-${APP_VERSION}.jar"
           RELEASE="${APP_DIR}/releases/daynomy-${APP_VERSION}.jar"
           PREVIOUS="$(readlink -f "${APP_DIR}/current.jar" || true)"
+
+          if [ "$BOOTSTRAP_BLUEGREEN" = "true" ]; then
+            python3 backend/scripts/inspect_backend_development.py
+            CURRENT_SHA="$(sha256sum "${APP_DIR}/current.jar" | awk '{print $1}')"
+            sudo -n python3 backend/scripts/bootstrap_backend.py \
+              --environment development --artifact "$ARTIFACT" \
+              --site "$NGINX_SITE" --environment-file "$BACKEND_ENVIRONMENT_FILE"
+            sudo -n python3 backend/scripts/bootstrap_backend.py \
+              --environment development --artifact "$ARTIFACT" \
+              --site "$NGINX_SITE" --environment-file "$BACKEND_ENVIRONMENT_FILE" \
+              --expected-current-sha256 "$CURRENT_SHA" --apply
+            exit 0
+          fi
 
           # Bootstrap is an explicit one-time operation. Before it, retain restart deployment.
           if [ -d "${APP_DIR}/deployment-dev" ]; then
@@ -195,7 +223,7 @@ jobs:
 
           HEALTHY=false
 
-          for attempt in $(seq 1 45); do
+          for _ in $(seq 1 45); do
             if curl \
               --fail \
               --silent \

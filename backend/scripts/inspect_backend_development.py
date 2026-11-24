@@ -36,17 +36,20 @@ def main():
                 or re.fullmatch(r'\s*proxy_pass http://(?:127\.0\.0\.1:\d+|daynomy_[a-z_]+);\s*', line)]
     print(json.dumps({'nginx_exit': nginx.returncode, 'routing': selected}), flush=True)
     with urllib.request.urlopen('http://127.0.0.1:8081/actuator/health', timeout=5) as response:
-        assert json.load(response)['status'] == 'UP'
+        if json.load(response)['status'] != 'UP':
+            raise RuntimeError('Development backend is unhealthy')
     for base in ('http://127.0.0.1:8080', 'https://dev.daynomy.com'):
         # When green serves, 8080 may intentionally be stopped. Inspect active slot directly.
         if base.endswith(':8080') and slot == 'green':
             base = 'http://127.0.0.1:8082'
         with urllib.request.urlopen(base + '/api/news?page=1&size=1', timeout=10) as response:
             body = json.load(response)
-            assert isinstance(body.get('items'), list)
+            if not isinstance(body.get('items'), list):
+                raise RuntimeError('Development news response is invalid')
             actual = response.headers.get('X-Daynomy-Slot')
             if slot:
-                assert actual == slot
+                if actual != slot:
+                    raise RuntimeError('Development API did not reach the active slot')
             print(json.dumps({'api': base, 'status': response.status, 'slot': actual}), flush=True)
 
 
