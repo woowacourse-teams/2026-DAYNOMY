@@ -21,6 +21,9 @@ ALLOY = Path('/etc/alloy/config.alloy')
 BOOT_HELPER = Path('/usr/local/libexec/daynomy/deploy_backend.py')
 ENVIRONMENT_FILE = deployment.APP / 'daynomy.env'
 DEVELOPMENT_API_SNIPPET = Path('/etc/nginx/snippets/daynomy-portfolio-analysis.conf')
+DEVELOPMENT_JVM_FLAGS = '-Xmx192m -XX:TieredStopAtLevel=1 -XX:+ExitOnOutOfMemoryError'
+DEVELOPMENT_SINGLE_MEMORY_MIB = 512
+DEVELOPMENT_PAIR_MEMORY_MIB = 896
 
 
 def configure_environment(environment):
@@ -33,6 +36,7 @@ def configure_environment(environment):
 
 def unit(slot):
     _, api, management = deployment.SLOTS[slot]
+    flags=DEVELOPMENT_JVM_FLAGS if deployment.ENVIRONMENT=='development' else '-Xmx128m -XX:TieredStopAtLevel=1 -XX:+ExitOnOutOfMemoryError'
     return f'''[Unit]
 Description=DAYNOMY backend {slot}
 After=network-online.target nginx.service
@@ -44,7 +48,7 @@ EnvironmentFile={ENVIRONMENT_FILE}
 Environment=MALLOC_ARENA_MAX=2
 ExecCondition=+/usr/bin/python3 {BOOT_HELPER} --environment {deployment.ENVIRONMENT} --owns-slot {slot}
 ExecStartPre=+/usr/bin/python3 {BOOT_HELPER} --environment {deployment.ENVIRONMENT} --prepare-slot {slot}
-ExecStart=/usr/lib/jvm/java-21-amazon-corretto.aarch64/bin/java -Xmx128m -XX:TieredStopAtLevel=1 -XX:+ExitOnOutOfMemoryError -Ddaynomy.deployment.slot={slot} -Ddaynomy.deployment.directory={deployment.STATE} -jar {deployment.STATE}/{slot}.jar --server.address=127.0.0.1 --server.port={api} --management.server.address=127.0.0.1 --management.server.port={management} --management.endpoints.web.exposure.include=health,prometheus,deploymenttasks --server.shutdown=graceful --spring.lifecycle.timeout-per-shutdown-phase=120s --spring.task.scheduling.shutdown.await-termination=true --spring.task.scheduling.shutdown.await-termination-period=120s
+ExecStart=/usr/lib/jvm/java-21-amazon-corretto.aarch64/bin/java {flags} -Ddaynomy.deployment.slot={slot} -Ddaynomy.deployment.directory={deployment.STATE} -jar {deployment.STATE}/{slot}.jar --server.address=127.0.0.1 --server.port={api} --management.server.address=127.0.0.1 --management.server.port={management} --management.endpoints.web.exposure.include=health,prometheus,deploymenttasks --server.shutdown=graceful --spring.lifecycle.timeout-per-shutdown-phase=120s --spring.task.scheduling.shutdown.await-termination=true --spring.task.scheduling.shutdown.await-termination-period=120s
 Restart=on-failure
 RestartSec=5
 TimeoutStopSec=150
@@ -69,6 +73,10 @@ def idle_original_jobs():
         raise RuntimeError('Original scheduled jobs are not confirmed idle; retry outside a batch window')
 
 
+class DevelopmentBatchFailed(RuntimeError):
+    pass
+
+
 def completed_development_recalculation():
     with urllib.request.urlopen('http://127.0.0.1:8081/actuator/prometheus',timeout=10) as response:
         metrics=response.read().decode()
@@ -79,9 +87,10 @@ def completed_development_recalculation():
                 return float(match[2])
         raise RuntimeError('Original recalculation completion metric unavailable')
     target=value('daynomy_league_calculation_latest_profiles','target')
+    if (value('daynomy_league_calculation_latest_profiles','failed')!=0
+            or value('daynomy_league_calculation_latest_run_failed')!=0):
+        raise DevelopmentBatchFailed('Original development recalculation reported failure')
     if (target<=0 or value('daynomy_league_calculation_latest_profiles','succeeded')!=target
-            or value('daynomy_league_calculation_latest_profiles','failed')!=0
-            or value('daynomy_league_calculation_latest_run_failed')!=0
             or value('daynomy_league_calculation_last_completed_epoch_seconds')<=0):
         raise RuntimeError('Original development recalculation has not completed successfully')
 
@@ -119,8 +128,25 @@ def validate_routing_layout(site):
         raise RuntimeError('Unreviewed development backend proxy outside the inspected routing files')
 
 
+def require_development_memory_profile():
+    text=(SYSTEMD/(deployment.SLOTS['blue'][0]+'.service')).read_text()
+    starts=[line for line in text.splitlines() if line.startswith('ExecStart=')]
+    if (len(starts)!=1 or ' '+DEVELOPMENT_JVM_FLAGS+' -jar ' not in starts[0]
+            or f'\nMemoryMax={DEVELOPMENT_SINGLE_MEMORY_MIB}M\nMemorySwapMax=0\n' not in text
+            or '\nEnvironment=MALLOC_ARENA_MAX=2\n' not in text):
+        raise RuntimeError('Apply and fully validate the current development memory profile first')
+    pid=deployment.command('systemctl','show',deployment.SLOTS['blue'][0],'-p','MainPID','--value')
+    arguments=Path('/proc/'+pid+'/cmdline').read_bytes().split(b'\0')
+    if (any(flag.encode() not in arguments for flag in DEVELOPMENT_JVM_FLAGS.split())
+            or deployment.command('systemctl','show',deployment.SLOTS['blue'][0],'-p','NRestarts','--value')!='0'):
+        raise RuntimeError('Running development JVM differs from the validated profile or restarted')
+
+
 def preflight(artifact,allow_shared_state_migration=False):
     if os.geteuid()!=0: raise RuntimeError('Run as root')
+    if deployment.ENVIRONMENT=='development':
+        require_development_memory_profile()
+        completed_development_recalculation()
     if BOOT_HELPER.exists(): raise RuntimeError('Boot recovery helper already exists; review before replacing')
     if deployment.STATE.exists(): raise RuntimeError('Already bootstrapped or unfinished state; inspect backup instead of rerunning')
     old=(deployment.APP/'current.jar').resolve(strict=True)
@@ -216,7 +242,8 @@ def apply(artifact,expected_sha256,allow_shared_state_migration=False,reuse_init
         deployment.command('systemctl','stop',deployment.SLOTS['blue'][0])
         deployment.atomic(SYSTEMD/(deployment.SLOTS['blue'][0]+'.service'),unit('blue'))
         deployment.atomic(SYSTEMD/(deployment.SLOTS['green'][0]+'.service'),unit('green'))
-        deployment.atomic(SYSTEMD/deployment.SLICE,'[Unit]\nDescription=Combined backend JVM memory budget\n[Slice]\nMemoryMax=800M\nMemorySwapMax=0\n')
+        budget=DEVELOPMENT_PAIR_MEMORY_MIB if deployment.ENVIRONMENT=='development' else 800
+        deployment.atomic(SYSTEMD/deployment.SLICE,f'[Unit]\nDescription=Combined backend JVM memory budget\n[Slice]\nMemoryMax={budget}M\nMemorySwapMax=0\n')
         for path,text in routes.items():
             deployment.atomic(path,text.replace('proxy_pass http://127.0.0.1:8080;','proxy_pass http://daynomy_backend;'))
         deployment.atomic(deployment.ROUTE,deployment.route('blue'))

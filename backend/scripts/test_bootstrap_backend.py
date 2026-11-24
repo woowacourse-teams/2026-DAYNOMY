@@ -233,6 +233,24 @@ class DevelopmentTargetTest(unittest.TestCase):
         self.assertEqual(bootstrap.deployment.SLOTS['blue'][0], 'daynomy-dev')
         self.assertEqual(bootstrap.deployment.SLOTS['green'][0], 'daynomy-dev-green')
         self.assertEqual(bootstrap.deployment.PUBLIC_ORIGIN, 'https://dev.daynomy.com')
+        self.assertIn('-Xmx192m',text)
+
+    def test_failed_or_restored_memory_profile_cannot_be_installed(self):
+        bootstrap.configure_environment('development')
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);unit=root/'daynomy-dev.service'
+            good='[Service]\nEnvironment=MALLOC_ARENA_MAX=2\nMemoryMax=512M\nMemorySwapMax=0\nExecStart=/java '+bootstrap.DEVELOPMENT_JVM_FLAGS+' -jar /current.jar\n'
+            with patch.object(bootstrap,'SYSTEMD',root):
+                for bad in [good.replace('-Xmx192m','-Xmx128m'),'[Service]\nExecStart=/java -jar /current.jar\n']:
+                    unit.write_text(bad)
+                    with self.assertRaisesRegex(RuntimeError,'memory profile first'):
+                        bootstrap.require_development_memory_profile()
+                unit.write_text(good)
+                with patch.object(bootstrap.deployment,'command',side_effect=['101','0']),patch.object(Path,'read_bytes',return_value=('java\0'+bootstrap.DEVELOPMENT_JVM_FLAGS.replace(' ','\0')+'\0-jar\0/current.jar\0').encode()):
+                    bootstrap.require_development_memory_profile()
+                with patch.object(bootstrap.deployment,'command',side_effect=['101','1']),patch.object(Path,'read_bytes',return_value=('java\0'+bootstrap.DEVELOPMENT_JVM_FLAGS.replace(' ','\0')+'\0').encode()):
+                    with self.assertRaisesRegex(RuntimeError,'restarted'):
+                        bootstrap.require_development_memory_profile()
 
     def test_development_target_rejects_a_production_instance(self):
         bootstrap.configure_environment('development')

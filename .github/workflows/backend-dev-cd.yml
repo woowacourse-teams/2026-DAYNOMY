@@ -34,9 +34,13 @@ on:
         type: string
         default: ""
       memory_observe_seconds:
-        description: Memory observation duration 120..1800 seconds
+        description: Memory observation duration 120..7200 seconds
         type: string
         default: "600"
+      require_full_batch:
+        description: Require successful complete league recalculation and idle schedulers
+        type: boolean
+        default: false
       verify_only:
         description: Read development instance and API status without deploying
         type: boolean
@@ -372,7 +376,7 @@ jobs:
     name: Prepare and observe bounded development memory
     runs-on: [self-hosted, Linux, ARM64, backend-dev]
     environment: development
-    timeout-minutes: 40
+    timeout-minutes: 130
     steps:
       - name: Checkout reviewed development experiment
         uses: actions/checkout@v6
@@ -380,10 +384,15 @@ jobs:
         env:
           EXPECTED_CURRENT_SHA256: ${{ inputs.expected_current_sha256 }}
           OBSERVE_SECONDS: ${{ inputs.memory_observe_seconds }}
+          REQUIRE_FULL_BATCH: ${{ inputs.require_full_batch }}
         run: |
+          full_batch_args=()
+          if [ "$REQUIRE_FULL_BATCH" = 'true' ]; then
+            full_batch_args=(--require-full-batch)
+          fi
           sudo -n python3 -B backend/scripts/prepare_backend_development_memory.py \
             --apply --expected-current-sha256 "$EXPECTED_CURRENT_SHA256" \
-            --observe-seconds "$OBSERVE_SECONDS"
+            --observe-seconds "$OBSERVE_SECONDS" "${full_batch_args[@]}"
       - name: Verify current development API
         if: always()
         run: python3 backend/scripts/inspect_backend_development.py
