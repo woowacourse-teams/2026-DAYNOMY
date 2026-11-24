@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.common.logging.ExternalTransportFailure;
 import org.grit.daynomy.common.logging.LogEvent;
 import org.grit.daynomy.external.ExternalErrorCode;
 import org.grit.daynomy.news.domain.NewsGenerationTopic;
@@ -68,10 +69,14 @@ public class OpenAiNewsTopicDeduplicator {
           .log(LogEvent.AI_NEWS_GENERATION_COMPLETED.message());
       return result;
     } catch (HttpStatusCodeException exception) {
-      logFailure(exception.getClass().getSimpleName(), exception.getStatusCode().value());
+      logHttpFailure(exception.getClass().getSimpleName(), OpenAiHttpFailure.from(exception));
       throw new BusinessException(ExternalErrorCode.AI_NEWS_GENERATION_FAILED);
-    } catch (RestClientException | IllegalArgumentException exception) {
-      logFailure(exception.getClass().getSimpleName(), null);
+    } catch (RestClientException exception) {
+      logTransportFailure(
+          exception.getClass().getSimpleName(), ExternalTransportFailure.from(exception));
+      throw new BusinessException(ExternalErrorCode.AI_NEWS_GENERATION_FAILED);
+    } catch (IllegalArgumentException exception) {
+      logFailure(exception.getClass().getSimpleName());
       throw new BusinessException(ExternalErrorCode.AI_NEWS_GENERATION_FAILED);
     }
   }
@@ -251,16 +256,34 @@ public class OpenAiNewsTopicDeduplicator {
     throw new IllegalArgumentException("OpenAI response did not contain output text.");
   }
 
-  private void logFailure(String errorType, Integer httpStatus) {
+  private void logHttpFailure(String errorType, OpenAiHttpFailure failure) {
     var event =
         log.atError()
             .addKeyValue("event", LogEvent.AI_NEWS_GENERATION_FAILED.code())
             .addKeyValue("api", "OpenAI")
             .addKeyValue("operation", "news-topic-deduplication")
             .addKeyValue("errorType", errorType);
-    if (httpStatus != null) {
-      event.addKeyValue("httpStatus", httpStatus);
-    }
+    failure.addTo(event);
     event.log(LogEvent.AI_NEWS_GENERATION_FAILED.message());
+  }
+
+  private void logTransportFailure(String errorType, ExternalTransportFailure failure) {
+    var event =
+        log.atError()
+            .addKeyValue("event", LogEvent.AI_NEWS_GENERATION_FAILED.code())
+            .addKeyValue("api", "OpenAI")
+            .addKeyValue("operation", "news-topic-deduplication")
+            .addKeyValue("errorType", errorType);
+    failure.addTo(event);
+    event.log(LogEvent.AI_NEWS_GENERATION_FAILED.message());
+  }
+
+  private void logFailure(String errorType) {
+    log.atError()
+        .addKeyValue("event", LogEvent.AI_NEWS_GENERATION_FAILED.code())
+        .addKeyValue("api", "OpenAI")
+        .addKeyValue("operation", "news-topic-deduplication")
+        .addKeyValue("errorType", errorType)
+        .log(LogEvent.AI_NEWS_GENERATION_FAILED.message());
   }
 }

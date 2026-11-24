@@ -11,6 +11,7 @@ import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.asset.domain.Industry;
 import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.common.logging.ExternalTransportFailure;
 import org.grit.daynomy.common.logging.LogEvent;
 import org.grit.daynomy.external.ExternalErrorCode;
 import org.grit.daynomy.news.ai.GeneratedEconomicNews;
@@ -126,20 +127,23 @@ public class OpenAiNewsWriter {
         }
         retryReason = exception.getMessage();
       } catch (HttpStatusCodeException exception) {
-        log.atError()
-            .addKeyValue("event", LogEvent.AI_NEWS_GENERATION_FAILED.code())
-            .addKeyValue("api", "OpenAI")
-            .addKeyValue("operation", "economic-news-writing")
-            .addKeyValue("httpStatus", exception.getStatusCode().value())
-            .log(LogEvent.AI_NEWS_GENERATION_FAILED.message());
+        var event =
+            log.atError()
+                .addKeyValue("event", LogEvent.AI_NEWS_GENERATION_FAILED.code())
+                .addKeyValue("api", "OpenAI")
+                .addKeyValue("operation", "economic-news-writing");
+        OpenAiHttpFailure.from(exception).addTo(event);
+        event.log(LogEvent.AI_NEWS_GENERATION_FAILED.message());
         throw new BusinessException(ExternalErrorCode.AI_NEWS_GENERATION_FAILED);
       } catch (RestClientException exception) {
-        log.atError()
-            .addKeyValue("event", LogEvent.AI_NEWS_GENERATION_FAILED.code())
-            .addKeyValue("api", "OpenAI")
-            .addKeyValue("operation", "economic-news-writing")
-            .addKeyValue("errorType", exception.getClass().getSimpleName())
-            .log(LogEvent.AI_NEWS_GENERATION_FAILED.message());
+        var event =
+            log.atError()
+                .addKeyValue("event", LogEvent.AI_NEWS_GENERATION_FAILED.code())
+                .addKeyValue("api", "OpenAI")
+                .addKeyValue("operation", "economic-news-writing")
+                .addKeyValue("errorType", exception.getClass().getSimpleName());
+        ExternalTransportFailure.from(exception).addTo(event);
+        event.log(LogEvent.AI_NEWS_GENERATION_FAILED.message());
         throw new BusinessException(ExternalErrorCode.AI_NEWS_GENERATION_FAILED);
       }
     }

@@ -89,11 +89,27 @@ class OpenAiContentTranslatorTest {
   @Test
   @DisplayName("OpenAI 오류 응답을 번역 예외로 변환한다")
   void translateConvertsProviderFailure() {
-    server.enqueue(new MockResponse().setResponseCode(503));
+    server.enqueue(
+        new MockResponse()
+            .setResponseCode(429)
+            .setHeader("Content-Type", "application/json")
+            .setBody(
+                """
+                {"error":{"message":"billing detail","type":"insufficient_quota","code":"credit_balance_exhausted"}}
+                """));
 
     assertThatThrownBy(
             () -> translator(Duration.ofSeconds(1), "test-key").translate("Title", "Description"))
-        .isInstanceOf(OpenAiContentTranslationException.class);
+        .isInstanceOfSatisfying(
+            OpenAiContentTranslationException.class,
+            exception -> {
+              assertThat(exception.httpFailure().category())
+                  .isEqualTo(OpenAiHttpFailure.Category.QUOTA_EXHAUSTED);
+              assertThat(exception.httpFailure().providerErrorCode())
+                  .isEqualTo("credit_balance_exhausted");
+              assertThat(exception.httpFailure().retryable()).isFalse();
+              assertThat(exception.toString()).doesNotContain("billing detail");
+            });
   }
 
   @Test

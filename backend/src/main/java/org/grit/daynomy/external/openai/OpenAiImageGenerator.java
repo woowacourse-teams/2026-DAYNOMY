@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.common.logging.ExternalTransportFailure;
 import org.grit.daynomy.common.logging.LogEvent;
 import org.grit.daynomy.external.ExternalErrorCode;
 import org.grit.daynomy.news.domain.Category;
@@ -60,7 +61,6 @@ public class OpenAiImageGenerator {
           .addKeyValue("api", "OpenAI")
           .addKeyValue("operation", "image-generation")
           .addKeyValue("model", openAiProperties.imageModel())
-          .addKeyValue("title", title)
           .log(LogEvent.AI_IMAGE_GENERATION_REQUESTED.message());
       String response =
           restClient
@@ -77,29 +77,29 @@ public class OpenAiImageGenerator {
           .addKeyValue("event", LogEvent.AI_IMAGE_GENERATION_COMPLETED.code())
           .addKeyValue("api", "OpenAI")
           .addKeyValue("operation", "image-generation")
-          .addKeyValue("title", title)
           .addKeyValue("durationMs", elapsedMillis(startedAt))
           .log(LogEvent.AI_IMAGE_GENERATION_COMPLETED.message());
       return image;
     } catch (HttpStatusCodeException exception) {
-      log.atWarn()
-          .addKeyValue("event", LogEvent.AI_IMAGE_GENERATION_FAILED.code())
-          .addKeyValue("api", "OpenAI")
-          .addKeyValue("operation", "image-generation")
-          .addKeyValue("httpStatus", exception.getStatusCode().value())
-          .addKeyValue("title", title)
-          .addKeyValue("durationMs", elapsedMillis(startedAt))
-          .log(LogEvent.AI_IMAGE_GENERATION_FAILED.message());
+      var event =
+          log.atWarn()
+              .addKeyValue("event", LogEvent.AI_IMAGE_GENERATION_FAILED.code())
+              .addKeyValue("api", "OpenAI")
+              .addKeyValue("operation", "image-generation")
+              .addKeyValue("durationMs", elapsedMillis(startedAt));
+      OpenAiHttpFailure.from(exception).addTo(event);
+      event.log(LogEvent.AI_IMAGE_GENERATION_FAILED.message());
       throw new BusinessException(ExternalErrorCode.AI_IMAGE_GENERATION_FAILED);
     } catch (RestClientException exception) {
-      log.atWarn()
-          .addKeyValue("event", LogEvent.AI_IMAGE_GENERATION_FAILED.code())
-          .addKeyValue("api", "OpenAI")
-          .addKeyValue("operation", "image-generation")
-          .addKeyValue("errorType", exception.getClass().getSimpleName())
-          .addKeyValue("title", title)
-          .addKeyValue("durationMs", elapsedMillis(startedAt))
-          .log(LogEvent.AI_IMAGE_GENERATION_FAILED.message());
+      var event =
+          log.atWarn()
+              .addKeyValue("event", LogEvent.AI_IMAGE_GENERATION_FAILED.code())
+              .addKeyValue("api", "OpenAI")
+              .addKeyValue("operation", "image-generation")
+              .addKeyValue("errorType", exception.getClass().getSimpleName())
+              .addKeyValue("durationMs", elapsedMillis(startedAt));
+      ExternalTransportFailure.from(exception).addTo(event);
+      event.log(LogEvent.AI_IMAGE_GENERATION_FAILED.message());
       throw new BusinessException(ExternalErrorCode.AI_IMAGE_GENERATION_FAILED);
     } catch (IllegalArgumentException exception) {
       log.atWarn()
@@ -107,7 +107,6 @@ public class OpenAiImageGenerator {
           .addKeyValue("api", "OpenAI")
           .addKeyValue("operation", "image-generation")
           .addKeyValue("errorType", "InvalidBase64")
-          .addKeyValue("title", title)
           .addKeyValue("durationMs", elapsedMillis(startedAt))
           .log(LogEvent.AI_IMAGE_GENERATION_FAILED.message());
       throw new BusinessException(ExternalErrorCode.AI_IMAGE_GENERATION_FAILED);

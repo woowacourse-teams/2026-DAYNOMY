@@ -7,6 +7,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.common.logging.LogEvent;
+import org.grit.daynomy.common.logging.SanitizedLogException;
 import org.grit.daynomy.person.repository.FeaturedPersonRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -73,7 +74,7 @@ public class FeaturedPersonPostCollectionScheduler {
               .addKeyValue("event", LogEvent.FEATURED_PERSON_POST_COLLECTION_FAILED.code())
               .addKeyValue("personId", person.getId())
               .addKeyValue("exceptionType", exception.getClass().getSimpleName())
-              .setCause(exception)
+              .setCause(SanitizedLogException.from(exception))
               .log(LogEvent.FEATURED_PERSON_POST_COLLECTION_FAILED.message());
         }
       }
@@ -86,6 +87,14 @@ public class FeaturedPersonPostCollectionScheduler {
           .addKeyValue("to", to)
           .addKeyValue("durationMs", elapsedMillis(startedAt))
           .log(LogEvent.FEATURED_PERSON_POST_COLLECTION_COMPLETED.message());
+    } catch (RuntimeException exception) {
+      log.atError()
+          .setCause(SanitizedLogException.from(exception))
+          .addKeyValue("event", LogEvent.FEATURED_PERSON_POST_COLLECTION_FAILED.code())
+          .addKeyValue("scope", "schedule")
+          .addKeyValue("exceptionType", exception.getClass().getSimpleName())
+          .addKeyValue("durationMs", elapsedMillis(startedAt))
+          .log(LogEvent.FEATURED_PERSON_POST_COLLECTION_FAILED.message());
     } finally {
       running.set(false);
     }

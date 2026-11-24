@@ -11,7 +11,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import lombok.extern.slf4j.Slf4j;
+import org.grit.daynomy.common.logging.ExternalTransportFailure;
 import org.grit.daynomy.common.logging.LogEvent;
+import org.grit.daynomy.external.openai.OpenAiHttpFailure;
 import org.grit.daynomy.keyword.domain.KeywordCategory;
 import org.grit.daynomy.keyword.domain.NewsKeyword;
 import org.springframework.beans.factory.annotation.Value;
@@ -119,17 +121,18 @@ public class OpenAiKeywordClient implements KeywordAiClient {
           .log(LogEvent.KEYWORD_EXTRACTION_COMPLETED.message());
       return keywords;
     } catch (HttpStatusCodeException exception) {
-      log.atWarn()
-          .addKeyValue("event", LogEvent.KEYWORD_EXTRACTION_FAILED.code())
-          .addKeyValue("api", "OpenAI")
-          .addKeyValue("operation", "keyword-extraction")
-          .addKeyValue("httpStatus", exception.getStatusCode().value())
-          .addKeyValue("durationMs", elapsedMillis(startedAt))
-          .addKeyValue("errorType", exception.getClass().getSimpleName())
-          .log(LogEvent.KEYWORD_EXTRACTION_FAILED.message());
+      var event =
+          log.atWarn()
+              .addKeyValue("event", LogEvent.KEYWORD_EXTRACTION_FAILED.code())
+              .addKeyValue("api", "OpenAI")
+              .addKeyValue("operation", "keyword-extraction")
+              .addKeyValue("durationMs", elapsedMillis(startedAt))
+              .addKeyValue("errorType", exception.getClass().getSimpleName());
+      OpenAiHttpFailure.from(exception).addTo(event);
+      event.log(LogEvent.KEYWORD_EXTRACTION_FAILED.message());
       throw exception;
     } catch (RestClientException exception) {
-      logKeywordExtractionFailure(startedAt, exception.getClass().getSimpleName());
+      logKeywordExtractionFailure(startedAt, exception);
       throw exception;
     } catch (IllegalStateException | IllegalArgumentException exception) {
       logKeywordExtractionFailure(startedAt, "InvalidAiResponse");
@@ -145,6 +148,18 @@ public class OpenAiKeywordClient implements KeywordAiClient {
         .addKeyValue("durationMs", elapsedMillis(startedAt))
         .addKeyValue("errorType", errorType)
         .log(LogEvent.KEYWORD_EXTRACTION_FAILED.message());
+  }
+
+  private void logKeywordExtractionFailure(long startedAt, RestClientException exception) {
+    var event =
+        log.atWarn()
+            .addKeyValue("event", LogEvent.KEYWORD_EXTRACTION_FAILED.code())
+            .addKeyValue("api", "OpenAI")
+            .addKeyValue("operation", "keyword-extraction")
+            .addKeyValue("durationMs", elapsedMillis(startedAt))
+            .addKeyValue("errorType", exception.getClass().getSimpleName());
+    ExternalTransportFailure.from(exception).addTo(event);
+    event.log(LogEvent.KEYWORD_EXTRACTION_FAILED.message());
   }
 
   private long elapsedMillis(long startedAt) {
