@@ -68,6 +68,30 @@ class BootstrapTest(unittest.TestCase):
         self.assertFalse(bootstrap.deployment.ROUTE.exists())
         self.assertFalse((self.systemd/'daynomy-green.service').exists())
 
+    def test_development_analysis_snippet_switches_with_site(self):
+        snippet=self.root/'analysis.conf'
+        snippet.write_text('proxy_pass http://127.0.0.1:8080;\n')
+        with patch.object(bootstrap.deployment,'ENVIRONMENT','development'), patch.object(bootstrap,'DEVELOPMENT_API_SNIPPET',snippet):
+            self.apply()
+        self.assertEqual(snippet.read_text(),'proxy_pass http://daynomy_backend;\n')
+
+    def test_development_analysis_snippet_is_restored_on_failed_start(self):
+        snippet=self.root/'analysis.conf'
+        original='proxy_pass http://127.0.0.1:8080;\n'
+        snippet.write_text(original)
+        starts=0
+        def start_failure(*args):
+            nonlocal starts
+            if args==('systemctl','start','daynomy'):
+                starts+=1
+                if starts==1:raise RuntimeError('Injected development failure')
+            return self.command(*args)
+        bootstrap.deployment.command.side_effect=start_failure
+        with patch.object(bootstrap.deployment,'ENVIRONMENT','development'), patch.object(bootstrap,'DEVELOPMENT_API_SNIPPET',snippet):
+            with self.assertRaisesRegex(RuntimeError,'Injected development failure'):self.apply()
+        self.assertEqual(snippet.read_text(),original)
+        self.assertEqual(self.site.read_text(),'original nginx')
+
     def test_monitor_reload_failure_does_not_prevent_original_app_recovery(self):
         def fail_reload(*args):
             if args==('systemctl','reload','alloy'):raise RuntimeError('Injected monitor failure')

@@ -19,6 +19,7 @@ SITE = Path('/etc/nginx/conf.d/daynomy-site.conf')
 ALLOY = Path('/etc/alloy/config.alloy')
 BOOT_HELPER = Path('/usr/local/libexec/daynomy/deploy_backend.py')
 ENVIRONMENT_FILE = deployment.APP / 'daynomy.env'
+DEVELOPMENT_API_SNIPPET = Path('/etc/nginx/snippets/daynomy-portfolio-analysis.conf')
 
 
 def configure_environment(environment):
@@ -79,6 +80,27 @@ def validate_initial_migrations(before, after, allow_shared_state_migration=Fals
         raise RuntimeError('Schema migration mismatch; only the explicitly reviewed shared-state addition is allowed')
 
 
+def routing_files(site):
+    files = {SITE: site}
+    if deployment.ENVIRONMENT == 'development':
+        files[DEVELOPMENT_API_SNIPPET] = DEVELOPMENT_API_SNIPPET.read_text()
+    return files
+
+
+def validate_routing_layout(site):
+    legacy = 'proxy_pass http://127.0.0.1:8080;'
+    if deployment.ENVIRONMENT == 'production':
+        if site.count(legacy) != 4:
+            raise RuntimeError('Nginx differs from reviewed four API routes')
+        return
+    files = routing_files(site)
+    include = r'^\s*include\s+' + re.escape(str(DEVELOPMENT_API_SNIPPET)) + r';\s*(?:#.*)?$'
+    if site.count(legacy) != 2 or files[DEVELOPMENT_API_SNIPPET].count(legacy) != 1 or len(re.findall(include, site, re.M)) != 1:
+        raise RuntimeError('Development Nginx differs from reviewed site and analysis snippet routes')
+    if deployment.command('nginx', '-T').count(legacy) != 3:
+        raise RuntimeError('Unreviewed development backend proxy outside the inspected routing files')
+
+
 def preflight(artifact,allow_shared_state_migration=False):
     if os.geteuid()!=0: raise RuntimeError('Run as root')
     if BOOT_HELPER.exists(): raise RuntimeError('Boot recovery helper already exists; review before replacing')
@@ -93,8 +115,7 @@ def preflight(artifact,allow_shared_state_migration=False):
         if separator and key.strip() in protected and value.strip():
             raise RuntimeError('Environment file overrides a reviewed JVM/malloc setting; inspect locally')
     site=SITE.read_text()
-    if site.count('proxy_pass http://127.0.0.1:8080;')!=4:
-        raise RuntimeError('Nginx differs from reviewed four API routes')
+    validate_routing_layout(site)
     if deployment.ROUTE.exists(): raise RuntimeError('Target Nginx include already exists')
     if any(SYSTEMD.glob(deployment.SLOTS['blue'][0]+'.service.d/*.conf')): raise RuntimeError('Unreviewed systemd overrides')
     # Exact migration hashes; do not require the old JAR to contain the new guard.
@@ -146,6 +167,9 @@ def stage_initial_release(artifact):
 def apply(artifact,expected_sha256,allow_shared_state_migration=False):
     import hashlib
     old,site=preflight(artifact,allow_shared_state_migration)
+    routes=routing_files(site)
+    if SITE.read_text()!=site:
+        raise RuntimeError('Nginx changed after preflight')
     if hashlib.sha256(old.read_bytes()).hexdigest()!=expected_sha256:
         raise RuntimeError('Original production artifact changed')
     idle_original_jobs()
@@ -153,7 +177,7 @@ def apply(artifact,expected_sha256,allow_shared_state_migration=False):
     artifact=stage_initial_release(artifact)
     backup=deployment.APP/('bootstrap-backup-'+str(time.time_ns()))
     backup.mkdir(mode=0o700)
-    for source in [SYSTEMD/(deployment.SLOTS['blue'][0]+'.service'),SITE,ALLOY]: shutil.copy2(source,backup/source.name)
+    for source in [SYSTEMD/(deployment.SLOTS['blue'][0]+'.service'),ALLOY,*routes]: shutil.copy2(source,backup/source.name)
     (backup/'original-release').write_text(str(old))
     deployment.STATE.mkdir(mode=0o755)
     shutil.chown(deployment.STATE,user='ec2-user',group='ec2-user')
@@ -169,7 +193,8 @@ def apply(artifact,expected_sha256,allow_shared_state_migration=False):
         deployment.atomic(SYSTEMD/(deployment.SLOTS['blue'][0]+'.service'),unit('blue'))
         deployment.atomic(SYSTEMD/(deployment.SLOTS['green'][0]+'.service'),unit('green'))
         deployment.atomic(SYSTEMD/deployment.SLICE,'[Unit]\nDescription=Combined backend JVM memory budget\n[Slice]\nMemoryMax=800M\nMemorySwapMax=0\n')
-        deployment.atomic(SITE,site.replace('proxy_pass http://127.0.0.1:8080;','proxy_pass http://daynomy_backend;'))
+        for path,text in routes.items():
+            deployment.atomic(path,text.replace('proxy_pass http://127.0.0.1:8080;','proxy_pass http://daynomy_backend;'))
         deployment.atomic(deployment.ROUTE,deployment.route('blue'))
         deployment.command('nginx','-t')
         updated_alloy=ALLOY.read_text().replace(f'matches = "_SYSTEMD_UNIT={deployment.SLOTS["blue"][0]}.service"',f'matches = "SYSLOG_IDENTIFIER={deployment.SLOTS["blue"][0]}"')
@@ -197,7 +222,8 @@ def apply(artifact,expected_sha256,allow_shared_state_migration=False):
             except Exception: recovery_errors.append(' '.join(args[:3]))
         recover('systemctl','stop',deployment.SLOTS['blue'][0])
         shutil.copy2(backup/(deployment.SLOTS['blue'][0]+'.service'),SYSTEMD/(deployment.SLOTS['blue'][0]+'.service'))
-        shutil.copy2(backup/SITE.name,SITE)
+        for path in routes:
+            shutil.copy2(backup/path.name,path)
         shutil.copy2(backup/ALLOY.name,ALLOY)
         recover('systemctl','reload','alloy')
         deployment.ROUTE.unlink(missing_ok=True)
