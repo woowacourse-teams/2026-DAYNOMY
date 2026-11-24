@@ -25,6 +25,15 @@ def startup_diagnostics(journal):
         'config_symbols': r'\b(?:class|method|field|constructor) ([A-Za-z_$][\w.$<>]+)\b',
     }
     findings = {key: set() for key in patterns}
+    def strings(value):
+        if isinstance(value, str):
+            return [value]
+        if isinstance(value, dict):
+            return [part for child in value.values() for part in strings(child)]
+        if isinstance(value, list):
+            return [part for child in value for part in strings(child)]
+        return []
+
     for line in journal.splitlines():
         try:
             message = json.loads(line).get('MESSAGE', '')
@@ -35,7 +44,7 @@ def startup_diagnostics(journal):
         try:
             structured = json.loads(message)
             if isinstance(structured, dict):
-                message = '\n'.join(value for value in structured.values() if isinstance(value, str))
+                message = '\n'.join(strings(structured))
         except ValueError:
             pass
         for key, pattern in patterns.items():
@@ -54,6 +63,7 @@ def main():
     print(service, flush=True)
     journal = subprocess.run([
         'sudo', '-n', 'journalctl', '-u', 'daynomy-dev', '--since', '45 minutes ago',
+        '--grep', 'Exception|ERROR|Caused|Error|APPLICATION|Description|Action|JPA|entityManager|Flyway|Migration',
         '-n', '2000', '-o', 'json', '--no-pager'], capture_output=True, text=True)
     print(json.dumps({'startup_diagnostics_exit': journal.returncode,
                       'startup_diagnostics': startup_diagnostics(journal.stdout)}), flush=True)
