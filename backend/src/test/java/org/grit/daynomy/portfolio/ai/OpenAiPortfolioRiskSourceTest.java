@@ -509,6 +509,24 @@ class OpenAiPortfolioRiskSourceTest {
   }
 
   @Test
+  void keepsVerifiedRiskWhenReplacementContainsAnUnreadableExtraCandidate() {
+    String broken = "https://broken.example/risk";
+    String alternative = "https://other.example/verified-risk";
+    riskUrls = List.of(RISK, broken);
+    originals.put(alternative, document("추가 비용 부담이 확인됐어요."));
+    repairedRiskUrls = List.of(alternative, "https://other.example/unreadable");
+
+    var result = client.analyze(targets());
+
+    assertThat(riskRequestCount).isEqualTo(2);
+    assertThat(result.impacts().getFirst().riskSearchStatus()).isEqualTo("SOURCES_FOUND");
+    assertThat(result.impacts().getFirst().noNewNews()).isFalse();
+    assertThat(analysisInput.toString())
+        .contains(MAIN, RISK, alternative, ADVERSE)
+        .doesNotContain(broken, "https://other.example/unreadable");
+  }
+
+  @Test
   void failedOriginalFollowedByAnEmptySearchIsStillFailure() {
     originals.remove(RISK);
     repairedRiskUrls = List.of();

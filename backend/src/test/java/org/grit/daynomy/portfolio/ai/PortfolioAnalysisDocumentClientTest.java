@@ -15,6 +15,88 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 class PortfolioAnalysisDocumentClientTest {
   @ParameterizedTest
+  @org.junit.jupiter.params.provider.CsvSource({
+    "403,text/html,HTTP_ERROR", "429,text/html,HTTP_ERROR",
+    "503,text/html,HTTP_ERROR", "200,application/octet-stream,UNSUPPORTED_CONTENT_TYPE",
+    "200,text/html,EMPTY_BODY"
+  })
+  void logsFailureReasonWithoutSensitiveUrlOrBody(int status, String contentType, String reason)
+      throws Exception {
+    var logger =
+        (ch.qos.logback.classic.Logger)
+            org.slf4j.LoggerFactory.getLogger(PortfolioAnalysisDocumentClient.class);
+    var appender =
+        new ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent>();
+    appender.start();
+    logger.addAppender(appender);
+    try (var server = new MockWebServer();
+        var client = kiaSourceClient()) {
+      server.start();
+      server.enqueue(
+          new MockResponse()
+              .setResponseCode(status)
+              .setHeader("Content-Type", contentType)
+              .setBody("<script>private-body</script>"));
+      assertThat(
+              client.fetch(
+                  "http://source.example:" + server.getPort() + "/private-path?token=private-token",
+                  Duration.ofSeconds(3)))
+          .isEmpty();
+      assertThat(appender.list).hasSize(1);
+      var event = appender.list.getFirst();
+      var fields =
+          event.getKeyValuePairs().stream()
+              .collect(java.util.stream.Collectors.toMap(pair -> pair.key, pair -> pair.value));
+      assertThat(fields)
+          .containsEntry("reason", reason)
+          .containsEntry("httpStatus", status)
+          .containsEntry("sourceHost", "source.example");
+      assertThat(fields.toString() + event.getFormattedMessage())
+          .doesNotContain("private-path", "private-token", "private-body");
+    } finally {
+      logger.detachAppender(appender);
+      appender.stop();
+    }
+  }
+
+  @Test
+  void logsTimeoutAndDoesNotRetryTheSameSource() throws Exception {
+    var logger =
+        (ch.qos.logback.classic.Logger)
+            org.slf4j.LoggerFactory.getLogger(PortfolioAnalysisDocumentClient.class);
+    var appender =
+        new ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent>();
+    appender.start();
+    logger.addAppender(appender);
+    try (var server = new MockWebServer();
+        var client = kiaSourceClient()) {
+      server.start();
+      server.enqueue(
+          new MockResponse()
+              .setHeader("Content-Type", "text/html")
+              .setBody("<article>facts</article>")
+              .setBodyDelay(1, TimeUnit.SECONDS));
+      assertThat(
+              client.fetch(
+                  "http://source.example:" + server.getPort() + "/slow", Duration.ofMillis(100)))
+          .isEmpty();
+      assertThat(server.getRequestCount()).isEqualTo(1);
+      assertThat(appender.list)
+          .anySatisfy(
+              event ->
+                  assertThat(event.getKeyValuePairs())
+                      .anySatisfy(
+                          pair -> {
+                            assertThat(pair.key).isEqualTo("reason");
+                            assertThat(pair.value).isEqualTo("TIMEOUT");
+                          }));
+    } finally {
+      logger.detachAppender(appender);
+      appender.stop();
+    }
+  }
+
+  @ParameterizedTest
   @ValueSource(booleans = {true, false})
   void readsKiaOfficialArticleApiAndRejectsAnotherArticleId(boolean matchingId) throws Exception {
     try (var server = new MockWebServer();

@@ -38,6 +38,7 @@ import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.springframework.stereotype.Component;
 
+@lombok.extern.slf4j.Slf4j
 @Component
 public class PortfolioAnalysisDocumentClient implements AutoCloseable {
   private static final int MAX_BODY_BYTES = 512 * 1024;
@@ -129,21 +130,22 @@ public class PortfolioAnalysisDocumentClient implements AutoCloseable {
       String url, Duration remaining, int redirects) {
     long started = System.nanoTime();
     if (remaining.isNegative() || remaining.isZero() || Thread.currentThread().isInterrupted())
-      return Optional.empty();
+      return failed(url, "DEADLINE_EXCEEDED", null, started);
     HttpGet request;
     URI uri;
     try {
       uri = URI.create(url);
       if (!("https".equalsIgnoreCase(uri.getScheme()) || "http".equalsIgnoreCase(uri.getScheme()))
           || uri.getHost() == null
-          || uri.getRawUserInfo() != null) return Optional.empty();
+          || uri.getRawUserInfo() != null) return failed(url, "INVALID_URL", null, started);
       String host = uri.getHost().replace("[", "").replace("]", "");
       if ((host.contains(":") || host.matches("[0-9.]+"))
-          && !isPublicAddress(InetAddress.getByName(host))) return Optional.empty();
+          && !isPublicAddress(InetAddress.getByName(host)))
+        return failed(url, "BLOCKED_ADDRESS", null, started);
       request = new HttpGet(uri);
       request.setHeader("User-Agent", "DAYNOMY-SourceVerification/1.0");
     } catch (IllegalArgumentException | UnknownHostException exception) {
-      return Optional.empty();
+      return failed(url, "INVALID_URL", null, started);
     }
     var cancellation =
         cancellations.schedule(
@@ -164,11 +166,19 @@ public class PortfolioAnalysisDocumentClient implements AutoCloseable {
                     || status == 308) {
                   var location = response.getFirstHeader("Location");
                   return new FetchResult(
-                      Optional.empty(), location == null ? null : location.getValue());
+                      location == null
+                          ? failed(url, "REDIRECT_WITHOUT_LOCATION", status, started)
+                          : Optional.empty(),
+                      location == null ? null : location.getValue());
                 }
-                if (status != 200 || entity == null) return new FetchResult(Optional.empty(), null);
+                if (status != 200)
+                  return new FetchResult(failed(url, "HTTP_ERROR", status, started), null);
+                if (entity == null)
+                  return new FetchResult(failed(url, "EMPTY_BODY", status, started), null);
                 ContentType contentType = ContentType.parseLenient(entity.getContentType());
-                if (contentType == null) return new FetchResult(Optional.empty(), null);
+                if (contentType == null)
+                  return new FetchResult(
+                      failed(url, "UNSUPPORTED_CONTENT_TYPE", status, started), null);
                 boolean pdf = contentType.getMimeType().equals("application/pdf");
                 boolean structured =
                     isKiaArticleApi(uri) && contentType.getMimeType().equals("application/json");
@@ -176,34 +186,73 @@ public class PortfolioAnalysisDocumentClient implements AutoCloseable {
                     && !structured
                     && !(contentType.getMimeType().equals("text/html")
                         || contentType.getMimeType().equals("application/xhtml+xml")))
-                  return new FetchResult(Optional.empty(), null);
+                  return new FetchResult(
+                      failed(url, "UNSUPPORTED_CONTENT_TYPE", status, started), null);
                 int limit = pdf ? MAX_PDF_BYTES : MAX_BODY_BYTES;
                 if (entity.getContentLength() > limit)
-                  return new FetchResult(Optional.empty(), null);
+                  return new FetchResult(failed(url, "BODY_TOO_LARGE", status, started), null);
                 byte[] bytes = entity.getContent().readNBytes(limit + 1);
-                if (bytes.length > limit) return new FetchResult(Optional.empty(), null);
+                if (bytes.length > limit)
+                  return new FetchResult(failed(url, "BODY_TOO_LARGE", status, started), null);
                 cancellation.cancel(false);
-                if (pdf) return new FetchResult(parsePdf(bytes), null);
-                if (structured) return new FetchResult(parseKiaArticle(bytes, uri), null);
+                if (pdf || structured) {
+                  var parsed = pdf ? parsePdf(bytes) : parseKiaArticle(bytes, uri);
+                  if (parsed.isEmpty())
+                    return new FetchResult(
+                        failed(url, "BODY_EXTRACTION_FAILED", status, started), null);
+                  return new FetchResult(parsed, null);
+                }
                 var charset = contentType.getCharset(StandardCharsets.UTF_8);
                 var document = parse(new String(bytes, charset));
                 if (document.body().isBlank())
-                  return new FetchResult(Optional.empty(), kiaArticleLocation(uri));
+                  return new FetchResult(
+                      failed(url, "EMPTY_BODY", status, started), kiaArticleLocation(uri));
                 return new FetchResult(Optional.of(document), null);
               });
-      if (fetched.location() == null || redirects >= 2) return fetched.document();
+      if (fetched.location() == null) return fetched.document();
+      if (redirects >= 2) return failed(url, "REDIRECT_LIMIT", null, started);
       return fetch(
           uri.resolve(fetched.location()).toString(),
           remaining.minusNanos(System.nanoTime() - started),
           redirects + 1);
     } catch (IOException | IllegalArgumentException exception) {
-      return Optional.empty();
+      String reason =
+          request.isCancelled() || exception instanceof java.net.SocketTimeoutException
+              ? "TIMEOUT"
+              : exception instanceof UnknownHostException
+                  ? "DNS_FAILURE"
+                  : exception instanceof javax.net.ssl.SSLException
+                      ? "TLS_FAILURE"
+                      : exception instanceof IllegalArgumentException
+                          ? "INVALID_RESPONSE"
+                          : "IO_FAILURE";
+      return failed(url, reason, null, started);
     } catch (IllegalStateException exception) {
-      if (request.isCancelled()) return Optional.empty();
+      if (request.isCancelled()) return failed(url, "TIMEOUT", null, started);
       throw exception;
     } finally {
       cancellation.cancel(false);
     }
+  }
+
+  private Optional<PortfolioAnalysisSourceDocument> failed(
+      String url, String reason, Integer httpStatus, long started) {
+    // URL paths, queries, exception messages and article bodies may contain sensitive data.
+    String host = "unknown";
+    try {
+      var uri = URI.create(url);
+      if (uri.getHost() != null && uri.getRawUserInfo() == null) host = uri.getHost();
+    } catch (IllegalArgumentException ignored) {
+      // Malformed input must not be copied into logs.
+    }
+    log.atInfo()
+        .addKeyValue("event", "portfolio.analysis.source.fetch.failed")
+        .addKeyValue("sourceHost", host)
+        .addKeyValue("reason", reason)
+        .addKeyValue("httpStatus", httpStatus)
+        .addKeyValue("durationMs", TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started))
+        .log("포트폴리오 원문 수집 실패");
+    return Optional.empty();
   }
 
   private static String kiaArticleLocation(URI uri) {
