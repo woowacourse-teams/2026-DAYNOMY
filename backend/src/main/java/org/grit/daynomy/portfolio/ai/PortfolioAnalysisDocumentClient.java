@@ -196,11 +196,16 @@ public class PortfolioAnalysisDocumentClient implements AutoCloseable {
                   return new FetchResult(failed(url, "BODY_TOO_LARGE", status, started), null);
                 cancellation.cancel(false);
                 if (pdf || structured) {
-                  var parsed = pdf ? parsePdf(bytes) : parseKiaArticle(bytes, uri);
-                  if (parsed.isEmpty())
+                  try {
+                    var parsed = pdf ? parsePdf(bytes) : parseKiaArticle(bytes, uri);
+                    if (parsed.isEmpty())
+                      return new FetchResult(
+                          failed(url, "BODY_EXTRACTION_FAILED", status, started), null);
+                    return new FetchResult(parsed, null);
+                  } catch (IOException | IllegalArgumentException exception) {
                     return new FetchResult(
                         failed(url, "BODY_EXTRACTION_FAILED", status, started), null);
-                  return new FetchResult(parsed, null);
+                  }
                 }
                 var charset = contentType.getCharset(StandardCharsets.UTF_8);
                 var document = parse(new String(bytes, charset));

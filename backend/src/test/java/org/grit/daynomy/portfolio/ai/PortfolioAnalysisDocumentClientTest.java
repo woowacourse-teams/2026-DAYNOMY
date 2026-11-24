@@ -252,18 +252,63 @@ class PortfolioAnalysisDocumentClientTest {
       bytes = output.toByteArray();
     }
     assertThat(bytes.length).isLessThan(4 * 1024 * 1024);
+    assertExtractionFailure(bytes, "application/pdf", "source.example", "/large.pdf");
+  }
+
+  @ParameterizedTest
+  @org.junit.jupiter.params.provider.CsvSource({
+    "application/pdf,source.example,/broken.pdf",
+    "application/json,worldwide.kia.com,/api/media-lounge/id/123"
+  })
+  void logsMalformedDocumentAsExtractionFailure(String contentType, String host, String path)
+      throws Exception {
+    assertExtractionFailure(
+        "private-invalid-body".getBytes(java.nio.charset.StandardCharsets.UTF_8),
+        contentType,
+        host,
+        path);
+  }
+
+  private void assertExtractionFailure(byte[] bytes, String contentType, String host, String path)
+      throws Exception {
+    var logger =
+        (ch.qos.logback.classic.Logger)
+            org.slf4j.LoggerFactory.getLogger(PortfolioAnalysisDocumentClient.class);
+    var appender =
+        new ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent>();
+    appender.start();
+    logger.addAppender(appender);
     try (var server = new MockWebServer();
-        var client = new PortfolioAnalysisDocumentClient(HttpClients.createDefault())) {
+        var client = kiaSourceClient()) {
       server.start();
       server.enqueue(
           new MockResponse()
-              .setHeader("Content-Type", "application/pdf")
+              .setResponseCode(200)
+              .setHeader("Content-Type", contentType)
               .setBody(new okio.Buffer().write(bytes)));
       assertThat(
-              client.fetch(
-                  server.url("/large.pdf").toString().replace("127.0.0.1", "localhost"),
-                  Duration.ofSeconds(3)))
+              client.fetch("http://" + host + ":" + server.getPort() + path, Duration.ofSeconds(3)))
           .isEmpty();
+      assertThat(appender.list).hasSize(1);
+      var event = appender.list.getFirst();
+      assertThat(event.getKeyValuePairs())
+          .anySatisfy(
+              pair -> {
+                assertThat(pair.key).isEqualTo("reason");
+                assertThat(pair.value).isEqualTo("BODY_EXTRACTION_FAILED");
+              })
+          .anySatisfy(
+              pair -> {
+                assertThat(pair.key).isEqualTo("httpStatus");
+                assertThat(pair.value).isEqualTo(200);
+              });
+      assertThat(event.getThrowableProxy()).isNull();
+      assertThat(event.getKeyValuePairs().toString() + event.getFormattedMessage())
+          .doesNotContain(path, "private-invalid-body", "PDF text limit exceeded");
+      assertThat(server.getRequestCount()).isEqualTo(1);
+    } finally {
+      logger.detachAppender(appender);
+      appender.stop();
     }
   }
 
