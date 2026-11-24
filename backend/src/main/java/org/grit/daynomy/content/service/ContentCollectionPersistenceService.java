@@ -46,6 +46,7 @@ public class ContentCollectionPersistenceService {
           collectedContentRepository.findByUrl(item.url()).orElse(null);
       if (collectedContent != null) {
         duplicateCount++;
+        continue;
       } else {
         persistedItem = contentTranslationService.translateIfEnglish(item);
         collectedContent =
