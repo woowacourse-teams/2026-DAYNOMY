@@ -895,7 +895,10 @@ for (const viewport of [
         if (pendingStockSearch) await pendingStockSearch;
         return fulfill({ stocks });
       }
-      if (path === '/api/portfolio/transactions' && route.request().method() === 'POST') {
+      if (
+        path === '/api/v2/users/me/portfolio/transactions' &&
+        route.request().method() === 'POST'
+      ) {
         const body = route.request().postDataJSON();
         history = [
           ...history,

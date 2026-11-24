@@ -678,7 +678,7 @@ async function mutateTransaction(
   return response as PortfolioTransactionResponse;
 }
 export function createPortfolioTransaction(body: PortfolioTransactionRequest, requestKey: string) {
-  return mutateTransaction('/api/portfolio/transactions', 'POST', body, requestKey);
+  return mutateTransaction('/api/v2/users/me/portfolio/transactions', 'POST', body, requestKey);
 }
 export function updatePortfolioTransaction(id: number, body: PortfolioTransactionUpdateRequest) {
   return mutateTransaction(`/api/portfolio/transactions/${id}`, 'PATCH', body);

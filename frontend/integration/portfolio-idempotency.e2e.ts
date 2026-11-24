@@ -51,7 +51,7 @@ test('화면 응답 유실·새로고침·새 매수와 실제 DB 정합성 및 
   });
   const keys: string[] = [];
   let drop = true;
-  await page.route('**/api/portfolio/transactions', async (route) => {
+  await page.route('**/api/v2/users/me/portfolio/transactions', async (route) => {
     if (route.request().method() !== 'POST') return route.continue();
     keys.push(route.request().headers()['idempotency-key']!);
     const response = await route.fetch();
@@ -130,7 +130,7 @@ test('화면 응답 유실·새로고침·새 매수와 실제 DB 정합성 및 
     tax: 0,
   };
   const post = (key?: string) =>
-    context.request.post('/api/portfolio/transactions', {
+    context.request.post('/api/v2/users/me/portfolio/transactions', {
       data: body,
       headers: { [csrf.headerName]: csrf.token, ...(key ? { 'Idempotency-Key': key } : {}) },
     });

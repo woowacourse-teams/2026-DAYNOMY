@@ -418,11 +418,12 @@ describe('거래 원장 화면', () => {
       expect(document.body.style.overflow).toBe(initialOverflow);
     });
     expect(await view.findByText('15주')).toBeTruthy();
-    const [, init] = vi
+    const [url, init] = vi
       .mocked(fetch)
       .mock.calls.find(
         ([url, options]) => String(url).endsWith('/transactions') && options?.method === 'POST',
       )!;
+    expect(String(url)).toBe('/api/v2/users/me/portfolio/transactions');
     expect(JSON.parse(String(init?.body))).toEqual({
       assetId: 1,
       type: 'BUY',
