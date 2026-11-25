@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -26,6 +27,7 @@ import org.grit.daynomy.portfolio.domain.Portfolio;
 import org.grit.daynomy.portfolio.domain.PortfolioHolding;
 import org.grit.daynomy.portfolio.repository.PortfolioHoldingRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioRepository;
+import org.grit.daynomy.portfolio.service.OriginalPortfolioChanged;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -34,6 +36,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionStatus;
 
 @ExtendWith(MockitoExtension.class)
 class LeagueAutoSyncServiceTest {
@@ -48,6 +51,47 @@ class LeagueAutoSyncServiceTest {
   @Mock private LeagueRankingCache rankingCache;
   @Mock private PlatformTransactionManager transactionManager;
   @InjectMocks private LeagueAutoSyncService service;
+
+  @Test
+  void automaticSyncIsEnabledByDefault() {
+    TransactionStatus status = mock(TransactionStatus.class);
+    given(transactionManager.getTransaction(any())).willReturn(status);
+    given(members.findByIdForUpdate(1L)).willReturn(Optional.empty());
+
+    service.afterOriginalChange(new OriginalPortfolioChanged(1L));
+
+    then(transactionManager).should().commit(status);
+    then(members).should().findByIdForUpdate(1L);
+  }
+
+  @Test
+  void disabledAutomaticSyncDoesNotBorrowConnectionsOrReadMembers() {
+    ReflectionTestUtils.setField(service, "autoSyncEnabled", false);
+
+    service.afterOriginalChange(new OriginalPortfolioChanged(1L));
+
+    verifyNoInteractions(transactionManager, members, originals, sharedPortfolios);
+  }
+
+  @Test
+  void disabledAutomaticSyncDoesNotLoadScheduledRetryTargets() {
+    ReflectionTestUtils.setField(service, "autoSyncEnabled", false);
+
+    service.retrySharedPortfolios();
+
+    verifyNoInteractions(transactionManager, sharedPortfolios, members);
+  }
+
+  @Test
+  void disablingAutomaticSyncPreservesExplicitReconciliation() {
+    ReflectionTestUtils.setField(service, "autoSyncEnabled", false);
+    given(members.findByIdForUpdate(1L)).willReturn(Optional.empty());
+
+    service.reconcile(1L);
+
+    then(members).should().findByIdForUpdate(1L);
+    then(originals).shouldHaveNoInteractions();
+  }
 
   @Test
   void missingMemberDoesNotCreateLeagueParticipation() {
