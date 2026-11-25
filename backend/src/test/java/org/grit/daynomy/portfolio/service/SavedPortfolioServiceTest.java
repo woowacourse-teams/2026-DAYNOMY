@@ -54,6 +54,12 @@ class SavedPortfolioServiceTest {
   @Mock private org.springframework.transaction.PlatformTransactionManager transactionManager;
   @Mock private org.grit.daynomy.portfolio.service.PortfolioExchangeRateService exchangeRates;
   @Mock private org.springframework.context.ApplicationEventPublisher events;
+
+  @org.mockito.Spy
+  private org.grit.daynomy.portfolio.service.PortfolioTransactionTimings timings =
+      new org.grit.daynomy.portfolio.service.PortfolioTransactionTimings(
+          new io.micrometer.core.instrument.simple.SimpleMeterRegistry());
+
   @InjectMocks private SavedPortfolioService service;
 
   @Test

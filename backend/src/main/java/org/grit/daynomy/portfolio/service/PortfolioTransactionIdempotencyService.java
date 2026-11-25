@@ -1,5 +1,7 @@
 package org.grit.daynomy.portfolio.service;
 
+import static org.grit.daynomy.portfolio.service.PortfolioTransactionTimings.Phase.*;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -42,8 +44,10 @@ public class PortfolioTransactionIdempotencyService {
   private final MemberRepository members;
   private final PlatformTransactionManager transactionManager;
   private final MeterRegistry metrics;
+  private final PortfolioTransactionTimings timings;
 
   public PortfolioTransactionResponse execute(
+      PortfolioTransactionTimings.Api api,
       Long memberId,
       String key,
       PortfolioTransactionRequest request,
@@ -54,7 +58,7 @@ public class PortfolioTransactionIdempotencyService {
         throw new BusinessException(PortfolioErrorCode.INVALID_IDEMPOTENCY_KEY);
       }
       String hash = fingerprint(request);
-      var existing = requests.find(memberId, key);
+      var existing = timings.record(api, IDEMPOTENCY_LOOKUP, () -> requests.find(memberId, key));
       if (existing.isPresent()) return completed(replay(existing.orElseThrow(), hash), true);
 
       // External calls must remain outside the write transaction, as in the ledger locking ADR.
@@ -62,21 +66,39 @@ public class PortfolioTransactionIdempotencyService {
       TransactionTemplate transaction = new TransactionTemplate(transactionManager);
       transaction.setIsolationLevel(TransactionDefinition.ISOLATION_READ_COMMITTED);
       Outcome outcome =
-          transaction.execute(
-              status -> {
-                requests.limitLockWait();
-                members
-                    .findByIdForUpdate(memberId)
-                    .orElseThrow(() -> new BusinessException(MemberErrorCode.MEMBER_NOT_FOUND));
-                // A competing instance can have committed while rates were prepared or the lock
-                // was awaited.
-                var committed = requests.find(memberId, key);
-                if (committed.isPresent())
-                  return new Outcome(replay(committed.orElseThrow(), hash), true);
-                PortfolioTransactionResponse response = write.apply(rates);
-                requests.save(memberId, key, hash, encode(response));
-                return new Outcome(response, false);
-              });
+          timings.record(
+              api,
+              TRANSACTION_TOTAL,
+              () ->
+                  transaction.execute(
+                      status -> {
+                        requests.limitLockWait();
+                        timings.record(
+                            api,
+                            MEMBER_LOCK_QUERY,
+                            () ->
+                                members
+                                    .findByIdForUpdate(memberId)
+                                    .orElseThrow(
+                                        () ->
+                                            new BusinessException(
+                                                MemberErrorCode.MEMBER_NOT_FOUND)));
+                        timings.memberLocked(api);
+                        // A competing instance can have committed while rates were prepared or the
+                        // lock
+                        // was awaited.
+                        var committed =
+                            timings.record(
+                                api, IDEMPOTENCY_RECHECK, () -> requests.find(memberId, key));
+                        if (committed.isPresent())
+                          return new Outcome(replay(committed.orElseThrow(), hash), true);
+                        PortfolioTransactionResponse response = write.apply(rates);
+                        timings.run(
+                            api,
+                            RESULT_WRITE,
+                            () -> requests.save(memberId, key, hash, encode(response)));
+                        return new Outcome(response, false);
+                      }));
       return completed(outcome.response(), outcome.replayed());
     } catch (PessimisticLockingFailureException | QueryTimeoutException exception) {
       count("busy");

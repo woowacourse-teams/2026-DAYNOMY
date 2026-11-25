@@ -29,7 +29,8 @@ class PortfolioTransactionIdempotencyServiceTest {
   private final PlatformTransactionManager transactions = mock(PlatformTransactionManager.class);
   private final SimpleMeterRegistry metrics = new SimpleMeterRegistry();
   private final PortfolioTransactionIdempotencyService service =
-      new PortfolioTransactionIdempotencyService(requests, members, transactions, metrics);
+      new PortfolioTransactionIdempotencyService(
+          requests, members, transactions, metrics, new PortfolioTransactionTimings(metrics));
 
   @Test
   void completedRequestSurvivesUnavailableExternalRatesAndDoesNotStartATransaction()
@@ -45,6 +46,7 @@ class PortfolioTransactionIdempotencyServiceTest {
                     new ObjectMapper().writeValueAsString(original))));
     var actual =
         service.execute(
+            PortfolioTransactionTimings.Api.V1,
             1L,
             "retry",
             request,
@@ -74,6 +76,7 @@ class PortfolioTransactionIdempotencyServiceTest {
       assertThatThrownBy(
               () ->
                   service.execute(
+                      PortfolioTransactionTimings.Api.V1,
                       1L,
                       "retry",
                       request(),
@@ -192,7 +195,10 @@ class PortfolioTransactionIdempotencyServiceTest {
   @Test
   void invalidKeysNeverAccessTheDatabase() {
     for (String key : List.of("", "bad key", "a".repeat(129))) {
-      assertThatThrownBy(() -> service.execute(1L, key, request(), null, null))
+      assertThatThrownBy(
+              () ->
+                  service.execute(
+                      PortfolioTransactionTimings.Api.V1, 1L, key, request(), null, null))
           .isInstanceOfSatisfying(
               BusinessException.class,
               e -> assertThat(e.errorCode()).isEqualTo(PortfolioErrorCode.INVALID_IDEMPOTENCY_KEY));

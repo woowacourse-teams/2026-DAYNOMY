@@ -25,8 +25,10 @@ import org.grit.daynomy.auth.token.JwtTokenProvider;
 import org.grit.daynomy.member.domain.Member;
 import org.grit.daynomy.member.domain.MemberRole;
 import org.grit.daynomy.member.repository.MemberRepository;
+import org.grit.daynomy.portfolio.support.MemberLockStatementInspector;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -42,7 +44,12 @@ import org.testcontainers.utility.DockerImageName;
 
 @Testcontainers
 @ActiveProfiles("test")
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(
+    webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+    properties = {
+      "league.auto-sync.enabled=false",
+      "spring.jpa.properties.hibernate.session_factory.statement_inspector=org.grit.daynomy.portfolio.support.MemberLockStatementInspector"
+    })
 class PortfolioIdempotencyAcceptanceTest {
   private static final String V1 = "/api/users/me/portfolio/transactions";
   private static final String V2 = "/api/v2/users/me/portfolio/transactions";
@@ -66,6 +73,27 @@ class PortfolioIdempotencyAcceptanceTest {
   @Autowired JwtTokenProvider tokens;
   @Autowired JdbcTemplate jdbc;
   @Autowired DataSource dataSource;
+
+  @ParameterizedTest
+  @CsvSource({V1 + ",true", V2 + ",true", V1 + ",false", V2 + ",false"})
+  void countsActualMemberLockQueriesAndCompletedRetriesDoNotLock(String endpoint, boolean keyed) {
+    Fixture f = fixture();
+    String requestKey = keyed ? key() : null;
+    long before = MemberLockStatementInspector.count();
+
+    Response created = post(f, endpoint, requestKey, body(f, 1));
+
+    assertThat(created.statusCode()).isEqualTo(201);
+    assertThat(MemberLockStatementInspector.count() - before).isEqualTo(keyed ? 2 : 1);
+    if (keyed) {
+      long afterCreate = MemberLockStatementInspector.count();
+      Response replayed = post(f, endpoint, requestKey, body(f, 1));
+      assertThat(replayed.statusCode()).isEqualTo(201);
+      assertThat(replayed.asString()).isEqualTo(created.asString());
+      assertThat(MemberLockStatementInspector.count()).isEqualTo(afterCreate);
+    }
+    assertState(f, 1, 1, keyed ? 1 : 0);
+  }
 
   @ParameterizedTest
   @ValueSource(strings = {V1, V2})
