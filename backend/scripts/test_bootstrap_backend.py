@@ -56,6 +56,26 @@ class BootstrapTest(unittest.TestCase):
         self.assertIn('SYSLOG_IDENTIFIER=daynomy',self.alloy.read_text())
         self.assertEqual((self.app/'deployment/active-slot').read_text(),'blue\n')
 
+    def test_retirement_timer_installation_does_not_restart_or_route_an_app(self):
+        state=self.app/'deployment';state.mkdir()
+        (state/'active-slot').write_text('blue\n')
+        bootstrap.BOOT_HELPER.parent.mkdir()
+        with patch.object(bootstrap.deployment,'require_target_instance'):
+            bootstrap.install_retirement_timer()
+        self.assertEqual((state/'active-slot').read_text(),'blue\n')
+        service=(self.systemd/'daynomy-retirement.service').read_text()
+        self.assertIn('--environment production --retire-pending',service)
+        self.assertIn('OnUnitInactiveSec=15s',(self.systemd/'daynomy-retirement.timer').read_text())
+        self.assertEqual(self.calls,[('systemctl','daemon-reload'),
+                                    ('systemctl','enable','--now','daynomy-retirement.timer')])
+
+    def test_retirement_timer_refuses_an_uninitialized_or_wrong_instance(self):
+        with patch.object(bootstrap.deployment,'require_target_instance',side_effect=RuntimeError('wrong instance')):
+            with self.assertRaisesRegex(RuntimeError,'wrong instance'):bootstrap.install_retirement_timer()
+        with patch.object(bootstrap.deployment,'require_target_instance'):
+            with self.assertRaisesRegex(RuntimeError,'Bootstrap'):bootstrap.install_retirement_timer()
+        self.assertEqual(self.calls,[])
+
     def test_failed_new_app_restores_unit_nginx_alloy_and_starts_original(self):
         attempts=0
         def fail_once(*args):

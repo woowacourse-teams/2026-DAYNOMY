@@ -22,6 +22,7 @@ on:
           - bootstrap
           - switch
           - repair-proxy
+          - install-retirement
         default: none
       release_trial_counter:
         description: Numeric suffix for immutable same-release switching trials

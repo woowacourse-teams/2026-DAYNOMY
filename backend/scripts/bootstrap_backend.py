@@ -61,6 +61,37 @@ WantedBy=multi-user.target
 '''
 
 
+def install_retirement_timer():
+    deployment.require_target_instance()
+    if not (deployment.STATE/'active-slot').exists():
+        raise RuntimeError('Bootstrap the two-slot deployment before installing its retirement timer')
+    name='daynomy-dev-retirement' if deployment.ENVIRONMENT=='development' else 'daynomy-retirement'
+    deployment.atomic(BOOT_HELPER,Path(__file__).with_name('deploy_backend.py').read_text(),mode=0o755)
+    deployment.atomic(SYSTEMD/(name+'.service'),f'''[Unit]
+Description=Retire drained DAYNOMY backend
+After=network-online.target nginx.service
+[Service]
+Type=oneshot
+User=root
+ExecStart=/usr/bin/python3 -B {BOOT_HELPER} --environment {deployment.ENVIRONMENT} --retire-pending
+TimeoutStartSec=180
+MemoryMax=64M
+MemorySwapMax=0
+''')
+    deployment.atomic(SYSTEMD/(name+'.timer'),f'''[Unit]
+Description=Check draining DAYNOMY backend
+[Timer]
+OnBootSec=15s
+OnUnitInactiveSec=15s
+AccuracySec=1s
+Unit={name}.service
+[Install]
+WantedBy=timers.target
+''')
+    deployment.command('systemctl','daemon-reload')
+    deployment.command('systemctl','enable','--now',name+'.timer')
+
+
 def idle_original_jobs():
     pid=deployment.command('systemctl','show',deployment.SLOTS['blue'][0],'-p','MainPID','--value')
     dump=deployment.command('timeout','15','/usr/lib/jvm/java-21-amazon-corretto.aarch64/bin/java',

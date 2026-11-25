@@ -46,10 +46,15 @@ public class DeploymentTasksEndpoint {
                   : -1;
           tasks.put(name, new Tasks(pending, 0, pending));
         });
-    return new Status(System.getProperty("daynomy.deployment.slot"), tasks);
+    return new Status(
+        System.getProperty("daynomy.deployment.slot"),
+        tasks,
+        new ScheduledTasks(1, DeploymentOwnership.activeTasks()));
   }
 
   public record Tasks(int active, int queued, int pending) {}
 
-  public record Status(String slot, Map<String, Tasks> executors) {}
+  public record ScheduledTasks(int protocol, int active) {}
+
+  public record Status(String slot, Map<String, Tasks> executors, ScheduledTasks scheduled) {}
 }
