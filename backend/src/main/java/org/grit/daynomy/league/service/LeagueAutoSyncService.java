@@ -23,6 +23,7 @@ import org.grit.daynomy.portfolio.domain.PortfolioHolding;
 import org.grit.daynomy.portfolio.repository.PortfolioHoldingRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioRepository;
 import org.grit.daynomy.portfolio.service.OriginalPortfolioChanged;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -46,8 +47,12 @@ public class LeagueAutoSyncService {
   private final LeagueRankingCache rankingCache;
   private final PlatformTransactionManager transactionManager;
 
+  @Value("${league.auto-sync.enabled:true}")
+  private boolean autoSyncEnabled = true;
+
   @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
   public void afterOriginalChange(OriginalPortfolioChanged event) {
+    if (!autoSyncEnabled) return;
     try {
       TransactionTemplate transaction = new TransactionTemplate(transactionManager);
       transaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
@@ -66,6 +71,7 @@ public class LeagueAutoSyncService {
 
   @Scheduled(cron = "${league.auto-sync.retry-cron:0 0 7,19 * * *}", zone = "Asia/Seoul")
   public void retrySharedPortfolios() {
+    if (!autoSyncEnabled) return;
     for (Long memberId : sharedRepository.findSharedMemberIds()) {
       afterOriginalChange(new OriginalPortfolioChanged(memberId));
     }
