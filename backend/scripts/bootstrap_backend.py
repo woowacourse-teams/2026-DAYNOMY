@@ -23,7 +23,7 @@ ENVIRONMENT_FILE = deployment.APP / 'daynomy.env'
 DEVELOPMENT_API_SNIPPET = Path('/etc/nginx/snippets/daynomy-portfolio-analysis.conf')
 DEVELOPMENT_JVM_FLAGS = '-Xmx192m -XX:TieredStopAtLevel=1 -XX:+ExitOnOutOfMemoryError'
 DEVELOPMENT_SINGLE_MEMORY_MIB = 512
-DEVELOPMENT_PAIR_MEMORY_MIB = 896
+DEVELOPMENT_PAIR_MEMORY_MIB = 1024
 
 
 def configure_environment(environment):
