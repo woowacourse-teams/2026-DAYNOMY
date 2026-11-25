@@ -6,7 +6,9 @@ import static org.mockito.Mockito.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Map;
 import java.util.Optional;
+import java.util.function.BiFunction;
 import org.grit.daynomy.asset.domain.Asset;
 import org.grit.daynomy.asset.domain.StockMarket;
 import org.grit.daynomy.asset.repository.AssetRepository;
@@ -16,9 +18,12 @@ import org.grit.daynomy.member.repository.MemberRepository;
 import org.grit.daynomy.portfolio.domain.Portfolio;
 import org.grit.daynomy.portfolio.domain.PortfolioTransactionType;
 import org.grit.daynomy.portfolio.dto.PortfolioTransactionRequest;
+import org.grit.daynomy.portfolio.dto.PortfolioTransactionResponse;
 import org.grit.daynomy.portfolio.exception.PortfolioErrorCode;
 import org.grit.daynomy.portfolio.repository.*;
 import org.grit.daynomy.portfolio.service.PortfolioLedgerCalculator;
+import org.grit.daynomy.portfolio.service.PortfolioTransactionIdempotencyService;
+import org.grit.daynomy.portfolio.service.PortfolioTransactionTimings;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.*;
@@ -36,6 +41,7 @@ class PortfolioTransactionServiceV2Test {
   @Mock private org.springframework.transaction.PlatformTransactionManager transactionManager;
   @Mock private org.grit.daynomy.portfolio.service.PortfolioExchangeRateService exchangeRates;
   @Mock private org.springframework.context.ApplicationEventPublisher events;
+  @Mock private PortfolioTransactionIdempotencyService idempotency;
 
   @org.mockito.Spy
   private org.grit.daynomy.portfolio.service.PortfolioTransactionTimings timings =
@@ -43,6 +49,44 @@ class PortfolioTransactionServiceV2Test {
           new io.micrometer.core.instrument.simple.SimpleMeterRegistry());
 
   @InjectMocks PortfolioTransactionServiceV2 service;
+
+  @Test
+  void keyedTradeUsesTheMemberLockedByIdempotencyWithoutAnotherMemberQuery() {
+    Member locked = mock(Member.class);
+    Portfolio portfolio = mock(Portfolio.class);
+    given(portfolio.getId()).willReturn(10L);
+    given(portfolioRepository.findByMemberId(1L)).willReturn(Optional.of(portfolio));
+    given(portfolioRepository.findByIdForUpdate(10L)).willReturn(Optional.of(portfolio));
+    var date = LocalDate.of(2026, 10, 16);
+    given(assetRepository.findById(2L))
+        .willReturn(
+            Optional.of(Asset.listedStock("Apple", "AAPL.US", StockMarket.NASDAQ, null, date)));
+    doAnswer(
+            invocation -> {
+              BiFunction<Member, Map<LocalDate, BigDecimal>, PortfolioTransactionResponse> write =
+                  invocation.getArgument(5);
+              return write.apply(locked, Map.of());
+            })
+        .when(idempotency)
+        .execute(eq(PortfolioTransactionTimings.Api.V2), eq(1L), eq("key"), any(), any(), any());
+    var request =
+        new PortfolioTransactionRequest(
+            2L,
+            PortfolioTransactionType.BUY,
+            date,
+            1L,
+            new BigDecimal("245"),
+            BigDecimal.ZERO,
+            BigDecimal.ZERO);
+
+    assertThatThrownBy(() -> service.transact(1L, request, "key"))
+        .isInstanceOfSatisfying(
+            BusinessException.class,
+            e ->
+                assertThat(e.errorCode())
+                    .isEqualTo(PortfolioErrorCode.INVALID_TRANSACTION_EXCHANGE_RATE));
+    verifyNoInteractions(memberRepository);
+  }
 
   @Test
   void rejectsUsdTradeWithoutExchangeRateBeforeWritingLedger() {

@@ -13,11 +13,12 @@ import java.security.NoSuchAlgorithmException;
 import java.time.LocalDate;
 import java.util.HexFormat;
 import java.util.Map;
-import java.util.function.Function;
+import java.util.function.BiFunction;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.member.domain.Member;
 import org.grit.daynomy.member.exception.MemberErrorCode;
 import org.grit.daynomy.member.repository.MemberRepository;
 import org.grit.daynomy.portfolio.dto.PortfolioTransactionRequest;
@@ -52,7 +53,7 @@ public class PortfolioTransactionIdempotencyService {
       String key,
       PortfolioTransactionRequest request,
       Supplier<Map<LocalDate, BigDecimal>> prepareRates,
-      Function<Map<LocalDate, BigDecimal>, PortfolioTransactionResponse> write) {
+      BiFunction<Member, Map<LocalDate, BigDecimal>, PortfolioTransactionResponse> write) {
     try {
       if (key == null || !KEY.matcher(key).matches()) {
         throw new BusinessException(PortfolioErrorCode.INVALID_IDEMPOTENCY_KEY);
@@ -73,16 +74,17 @@ public class PortfolioTransactionIdempotencyService {
                   transaction.execute(
                       status -> {
                         requests.limitLockWait();
-                        timings.record(
-                            api,
-                            MEMBER_LOCK_QUERY,
-                            () ->
-                                members
-                                    .findByIdForUpdate(memberId)
-                                    .orElseThrow(
-                                        () ->
-                                            new BusinessException(
-                                                MemberErrorCode.MEMBER_NOT_FOUND)));
+                        Member member =
+                            timings.record(
+                                api,
+                                MEMBER_LOCK_QUERY,
+                                () ->
+                                    members
+                                        .findByIdForUpdate(memberId)
+                                        .orElseThrow(
+                                            () ->
+                                                new BusinessException(
+                                                    MemberErrorCode.MEMBER_NOT_FOUND)));
                         timings.memberLocked(api);
                         // A competing instance can have committed while rates were prepared or the
                         // lock
@@ -92,7 +94,7 @@ public class PortfolioTransactionIdempotencyService {
                                 api, IDEMPOTENCY_RECHECK, () -> requests.find(memberId, key));
                         if (committed.isPresent())
                           return new Outcome(replay(committed.orElseThrow(), hash), true);
-                        PortfolioTransactionResponse response = write.apply(rates);
+                        PortfolioTransactionResponse response = write.apply(member, rates);
                         timings.run(
                             api,
                             RESULT_WRITE,
