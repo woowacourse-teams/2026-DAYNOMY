@@ -23,11 +23,11 @@ def main():
             'python:3.13-slim','python','-c',"""
 import fcntl,time
 from pathlib import Path
-p=Path('/state'); (p/'active-slot').write_text('blue')
+p=Path('/state'); (p/'active-slot').write_text('green')
 with (p/'jobs.lock').open('a+') as f:
  fcntl.lockf(f,fcntl.LOCK_EX); (p/'locked').touch()
  while not (p/'release').exists():time.sleep(.05)
- (p/'active-slot').write_text('green')
+ (p/'active-slot').write_text('blue')
 """)
         def exists(file):
             return subprocess.run(['docker','exec',name+'-holder','test','-f','/state/'+file],capture_output=True).returncode==0
@@ -48,10 +48,8 @@ with (p/'jobs.lock').open('a+') as f:
         if exists('ran'):raise RuntimeError('Java bypassed the Python lock')
         run('docker','exec',name+'-holder','touch','/state/release')
         if run('docker','wait',name+'-waiter')!='0':raise RuntimeError('Java waiter failed')
-        value=run('docker','run','--rm','--network','none','-v',volume+':/state',
-                  'python:3.13-slim','python','-c',"from pathlib import Path; print(Path('/state/ran').read_text())")
-        if value!='green':raise RuntimeError('Java read ownership before acquiring lock')
-        print(json.dumps({'linux_posix_lock_compatible':True,'blocked_until_release':True,'owner_read_after_lock':'green'}))
+        if exists('ran'):raise RuntimeError('Java ran after losing ownership while waiting')
+        print(json.dumps({'linux_posix_lock_compatible':True,'blocked_until_release':True,'skipped_after_losing_ownership':True}))
     finally:
         for suffix in ('-holder','-waiter'):
             subprocess.run(['docker','rm','-f',name+suffix],capture_output=True)

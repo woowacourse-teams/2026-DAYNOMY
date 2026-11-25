@@ -48,7 +48,7 @@ class DeploymentOwnershipTest {
 
   @Test
   void waitingJobReadsOwnershipAfterDeploymentReleasesLock() throws Exception {
-    Files.writeString(directory.resolve("active-slot"), "blue");
+    Files.writeString(directory.resolve("active-slot"), "green");
     try (var file =
             FileChannel.open(
                 directory.resolve("jobs.lock"),
@@ -86,11 +86,85 @@ class DeploymentOwnershipTest {
       try {
         assertThat(process.inputReader().readLine()).isEqualTo("READY");
         assertThat(process.waitFor(150, TimeUnit.MILLISECONDS)).isFalse();
-        Files.writeString(directory.resolve("active-slot"), "green");
+        Files.writeString(directory.resolve("active-slot"), "blue");
         lock.release();
         assertThat(process.waitFor(5, TimeUnit.SECONDS)).isTrue();
         assertThat(process.exitValue()).isZero();
-        assertThat(Files.readString(directory.resolve("ran"))).isEqualTo("green");
+        assertThat(directory.resolve("ran")).doesNotExist();
+      } finally {
+        process.destroyForcibly();
+      }
+    }
+  }
+
+  @Test
+  void inactiveCandidateDoesNotWaitForAnotherLocalTask() throws Exception {
+    Files.writeString(directory.resolve("active-slot"), "blue");
+    var entered = new CountDownLatch(1);
+    var release = new CountDownLatch(1);
+    var calls = new AtomicInteger();
+    try (var executor = java.util.concurrent.Executors.newFixedThreadPool(2)) {
+      var active =
+          executor.submit(
+              () ->
+                  DeploymentOwnership.run(
+                      "blue",
+                      directory,
+                      () -> {
+                        entered.countDown();
+                        try {
+                          release.await();
+                        } catch (InterruptedException interrupted) {
+                          Thread.currentThread().interrupt();
+                        }
+                      }));
+      try {
+        assertThat(entered.await(5, TimeUnit.SECONDS)).isTrue();
+        var candidate =
+            executor.submit(
+                () -> DeploymentOwnership.run("green", directory, calls::incrementAndGet));
+        candidate.get(2, TimeUnit.SECONDS);
+        assertThat(calls).hasValue(0);
+      } finally {
+        release.countDown();
+        active.get(5, TimeUnit.SECONDS);
+      }
+    }
+  }
+
+  @Test
+  void inactiveCandidateDoesNotWaitForAnotherProcessFileLock() throws Exception {
+    Files.writeString(directory.resolve("active-slot"), "blue");
+    try (var file =
+            FileChannel.open(
+                directory.resolve("jobs.lock"),
+                StandardOpenOption.CREATE,
+                StandardOpenOption.WRITE);
+        var lock = file.lock()) {
+      var process =
+          new ProcessBuilder(
+                  Path.of(System.getProperty("java.home"), "bin", "java").toString(),
+                  "-cp",
+                  DeploymentOwnership.class
+                          .getProtectionDomain()
+                          .getCodeSource()
+                          .getLocation()
+                          .getPath()
+                      + java.io.File.pathSeparator
+                      + GateChild.class
+                          .getProtectionDomain()
+                          .getCodeSource()
+                          .getLocation()
+                          .getPath(),
+                  GateChild.class.getName(),
+                  directory.toString())
+              .redirectError(ProcessBuilder.Redirect.INHERIT)
+              .start();
+      try {
+        assertThat(process.waitFor(5, TimeUnit.SECONDS)).isTrue();
+        assertThat(process.exitValue()).isZero();
+        assertThat(directory.resolve("ran")).doesNotExist();
+        assertThat(lock.isValid()).isTrue();
       } finally {
         process.destroyForcibly();
       }

@@ -36,7 +36,12 @@ public final class DeploymentOwnership {
       return;
     }
     try {
+      // A candidate must become ready without waiting for the active slot's batch.
+      // Ownership is still checked again under the file lock before running work.
+      if (!Files.readString(directory.resolve("active-slot")).trim().equals(slot)) return;
       LOCAL_LOCK.lockInterruptibly();
+    } catch (IOException failure) {
+      throw new UncheckedIOException("Deployment scheduler ownership unavailable", failure);
     } catch (InterruptedException interrupted) {
       Thread.currentThread().interrupt();
       return;
