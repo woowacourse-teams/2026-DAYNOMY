@@ -316,12 +316,16 @@ def score(slot, value):
         Path(f'/proc/{pid}/oom_score_adj').write_text(str(value))
 
 
-def candidate_override(slot, enabled):
+def candidate_override(slot, enabled, retain_priority=False):
     directory = Path('/etc/systemd/system') / (SLOTS[slot][0] + '.service.d')
     directory.mkdir(exist_ok=True)
     file = directory / 'candidate.conf'
     if enabled:
         atomic(file, '[Service]\nExecCondition=\nOOMScoreAdjust=500\n')
+    elif retain_priority:
+        # Restore the boot ownership condition, but retain the new JVM's OOM
+        # priority across restarts until the original batch drains.
+        atomic(file, '[Service]\nOOMScoreAdjust=500\n')
     else:
         file.unlink(missing_ok=True)
     command('systemctl', 'daemon-reload')
@@ -436,6 +440,7 @@ def retire_pending():
         if command('systemctl', 'show', SLOTS[slot][0], '-p', 'MainPID', '--value') != '0':
             return False
     candidate_override(slot, False)
+    candidate_override(active, False)
     atomic(STATE / 'last-retirement.json', json.dumps({
         **record, 'outcome': 'drained', 'timestamp_ms': time.time_ns() // 1000000}, indent=2))
     path.unlink()
@@ -541,7 +546,7 @@ def deploy(artifact, version):
         probe(old)
         raise
     # Keep the original batch protected until it has actually drained.
-    candidate_override(new, False)
+    candidate_override(new, False, retain_priority=True)
     retired = retire_pending()
     if (STATE / 'active-slot').read_text().strip() != new:
         raise RuntimeError('New version failed during drain; HTTP was rolled back')

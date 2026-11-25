@@ -150,10 +150,12 @@ class DeploymentTest(unittest.TestCase):
             self.assertEqual((self.state/'active-slot').read_text(),'green\n')
             self.assertNotIn(('systemctl','stop','daynomy'),self.calls)
             self.assertTrue((self.state/'retirement.json').exists())
+            deploy.candidate_override.assert_called_with('green',False,retain_priority=True)
             active['blue']=0
             self.assertTrue(deploy.retire_pending())
         self.assertIn(('systemctl','stop','daynomy'),self.calls)
         self.assertFalse((self.state/'retirement.json').exists())
+
 
     def pending_old(self):
         deploy.wait_tasks.return_value=False
@@ -219,6 +221,21 @@ class DeploymentTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, 'Insufficient available memory'):
             deploy.deploy(self.artifact, 'f' * 40)
         self.assertFalse(self.calls)
+
+
+class CandidatePriorityTest(unittest.TestCase):
+    def test_restart_keeps_oom_priority_but_restores_boot_owner_condition_until_retirement(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder)
+            with patch.object(deploy,'Path',side_effect=lambda value:root if value=='/etc/systemd/system' else Path(value)),patch.object(deploy,'command'):
+                deploy.candidate_override('green',True)
+                file=root/(deploy.SLOTS['green'][0]+'.service.d')/'candidate.conf'
+                self.assertIn('ExecCondition=',file.read_text())
+                deploy.candidate_override('green',False,retain_priority=True)
+                self.assertIn('OOMScoreAdjust=500',file.read_text())
+                self.assertNotIn('ExecCondition=',file.read_text())
+                deploy.candidate_override('green',False)
+                self.assertFalse(file.exists())
 
 
 class TaskStatusTest(unittest.TestCase):
