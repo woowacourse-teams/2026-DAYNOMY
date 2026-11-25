@@ -321,11 +321,11 @@ def candidate_override(slot, enabled, retain_priority=False):
     directory.mkdir(exist_ok=True)
     file = directory / 'candidate.conf'
     if enabled:
-        atomic(file, '[Service]\nExecCondition=\nOOMScoreAdjust=500\n')
+        atomic(file, '[Service]\nExecCondition=\nOOMScoreAdjust=500\nRestart=no\n')
     elif retain_priority:
-        # Restore the boot ownership condition, but retain the new JVM's OOM
-        # priority across restarts until the original batch drains.
-        atomic(file, '[Service]\nOOMScoreAdjust=500\n')
+        # Restore the boot ownership condition. While the old JVM is retained,
+        # rollback owns failure recovery; automatic restart can race that handoff.
+        atomic(file, '[Service]\nOOMScoreAdjust=500\nRestart=no\n')
     else:
         file.unlink(missing_ok=True)
     command('systemctl', 'daemon-reload')
@@ -392,7 +392,13 @@ def retire_pending():
         raise RuntimeError('Retiring release bytes changed; refusing to stop it')
     pid = command('systemctl', 'show', SLOTS[slot][0], '-p', 'MainPID', '--value')
     if pid == '0':
-        if not record.get('drain_confirmed') and not record.get('inactive_candidate'):
+        if record.get('failed_active_exit'):
+            # A dead candidate cannot drain work. Preserve its failure separately;
+            # do not report successful drain or adopt an automatically restarted PID.
+            probe(active)
+            if not wait_workers(record['workers'], timeout=0):
+                return False
+        elif not record.get('drain_confirmed') and not record.get('inactive_candidate'):
             record['phase'] = 'unexpected_exit'
             save_retirement(record)
             raise RuntimeError('Retiring JVM exited before work completion was observed')
@@ -406,6 +412,8 @@ def retire_pending():
             probe(slot)
             workers = nginx_workers()
             replacement = retirement_record(active, slot, workers)
+            if replacement['pid'] == '0':
+                replacement['failed_active_exit'] = True
             restore_http(slot)
             save_retirement(replacement)
             atomic(STATE / 'last-retirement.json', json.dumps({
@@ -441,11 +449,13 @@ def retire_pending():
             return False
     candidate_override(slot, False)
     candidate_override(active, False)
+    failed = bool(record.get('failed_active_exit'))
     atomic(STATE / 'last-retirement.json', json.dumps({
-        **record, 'outcome': 'drained', 'timestamp_ms': time.time_ns() // 1000000}, indent=2))
+        **record, 'outcome': 'failed_active_exited' if failed else 'drained',
+        'timestamp_ms': time.time_ns() // 1000000}, indent=2))
     path.unlink()
     score(active, -500)
-    print(json.dumps({'retired': slot, 'active': active, 'work_drained': True}), flush=True)
+    print(json.dumps({'retired': slot, 'active': active, 'work_drained': not failed}), flush=True)
     return True
 
 

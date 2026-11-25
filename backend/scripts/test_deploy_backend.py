@@ -182,6 +182,35 @@ class DeploymentTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError,'bytes changed'):deploy.retire_pending()
         self.assertNotIn(('systemctl','stop','daynomy'),self.calls)
 
+    def test_dead_active_candidate_rolls_back_and_is_not_reported_as_drained(self):
+        self.pending_old()
+        self.pids['daynomy-green']='0'
+        deploy.probe.side_effect=lambda slot: (_ for _ in ()).throw(RuntimeError('candidate exited')) if slot=='green' else None
+        self.assertFalse(deploy.retire_pending())
+        self.assertEqual((self.state/'active-slot').read_text(),'blue\n')
+        self.assertTrue(json.loads((self.state/'retirement.json').read_text())['failed_active_exit'])
+        self.assertTrue(deploy.retire_pending())
+        self.assertEqual(json.loads((self.state/'last-retirement.json').read_text())['outcome'],'failed_active_exited')
+        self.assertNotIn(('systemctl','stop','daynomy'),self.calls)
+
+    def test_failed_candidate_pid_change_is_still_refused(self):
+        self.pending_old()
+        self.pids['daynomy-green']='0'
+        deploy.probe.side_effect=lambda slot: (_ for _ in ()).throw(RuntimeError('candidate exited')) if slot=='green' else None
+        self.assertFalse(deploy.retire_pending())
+        self.pids['daynomy-green']='999'
+        with self.assertRaisesRegex(RuntimeError,'identity changed'):deploy.retire_pending()
+        self.assertNotIn(('systemctl','stop','daynomy-green'),self.calls)
+
+    def test_dead_candidate_cleanup_waits_for_public_worker_drain(self):
+        self.pending_old()
+        self.pids['daynomy-green']='0'
+        deploy.probe.side_effect=lambda slot: (_ for _ in ()).throw(RuntimeError('candidate exited')) if slot=='green' else None
+        self.assertFalse(deploy.retire_pending())
+        deploy.wait_workers.return_value=False
+        self.assertFalse(deploy.retire_pending())
+        self.assertTrue((self.state/'retirement.json').exists())
+
     def test_dead_busy_process_is_not_silently_marked_drained(self):
         self.pending_old()
         self.pids['daynomy']='0'
@@ -224,16 +253,18 @@ class DeploymentTest(unittest.TestCase):
 
 
 class CandidatePriorityTest(unittest.TestCase):
-    def test_restart_keeps_oom_priority_but_restores_boot_owner_condition_until_retirement(self):
+    def test_candidate_restart_is_fenced_until_original_work_retires(self):
         with tempfile.TemporaryDirectory() as folder:
             root=Path(folder)
             with patch.object(deploy,'Path',side_effect=lambda value:root if value=='/etc/systemd/system' else Path(value)),patch.object(deploy,'command'):
                 deploy.candidate_override('green',True)
                 file=root/(deploy.SLOTS['green'][0]+'.service.d')/'candidate.conf'
                 self.assertIn('ExecCondition=',file.read_text())
+                self.assertIn('Restart=no',file.read_text())
                 deploy.candidate_override('green',False,retain_priority=True)
                 self.assertIn('OOMScoreAdjust=500',file.read_text())
                 self.assertNotIn('ExecCondition=',file.read_text())
+                self.assertIn('Restart=no',file.read_text())
                 deploy.candidate_override('green',False)
                 self.assertFalse(file.exists())
 
