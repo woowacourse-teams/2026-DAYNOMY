@@ -217,6 +217,7 @@ GitHub Actions가 브랜치에 맞는 Vite mode로 빌드하고 배포합니다.
 - [공개 HTML ADR](./docs/adr/261027-페이지별-렌더링과-공개-HTML.md)
 - [CI/CD 성능 기록](./docs/ci-cd-performance.md)
 - [포트폴리오 분석 이벤트 계약](./docs/portfolio-analytics.md)
-- [투자 리그 AI 복기 기술 명세](../docs/league-ai-review-technical.md)
+- [투자리그 문서](../docs/league/README.md)
+- [검색 문서](../docs/search/README.md)
 - [백엔드 개발 문서](../backend/README.md)
 - [팀 개발 규칙](../AGENTS.md)
