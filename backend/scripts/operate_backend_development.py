@@ -98,7 +98,7 @@ def repair_proxy():
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--operation', choices=('bootstrap', 'switch', 'repair-proxy'), required=True)
+    parser.add_argument('--operation', choices=('bootstrap', 'switch', 'repair-proxy', 'install-retirement'), required=True)
     parser.add_argument('--expected-current-sha256', required=True)
     parser.add_argument('--version')
     parser.add_argument('--apply', action='store_true')
@@ -130,6 +130,9 @@ def main():
                     fcntl.flock(deployment, fcntl.LOCK_EX | fcntl.LOCK_NB)
                     if args.operation=='repair-proxy':
                         repair_proxy()
+                    elif args.operation=='install-retirement':
+                        bootstrap_backend.install_retirement_timer()
+                        print(json.dumps({'retirement_timer_installed':True}),flush=True)
                     else:
                         deploy_backend.deploy(artifact, args.version or '')
 

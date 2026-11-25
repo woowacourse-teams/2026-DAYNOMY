@@ -6,13 +6,19 @@ import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
 
 /** Single-host scheduler ownership; the deployment controller uses the same POSIX lock. */
 public final class DeploymentOwnership {
   private static final ReentrantLock LOCAL_LOCK = new ReentrantLock(true);
+  private static final AtomicInteger ACTIVE = new AtomicInteger();
 
   private DeploymentOwnership() {}
+
+  public static int activeTasks() {
+    return ACTIVE.get();
+  }
 
   public static Runnable wrap(Runnable task) {
     return () -> {
@@ -47,12 +53,31 @@ public final class DeploymentOwnership {
       return;
     }
     try (var channel =
-            FileChannel.open(
-                directory.resolve("jobs.lock"),
-                StandardOpenOption.CREATE,
-                StandardOpenOption.WRITE);
-        var ignored = channel.lock()) {
-      if (Files.readString(directory.resolve("active-slot")).trim().equals(slot)) task.run();
+        FileChannel.open(
+            directory.resolve("jobs.lock"), StandardOpenOption.CREATE, StandardOpenOption.WRITE)) {
+      // A former owner waiting behind another batch must be able to retire promptly.
+      while (Files.readString(directory.resolve("active-slot")).trim().equals(slot)) {
+        try (var lock = channel.tryLock()) {
+          if (lock != null) {
+            // Register before reading ownership: retirement cannot miss eligible work
+            // between its last ownership check and the beginning of the task body.
+            ACTIVE.incrementAndGet();
+            try {
+              if (Files.readString(directory.resolve("active-slot")).trim().equals(slot))
+                task.run();
+            } finally {
+              ACTIVE.decrementAndGet();
+            }
+            return;
+          }
+        }
+        try {
+          Thread.sleep(100);
+        } catch (InterruptedException interrupted) {
+          Thread.currentThread().interrupt();
+          return;
+        }
+      }
     } catch (IOException failure) {
       // Never run a job when ownership cannot be determined.
       throw new UncheckedIOException("Deployment scheduler ownership unavailable", failure);

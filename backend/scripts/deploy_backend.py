@@ -70,6 +70,11 @@ def atomic(path, data, mode=0o644):
             os.fsync(stream.fileno())
         os.chmod(name, mode)
         os.replace(name, path)
+        directory = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(directory)
+        finally:
+            os.close(directory)
     finally:
         if os.path.exists(name):
             os.unlink(name)
@@ -183,7 +188,7 @@ def probe(slot):
         if not isinstance(body.get('items'), list):
             raise RuntimeError('Candidate news response mismatch')
     # Validate observability before sending public requests; a busy executor is valid.
-    tasks_idle(slot)
+    task_status(slot)
 
 
 def proxy_probe(slot):
@@ -192,7 +197,7 @@ def proxy_probe(slot):
             raise RuntimeError('Public proxy did not reach expected slot')
 
 
-def tasks_idle(slot):
+def task_status(slot):
     # Only query the slot's loopback management port, never the public proxy.
     management = SLOTS[slot][2]
     with urllib.request.urlopen(
@@ -209,15 +214,29 @@ def tasks_idle(slot):
                 type(counts.get(key)) is not int or counts[key] < 0
                 for key in ('active', 'queued', 'pending')):
             raise RuntimeError('Invalid background task counts')
-    return all(counts['active'] == 0 and counts['queued'] == 0 and counts['pending'] == 0
-               for counts in executors.values())
+    scheduled = status.get('scheduled')
+    if scheduled is not None and (not isinstance(scheduled, dict)
+            or scheduled.get('protocol') != 1 or type(scheduled.get('active')) is not int
+            or scheduled['active'] < 0):
+        raise RuntimeError('Invalid scheduled task status')
+    return status
 
 
-def wait_tasks(slot, timeout=300):
+def tasks_idle(slot, legacy_idle=False):
+    status = task_status(slot)
+    scheduled = status.get('scheduled')
+    if scheduled is None and not legacy_idle:
+        raise RuntimeError('Scheduled task tracking is required before retirement')
+    return ((scheduled is None or scheduled['active'] == 0)
+            and all(counts['active'] == 0 and counts['queued'] == 0 and counts['pending'] == 0
+                    for counts in status['executors'].values()))
+
+
+def wait_tasks(slot, timeout=300, legacy_idle=False):
     deadline = time.monotonic() + timeout
     while True:
         try:
-            if tasks_idle(slot):
+            if tasks_idle(slot, legacy_idle=legacy_idle):
                 return True
         except Exception:
             # Unknown status must preserve the JVM, not kill an unobserved task.
@@ -308,6 +327,123 @@ def candidate_override(slot, enabled):
     command('systemctl', 'daemon-reload')
 
 
+def retirement_record(slot, active, workers, legacy_idle=False, inactive_candidate=False):
+    pid = command('systemctl', 'show', SLOTS[slot][0], '-p', 'MainPID', '--value')
+    if not pid.isdigit():
+        raise RuntimeError('Invalid retiring JVM PID')
+    release = (STATE / (slot + '.jar')).resolve(strict=True)
+    start = identity(pid) if pid != '0' else None
+    if pid != '0' and start is None:
+        raise RuntimeError('Retiring JVM identity could not be observed')
+    return {'protocol': 1, 'slot': slot, 'active': active, 'workers': workers,
+            'pid': pid, 'start': start,
+            'release': str(release), 'sha256': digest(release),
+            'legacy_idle': legacy_idle, 'inactive_candidate': inactive_candidate,
+            'phase': 'draining', 'created_ms': time.time_ns() // 1000000}
+
+
+def save_retirement(record):
+    atomic(STATE / 'retirement.json', json.dumps(record, indent=2))
+
+
+def digest(path):
+    value = hashlib.sha256()
+    with path.open('rb') as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b''):
+            value.update(block)
+    return value.hexdigest()
+
+
+def restore_http(slot):
+    atomic(ROUTE, route(slot))
+    command('nginx', '-t')
+    command('systemctl', 'reload', 'nginx')
+    for attempt in range(10):
+        try:
+            proxy_probe(slot)
+            break
+        except Exception:
+            if attempt == 9:
+                raise
+            time.sleep(.5)
+    # Never wait for the batch lock to restore a healthy HTTP path.
+    atomic(STATE / 'active-slot', slot + '\n')
+
+
+def retire_pending():
+    """Called under deploy.lock; no batch deadline is allowed to kill a busy JVM."""
+    path = STATE / 'retirement.json'
+    if not path.exists():
+        return True
+    record = json.loads(path.read_text())
+    slot, active = record.get('slot'), record.get('active')
+    if (record.get('protocol') != 1 or slot not in SLOTS or active not in SLOTS
+            or slot == active or not isinstance(record.get('workers'), dict)):
+        raise RuntimeError('Retirement record needs review; background tasks are still draining')
+    if (STATE / 'active-slot').read_text().strip() != active:
+        raise RuntimeError('Refusing to retire the active slot or an uncommitted deployment')
+    if str((STATE / (slot + '.jar')).resolve(strict=True)) != record['release']:
+        raise RuntimeError('Retiring release changed; manual review required')
+    if digest(Path(record['release'])) != record['sha256']:
+        raise RuntimeError('Retiring release bytes changed; refusing to stop it')
+    pid = command('systemctl', 'show', SLOTS[slot][0], '-p', 'MainPID', '--value')
+    if pid == '0':
+        if not record.get('drain_confirmed') and not record.get('inactive_candidate'):
+            record['phase'] = 'unexpected_exit'
+            save_retirement(record)
+            raise RuntimeError('Retiring JVM exited before work completion was observed')
+    else:
+        if pid != record['pid'] or identity(pid) != record['start']:
+            raise RuntimeError('Retiring JVM identity changed; refusing to stop it')
+        try:
+            probe(active)
+        except Exception:
+            # Rollback remains possible while the old JVM is deliberately retained.
+            probe(slot)
+            workers = nginx_workers()
+            replacement = retirement_record(active, slot, workers)
+            restore_http(slot)
+            save_retirement(replacement)
+            atomic(STATE / 'last-retirement.json', json.dumps({
+                **record, 'outcome': 'http_rolled_back', 'timestamp_ms': time.time_ns() // 1000000}))
+            return False
+        if not wait_workers(record['workers'], timeout=0):
+            return False
+        try:
+            status = task_status(slot)
+        except Exception:
+            return False
+        if status.get('scheduled') is None and not record.get('legacy_idle'):
+            # Compatibility with the previous JAR: after ownership changed, one
+            # successful nonblocking lock proves its previous batch has finished.
+            try:
+                with jobs_lock(timeout=0):
+                    record['legacy_idle'] = True
+                    save_retirement(record)
+            except RuntimeError:
+                return False
+        try:
+            idle = wait_tasks(slot, timeout=0, legacy_idle=record.get('legacy_idle', False))
+        except Exception:
+            return False
+        if not idle:
+            return False
+        # Persist the proof before stopping, so a controller crash after stop is recoverable.
+        record['drain_confirmed'] = True
+        record['phase'] = 'stop_requested'
+        save_retirement(record)
+        command('systemctl', 'stop', SLOTS[slot][0])
+        if command('systemctl', 'show', SLOTS[slot][0], '-p', 'MainPID', '--value') != '0':
+            return False
+    candidate_override(slot, False)
+    atomic(STATE / 'last-retirement.json', json.dumps({
+        **record, 'outcome': 'drained', 'timestamp_ms': time.time_ns() // 1000000}, indent=2))
+    path.unlink()
+    score(active, -500)
+    print(json.dumps({'retired': slot, 'active': active, 'work_drained': True}), flush=True)
+    return True
+
+
 def deploy(artifact, version):
     if not re.fullmatch(r'[a-f0-9]{40}(?:-bg[0-9]+)?', version):
         raise RuntimeError('Invalid immutable release version')
@@ -320,15 +456,12 @@ def deploy(artifact, version):
     if migrations(old_jar) != migrations(artifact):
         raise RuntimeError('Schema migrations differ; stage a reviewed compatible migration separately')
     probe(old)
+    timer = 'daynomy-dev-retirement.timer' if ENVIRONMENT == 'development' else 'daynomy-retirement.timer'
+    if not is_active(timer):
+        raise RuntimeError('Install and enable the retirement timer before deployment')
     pending = STATE / 'retirement.json'
-    if pending.exists():
-        record = json.loads(pending.read_text())
-        if (not wait_workers(record['workers'], timeout=0)
-                or not wait_tasks(record['slot'], timeout=0)):
-            raise RuntimeError('Previous requests or background tasks are still draining')
-        command('systemctl', 'stop', SLOTS[record['slot']][0])
-        candidate_override(record['slot'], False)
-        pending.unlink()
+    if pending.exists() and not retire_pending():
+        raise RuntimeError('Previous requests or background tasks are still draining')
     if is_active(SLOTS[new][0]):
         raise RuntimeError('Inactive slot unexpectedly runs; refusing to interrupt it')
     if available() < candidate_available_required():
@@ -347,7 +480,6 @@ def deploy(artifact, version):
     temporary.unlink(missing_ok=True)
     temporary.symlink_to(release)
     os.replace(temporary, link)
-    previous_route = ROUTE.read_text()
     route_written = False
     workers = {}
     candidate_override(new, True)
@@ -363,68 +495,62 @@ def deploy(artifact, version):
                 if attempt == 89:
                     raise RuntimeError('Candidate did not become ready')
                 time.sleep(1)
-        with jobs_lock():
-            probe(new)
-            if available() < RESERVE:
-                raise RuntimeError('Memory reserve breached before switching')
-            workers = nginx_workers()
-            atomic(ROUTE, route(new))
-            route_written = True
-            command('nginx', '-t')
-            command('systemctl', 'reload', 'nginx')
-            for attempt in range(10):
-                try:
-                    proxy_probe(new)
-                    break
-                except Exception:
-                    if attempt == 9:
-                        raise
-                    time.sleep(0.5)
-            atomic(STATE / 'active-slot', new + '\n')
+        probe(new)
+        if available() < RESERVE:
+            raise RuntimeError('Memory reserve breached before switching')
+        workers = nginx_workers()
+        record = retirement_record(old, new, workers)
+        record['phase'] = 'prepared'
+        save_retirement(record)
+        atomic(ROUTE, route(new))
+        route_written = True
+        command('nginx', '-t')
+        command('systemctl', 'reload', 'nginx')
+        for attempt in range(10):
+            try:
+                proxy_probe(new)
+                break
+            except Exception:
+                if attempt == 9:
+                    raise
+                time.sleep(0.5)
+        # Running work keeps its POSIX lock and finishes in the old JVM. Only
+        # future work changes owner; HTTP must not wait for the long batch.
+        atomic(STATE / 'active-slot', new + '\n')
+        record['phase'] = 'draining'
+        save_retirement(record)
         for _ in range(15):
             probe(new)
             if available() < RESERVE:
                 raise RuntimeError('Memory reserve breached during verification')
             time.sleep(1)
     except Exception:
-        # Restore HTTP first; a long candidate batch must not delay HTTP recovery.
-        rollback_workers = {}
+        rollback_workers = nginx_workers() if route_written else {}
         if route_written:
-            rollback_workers = nginx_workers()
-            atomic(ROUTE, previous_route)
-            command('nginx', '-t')
-            # Reload even if the original reload returned an error after taking effect.
-            command('systemctl', 'reload', 'nginx')
-            proxy_probe(old)
-            with jobs_lock():
-                atomic(STATE / 'active-slot', old + '\n')
-        if wait_workers(rollback_workers) and wait_tasks(new):
-            command('systemctl', 'stop', SLOTS[new][0])
-            candidate_override(new, False)
-        else:
-            # Requests sent to the candidate before rollback must also drain safely.
-            atomic(pending, json.dumps({'slot': new, 'workers': rollback_workers}))
+            restore_http(old)
+        elif pending.exists():
+            pending.unlink()
+        cleanup = retirement_record(new, old, rollback_workers,
+                                    legacy_idle=not route_written,
+                                    inactive_candidate=not route_written)
+        save_retirement(cleanup)
+        try:
+            retire_pending()
+        except Exception as cleanup_error:
+            print(json.dumps({'candidate_cleanup_pending': type(cleanup_error).__name__}), flush=True)
         probe(old)
         raise
-    # Requests accepted by old Nginx workers must finish before the old JVM stops.
-    score(new, -500)
-    score(old, 500)
-    retired = False
-    if wait_workers(workers) and wait_tasks(old):
-        try:
-            command('systemctl', 'stop', SLOTS[old][0])
-            retired = True
-        except subprocess.CalledProcessError:
-            pass  # Keep the healthy new slot serving; retry retirement on the next deployment.
-    if not retired:
-        atomic(pending, json.dumps({'slot': old, 'workers': workers}))
-    command('systemctl', 'enable', SLOTS['blue'][0], SLOTS['green'][0])
+    # Keep the original batch protected until it has actually drained.
     candidate_override(new, False)
+    retired = retire_pending()
+    if (STATE / 'active-slot').read_text().strip() != new:
+        raise RuntimeError('New version failed during drain; HTTP was rolled back')
+    command('systemctl', 'enable', SLOTS['blue'][0], SLOTS['green'][0])
     atomic(STATE / 'last-deployment.json', json.dumps({
         'active': new, 'previous': old, 'release': str(release), 'previous_release': str(old_jar),
-        'retirement_pending': pending.exists(), 'timestamp_ms': time.time_ns() // 1000000,
+        'retirement_pending': not retired, 'timestamp_ms': time.time_ns() // 1000000,
     }, indent=2))
-    print(json.dumps({'active': new, 'version': version, 'retirement_pending': pending.exists()}))
+    print(json.dumps({'active': new, 'version': version, 'retirement_pending': not retired}))
 
 
 def owns_slot(slot):
@@ -452,6 +578,7 @@ def main():
     parser.add_argument('--version')
     parser.add_argument('--owns-slot', choices=SLOTS)
     parser.add_argument('--prepare-slot', choices=SLOTS)
+    parser.add_argument('--retire-pending', action='store_true')
     args = parser.parse_args()
     if os.geteuid() != 0:
         parser.error('Run as root')
@@ -461,6 +588,14 @@ def main():
         raise SystemExit(0 if owns_slot(args.owns_slot) else 1)
     if args.prepare_slot:
         prepare_slot(args.prepare_slot)
+        return
+    if args.retire_pending:
+        with (STATE / 'deploy.lock').open('a+') as stream:
+            try:
+                fcntl.flock(stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                return  # A deployment owns the state; retry on the next timer tick.
+            retire_pending()
         return
     if args.artifact is None or args.version is None:
         parser.error('--artifact and --version are required for deployment')

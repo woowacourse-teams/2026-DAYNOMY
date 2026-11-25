@@ -39,6 +39,78 @@ class DeploymentOwnershipTest {
   }
 
   @Test
+  void runningBatchSurvivesOwnershipChangeAndNextOwnerWaits() throws Exception {
+    Files.writeString(directory.resolve("active-slot"), "blue");
+    var entered = new CountDownLatch(1);
+    var release = new CountDownLatch(1);
+    var nextEntered = new CountDownLatch(1);
+    var completed = new AtomicInteger();
+    try (var executor = java.util.concurrent.Executors.newFixedThreadPool(2)) {
+      var old =
+          executor.submit(
+              () ->
+                  DeploymentOwnership.run(
+                      "blue",
+                      directory,
+                      () -> {
+                        entered.countDown();
+                        try {
+                          release.await();
+                        } catch (InterruptedException failure) {
+                          Thread.currentThread().interrupt();
+                        }
+                        completed.incrementAndGet();
+                      }));
+      try {
+        assertThat(entered.await(5, TimeUnit.SECONDS)).isTrue();
+        Files.writeString(directory.resolve("active-slot"), "green");
+        var next =
+            executor.submit(
+                () -> DeploymentOwnership.run("green", directory, nextEntered::countDown));
+        assertThat(nextEntered.await(100, TimeUnit.MILLISECONDS)).isFalse();
+        assertThat(DeploymentOwnership.activeTasks()).isEqualTo(1);
+        release.countDown();
+        old.get(5, TimeUnit.SECONDS);
+        next.get(5, TimeUnit.SECONDS);
+        assertThat(completed).hasValue(1);
+        assertThat(nextEntered.getCount()).isZero();
+        assertThat(DeploymentOwnership.activeTasks()).isZero();
+      } finally {
+        release.countDown();
+      }
+    }
+  }
+
+  @Test
+  void nestedBatchFinishesAfterHandoverAndFailureClearsTracking() throws Exception {
+    Files.writeString(directory.resolve("active-slot"), "blue");
+    var nested = new AtomicInteger();
+    assertThatThrownBy(
+            () ->
+                DeploymentOwnership.run(
+                    "blue",
+                    directory,
+                    () -> {
+                      try {
+                        Files.writeString(directory.resolve("active-slot"), "green");
+                      } catch (java.io.IOException failure) {
+                        throw new UncheckedIOException(failure);
+                      }
+                      DeploymentOwnership.run(
+                          "blue",
+                          directory,
+                          () -> {
+                            assertThat(DeploymentOwnership.activeTasks()).isEqualTo(1);
+                            nested.incrementAndGet();
+                          });
+                      throw new IllegalStateException("failed batch");
+                    }))
+        .isInstanceOf(IllegalStateException.class);
+    assertThat(nested).hasValue(1);
+    assertThat(DeploymentOwnership.activeTasks()).isZero();
+  }
+
+  @Test
   void missingOwnershipFailsClosed() {
     var calls = new AtomicInteger();
     assertThatThrownBy(() -> DeploymentOwnership.run("blue", directory, calls::incrementAndGet))
@@ -87,10 +159,11 @@ class DeploymentOwnershipTest {
         assertThat(process.inputReader().readLine()).isEqualTo("READY");
         assertThat(process.waitFor(150, TimeUnit.MILLISECONDS)).isFalse();
         Files.writeString(directory.resolve("active-slot"), "blue");
-        lock.release();
+        // A former owner must leave its wait even while the other process keeps the lock.
         assertThat(process.waitFor(5, TimeUnit.SECONDS)).isTrue();
         assertThat(process.exitValue()).isZero();
         assertThat(directory.resolve("ran")).doesNotExist();
+        assertThat(lock.isValid()).isTrue();
       } finally {
         process.destroyForcibly();
       }
