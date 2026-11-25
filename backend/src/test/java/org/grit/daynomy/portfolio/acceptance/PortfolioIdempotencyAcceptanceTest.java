@@ -84,7 +84,7 @@ class PortfolioIdempotencyAcceptanceTest {
     Response created = post(f, endpoint, requestKey, body(f, 1));
 
     assertThat(created.statusCode()).isEqualTo(201);
-    assertThat(MemberLockStatementInspector.count() - before).isEqualTo(keyed ? 2 : 1);
+    assertThat(MemberLockStatementInspector.count() - before).isEqualTo(1);
     if (keyed) {
       long afterCreate = MemberLockStatementInspector.count();
       Response replayed = post(f, endpoint, requestKey, body(f, 1));

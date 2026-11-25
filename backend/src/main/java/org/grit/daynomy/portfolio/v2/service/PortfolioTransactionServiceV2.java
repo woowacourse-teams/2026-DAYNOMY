@@ -77,7 +77,7 @@ public class PortfolioTransactionServiceV2 {
         requestKey,
         request,
         () -> exchangeRates.forMember(memberId, request.assetId(), request.tradeDate()),
-        rates -> transactInTransaction(memberId, request, rates));
+        (member, rates) -> transactWithLockedMember(memberId, member, request, rates));
   }
 
   private PortfolioTransactionResponse transactInTransaction(
@@ -91,6 +91,14 @@ public class PortfolioTransactionServiceV2 {
                     .findByIdForUpdate(memberId)
                     .orElseThrow(() -> new BusinessException(MemberErrorCode.MEMBER_NOT_FOUND)));
     timings.memberLocked(V2);
+    return transactWithLockedMember(memberId, member, request, rates);
+  }
+
+  private PortfolioTransactionResponse transactWithLockedMember(
+      Long memberId,
+      Member member,
+      PortfolioTransactionRequest request,
+      Map<LocalDate, BigDecimal> rates) {
     Portfolio portfolio =
         timings.record(
             V2,

@@ -10,8 +10,10 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.member.domain.Member;
 import org.grit.daynomy.member.repository.MemberRepository;
 import org.grit.daynomy.portfolio.domain.PortfolioTransactionType;
 import org.grit.daynomy.portfolio.dto.PortfolioTransactionRequest;
@@ -21,6 +23,7 @@ import org.grit.daynomy.portfolio.repository.PortfolioTransactionRequestReposito
 import org.grit.daynomy.portfolio.repository.PortfolioTransactionRequestRepository.StoredRequest;
 import org.junit.jupiter.api.Test;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionStatus;
 
 class PortfolioTransactionIdempotencyServiceTest {
   private final PortfolioTransactionRequestRepository requests =
@@ -31,6 +34,53 @@ class PortfolioTransactionIdempotencyServiceTest {
   private final PortfolioTransactionIdempotencyService service =
       new PortfolioTransactionIdempotencyService(
           requests, members, transactions, metrics, new PortfolioTransactionTimings(metrics));
+
+  @Test
+  void newRequestPassesTheLockedMemberAndCountsSuccessAfterCommit() {
+    Member locked = mock(Member.class);
+    TransactionStatus status = mock(TransactionStatus.class);
+    when(requests.find(1L, "new-key")).thenReturn(Optional.empty());
+    when(members.findByIdForUpdate(1L)).thenReturn(Optional.of(locked));
+    when(transactions.getTransaction(any())).thenReturn(status);
+    var response = new PortfolioTransactionResponse(42L, null, BigDecimal.ZERO);
+    doAnswer(
+            invocation -> {
+              assertThat(
+                      metrics
+                          .counter(
+                              "daynomy.portfolio.transaction.idempotency", "outcome", "created")
+                          .count())
+                  .isZero();
+              return null;
+            })
+        .when(transactions)
+        .commit(status);
+
+    var actual =
+        service.execute(
+            PortfolioTransactionTimings.Api.V2,
+            1L,
+            "new-key",
+            request(),
+            Map::of,
+            (member, rates) -> {
+              assertThat(member).isSameAs(locked);
+              verify(members).findByIdForUpdate(1L);
+              verify(requests, times(2)).find(1L, "new-key");
+              verify(transactions, never()).commit(status);
+              return response;
+            });
+
+    assertThat(actual).isSameAs(response);
+    verify(members, times(1)).findByIdForUpdate(1L);
+    verify(requests).save(eq(1L), eq("new-key"), anyString(), anyString());
+    verify(transactions).commit(status);
+    assertThat(
+            metrics
+                .counter("daynomy.portfolio.transaction.idempotency", "outcome", "created")
+                .count())
+        .isEqualTo(1);
+  }
 
   @Test
   void completedRequestSurvivesUnavailableExternalRatesAndDoesNotStartATransaction()
@@ -53,7 +103,7 @@ class PortfolioTransactionIdempotencyServiceTest {
             () -> {
               throw new AssertionError("Completed requests must not fetch rates");
             },
-            rates -> {
+            (member, rates) -> {
               throw new AssertionError("Completed requests must not replay the ledger");
             });
     assertThat(actual).isEqualTo(original);
@@ -83,7 +133,7 @@ class PortfolioTransactionIdempotencyServiceTest {
                       () -> {
                         throw new AssertionError("No external calls");
                       },
-                      rates -> {
+                      (member, rates) -> {
                         throw new AssertionError("No duplicate effects");
                       }))
           .isInstanceOf(IllegalStateException.class);
