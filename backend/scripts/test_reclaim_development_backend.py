@@ -49,6 +49,15 @@ class ReclaimTest(unittest.TestCase):
         self.assertEqual((self.group/'memory.swap.max').read_text(),'max')
         self.assertNotIn('daynomy-dev.service',self.kernel.call_args.args[0])
 
+    def test_current_development_backend_worker_keeps_its_existing_reclaim_path(self):
+        self.unit='actions.runner.woowacourse-teams-2026-DAYNOMY.backend-dev-al2023.service'
+        self.group=self.group.rename(self.group.with_name(self.unit))
+        (self.proc/'20/comm').write_text('Runner.Worker\n')
+        samples=deployment.reclaim_development_memory(self.verify)
+        self.assertEqual(len(samples),1)
+        self.verify.assert_called_once_with()
+        self.kernel.assert_called_once()
+
     def test_development_only_entrypoint_never_reclaims_production(self):
         with patch.object(deployment,'ENVIRONMENT','production'):
             self.assertEqual(deployment.reclaim_development_memory(self.verify),[])
