@@ -1,6 +1,7 @@
 name: Build and deploy frontend
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - dev
@@ -294,7 +295,7 @@ jobs:
         if: github.ref == 'refs/heads/main'
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          RELEASE_BEFORE: ${{ github.event.before }}
+          RELEASE_BEFORE: ${{ github.event.before || '0000000000000000000000000000000000000000' }}
         run: python3 -B backend/scripts/wait_for_production_backend.py
 
   deploy:
