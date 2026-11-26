@@ -5,6 +5,7 @@ Runs must start on an idle, isolated dev JVM. Profiles belong in a separate pass
 Credentials and ten-minute synthetic-user access tokens stay in memory.
 """
 import argparse
+from contextlib import contextmanager
 import base64
 import concurrent.futures as futures
 import datetime as dt
@@ -57,6 +58,14 @@ def drive(items, rps, send, capacity=32, clock=time.monotonic, sleep=time.sleep)
         # Executor context also drains all futures if a worker raises. Never reset in flight.
         results = [future.result() for future in sent]
     return results, dropped, clock() - start
+
+
+@contextmanager
+def deployment_guard(path):
+    # The controller uses BSD flock for deploy.lock; jobs.lock separately uses POSIX lockf.
+    with Path(path).open('a+') as stream:
+        fcntl.flock(stream,fcntl.LOCK_EX|fcntl.LOCK_NB)
+        yield
 
 
 def percentile(values, fraction):
@@ -178,12 +187,12 @@ class FixedHistoryProbe(module.Probe):
             "WHEN query LIKE '%portfolio_holding_histories%' AND query LIKE '%join assets%' THEN 'history_fetch' "
             "WHEN query LIKE '%portfolio_holding_histories%' THEN 'history_other' "
             "WHEN query LIKE '%portfolio_holdings%' THEN 'holdings' "
-            "WHEN query LIKE '%members%' THEN 'member' ELSE 'portfolio' END)),'[]'::json) "
+            "WHEN query LIKE '%members%' THEN 'member' WHEN query LIKE '%assets%' THEN 'asset' ELSE 'portfolio' END)),'[]'::json) "
             "FROM pg_stat_statements WHERE dbid=(SELECT oid FROM pg_database WHERE datname=current_database()) "
             "AND userid=(SELECT oid FROM pg_roles WHERE rolname=current_user) "
             "AND query NOT LIKE '%pg_stat_statements%' "
             "AND (query LIKE '%portfolio_transaction_requests%' OR query LIKE '%portfolio_holding_histories%' "
-            "OR query LIKE '%portfolio_holdings%' OR query LIKE '%members%' OR query LIKE '%portfolios%')"))
+            "OR query LIKE '%portfolio_holdings%' OR query LIKE '%members%' OR query LIKE '%portfolios%' OR query LIKE '%assets%')"))
 
     def drain(self, clock=time.monotonic, sleep=time.sleep):
         quiet = 0
@@ -202,6 +211,7 @@ class FixedHistoryProbe(module.Probe):
 
     def send(self, fixture, endpoint, key):
         start = time.monotonic()
+        started_utc=dt.datetime.now(dt.timezone.utc).isoformat()
         try:
             if not hasattr(self.tls,'connection'):
                 self.tls.connection = http.client.HTTPSConnection('dev.daynomy.com',context=self.ssl_context,timeout=15)
@@ -210,12 +220,12 @@ class FixedHistoryProbe(module.Probe):
             response = conn.getresponse()
             raw = response.read()
             body = json.loads(raw)
-            return {'status':response.status,'body':body,'elapsed_ms':(time.monotonic()-start)*1000}
+            return {'status':response.status,'body':body,'elapsed_ms':(time.monotonic()-start)*1000,'clientStartedUtc':started_utc,'clientFinishedUtc':dt.datetime.now(dt.timezone.utc).isoformat()}
         except Exception as error:
             if hasattr(self.tls,'connection'):
                 self.tls.connection.close()
                 del self.tls.connection
-            return {'status':0,'body':{'errorType':type(error).__name__},'elapsed_ms':(time.monotonic()-start)*1000}
+            return {'status':0,'body':{'errorType':type(error).__name__},'elapsed_ms':(time.monotonic()-start)*1000,'clientStartedUtc':started_utc,'clientFinishedUtc':dt.datetime.now(dt.timezone.utc).isoformat()}
 
     def token(self, member):
         enc = lambda value: base64.urlsafe_b64encode(value).rstrip(b"=")
@@ -380,6 +390,9 @@ class FixedHistoryProbe(module.Probe):
         sql_after=self.statement_stats()
         assert self.guard()==self.pin, 'Runtime changed during case'
         (self.output/(label+'-samples.json')).write_text(json.dumps(samples))
+        # Keep timestamps for slow-request/GC overlap checks without cookies, keys or response bodies.
+        fields=('index','status','elapsed_ms','schedule_lag_ms','clientStartedUtc','clientFinishedUtc')
+        (self.output/(label+'-requests.json')).write_text(json.dumps([{k:r[k] for k in fields} for r in results]))
         successful = [r for r in results if r["status"]==201]
         summary = {"label":label,"historyCount":self.history_count,"historyRowsReadPerCreate":self.history_count+1,"rpsTarget":rps,
             "startedUtc":started_utc,"finishedUtc":finished_utc,"scheduled":len(self.cohort),"sent":len(results),"unsent":len(dropped),"elapsedSeconds":elapsed,
@@ -480,8 +493,7 @@ def main():
     assert all(1<=x<=60 for x in args.rps)
     assert Path('/sys/devices/virtual/dmi/id/board_asset_tag').read_text().strip()=='i-0f2e92d9c7bd8fe06', 'Development instance required'
     # Share the deployment controller lock: a protected deployment cannot overlap this run.
-    with Path('/home/ec2-user/backend/deployment-dev/deploy.lock').open('a+') as deployment_lock:
-        fcntl.lockf(deployment_lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+    with deployment_guard('/home/ec2-user/backend/deployment-dev/deploy.lock'):
         probe=FixedHistoryProbe(args)
         try:
             if args.profile_only: probe.profile()

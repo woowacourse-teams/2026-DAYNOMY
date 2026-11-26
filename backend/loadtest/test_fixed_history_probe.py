@@ -1,6 +1,9 @@
 import importlib.util
 from pathlib import Path
 import threading
+import subprocess
+import sys
+import tempfile
 import time
 import unittest
 
@@ -55,5 +58,18 @@ class DrainTest(unittest.TestCase):
         probe=fixed.FixedHistoryProbe.__new__(fixed.FixedHistoryProbe)
         probe.metrics=lambda label:{}
         with self.assertRaises(AssertionError):probe.drain(clock=lambda:0,sleep=lambda seconds:None)
+
+class DeploymentGuardTest(unittest.TestCase):
+    def test_conflicts_with_controller_flock_and_releases_after_run(self):
+        code="""import fcntl,sys
+with open(sys.argv[1],'a+') as stream:
+ try:fcntl.flock(stream,fcntl.LOCK_EX|fcntl.LOCK_NB)
+ except BlockingIOError:sys.exit(3)
+"""
+        with tempfile.TemporaryDirectory() as folder:
+            path=Path(folder)/'deploy.lock'
+            def contender():return subprocess.run([sys.executable,'-c',code,str(path)],capture_output=True,timeout=5).returncode
+            with fixed.deployment_guard(path): self.assertEqual(contender(),3)
+            self.assertEqual(contender(),0)
 
 if __name__=='__main__': unittest.main()
