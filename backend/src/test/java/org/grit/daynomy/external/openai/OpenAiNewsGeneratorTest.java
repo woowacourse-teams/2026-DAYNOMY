@@ -57,6 +57,9 @@ class OpenAiNewsGeneratorTest {
 
     assertThat(generatedNews).hasSize(4);
     assertThat(generatedNews)
+        .extracting(GeneratedEconomicNews::title)
+        .containsExactly("작성 제목 0", "작성 제목 1", "작성 제목 2", "작성 제목 3");
+    assertThat(generatedNews)
         .extracting(GeneratedEconomicNews::category)
         .containsExactly(Category.STOCK, Category.STOCK, Category.ETF, Category.STOCK);
     String researchRequest = server.takeRequest().getBody().readUtf8();
@@ -71,8 +74,10 @@ class OpenAiNewsGeneratorTest {
     String writerRequest = server.takeRequest().getBody().readUtf8();
     assertThat(writerRequest)
         .doesNotContain("web_search")
-        .contains("공백 포함 800~1,500자")
-        .contains("1,200~1,300자를 목표")
+        .contains("공백 포함 450~800자를 권장")
+        .contains("3~5개 문단")
+        .contains("조건부 표현")
+        .contains("작성 범위")
         .contains("해라체")
         .contains("시장 분석, 투자 의견")
         .contains("조사 자료 묶음");
@@ -118,7 +123,10 @@ class OpenAiNewsGeneratorTest {
   @Test
   void generatorResearchesAndWritesOneKeywordArticle() throws Exception {
     server.enqueue(jsonResponse(keywordResearchResponse()));
-    server.enqueue(jsonResponse(writerResponse(List.of(validContent("키워드 뉴스")))));
+    server.enqueue(
+        jsonResponse(
+            writerResponseWithTitles(
+                List.of("미국 중간선거 결과에 따른 정책 변화"), List.of(validContent("키워드 뉴스")))));
 
     List<GeneratedEconomicNews> generatedNews =
         newGenerator().generateEconomicNewsByKeyword("미국 중간선거");
@@ -126,7 +134,7 @@ class OpenAiNewsGeneratorTest {
     assertThat(generatedNews)
         .singleElement()
         .extracting(GeneratedEconomicNews::title)
-        .isEqualTo("키워드 뉴스");
+        .isEqualTo("미국 중간선거 결과에 따른 정책 변화");
     JsonNode researchRequest =
         new ObjectMapper().readTree(server.takeRequest().getBody().readUtf8());
     assertThat(researchRequest.path("input").asText())
@@ -207,8 +215,8 @@ class OpenAiNewsGeneratorTest {
             .write(List.of(topicResearch("첫 번째 뉴스"), topicResearch("두 번째 뉴스")));
 
     assertThat(generated).hasSize(2);
-    assertThat(generated.get(0).content()).hasSizeBetween(800, 1_500);
-    assertThat(generated.get(1).content()).hasSizeBetween(800, 1_500);
+    assertThat(generated.get(0).content()).isEqualTo(validContent("정상 뉴스").strip());
+    assertThat(generated.get(1).content()).isEqualTo(validContent("수정된 뉴스").strip());
     assertThat(server.getRequestCount()).isEqualTo(2);
     server.takeRequest();
     assertThat(server.takeRequest().getBody().readUtf8())
@@ -236,19 +244,40 @@ class OpenAiNewsGeneratorTest {
             .write(List.of(research));
 
     assertThat(generated).hasSize(1);
-    assertThat(generated.getFirst().content()).hasSizeBetween(800, 1_500);
+    assertThat(generated.getFirst().content()).isEqualTo(validContent("재작성된 뉴스").strip());
     assertThat(server.getRequestCount()).isEqualTo(2);
     server.takeRequest();
     assertThat(server.takeRequest().getBody().readUtf8())
-        .contains("제공된 조사 자료를 바탕으로 본문을 처음부터 다시 작성하라")
+        .contains("제공된 조사 자료를 바탕으로 제목과 본문을 처음부터 다시 작성하라")
         .contains("뉴스 제목")
         .doesNotContain("이전 요청에서 전달한 본문만 수정하라")
-        .contains("900~1,100자를 목표");
+        .contains("조건부 발언과 주장·확인 여부를 유지")
+        .contains("작성 범위와 미확정 사항을 반복해 분량을 채우지 말고");
+  }
+
+  @Test
+  void writerRetriesWhenTitleIsBlank() throws Exception {
+    server.enqueue(
+        jsonResponse(writerResponseWithTitles(List.of(" "), List.of(validContent("첫 번째 응답")))));
+    server.enqueue(
+        jsonResponse(
+            writerResponseWithTitles(
+                List.of("조건부 발언을 유지한 기사 제목"), List.of(validContent("재작성된 뉴스")))));
+
+    List<GeneratedEconomicNews> generated =
+        new OpenAiNewsWriter(properties(), org.springframework.web.client.RestClient.builder())
+            .write(List.of(topicResearch("조사 단계 제목")));
+
+    assertThat(generated)
+        .singleElement()
+        .extracting(GeneratedEconomicNews::title)
+        .isEqualTo("조건부 발언을 유지한 기사 제목");
+    assertThat(server.getRequestCount()).isEqualTo(2);
   }
 
   @Test
   void writerAcceptsContentOutsideRecommendedFormat() throws Exception {
-    String content = "가".repeat(747);
+    String content = "가".repeat(300);
     server.enqueue(jsonResponse(writerResponse(List.of(content))));
 
     List<GeneratedEconomicNews> generated =
@@ -322,7 +351,7 @@ class OpenAiNewsGeneratorTest {
             .write(List.of(topicResearch("첫 번째 뉴스"), topicResearch("두 번째 뉴스")));
 
     assertThat(generated).hasSize(1);
-    assertThat(generated.getFirst().title()).isEqualTo("첫 번째 뉴스");
+    assertThat(generated.getFirst().title()).isEqualTo("작성 제목 0");
     assertThat(server.getRequestCount()).isEqualTo(2);
   }
 
@@ -539,26 +568,42 @@ class OpenAiNewsGeneratorTest {
   }
 
   private String writerResponse(List<String> contents) throws Exception {
-    ObjectMapper objectMapper = new ObjectMapper();
-    List<Map<String, String>> articles =
-        contents.stream().map(content -> Map.of("content", content)).toList();
-    String writerJson = objectMapper.writeValueAsString(Map.of("articles", articles));
-    return objectMapper.writeValueAsString(
-        Map.of(
-            "output",
-            List.of(
-                Map.of("content", List.of(Map.of("type", "output_text", "text", writerJson))))));
+    List<String> titles =
+        java.util.stream.IntStream.range(0, contents.size())
+            .mapToObj(index -> "작성 제목 " + index)
+            .toList();
+    return writerResponseWithTitles(titles, contents);
+  }
+
+  private String writerResponseWithTitles(List<String> titles, List<String> contents)
+      throws Exception {
+    return writerResponse(
+        titles, contents, java.util.Collections.nCopies(contents.size(), List.of()));
   }
 
   private String writerResponse(List<String> contents, List<List<String>> industries)
       throws Exception {
+    List<String> titles =
+        java.util.stream.IntStream.range(0, contents.size())
+            .mapToObj(index -> "작성 제목 " + index)
+            .toList();
+    return writerResponse(titles, contents, industries);
+  }
+
+  private String writerResponse(
+      List<String> titles, List<String> contents, List<List<String>> industries) throws Exception {
     ObjectMapper objectMapper = new ObjectMapper();
     List<Map<String, Object>> articles =
         java.util.stream.IntStream.range(0, contents.size())
             .mapToObj(
                 index ->
                     Map.<String, Object>of(
-                        "content", contents.get(index), "industries", industries.get(index)))
+                        "title",
+                        titles.get(index),
+                        "content",
+                        contents.get(index),
+                        "industries",
+                        industries.get(index)))
             .toList();
     String writerJson = objectMapper.writeValueAsString(Map.of("articles", articles));
     return objectMapper.writeValueAsString(

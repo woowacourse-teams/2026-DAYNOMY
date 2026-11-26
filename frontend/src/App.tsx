@@ -43,6 +43,9 @@ const PortfolioPage = lazy(() =>
     default: module.PortfolioPage,
   })),
 );
+const PortfolioAnalysisSharePage = lazy(
+  () => import('./features/portfolio-review/PortfolioAnalysisSharePage'),
+);
 const LeaguePage = lazy(() =>
   import('./features/league/LeaguePage').then((module) => ({ default: module.LeaguePage })),
 );
@@ -386,6 +389,15 @@ function AppContent() {
               />
 
               <Route path="/portfolio" element={<Navigate to="/" replace />} />
+              <Route path="/portfolio/analysis/share" element={<PortfolioAnalysisSharePage />} />
+              <Route
+                path="/portfolio/analysis/share/owner/:shareId"
+                element={
+                  <AuthenticatedRoute>
+                    <PortfolioAnalysisSharePage />
+                  </AuthenticatedRoute>
+                }
+              />
               <Route path="/investment-calendar" element={<Navigate to="/news" replace />} />
               <Route
                 path="/portfolio/records"

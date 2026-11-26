@@ -79,6 +79,27 @@ class KoreanEconomyNewsGenerationSchedulerTest {
         .containsEntry("errorCode", NewsErrorCode.NEWS_NOT_FOUND.code());
   }
 
+  @Test
+  void logsUnexpectedFailureWithSanitizedStackTrace() {
+    given(newsGenerationService.generateKoreanEconomicNewsDrafts())
+        .willThrow(new IllegalStateException("secret response body"));
+
+    scheduler.generateKoreanEconomicNewsDrafts();
+
+    ILoggingEvent log = appender.list.get(1);
+    assertThat(log.getLevel()).isEqualTo(Level.ERROR);
+    assertThat(keyValues(log))
+        .containsEntry("event", LogEvent.NEWS_GENERATION_FAILED.code())
+        .containsEntry("generationType", "korea")
+        .containsEntry("errorType", IllegalStateException.class.getSimpleName())
+        .containsKey("durationMs");
+    assertThat(log.getThrowableProxy().getClassName())
+        .isEqualTo("org.grit.daynomy.common.logging.SanitizedLogException");
+    assertThat(log.getThrowableProxy().getMessage())
+        .isEqualTo(IllegalStateException.class.getName())
+        .doesNotContain("secret response body");
+  }
+
   private Map<String, Object> keyValues(ILoggingEvent loggingEvent) {
     Map<String, Object> values = new HashMap<>();
     loggingEvent.getKeyValuePairs().forEach(pair -> values.put(pair.key, pair.value));

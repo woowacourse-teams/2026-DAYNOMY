@@ -8,6 +8,15 @@
         "value": "inter",
         "createdAt": "2026-10-05T15:52:27.797Z",
         "reason": "Existing DAYNOMY header typography predates this feature; user requested no unrelated changes."
+      },
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          "frontend/src/features/portfolio-review/portfolioPublicDocument.css"
+        ],
+        "createdAt": "2026-11-23T14:37:58.106Z",
+        "reason": "Agent: flagged line declares border: 0 and a fresh detector run returns no findings; no side accent exists"
       }
     ]
   }

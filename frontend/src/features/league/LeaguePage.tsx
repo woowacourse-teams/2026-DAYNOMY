@@ -142,7 +142,7 @@ export function LeaguePage() {
       (pageStatus.current ?? heading.current)?.focus();
       changingPage.current = false;
     }
-  }, [loading, heading]);
+  }, [loading, page, heading]);
   const isCurrentWeek = !weekStart || weekStart === weeks[0]?.weekStart;
   const collectionTitle = ranking?.collectionStatus
     ? collectionTitles[ranking.collectionStatus]

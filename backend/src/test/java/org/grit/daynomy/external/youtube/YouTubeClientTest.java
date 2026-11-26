@@ -3,29 +3,47 @@ package org.grit.daynomy.external.youtube;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.HashMap;
+import java.util.Map;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
 import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.common.logging.LogEvent;
 import org.grit.daynomy.external.ExternalErrorCode;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 
 class YouTubeClientTest {
 
   private MockWebServer server;
+  private final Logger logger = (Logger) LoggerFactory.getLogger(YouTubeClient.class);
+  private final ListAppender<ILoggingEvent> appender = new ListAppender<>();
+  private Level originalLevel;
 
   @BeforeEach
   void setUp() throws Exception {
     server = new MockWebServer();
     server.start();
+    originalLevel = logger.getLevel();
+    logger.setLevel(Level.DEBUG);
+    appender.start();
+    logger.addAppender(appender);
   }
 
   @AfterEach
   void tearDown() throws Exception {
+    logger.detachAppender(appender);
+    logger.setLevel(originalLevel);
+    appender.stop();
     server.shutdown();
   }
 
@@ -199,6 +217,14 @@ class YouTubeClientTest {
                         "publishedAt": "2026-10-09T00:00:00Z",
                         "thumbnails": {}
                       }
+                    },
+                    {
+                      "contentDetails": {"videoId": "invaliddate"},
+                      "snippet": {
+                        "title": "날짜 형식이 잘못된 영상",
+                        "publishedAt": "not-an-instant",
+                        "thumbnails": {}
+                      }
                     }
                   ]
                 }
@@ -226,6 +252,35 @@ class YouTubeClientTest {
     assertThat(playlistRequest.getRequestUrl().queryParameter("playlistId")).isEqualTo("UU123");
     assertThat(playlistRequest.getRequestUrl().queryParameter("part"))
         .isEqualTo("snippet,contentDetails");
+    assertThat(keyValues(logEvent(LogEvent.EXTERNAL_API_PARTIAL_RESPONSE)))
+        .containsEntry("api", "YOUTUBE")
+        .containsEntry("operation", "listChannelUploads")
+        .containsEntry("reasonCode", "INVALID_PUBLISHED_AT")
+        .containsEntry("invalidPublishedDateCount", 1L);
+  }
+
+  @Test
+  void channelUploadsLogsWhenUploadsPlaylistIsMissing() {
+    server.enqueue(
+        new MockResponse()
+            .setHeader("Content-Type", "application/json")
+            .setBody("{\"items\":[{\"id\":\"channel-123\"}]}"));
+    YouTubeClient client = newClient("test-api-key");
+
+    assertThat(
+            client.listChannelUploads(
+                "https://www.youtube.com/@economy",
+                Instant.parse("2026-10-10T00:00:00Z"),
+                Instant.parse("2026-10-13T00:00:00Z")))
+        .isEmpty();
+
+    ILoggingEvent event = logEvent(LogEvent.EXTERNAL_API_FAILED);
+    assertThat(event.getLevel()).isEqualTo(Level.WARN);
+    assertThat(keyValues(event))
+        .containsEntry("api", "YOUTUBE")
+        .containsEntry("operation", "listChannelUploads")
+        .containsEntry("reasonCode", "UPLOADS_PLAYLIST_NOT_FOUND")
+        .containsKey("durationMs");
   }
 
   @Test
@@ -247,10 +302,47 @@ class YouTubeClientTest {
     assertThat(server.getRequestCount()).isZero();
   }
 
+  @Test
+  void quotaFailureLogsSafeProviderReason() {
+    server.enqueue(
+        new MockResponse()
+            .setResponseCode(403)
+            .setHeader("Content-Type", "application/json")
+            .setBody(
+                """
+                {"error":{"message":"private quota detail","errors":[{"reason":"quotaExceeded"}],"status":"RESOURCE_EXHAUSTED"}}
+                """));
+
+    assertThatThrownBy(() -> newClient("test-api-key").search("삼성전자"))
+        .isInstanceOf(BusinessException.class);
+
+    ILoggingEvent event = logEvent(LogEvent.EXTERNAL_API_FAILED);
+    assertThat(keyValues(event))
+        .containsEntry("responseStatus", 403)
+        .containsEntry("failureCategory", "QUOTA_EXHAUSTED")
+        .containsEntry("providerErrorReason", "quotaExceeded")
+        .containsEntry("providerErrorStatus", "RESOURCE_EXHAUSTED")
+        .containsEntry("retryable", false);
+    assertThat(event.getFormattedMessage()).doesNotContain("private quota detail");
+  }
+
   private YouTubeClient newClient(String apiKey) {
     return new YouTubeClient(
         new YouTubeProperties(
             apiKey, server.url("/").toString(), Duration.ofSeconds(1), Duration.ofSeconds(1)),
         org.springframework.web.client.RestClient.builder());
+  }
+
+  private Map<String, Object> keyValues(ILoggingEvent loggingEvent) {
+    Map<String, Object> values = new HashMap<>();
+    loggingEvent.getKeyValuePairs().forEach(pair -> values.put(pair.key, pair.value));
+    return values;
+  }
+
+  private ILoggingEvent logEvent(LogEvent event) {
+    return appender.list.stream()
+        .filter(loggingEvent -> event.code().equals(keyValues(loggingEvent).get("event")))
+        .findFirst()
+        .orElseThrow();
   }
 }

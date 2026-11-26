@@ -982,13 +982,19 @@ export function PortfolioPage({
     totalRealizedProfitLoss,
     revision,
     createTransaction,
+    pendingTransaction,
+    resumePendingTransaction,
     updateTransaction,
     deleteTransaction,
   } = usePortfolioHoldings(isLoggedIn);
   const [introDismissed, setIntroDismissed] = useState(false);
   const checkingIntro = showIntroWhenEmpty && !introDismissed && holdingsLoading;
   const showIntro =
-    showIntroWhenEmpty && !introDismissed && !holdingsError && hasPortfolioHistory === false;
+    showIntroWhenEmpty &&
+    !introDismissed &&
+    !pendingTransaction &&
+    !holdingsError &&
+    hasPortfolioHistory === false;
   useEffect(() => {
     if (!checkingIntro && !showIntro) headingRef.current?.focus({ preventScroll: true });
   }, [checkingIntro, showIntro]);
@@ -1571,6 +1577,27 @@ export function PortfolioPage({
       <div className={`portfolio-dashboard-layout${displayedNewsOpen ? ' has-news' : ''}`}>
         <div className="portfolio-dashboard-main">
           <div className="portfolio-canvas" aria-busy={loading}>
+            {isLoggedIn && pendingTransaction && !holdingsSaving && (
+              <div className="portfolio-save-notice" role="status">
+                아직 결과를 확인하지 못한 거래가 있어요. 새 거래를 등록하기 전에 확인해 주세요.
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      await resumePendingTransaction();
+                      setTransactionEditor(null);
+                      setNotice('거래 처리 결과를 확인했어요.');
+                    } catch (caught) {
+                      setNotice(
+                        caught instanceof Error ? caught.message : '거래 결과를 확인하지 못했어요.',
+                      );
+                    }
+                  }}
+                >
+                  이전 거래 결과 확인
+                </button>
+              </div>
+            )}
             {isLoggedIn && notice && (
               <p className="portfolio-save-notice" role="status">
                 {notice}
@@ -1721,6 +1748,7 @@ export function PortfolioPage({
                   <PortfolioAnalysis
                     demoStep={tourStep ?? undefined}
                     assets={analysisAssets}
+                    shareHoldings={dashboardCalculation.holdings}
                     pricingStatus={dashboardCalculation.pricingStatus}
                     onAddAsset={addEmptyStateAsset}
                     isLoggedIn={isLoggedIn}

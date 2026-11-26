@@ -4,6 +4,12 @@ spring:
   application:
     name: daynomy
 
+  session:
+    jdbc:
+      initialize-schema: never
+      # Consume OAuth authorization state before session-id rotation/invalidation.
+      flush-mode: immediate
+
   datasource:
     url: ${DB_URL}
     username: ${DB_USERNAME}
@@ -189,10 +195,10 @@ news:
   generation:
     korea:
       enabled: ${KOREAN_NEWS_GENERATION_ENABLED:${ECONOMY_NEWS_GENERATION_ENABLED:${news.generation.economy.enabled:false}}}
-      cron: ${KOREAN_NEWS_GENERATION_CRON:${ECONOMY_NEWS_GENERATION_CRON:0 0 9 * * *}}
+      cron: ${KOREAN_NEWS_GENERATION_CRON:${ECONOMY_NEWS_GENERATION_CRON:0 0 8 * * *}}
     us:
       enabled: ${US_NEWS_GENERATION_ENABLED:false}
-      cron: ${US_NEWS_GENERATION_CRON:0 0 9 * * *}
+      cron: ${US_NEWS_GENERATION_CRON:0 0 8 * * *}
 
 person:
   post-collection:
@@ -223,6 +229,16 @@ stock:
       enabled: ${STOCK_PRICE_SYNC_ENABLED:false}
       cron: ${STOCK_PRICE_SYNC_CRON:0 30 14,18 * * MON-FRI}
 
+server:
+  servlet:
+    session:
+      cookie:
+        name: JSESSIONID
+  forward-headers-strategy: native
+  tomcat:
+    remoteip:
+      internal-proxies: '${TRUSTED_PROXY_CIDRS:127.0.0.0/8,::1/128}'
+
 exchange-rate:
   sync:
     enabled: ${EXCHANGE_RATE_SYNC_ENABLED:false}
@@ -236,6 +252,7 @@ portfolio:
     model: ${PORTFOLIO_ANALYSIS_MODEL:gpt-5.4-mini}
     cache-ttl: ${PORTFOLIO_ANALYSIS_CACHE_TTL:30m}
     batch-size: ${PORTFOLIO_ANALYSIS_BATCH_SIZE:1}
+    share-token-encryption-secret: ${PORTFOLIO_SHARE_TOKEN_ENCRYPTION_SECRET:${jwt.secret}}
   snapshot:
     enabled: ${PORTFOLIO_SNAPSHOT_ENABLED:false}
     cron: ${PORTFOLIO_SNAPSHOT_CRON:0 30 7 * * TUE-SAT}

@@ -4,7 +4,11 @@ import java.sql.Date;
 import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.news.domain.Category;
 import org.grit.daynomy.search.domain.ContentSearchSort;
@@ -19,6 +23,30 @@ import org.springframework.stereotype.Repository;
 @Repository
 @RequiredArgsConstructor
 public class ContentSearchRepository {
+
+  private static final String ASSET_NAME_ALIASES =
+      """
+      WITH names AS (
+        SELECT DISTINCT a.id, lower(trim(alias.name)) AS name
+        FROM assets a
+        CROSS JOIN LATERAL (
+          VALUES (a.name), (a.name_ko),
+            (regexp_replace(trim(a.name),
+              '[,.]?\\s+(incorporated|inc|corporation|corp|company|co|limited|ltd|plc)\\.?$', '', 'i'))
+        ) alias(name)
+        WHERE a.listed = true AND a.category IN ('STOCK', 'ETF')
+          AND a.market IN ('NASDAQ', 'NYSE', 'NYSE_ARCA', 'NYSE_AMERICAN', 'BATS')
+          AND length(trim(alias.name)) >= 2
+      )
+      SELECT DISTINCT token.value AS term, expanded.name AS alias
+      FROM names matched
+      CROSS JOIN LATERAL regexp_split_to_table(matched.name, '\\s+') token(value)
+      JOIN names expanded ON expanded.id = matched.id
+      WHERE NOT EXISTS (
+        SELECT 1 FROM regexp_split_to_table(matched.name, '\\s+') word(value)
+        WHERE word.value NOT IN (:terms)
+      )
+      """;
 
   private static final String QUERY =
       """
@@ -179,19 +207,31 @@ public class ContentSearchRepository {
             .addValue("size", size)
             .addValue("offset", (long) (page - 1) * size);
     StringBuilder conditions = new StringBuilder();
+    Map<String, Set<String>> alternatives = expandTerms(terms);
     for (int index = 0; index < terms.values().size(); index++) {
-      String name = "term" + index;
-      String pattern =
-          "%"
-              + terms.values().get(index).replace("!", "!!").replace("%", "!%").replace("_", "!_")
-              + "%";
-      params.addValue(name, pattern);
-      conditions
-          .append(" AND (lower(title) LIKE :")
-          .append(name)
-          .append(" ESCAPE '!' OR lower(body) LIKE :")
-          .append(name)
-          .append(" ESCAPE '!')");
+      conditions.append(" AND (");
+      int aliasIndex = 0;
+      for (String alternative : alternatives.get(terms.values().get(index))) {
+        if (aliasIndex > 0) conditions.append(" OR ");
+        String alias = "term" + index + "_alias" + aliasIndex++;
+        conditions.append("(");
+        int wordIndex = 0;
+        for (String word : NewsSearchTerms.from(alternative).values()) {
+          if (wordIndex > 0) conditions.append(" AND ");
+          String name = alias + "_word" + wordIndex++;
+          String pattern =
+              "%" + word.replace("!", "!!").replace("%", "!%").replace("_", "!_") + "%";
+          params.addValue(name, pattern);
+          conditions
+              .append("(lower(title) LIKE :")
+              .append(name)
+              .append(" ESCAPE '!' OR lower(body) LIKE :")
+              .append(name)
+              .append(" ESCAPE '!')");
+        }
+        conditions.append(")");
+      }
+      conditions.append(")");
     }
 
     String popularityJoin =
@@ -243,5 +283,19 @@ public class ContentSearchRepository {
           return new ContentSearchResponse(
               items, page, size, total, (int) ((total + size - 1) / size));
         });
+  }
+
+  private Map<String, Set<String>> expandTerms(NewsSearchTerms terms) {
+    Map<String, Set<String>> alternatives = new LinkedHashMap<>();
+    terms.values().forEach(term -> alternatives.put(term, new LinkedHashSet<>(List.of(term))));
+    if (!alternatives.isEmpty()) {
+      jdbc.query(
+          ASSET_NAME_ALIASES,
+          new MapSqlParameterSource("terms", terms.values()),
+          row -> {
+            alternatives.get(row.getString("term")).add(row.getString("alias"));
+          });
+    }
+    return alternatives;
   }
 }

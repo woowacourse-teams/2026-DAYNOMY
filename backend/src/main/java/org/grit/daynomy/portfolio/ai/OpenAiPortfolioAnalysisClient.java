@@ -623,11 +623,17 @@ public class OpenAiPortfolioAnalysisClient implements PortfolioAnalysisAiClient 
         var replacements =
             searchRiskEvidence(
                 failedTargets, previousEvidence, risks.sourcesToReplace(failedTargets), primary);
-        if (replacements.hasUnreadableSources()
-            || failedTargets.stream()
-                .anyMatch(target -> replacements.references(List.of(target)).isEmpty()))
+        if (failedTargets.stream()
+            .anyMatch(target -> replacements.references(List.of(target)).isEmpty()))
           throw invalidResponse("RISK_SOURCE_UNAVAILABLE");
-        risks = risks.withRiskSources(replacements);
+        // 대체 원문이 종목마다 확인되면 읽지 못한 추가 후보 때문에 복구를 폐기하지 않는다.
+        // 실패 후보는 분석 입력에 넣지 않고 기존에 확보한 반대 근거는 유지한다.
+        risks = risks.readableSources().withRiskSources(replacements.readableSources());
+        log.atInfo()
+            .addKeyValue("event", "portfolio.analysis.sources.recovered")
+            .addKeyValue("targetCount", failedTargets.size())
+            .addKeyValue("readableSourceCount", risks.documents().size())
+            .log("검증된 대체 원문으로 반대 근거 수집 복구");
       }
       var merged = primary.withRiskSources(risks);
       var confirmedRisks = risks;

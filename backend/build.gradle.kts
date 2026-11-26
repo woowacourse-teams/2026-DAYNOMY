@@ -27,6 +27,7 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-aspectj")
     implementation("org.springframework.boot:spring-boot-starter-opentelemetry")
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
+    implementation("org.springframework.boot:spring-boot-starter-session-jdbc")
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-flyway")
     implementation("org.flywaydb:flyway-database-postgresql")
@@ -95,6 +96,32 @@ tasks.register<JavaExec>("portfolio1000Loadtest") {
     classpath = sourceSets.test.get().runtimeClasspath
     mainClass.set("org.grit.daynomy.loadtest.Portfolio1000LoadtestTool")
     maxHeapSize = "512m"
+}
+
+tasks.register<Test>("newsPublishConnectionBenchmark") {
+    description = "Compares DB connection usage before and after news publish transaction splitting"
+    group = "verification"
+    testClassesDirs = sourceSets.test.get().output.classesDirs
+    classpath = sourceSets.test.get().runtimeClasspath
+    useJUnitPlatform()
+    filter {
+        includeTestsMatching("org.grit.daynomy.news.service.NewsPublishConnectionBenchmarkTest")
+    }
+    environment("NEWS_PUBLISH_BENCHMARK", "true")
+    outputs.upToDateWhen { false }
+}
+
+tasks.register<Test>("newsPublishOpenAiBenchmark") {
+    description = "Measures sequential and parallel news publishing with the real OpenAI API and database"
+    group = "verification"
+    testClassesDirs = sourceSets.test.get().output.classesDirs
+    classpath = sourceSets.test.get().runtimeClasspath
+    useJUnitPlatform()
+    filter {
+        includeTestsMatching("org.grit.daynomy.news.service.NewsPublishOpenAiBenchmarkTest")
+    }
+    environment("NEWS_PUBLISH_OPENAI_BENCHMARK", "true")
+    outputs.upToDateWhen { false }
 }
 
 spotless {

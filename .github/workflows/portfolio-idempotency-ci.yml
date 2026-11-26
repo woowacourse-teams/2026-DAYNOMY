@@ -1,0 +1,112 @@
+name: Portfolio idempotency integration
+
+on:
+  pull_request:
+    branches: [dev, main]
+    paths:
+      - "backend/src/main/java/org/grit/daynomy/portfolio/**"
+      - "backend/src/main/java/org/grit/daynomy/auth/**"
+      - "backend/src/main/resources/**"
+      - "backend/build.gradle.kts"
+      - "frontend/src/features/portfolio/**"
+      - "frontend/src/auth/**"
+      - "frontend/src/api/**"
+      - "frontend/integration/**"
+      - "frontend/playwright.integration.config.ts"
+      - ".github/workflows/portfolio-idempotency-ci.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: portfolio-idempotency-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  browser-api-database:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: "5432"
+      PGDATABASE: daynomy_idempotency_ci
+      PGUSER: postgres
+      PGPASSWORD: ci-only-local-database
+      DB_URL: jdbc:postgresql://127.0.0.1:5432/daynomy_idempotency_ci
+      DB_USERNAME: postgres
+      DB_PASSWORD: ci-only-local-database
+      GOOGLE_CLIENT_ID: ci-client
+      GOOGLE_CLIENT_SECRET: ci-client-placeholder
+      AWS_REGION: ap-northeast-2
+      AWS_S3_BUCKET: ci-only-bucket
+      AWS_S3_PUBLIC_BASE_URL: https://example.invalid
+      AWS_EC2_METADATA_DISABLED: "true"
+      PUBLIC_DATA_SERVICE_KEY: ci-placeholder
+      FRONTEND_BASE_URL: http://127.0.0.1:4185
+      VITE_API_BASE_URL: ""
+      MANAGEMENT_SERVER_PORT: "8081"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: gradle/actions/setup-gradle@v6
+      - name: Start isolated PostgreSQL with SQL statistics
+        run: |
+          docker run -d --name idem-ci-pg -p 127.0.0.1:5432:5432 \
+            -e POSTGRES_PASSWORD="$PGPASSWORD" -e POSTGRES_DB="$PGDATABASE" \
+            postgres:16-alpine -c shared_preload_libraries=pg_stat_statements
+          for attempt in $(seq 1 60); do
+            if pg_isready -h "$PGHOST" -U "$PGUSER"; then break; fi
+            sleep 1
+          done
+          jwt_secret=$(openssl rand -base64 32)
+          echo "::add-mask::$jwt_secret"
+          echo "JWT_SECRET=$jwt_secret" >> "$GITHUB_ENV"
+      - name: Build and start real backend
+        run: |
+          cd backend
+          ./gradlew bootJar --no-daemon
+          jar_path=$(find build/libs -maxdepth 1 -name '*.jar' ! -name '*-plain.jar' -print -quit)
+          java -Xms256m -Xmx512m -jar "$jar_path" > /tmp/idem-backend.log 2>&1 &
+          echo "$!" > /tmp/idem-backend.pid
+          for attempt in $(seq 1 90); do
+            if curl --fail --silent http://127.0.0.1:8081/actuator/health/readiness; then
+              psql -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION pg_stat_statements'
+              exit 0
+            fi
+            if ! kill -0 "$(cat /tmp/idem-backend.pid)" 2>/dev/null; then tail -80 /tmp/idem-backend.log; exit 1; fi
+            sleep 1
+          done
+          tail -80 /tmp/idem-backend.log
+          exit 1
+      - name: Build frontend and install browser
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build:development
+          npx playwright install --with-deps chromium
+      - name: Verify browser to API to database and measure SQL cost
+        working-directory: frontend
+        run: npx playwright test --config playwright.integration.config.ts
+      - name: Upload integration evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: portfolio-idempotency-integration
+          path: |
+            frontend/integration-results/
+            frontend/test-results/
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Clean up experiment processes
+        if: always()
+        run: |
+          if [ -f /tmp/idem-backend.pid ]; then kill "$(cat /tmp/idem-backend.pid)" 2>/dev/null || true; fi
+          docker rm -f -v idem-ci-pg || true

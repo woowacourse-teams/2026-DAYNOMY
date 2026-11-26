@@ -268,6 +268,7 @@ describe('포트폴리오 분석 화면', () => {
     expect(
       ((await view.findByRole('button', { name: 'AI 분석하기' })) as HTMLButtonElement).disabled,
     ).toBe(false);
+    expect(view.getByRole('button', { name: '의견 받기' })).toBeTruthy();
   });
 
   it('저장된 종목 설명도 콜론 표제 없이 해요체로 보여주고 수치와 불확실성을 유지한다', async () => {

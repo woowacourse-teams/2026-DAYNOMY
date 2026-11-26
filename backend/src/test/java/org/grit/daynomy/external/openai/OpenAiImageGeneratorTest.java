@@ -70,7 +70,8 @@ class OpenAiImageGeneratorTest {
 
     assertThat(image).isEqualTo("image".getBytes(StandardCharsets.UTF_8));
     assertThat(keyValues(logEvent(LogEvent.AI_IMAGE_GENERATION_COMPLETED)))
-        .containsKey("durationMs");
+        .containsKey("durationMs")
+        .doesNotContainKey("title");
   }
 
   @Test
@@ -155,15 +156,29 @@ class OpenAiImageGeneratorTest {
   void generateNewsImageConvertsHttpError() throws Exception {
     MockWebServer mockServer = new MockWebServer();
     mockServer.start();
-    mockServer.enqueue(new MockResponse().setResponseCode(503));
+    mockServer.enqueue(
+        new MockResponse()
+            .setResponseCode(429)
+            .setHeader("Content-Type", "application/json")
+            .setBody(
+                """
+                {"error":{"message":"sensitive billing detail","type":"insufficient_quota","code":"credit_balance_exhausted"}}
+                """));
 
     try {
       OpenAiImageGenerator generator = newGenerator(mockServer, Duration.ofSeconds(1));
 
       assertImageGenerationFailed(
           () -> generator.generateEconomicNewsImage("제목", "본문", Category.STOCK));
-      assertThat(keyValues(logEvent(LogEvent.AI_IMAGE_GENERATION_FAILED)))
+      ILoggingEvent log = logEvent(LogEvent.AI_IMAGE_GENERATION_FAILED);
+      assertThat(keyValues(log))
+          .containsEntry("httpStatus", 429)
+          .containsEntry("failureCategory", "QUOTA_EXHAUSTED")
+          .containsEntry("providerErrorCode", "credit_balance_exhausted")
+          .containsEntry("providerErrorType", "insufficient_quota")
+          .containsEntry("retryable", false)
           .containsKey("durationMs");
+      assertThat(log.getFormattedMessage()).doesNotContain("sensitive billing detail");
     } finally {
       mockServer.shutdown();
     }
@@ -184,6 +199,10 @@ class OpenAiImageGeneratorTest {
 
       assertImageGenerationFailed(
           () -> generator.generateEconomicNewsImage("제목", "본문", Category.STOCK));
+      assertThat(keyValues(logEvent(LogEvent.AI_IMAGE_GENERATION_FAILED)))
+          .containsEntry("failureCategory", "TIMEOUT")
+          .containsEntry("retryable", true)
+          .doesNotContainKey("title");
     } finally {
       mockServer.shutdown();
     }

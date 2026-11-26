@@ -20,6 +20,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -52,11 +53,15 @@ public class PortfolioTransactionControllerV2 {
     @ApiResponse(
         responseCode = "400",
         description =
-            "입력 검증 실패(INVALID_REQUEST), 미국 거래 환율 누락·국내 환율 오류(INVALID_TRANSACTION_EXCHANGE_RATE), 보유 수량 등록·조정일 이전 거래(INVALID_PORTFOLIO_TRADE_DATE), 원장 재계산 시 매도 수량 부족(INSUFFICIENT_PORTFOLIO_QUANTITY)",
+            "입력·요청 키 검증 실패(INVALID_REQUEST, INVALID_IDEMPOTENCY_KEY), 미국 거래 환율 누락·국내 환율 오류(INVALID_TRANSACTION_EXCHANGE_RATE), 보유 수량 등록·조정일 이전 거래(INVALID_PORTFOLIO_TRADE_DATE), 원장 재계산 시 매도 수량 부족(INSUFFICIENT_PORTFOLIO_QUANTITY)",
         content =
             @Content(
                 mediaType = "application/json",
                 schema = @Schema(implementation = ErrorResponse.class))),
+    @ApiResponse(
+        responseCode = "409",
+        description = "동일 요청 키의 입력 충돌: IDEMPOTENCY_KEY_CONFLICT",
+        content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
     @ApiResponse(
         responseCode = "401",
         description = "인증 필요 또는 유효하지 않은 인증 정보: UNAUTHORIZED, INVALID_TOKEN",
@@ -87,7 +92,8 @@ public class PortfolioTransactionControllerV2 {
                 schema = @Schema(implementation = ErrorResponse.class))),
     @ApiResponse(
         responseCode = "503",
-        description = "미국 종목 환율 조회 서비스 미설정: EODHD_API_NOT_CONFIGURED",
+        description =
+            "미국 종목 환율 조회 서비스 미설정(EODHD_API_NOT_CONFIGURED), 요청 키 거래의 잠금 대기 초과(PORTFOLIO_TRANSACTION_BUSY)",
         content =
             @Content(
                 mediaType = "application/json",
@@ -96,8 +102,17 @@ public class PortfolioTransactionControllerV2 {
   @PostMapping
   public ResponseEntity<PortfolioTransactionResponse> transact(
       @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember member,
-      @Valid @RequestBody PortfolioTransactionRequest request) {
+      @Valid @RequestBody PortfolioTransactionRequest request,
+      @Parameter(
+              description =
+                  "거래 의도별 요청 키. 같은 키와 입력은 최초 201 결과를 재응답하며, 다른 입력은 409. V1/V2 공통 범위. 생략 시 기존 동작 유지.",
+              schema = @Schema(pattern = "[A-Za-z0-9._:-]{1,128}", maxLength = 128))
+          @RequestHeader(name = "Idempotency-Key", required = false)
+          String requestKey) {
     return ResponseEntity.status(HttpStatus.CREATED)
-        .body(service.transact(member.memberId(), request));
+        .body(
+            requestKey == null
+                ? service.transact(member.memberId(), request)
+                : service.transact(member.memberId(), request, requestKey));
   }
 }

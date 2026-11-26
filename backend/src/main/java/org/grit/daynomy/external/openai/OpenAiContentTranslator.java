@@ -7,6 +7,7 @@ import java.util.Map;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
@@ -39,7 +40,8 @@ public class OpenAiContentTranslator {
 
   public ContentTranslation translate(String title, String description) {
     if (properties.apiKey() == null || properties.apiKey().isBlank()) {
-      throw new OpenAiContentTranslationException("OpenAI API key is not configured.");
+      throw new OpenAiContentTranslationException(
+          "API_KEY_NOT_CONFIGURED", "OpenAI API key is not configured.");
     }
     String normalizedTitle = title == null ? "" : title;
     String normalizedDescription = description == null ? "" : description;
@@ -64,8 +66,15 @@ public class OpenAiContentTranslator {
               .retrieve()
               .body(String.class);
       return parse(response, !normalizedDescription.isBlank());
+    } catch (HttpStatusCodeException exception) {
+      throw new OpenAiContentTranslationException(
+          "REQUEST_FAILED",
+          "OpenAI translation request failed.",
+          exception,
+          OpenAiHttpFailure.from(exception));
     } catch (RestClientException exception) {
-      throw new OpenAiContentTranslationException("OpenAI translation request failed.", exception);
+      throw new OpenAiContentTranslationException(
+          "REQUEST_FAILED", "OpenAI translation request failed.", exception);
     }
   }
 
@@ -75,7 +84,8 @@ public class OpenAiContentTranslator {
           + "\n입력 JSON:\n"
           + OBJECT_MAPPER.writeValueAsString(Map.of("title", title, "description", description));
     } catch (Exception exception) {
-      throw new OpenAiContentTranslationException("Content could not be serialized.", exception);
+      throw new OpenAiContentTranslationException(
+          "SERIALIZATION_FAILED", "Content could not be serialized.", exception);
     }
   }
 
@@ -116,7 +126,7 @@ public class OpenAiContentTranslator {
       return new ContentTranslation(title, description);
     } catch (Exception exception) {
       throw new OpenAiContentTranslationException(
-          "OpenAI returned an invalid translation.", exception);
+          "INVALID_RESPONSE", "OpenAI returned an invalid translation.", exception);
     }
   }
 

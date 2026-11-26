@@ -1,5 +1,8 @@
 package org.grit.daynomy.portfolio.service;
 
+import static org.grit.daynomy.portfolio.service.PortfolioTransactionTimings.Api.V1;
+import static org.grit.daynomy.portfolio.service.PortfolioTransactionTimings.Phase.*;
+
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -58,6 +61,8 @@ public class SavedPortfolioService {
   private final PortfolioSnapshotTransactionService snapshotTransactionService;
   private final PortfolioExchangeRateService exchangeRates;
   private final PlatformTransactionManager transactionManager;
+  private final PortfolioTransactionIdempotencyService idempotency;
+  private final PortfolioTransactionTimings timings;
   private final ApplicationEventPublisher events;
   private final PortfolioTransactionImportRepository importRepository;
 
@@ -267,8 +272,23 @@ public class SavedPortfolioService {
 
   public PortfolioTransactionResponse transact(Long memberId, PortfolioTransactionRequest request) {
     var rates = exchangeRates.forMember(memberId, request.assetId(), request.tradeDate());
-    return new TransactionTemplate(transactionManager)
-        .execute(status -> transactInTransaction(memberId, request, rates, true));
+    return timings.record(
+        V1,
+        TRANSACTION_TOTAL,
+        () ->
+            new TransactionTemplate(transactionManager)
+                .execute(status -> transactInTransaction(memberId, request, rates, true)));
+  }
+
+  public PortfolioTransactionResponse transact(
+      Long memberId, PortfolioTransactionRequest request, String requestKey) {
+    return idempotency.execute(
+        V1,
+        memberId,
+        requestKey,
+        request,
+        () -> exchangeRates.forMember(memberId, request.assetId(), request.tradeDate()),
+        (member, rates) -> transactWithLockedMember(memberId, member, request, rates, true));
   }
 
   private PortfolioTransactionResponse transactInTransaction(
@@ -277,10 +297,24 @@ public class SavedPortfolioService {
       Map<LocalDate, BigDecimal> rates,
       boolean refreshSnapshots) {
     Member member =
-        memberRepository
-            .findByIdForUpdate(memberId)
-            .orElseThrow(() -> new BusinessException(MemberErrorCode.MEMBER_NOT_FOUND));
-    Portfolio portfolio = getOrCreatePortfolio(member);
+        timings.record(
+            V1,
+            MEMBER_LOCK_QUERY,
+            () ->
+                memberRepository
+                    .findByIdForUpdate(memberId)
+                    .orElseThrow(() -> new BusinessException(MemberErrorCode.MEMBER_NOT_FOUND)));
+    timings.memberLocked(V1);
+    return transactWithLockedMember(memberId, member, request, rates, refreshSnapshots);
+  }
+
+  private PortfolioTransactionResponse transactWithLockedMember(
+      Long memberId,
+      Member member,
+      PortfolioTransactionRequest request,
+      Map<LocalDate, BigDecimal> rates,
+      boolean refreshSnapshots) {
+    Portfolio portfolio = timings.record(V1, PORTFOLIO_ACCESS, () -> getOrCreatePortfolio(member));
     Asset asset =
         assetRepository
             .findById(request.assetId())
@@ -314,12 +348,24 @@ public class SavedPortfolioService {
     history.recordTradeTime(request.tradeTime());
     historyRepository.saveAndFlush(history);
 
-    PortfolioLedgerCalculator.LedgerResult ledger = replay(portfolio.getId());
+    var histories =
+        timings.record(
+            V1,
+            HISTORY_READ,
+            () ->
+                historyRepository.findAllByPortfolioIdOrderByEffectiveDateAscCreatedAtAscIdAsc(
+                    portfolio.getId()));
+    PortfolioLedgerCalculator.LedgerResult ledger =
+        timings.record(V1, LEDGER_REPLAY, () -> ledgerCalculator.replay(histories));
     SavedPortfolioHoldingResponse responseHolding =
         applyLedgerPosition(portfolio, asset, current, ledger);
     if (refreshSnapshots) {
-      snapshotTransactionService.refreshSnapshotsFrom(
-          portfolio.getId(), request.tradeDate(), rates);
+      timings.run(
+          V1,
+          SNAPSHOT_REFRESH,
+          () ->
+              snapshotTransactionService.refreshSnapshotsFrom(
+                  portfolio.getId(), request.tradeDate(), rates));
       events.publishEvent(new OriginalPortfolioChanged(memberId));
     }
     return new PortfolioTransactionResponse(

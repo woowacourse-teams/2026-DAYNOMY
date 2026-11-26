@@ -1,0 +1,30 @@
+{
+  "base_url": "http://127.0.0.1:8090",
+  "requested_rps": 10,
+  "duration_seconds": 300,
+  "planned_requests": 3000,
+  "completed_requests": 3000,
+  "successes": 3000,
+  "failures": 0,
+  "dropped_iterations": 0,
+  "complete": true,
+  "request_duration_ms": {
+    "avg": 3.825483373333332,
+    "p(95)": 6.480327749999998,
+    "p(99)": 13.369024249999999,
+    "max": 574.240167
+  },
+  "observed_slots": [
+    "blue",
+    "green",
+    "blue"
+  ],
+  "scheduler_audit": {
+    "starts_by_slot": {
+      "blue": 4,
+      "green": 1
+    },
+    "inactive_executions": 0,
+    "cross_jvm_overlaps": 0
+  }
+}

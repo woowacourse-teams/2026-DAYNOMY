@@ -6,9 +6,60 @@ on:
       - dev
     paths:
       - "backend/**"
-      - ".github/workflows/backend-dev-cd.yml"
+      # Operational tools/docs use the explicit protected manual jobs below.
+      # Updating them alone must not restart an unchanged application.
+      - "!backend/scripts/**"
+      - "!backend/docs/**"
+      - "!backend/loadtest/**"
 
   workflow_dispatch:
+    inputs:
+      development_existing_release_operation:
+        description: Explicit operation using the inspected already-running development JAR
+        type: choice
+        options:
+          - none
+          - bootstrap
+          - switch
+          - repair-proxy
+          - install-retirement
+        default: none
+      release_trial_counter:
+        description: Numeric suffix for immutable same-release switching trials
+        type: string
+        default: "1"
+      development_memory_trial:
+        description: Explicit development-only 1GiB swap and bounded JVM experiment
+        type: boolean
+        default: false
+      expected_current_sha256:
+        description: Inspected development current JAR SHA256 required for memory experiment
+        type: string
+        default: ""
+      memory_observe_seconds:
+        description: Memory observation duration 120..7200 seconds
+        type: string
+        default: "600"
+      require_full_batch:
+        description: Require successful complete league recalculation and idle schedulers
+        type: boolean
+        default: false
+      verify_only:
+        description: Read development instance and API status without deploying
+        type: boolean
+        default: false
+      bootstrap_bluegreen:
+        description: Explicit one-time development two-slot installation after inspection
+        type: boolean
+        default: false
+      nginx_site:
+        description: Reviewed development Nginx site path for initial installation
+        type: string
+        default: /etc/nginx/conf.d/daynomy-site.conf
+      backend_environment_file:
+        description: Existing development backend environment file path
+        type: string
+        default: /home/ec2-user/backend/daynomy.env
 
 permissions:
   contents: read
@@ -18,7 +69,45 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  prepare-development-workspace:
+    if: github.ref == 'refs/heads/dev'
+    name: Repair ownership of development Python cache
+    runs-on: [self-hosted, Linux, ARM64, backend-dev]
+    environment: development
+    timeout-minutes: 5
+    steps:
+      - name: Restore checkout access to cache from previous root execution
+        run: |
+          sudo -n python3 -B - <<'PY'
+          import os
+          import pwd
+          import re
+          from pathlib import Path
+
+          if Path('/sys/devices/virtual/dmi/id/board_asset_tag').read_text().strip() != 'i-0f2e92d9c7bd8fe06':
+              raise RuntimeError('Development instance required')
+          workspace = Path('/home/ec2-user/actions-runner-backend/_work/2026-DAYNOMY/2026-DAYNOMY')
+          cache = workspace / 'backend/scripts/__pycache__'
+          if cache.exists():
+              if cache.resolve() != cache or not cache.is_dir():
+                  raise RuntimeError('Unexpected Python cache path')
+              entries = list(cache.iterdir())
+              for entry in entries:
+                  if entry.is_symlink() or not entry.is_file() or not re.fullmatch(r'[A-Za-z_][A-Za-z_0-9]*\.cpython-\d+\.pyc', entry.name):
+                      raise RuntimeError('Unexpected file in Python cache')
+              runner = pwd.getpwnam('ec2-user')
+              for entry in entries:
+                  if entry.stat().st_uid == 0:
+                      os.chown(entry, runner.pw_uid, runner.pw_gid)
+              if cache.stat().st_uid == 0:
+                  os.chown(cache, runner.pw_uid, runner.pw_gid)
+              print('Development Python cache checkout ownership restored')
+          else:
+              print('No development Python cache needs repair')
+          PY
+
   build:
+    if: github.event_name != 'workflow_dispatch' || (!inputs.verify_only && !inputs.development_memory_trial && inputs.development_existing_release_operation == 'none')
     name: Test and build backend
     runs-on: ubuntu-latest
 
@@ -82,6 +171,7 @@ jobs:
           retention-days: 7
 
   heavy-tests:
+    if: github.event_name != 'workflow_dispatch' || (!inputs.verify_only && !inputs.development_memory_trial && inputs.development_existing_release_operation == 'none')
     name: Test heavy preparation tools
     runs-on: ubuntu-latest
 
@@ -120,9 +210,11 @@ jobs:
   deploy:
     if: >
       github.ref == 'refs/heads/dev' &&
-      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      !inputs.verify_only && !inputs.development_memory_trial &&
+      (github.event_name != 'workflow_dispatch' || inputs.development_existing_release_operation == 'none')
     name: Deploy backend development
-    needs: [build, heavy-tests]
+    needs: [build, heavy-tests, prepare-development-workspace]
 
     runs-on:
       - self-hosted
@@ -133,6 +225,9 @@ jobs:
     environment: development
 
     steps:
+      - name: Checkout development deployment tools
+        uses: actions/checkout@v6
+
       - name: Download deployment JAR
         uses: actions/download-artifact@v8
         with:
@@ -142,6 +237,9 @@ jobs:
       - name: Deploy and verify
         env:
           APP_VERSION: ${{ github.sha }}
+          BOOTSTRAP_BLUEGREEN: ${{ inputs.bootstrap_bluegreen }}
+          NGINX_SITE: ${{ inputs.nginx_site }}
+          BACKEND_ENVIRONMENT_FILE: ${{ inputs.backend_environment_file }}
         run: |
           set -Eeuo pipefail
 
@@ -149,6 +247,27 @@ jobs:
           ARTIFACT="${RUNNER_TEMP}/daynomy-backend-dev/daynomy-${APP_VERSION}.jar"
           RELEASE="${APP_DIR}/releases/daynomy-${APP_VERSION}.jar"
           PREVIOUS="$(readlink -f "${APP_DIR}/current.jar" || true)"
+
+          if [ "$BOOTSTRAP_BLUEGREEN" = "true" ]; then
+            python3 backend/scripts/inspect_backend_development.py
+            CURRENT_SHA="$(sha256sum "${APP_DIR}/current.jar" | awk '{print $1}')"
+            sudo -n python3 -B backend/scripts/bootstrap_backend.py \
+              --environment development --artifact "$ARTIFACT" \
+              --site "$NGINX_SITE" --environment-file "$BACKEND_ENVIRONMENT_FILE"
+            sudo -n python3 -B backend/scripts/bootstrap_backend.py \
+              --environment development --artifact "$ARTIFACT" \
+              --site "$NGINX_SITE" --environment-file "$BACKEND_ENVIRONMENT_FILE" \
+              --expected-current-sha256 "$CURRENT_SHA" --apply
+            exit 0
+          fi
+
+          # Bootstrap is an explicit one-time operation. Before it, retain restart deployment.
+          if [ -d "${APP_DIR}/deployment-dev" ]; then
+            sudo -n python3 -B backend/scripts/deploy_backend.py \
+              --environment development \
+              --artifact "$ARTIFACT" --version "$APP_VERSION"
+            exit 0
+          fi
 
           rollback() {
             echo "Rolling back development backend."
@@ -176,7 +295,7 @@ jobs:
 
           HEALTHY=false
 
-          for attempt in $(seq 1 45); do
+          for _ in $(seq 1 45); do
             if curl \
               --fail \
               --silent \
@@ -197,3 +316,113 @@ jobs:
           fi
 
           echo "Development backend deployment completed: ${APP_VERSION}"
+
+      - name: Verify development instance and API
+        if: always()
+        run: python3 backend/scripts/inspect_backend_development.py
+
+  verify-development:
+    needs: [prepare-development-workspace]
+    if: github.event_name == 'workflow_dispatch' && inputs.verify_only && !inputs.development_memory_trial && inputs.development_existing_release_operation == 'none' && github.ref == 'refs/heads/dev'
+    name: Verify development without deployment
+    runs-on: [self-hosted, Linux, ARM64, backend-dev]
+    timeout-minutes: 5
+    steps:
+      - name: Checkout verification tools
+        uses: actions/checkout@v6
+      - name: Read development instance and API status
+        run: python3 backend/scripts/inspect_backend_development.py
+      - name: Inspect development memory and routing configuration
+        run: |
+          sudo -n python3 - <<'PYINSPECT'
+          import json, pathlib, re, shutil, subprocess
+          P=pathlib.Path
+          if P('/sys/devices/virtual/dmi/id/board_asset_tag').read_text().strip()!='i-0f2e92d9c7bd8fe06':
+              raise SystemExit('Refusing non-development instance')
+          def call(*args):
+              return subprocess.run(args,capture_output=True,text=True,timeout=20)
+          pid=call('systemctl','show','daynomy-dev','-p','MainPID','--value').stdout.strip()
+          print(json.dumps({'disk_free_bytes':shutil.disk_usage('/').free,'swaps':P('/proc/swaps').read_text()}))
+          print(call('systemctl','show','daynomy-dev','-p','MemoryCurrent','-p','MemoryMax','-p','MemorySwapMax','-p','FragmentPath','-p','DropInPaths','-p','TimeoutStopUSec').stdout)
+          procs=[]
+          for d in P('/proc').glob('[0-9]*'):
+              try:
+                  text=(d/'status').read_text();rss=re.search(r'^VmRSS:\s+(\d+)',text,re.M)
+                  if rss:procs.append({'pid':int(d.name),'name':(d/'comm').read_text().strip(),'rss_kib':int(rss[1])})
+              except OSError:pass
+          print(json.dumps({'top_processes':sorted(procs,key=lambda p:p['rss_kib'],reverse=True)[:15]}))
+          exe=str((P('/proc')/pid/'exe').resolve())
+          environ=dict(v.split(b'=',1) for v in (P('/proc')/pid/'environ').read_bytes().split(b'\0') if b'=' in v)
+          opts=(P('/proc')/pid/'cmdline').read_bytes().decode().split('\0')
+          for k in (b'JAVA_TOOL_OPTIONS',b'JDK_JAVA_OPTIONS',b'_JAVA_OPTIONS'):
+              opts+=environ.get(k,b'').decode().split()
+          print(json.dumps({'java_executable':exe,'memory_flags':[v for v in opts if re.fullmatch(r'-X(?:mx|ms|ss)\d+[kKmMgG]?|-XX:(?:MaxRAMPercentage|InitialRAMPercentage|TieredStopAtLevel|MaxMetaspaceSize|ReservedCodeCacheSize)=[\d.]+[kKmMgG]?',v)],'has_jcmd_module':'jdk.jcmd@' in call(exe,'--list-modules').stdout}))
+          unit=P('/etc/systemd/system/daynomy-dev.service').read_text()
+          safe=[l for l in unit.splitlines() if re.fullmatch(r'(?:User|WorkingDirectory|EnvironmentFile|Slice|TimeoutStopSec|Restart|RestartSec|KillSignal|SyslogIdentifier|MemoryMax|MemorySwapMax)=[/A-Za-z0-9_. =-]+',l)]
+          print(json.dumps({'unit_settings':safe,'exec_start_count':len(re.findall(r'^ExecStart=',unit,re.M)),'exec_start_is_plain_java_jar':bool(re.search(r'^ExecStart=/[^ \n]+/java -jar /home/ec2-user/backend/current.jar(?: |$)',unit,re.M))}))
+          nginx=call('nginx','-T');current=None;selected={}
+          for line in nginx.stdout.splitlines():
+              m=re.fullmatch(r'# configuration file (.+):',line)
+              if m:current=m[1];continue
+              if current and re.fullmatch(r'\s*(?:server_name|listen|location|include|proxy_pass|proxy_read_timeout|proxy_send_timeout) [A-Za-z0-9_/. :;{}=^~*-]+',line):
+                  selected.setdefault(current,[]).append(line.strip())
+          print(json.dumps({'nginx_exit':nginx.returncode,'routing':selected}))
+          alloy=P('/etc/alloy/config.alloy')
+          print(json.dumps({'alloy_exists':alloy.exists(),'alloy_selectors':re.findall(r'matches\s*=\s*"([^"\n]*(?:_SYSTEMD_UNIT|SYSLOG_IDENTIFIER)[^"\n]*)"',alloy.read_text()) if alloy.exists() else []}))
+          print(call('systemctl','show','alloy','-p','ActiveState','-p','CanReload').stdout)
+          print(json.dumps({'tools':{name:shutil.which(name) for name in ['dd','mkswap','swapon','swapoff','sysctl','alloy']}}))
+          PYINSPECT
+
+  development-memory:
+    needs: [prepare-development-workspace]
+    if: github.event_name == 'workflow_dispatch' && inputs.development_memory_trial && !inputs.verify_only && inputs.development_existing_release_operation == 'none' && github.ref == 'refs/heads/dev'
+    name: Prepare and observe bounded development memory
+    runs-on: [self-hosted, Linux, ARM64, backend-dev]
+    environment: development
+    timeout-minutes: 130
+    steps:
+      - name: Checkout reviewed development experiment
+        uses: actions/checkout@v6
+      - name: Apply development swap and JVM settings with recovery
+        env:
+          EXPECTED_CURRENT_SHA256: ${{ inputs.expected_current_sha256 }}
+          OBSERVE_SECONDS: ${{ inputs.memory_observe_seconds }}
+          REQUIRE_FULL_BATCH: ${{ inputs.require_full_batch }}
+        run: |
+          full_batch_args=()
+          if [ "$REQUIRE_FULL_BATCH" = 'true' ]; then
+            full_batch_args=(--require-full-batch)
+          fi
+          sudo -n python3 -B backend/scripts/prepare_backend_development_memory.py \
+            --apply --expected-current-sha256 "$EXPECTED_CURRENT_SHA256" \
+            --observe-seconds "$OBSERVE_SECONDS" "${full_batch_args[@]}"
+      - name: Verify current development API
+        if: always()
+        run: python3 backend/scripts/inspect_backend_development.py
+
+  development-existing-release:
+    needs: [prepare-development-workspace]
+    if: github.event_name == 'workflow_dispatch' && inputs.development_existing_release_operation != 'none' && !inputs.verify_only && !inputs.development_memory_trial && github.ref == 'refs/heads/dev'
+    name: Explicit development operation on verified release
+    runs-on: [self-hosted, Linux, ARM64, backend-dev]
+    environment: development
+    timeout-minutes: 20
+    steps:
+      - name: Checkout reviewed development controller
+        uses: actions/checkout@v6
+      - name: Run selected development operation with JAR identity guard
+        env:
+          OPERATION: ${{ inputs.development_existing_release_operation }}
+          EXPECTED_CURRENT_SHA256: ${{ inputs.expected_current_sha256 }}
+          RELEASE_COUNTER: ${{ inputs.release_trial_counter }}
+        run: |
+          if ! [[ "$RELEASE_COUNTER" =~ ^[0-9]{1,4}$ ]]; then
+            echo "Release trial counter must contain 1..4 digits."
+            exit 1
+          fi
+          sudo -n python3 -B backend/scripts/operate_backend_development.py \
+            --operation "$OPERATION" --expected-current-sha256 "$EXPECTED_CURRENT_SHA256" \
+            --version "${GITHUB_SHA}-bg${RELEASE_COUNTER}" --apply
+      - name: Verify active development slot and API
+        if: always()
+        run: python3 backend/scripts/inspect_backend_development.py

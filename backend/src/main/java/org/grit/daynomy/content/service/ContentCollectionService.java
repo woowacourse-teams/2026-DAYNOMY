@@ -3,6 +3,7 @@ package org.grit.daynomy.content.service;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.grit.daynomy.common.exception.BusinessException;
@@ -90,17 +91,23 @@ public class ContentCollectionService {
   }
 
   private LocalDate parseDateTime(String value) {
+    if (value == null || value.isBlank()) {
+      return null;
+    }
     try {
       return Instant.parse(value).atZone(COLLECTION_ZONE).toLocalDate();
-    } catch (RuntimeException exception) {
+    } catch (DateTimeParseException exception) {
       return null;
     }
   }
 
   private LocalDate parseDate(String value) {
+    if (value == null || value.isBlank()) {
+      return null;
+    }
     try {
       return LocalDate.parse(value);
-    } catch (RuntimeException exception) {
+    } catch (DateTimeParseException exception) {
       return null;
     }
   }

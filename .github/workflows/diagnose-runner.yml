@@ -1,5 +1,5 @@
 name: Diagnose deployment runner
-run-name: Diagnose ${{ inputs.target_environment }} runner
+run-name: ${{ inputs.mode == 'repair' && 'Repair' || 'Diagnose' }} ${{ inputs.target_environment }} runner
 
 on:
   workflow_dispatch:
@@ -20,6 +20,14 @@ on:
         options:
           - last-hour
           - incident-2026-10-06
+      mode:
+        description: Diagnose only, or apply the runner recovery configuration
+        type: choice
+        required: true
+        default: diagnose
+        options:
+          - diagnose
+          - repair
 
 permissions: {}
 
@@ -35,7 +43,7 @@ jobs:
       DIAGNOSTIC_ENVIRONMENT: ${{ inputs.target_environment }}
       DIAGNOSTIC_LOG_PERIOD: ${{ inputs.log_period }}
     steps:
-      # No checkout, environment gate, secrets, deployment or server changes.
+      # No checkout, environment gate, or secrets. The default mode is read-only.
       - name: Read server health, connectivity and incident logs
         shell: bash
         run: |
@@ -67,6 +75,7 @@ jobs:
           INCIDENT_START = incident_start.strftime("%Y-%m-%d %H:%M:%S")
           INCIDENT_END = incident_end.strftime("%Y-%m-%d %H:%M:%S")
           PATTERNS = {
+              "jvm-heap-exhaustion": r"OutOfMemoryError: Java heap space",
               "out-of-memory": r"out of memory|oom-kill|oom_reaper|killed process",
               "disk-full": r"no space left|disk full",
               "dns": r"could not resolve|name resolution|EAI_AGAIN|ENOTFOUND",
@@ -91,6 +100,7 @@ jobs:
           # One runnable privacy/classification/time-window check: extract this block with --check.
           assert classify("2026-10-06T09:18:22 ERROR Artifact download failed https://blob/?sig=PRIVATE") == ("artifact", "2026-10-06T09:18:22")
           assert classify("2026-10-06 08:59:00 received shutdown signal") == ("shutdown", "2026-10-06 08:59:00")
+          assert classify("2026-10-06 09:00:00 Terminating due to java.lang.OutOfMemoryError: Java heap space") == ("jvm-heap-exhaustion", "2026-10-06 09:00:00")
           assert classify("token=PRIVATE password=PRIVATE") is None
           assert in_window(INCIDENT_START.replace(" ", "T"))
           assert in_window(INCIDENT_END)
@@ -123,6 +133,25 @@ jobs:
               if not events:
                   print(f"{source}: no classified events in inspected logs (not proof of healthy operation)")
 
+          if environment == "development":
+              print("kernel_release:", os.uname().release)
+              unit_lines = capture(["systemctl", "list-units", "--type=service", "--all", "--plain", "--no-legend"])[1].splitlines()
+              units = [line.split()[0] for line in unit_lines if line.split() and line.split()[0].startswith("actions.runner.") and ("backend-dev" in line.split()[0] or "frontend-dev" in line.split()[0])]
+              units += ["daynomy-dev.service", "daynomy-dev-green.service", "daynomy-backend-dev.slice", "codedeploy-agent.service", "alloy.service", "docker.service"]
+              for unit in units:
+                  cg = capture(["systemctl", "show", unit, "-p", "ControlGroup", "--value"])[1].strip()
+                  if not re.fullmatch(r"/[A-Za-z0-9_./@-]+", cg) or ".." in pathlib.PurePosixPath(cg).parts:
+                      continue
+                  root = pathlib.Path("/sys/fs/cgroup") / cg.lstrip("/")
+                  values = {}
+                  for name in ["memory.current", "memory.max", "memory.swap.current", "memory.swap.max", "memory.events"]:
+                      try: values[name] = (root/name).read_text().strip()
+                      except OSError: values[name] = "unavailable"
+                  try:
+                      stats = dict(line.split() for line in (root/"memory.stat").read_text().splitlines())
+                      values["memory.stat"] = {key:stats.get(key) for key in ["anon", "file", "inactive_anon", "active_anon", "inactive_file", "active_file", "slab", "pgmajfault"]}
+                  except OSError: pass
+                  print("cgroup_inventory:", {"unit":unit, "cgroup":cg, "has_reclaim":(root/"memory.reclaim").exists(), "values":values})
           print("Read-only diagnosis for", environment, "at", now.isoformat())
           print("Current resources; log window (UTC):", INCIDENT_START, "through", INCIDENT_END)
           print("load_average:", *os.getloadavg())
@@ -190,9 +219,11 @@ jobs:
               except OSError:
                   print(f"runner-log-{index}: unavailable")
 
-          for source, selector in (("runner-journal", ["--unit=actions.runner*"]), ("kernel-journal", ["--kernel"])):
+          for source, selector in (("runner-journal", ["--unit=actions.runner*"]), ("kernel-journal", ["--kernel"]), ("backend-journal", ["--unit=" + backend_service])):
               args = ["journalctl", *selector, "--since", f"{INCIDENT_START} UTC", "--until", f"{INCIDENT_END} UTC",
                       "--lines", "2000", "--no-pager", "--output=short-iso", "--utc", "--quiet"]
+              if source == "backend-journal":
+                  args += ["--grep", "OutOfMemoryError|Java heap space|Main process exited|Failed with result|oom-kill"]
               code, output = capture(args)
               # Only read journal entries; noninteractive sudo may be unavailable on this runner.
               if code != 0 or not output.strip():
@@ -200,3 +231,120 @@ jobs:
               print(f"{source}: query_exit={code} inspected_lines={len(output.splitlines())}")
               summarize(source, output.splitlines())
           PY
+
+      - name: Read development scheduler thread states
+        if: inputs.target_environment == 'development' && inputs.mode == 'diagnose'
+        run: |
+          sudo -n python3 -B - <<'PY'
+          import json
+          import re
+          import subprocess
+          import time
+          import urllib.request
+          from pathlib import Path
+
+          if Path('/sys/devices/virtual/dmi/id/board_asset_tag').read_text().strip() != 'i-0f2e92d9c7bd8fe06':
+              raise RuntimeError('Development instance required')
+          owner = Path('/home/ec2-user/backend/deployment-dev/active-slot')
+          slot = owner.read_text().strip() if owner.exists() else None
+          if slot not in (None, 'blue', 'green'):
+              raise RuntimeError('Unknown development slot')
+          unit = 'daynomy-dev-green' if slot == 'green' else 'daynomy-dev'
+          pid = subprocess.check_output(['systemctl', 'show', unit, '-p', 'MainPID', '--value'], text=True).strip()
+          memory = {line.split(':')[0]: line.split(':')[1].strip() for line in Path('/proc/' + pid + '/status').read_text().splitlines() if line.split(':')[0] in ('VmRSS', 'VmSwap')}
+          print(json.dumps({'development_jvm': unit, 'slot': slot, 'memory': memory}), flush=True)
+          dump = subprocess.check_output(['timeout', '15', '/usr/lib/jvm/java-21-amazon-corretto.aarch64/bin/java', '-Xmx32m', '-XX:TieredStopAtLevel=1', '-m', 'jdk.jcmd/sun.tools.jcmd.JCmd', pid, 'Thread.print'], text=True)
+          flags = subprocess.check_output(['timeout', '15', '/usr/lib/jvm/java-21-amazon-corretto.aarch64/bin/java', '-Xmx32m', '-XX:TieredStopAtLevel=1', '-m', 'jdk.jcmd/sun.tools.jcmd.JCmd', pid, 'VM.flags'], text=True)
+          print(json.dumps({'actual_jvm_collectors': {name: '-XX:+' + name in flags.split() for name in ('UseSerialGC', 'UseG1GC', 'UseParallelGC', 'UseZGC')}, 'slot': slot}), flush=True)
+          for block in re.split(r'\n(?=")', dump):
+              name = re.match(r'"([A-Za-z0-9_. -]+)"', block)
+              if not name:
+                  continue
+              state = re.search(r'java.lang.Thread.State: ([A-Z_]+)', block)
+              frames = re.findall(r'^\s+at ((?:org\.grit\.daynomy|java\.util\.concurrent)[A-Za-z0-9_.$]+)', block, re.M)
+              print(json.dumps({'thread': name[1], 'state': state[1] if state else 'unknown', 'scheduled_queue_wait': 'ScheduledThreadPoolExecutor$DelayedWorkQueue.take' in block, 'task_frames': frames[:4]}))
+          for sample in range(3):
+              with urllib.request.urlopen('http://127.0.0.1:8081/actuator/prometheus', timeout=10) as response:
+                  metrics = response.read().decode()
+              values = {}
+              for line in metrics.splitlines():
+                  metric = re.fullmatch(r'(daynomy_league_calculation_(?:latest_profiles|last_completed_epoch_seconds|latest_run_failed|duration_seconds_count))(?:\{([^}]*)\})? ([0-9.eE+-]+)', line)
+                  if metric:
+                      outcome = re.search(r'outcome="(target|succeeded|failed)"', metric[2] or '')
+                      values[metric[1] + (':' + outcome[1] if outcome else '')] = float(metric[3])
+              print(json.dumps({'league_progress_sample': sample, 'epoch_seconds': int(time.time()), 'values': values}), flush=True)
+              heap = {}
+              for line in metrics.splitlines():
+                  metric = re.fullmatch(r'jvm_memory_(used|committed|max)_bytes\{([^}]*)\} ([0-9.eE+-]+)', line)
+                  if metric and 'area="heap"' in metric[2] and float(metric[3]) >= 0:
+                      heap[metric[1]] = heap.get(metric[1], 0) + float(metric[3])
+              print(json.dumps({'jvm_heap_sample': sample, 'epoch_seconds': int(time.time()), 'bytes': heap}), flush=True)
+              if sample < 2:
+                  time.sleep(15)
+          PY
+
+      - name: Read runner service supervision
+        id: runner-service
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mapfile -t runner_services < <(
+            systemctl list-unit-files 'actions.runner*' --type=service --no-legend --plain \
+              | awk -v suffix=".${RUNNER_NAME}.service" '$1 ~ /^actions\.runner\.[[:alnum:]_.@-]+\.service$/ && substr($1,length($1)-length(suffix)+1)==suffix {print $1}'
+          )
+          if [ "${#runner_services[@]}" -ne 1 ]; then
+            printf 'Expected one service for the current GitHub runner, found: %s\n' "${runner_services[*]:-none}" >&2
+            exit 1
+          fi
+          runner_service="${runner_services[0]}"
+          echo "name=$runner_service" >> "$GITHUB_OUTPUT"
+          systemctl show "$runner_service" \
+            --property=LoadState,UnitFileState,ActiveState,SubState,Result,NRestarts,Restart,RestartUSec,MainPID,ExecMainStatus
+
+      - name: Configure runner recovery
+        if: inputs.mode == 'repair'
+        shell: bash
+        env:
+          RUNNER_SERVICE: ${{ steps.runner-service.outputs.name }}
+        run: |
+          set -Eeuo pipefail
+          sudo -n true
+
+          swap_file=/swapfile
+          swap_bytes=$((2 * 1024 * 1024 * 1024))
+          available_bytes="$(df --block-size=1 --output=avail / | tail -n 1 | tr -d '[:space:]')"
+          [[ "$available_bytes" =~ ^[0-9]+$ ]] || { echo 'Cannot determine free disk space' >&2; exit 1; }
+
+          if ! sudo -n swapon --show=NAME --noheadings | grep -Fxq "$swap_file"; then
+            if sudo -n test -e "$swap_file"; then
+              test "$(sudo -n stat --format=%s "$swap_file")" -eq "$swap_bytes" \
+                || { echo "$swap_file exists with an unexpected size" >&2; exit 1; }
+            else
+              test "$available_bytes" -ge $((swap_bytes + 1024 * 1024 * 1024)) \
+                || { echo 'Insufficient disk space for the persistent 2 GiB swap file' >&2; exit 1; }
+              sudo -n fallocate --length 2G "$swap_file"
+            fi
+            sudo -n chmod 600 "$swap_file"
+            sudo -n mkswap "$swap_file" >/dev/null
+            sudo -n swapon "$swap_file"
+          fi
+
+          if ! sudo -n grep -Eq '^[[:space:]]*/swapfile[[:space:]]+' /etc/fstab; then
+            printf '%s\n' '/swapfile none swap defaults 0 0' | sudo -n tee -a /etc/fstab >/dev/null
+          fi
+          printf '%s\n' 'vm.swappiness=10' | sudo -n tee /etc/sysctl.d/99-daynomy-runner-memory.conf >/dev/null
+          sudo -n sysctl --load /etc/sysctl.d/99-daynomy-runner-memory.conf >/dev/null
+
+          sudo -n install --directory --mode 755 "/etc/systemd/system/$RUNNER_SERVICE.d"
+          sudo -n tee "/etc/systemd/system/$RUNNER_SERVICE.d/recovery.conf" >/dev/null <<'EOF'
+          [Unit]
+          StartLimitIntervalSec=0
+
+          [Service]
+          Restart=always
+          RestartSec=5s
+          EOF
+          sudo -n systemctl daemon-reload
+          sudo -n systemctl enable "$RUNNER_SERVICE"
+          sudo -n systemctl show "$RUNNER_SERVICE" \
+            --property=UnitFileState,ActiveState,SubState,Result,NRestarts,Restart,RestartUSec

@@ -55,6 +55,8 @@ public enum LogEvent {
   PORTFOLIO_ANALYSIS_CORRECTION_REQUESTED(
       "portfolio.analysis.correction_requested", "포트폴리오 분석 응답 교정 요청"),
   PORTFOLIO_ANALYSIS_FAILED("portfolio.analysis.failed", "포트폴리오 분석 실패"),
+  PORTFOLIO_ANALYSIS_SHARE_TOKEN_RECOVERY_FAILED(
+      "portfolio.analysis.share-token.recovery.failed", "포트폴리오 공유 토큰 복구 실패"),
   PORTFOLIO_SNAPSHOT_COMPLETED("portfolio.snapshot.completed", "포트폴리오 일별 스냅샷 생성 완료"),
   PORTFOLIO_SNAPSHOT_FAILED("portfolio.snapshot.failed", "포트폴리오 일별 스냅샷 생성 실패"),
   LEAGUE_PROFILE_SAVED("league.profile.saved", "투자 리그 프로필 저장 완료"),
@@ -100,6 +102,7 @@ public enum LogEvent {
   EXTERNAL_DELETE_COMPLETED("external.delete.completed", "외부 이미지 삭제 완료"),
   EXTERNAL_API_REQUESTED("external.api.requested", "외부 API 호출 시작"),
   EXTERNAL_API_COMPLETED("external.api.completed", "외부 API 호출 완료"),
+  EXTERNAL_API_PARTIAL_RESPONSE("external.api.partial-response", "외부 API 응답 일부 누락"),
   EXTERNAL_API_FAILED("external.api.failed", "외부 API 호출 실패"),
 
   STOCK_PRICE_SYNC_STARTED("stock-price.sync.started", "종가 동기화 시작"),

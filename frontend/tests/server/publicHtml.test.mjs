@@ -218,4 +218,8 @@ test('해시 자산과 보호 페이지의 캐시 정책을 유지한다', async
   const login = await fetch(url('/login'));
   assert.equal(login.headers.get('cache-control'), 'no-cache');
   assert.match(await login.text(), /content="noindex,nofollow"/);
+  const analysisShare = await fetch(url('/portfolio/analysis/share'));
+  assert.equal(analysisShare.status, 200);
+  assert.equal(analysisShare.headers.get('cache-control'), 'no-cache');
+  assert.match(await analysisShare.text(), /content="noindex,nofollow"/);
 });

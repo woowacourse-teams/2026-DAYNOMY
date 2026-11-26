@@ -13,7 +13,9 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.common.logging.ExternalTransportFailure;
 import org.grit.daynomy.common.logging.LogEvent;
+import org.grit.daynomy.external.openai.OpenAiHttpFailure;
 import org.grit.daynomy.market.domain.analysis.NewsMarketAnalysis;
 import org.grit.daynomy.market.exception.MarketErrorCode;
 import org.springframework.beans.factory.annotation.Value;
@@ -135,17 +137,18 @@ public class OpenAiMarketAnalysisClient implements MarketAnalysisAiClient {
       }
       throw new IllegalStateException("Market analysis attempts exhausted.");
     } catch (HttpStatusCodeException exception) {
-      log.atWarn()
-          .addKeyValue("event", LogEvent.MARKET_ANALYSIS_FAILED.code())
-          .addKeyValue("api", "OpenAI")
-          .addKeyValue("operation", "market-analysis")
-          .addKeyValue("httpStatus", exception.getStatusCode().value())
-          .addKeyValue("durationMs", elapsedMillis(startedAt))
-          .addKeyValue("errorType", exception.getClass().getSimpleName())
-          .log(LogEvent.MARKET_ANALYSIS_FAILED.message());
+      var event =
+          log.atWarn()
+              .addKeyValue("event", LogEvent.MARKET_ANALYSIS_FAILED.code())
+              .addKeyValue("api", "OpenAI")
+              .addKeyValue("operation", "market-analysis")
+              .addKeyValue("durationMs", elapsedMillis(startedAt))
+              .addKeyValue("errorType", exception.getClass().getSimpleName());
+      OpenAiHttpFailure.from(exception).addTo(event);
+      event.log(LogEvent.MARKET_ANALYSIS_FAILED.message());
       throw exception;
     } catch (RestClientException exception) {
-      logMarketAnalysisFailure(startedAt, exception.getClass().getSimpleName());
+      logMarketAnalysisFailure(startedAt, exception);
       throw exception;
     }
   }
@@ -158,6 +161,18 @@ public class OpenAiMarketAnalysisClient implements MarketAnalysisAiClient {
         .addKeyValue("durationMs", elapsedMillis(startedAt))
         .addKeyValue("errorType", errorType)
         .log(LogEvent.MARKET_ANALYSIS_FAILED.message());
+  }
+
+  private void logMarketAnalysisFailure(long startedAt, RestClientException exception) {
+    var event =
+        log.atWarn()
+            .addKeyValue("event", LogEvent.MARKET_ANALYSIS_FAILED.code())
+            .addKeyValue("api", "OpenAI")
+            .addKeyValue("operation", "market-analysis")
+            .addKeyValue("durationMs", elapsedMillis(startedAt))
+            .addKeyValue("errorType", exception.getClass().getSimpleName());
+    ExternalTransportFailure.from(exception).addTo(event);
+    event.log(LogEvent.MARKET_ANALYSIS_FAILED.message());
   }
 
   private long elapsedMillis(long startedAt) {

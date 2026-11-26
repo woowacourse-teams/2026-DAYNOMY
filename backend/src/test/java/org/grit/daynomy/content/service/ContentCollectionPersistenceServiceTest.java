@@ -89,7 +89,7 @@ class ContentCollectionPersistenceServiceTest {
   }
 
   @Test
-  void duplicateOriginalCanStillBeLinkedToNewAsset() {
+  void duplicateUrlDoesNotCreateNewReview() {
     Asset asset = new Asset("삼성전자", AssetCategory.STOCK, "005930");
     ReflectionTestUtils.setField(asset, "id", 10L);
     ContentCollectionSource source =
@@ -108,17 +108,14 @@ class ContentCollectionPersistenceServiceTest {
         .willReturn(Optional.of(collectedContent));
     given(assetRepository.findAllByCategoryInAndListedTrue(org.mockito.ArgumentMatchers.any()))
         .willReturn(List.of(asset));
-    given(assetMentionMatcher.match(item.title(), item.description(), List.of(asset)))
-        .willReturn(List.of(asset));
-    given(reviewRepository.existsByCollectedContentIdAndSuggestedAssetId(20L, 10L))
-        .willReturn(false);
 
     var result = service().persist(1L, List.of(item), Instant.now());
 
     assertThat(result.duplicateCount()).isEqualTo(1);
-    assertThat(result.linkedCount()).isEqualTo(1);
+    assertThat(result.linkedCount()).isZero();
     then(contentTranslationService).shouldHaveNoInteractions();
-    then(reviewRepository).should().save(org.mockito.ArgumentMatchers.any());
+    then(assetMentionMatcher).shouldHaveNoInteractions();
+    then(reviewRepository).shouldHaveNoInteractions();
   }
 
   @Test

@@ -1,0 +1,22 @@
+{
+  "source_sha": "f361d6f96a1a3db002ed8ce0642af832f5e4aa39+bluegreen-fixed-registration",
+  "jar": "backend/build/libs/daynomy-0.0.1-SNAPSHOT.jar",
+  "rebuilt_jar_sha256": "9ec2344fa7951ed6bbd8dd7ffe55152cc707b9e990cbf6ae698124f3560448c9",
+  "network": "internal",
+  "data": "50 members, 30 KR assets each, 7500 history rows, 60 synthetic price dates",
+  "duration_seconds": 60,
+  "rps": 10,
+  "warmup_seconds": 30,
+  "note": "Local mixed API and snapshot batch screening; other batches and external services are excluded.",
+  "workload": "portfolio",
+  "batch": "real PortfolioSnapshotScheduler every 30 seconds",
+  "images": {
+    "postgres:16-alpine": "sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685",
+    "daynomy-memory-corretto:21.0.13-prod": "sha256:44999d71dd303594a6069ee718fb214e7b23de8503ae23e785b4f23bb957bdae",
+    "grafana/k6:latest": "sha256:a7c79af2b374c9a3afa8b0fae9ec2899277d066612029b7b0fcd2fcb724ba86f"
+  },
+  "overlap_duration_seconds": 300,
+  "java_runtime": "openjdk version \"21.0.13\" 2026-10-20 LTS\nOpenJDK Runtime Environment Corretto-21.0.13.0.11 (build 21.0.13+11-LTS)\nOpenJDK 64-Bit Server VM Corretto-21.0.13.0.11 (build 21.0.13+11-LTS, mixed mode, sharing)\nglibc-2.34-231.amzn2023.0.5.aarch64",
+  "combined_pair_memory_limit_mib": 800,
+  "ownership_handoff": true
+}

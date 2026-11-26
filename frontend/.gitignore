@@ -11,6 +11,7 @@ node_modules
 dist
 dist-ssr
 test-results
+integration-results
 *.local
 .env
 .env.*

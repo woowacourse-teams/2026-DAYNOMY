@@ -3,6 +3,7 @@ import { act, cleanup, fireEvent, render, waitFor, within } from '@testing-libra
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { trackPortfolioEvent } from '../../src/features/portfolio/analytics';
 import { PortfolioPage } from '../../src/features/portfolio/PortfolioPage';
+import { AuthContext } from '../../src/auth/AuthContext';
 import type {
   PortfolioHoldingInput,
   PortfolioHoldingHistory,
@@ -76,6 +77,7 @@ function json(body: unknown, status = 200) {
   });
 }
 beforeEach(() => {
+  sessionStorage.clear();
   localStorage.setItem('daynomy:portfolio-tour:v1', 'done');
   vi.mocked(trackPortfolioEvent).mockClear();
   vi.useFakeTimers({ toFake: ['Date'] });
@@ -416,11 +418,12 @@ describe('거래 원장 화면', () => {
       expect(document.body.style.overflow).toBe(initialOverflow);
     });
     expect(await view.findByText('15주')).toBeTruthy();
-    const [, init] = vi
+    const [url, init] = vi
       .mocked(fetch)
       .mock.calls.find(
         ([url, options]) => String(url).endsWith('/transactions') && options?.method === 'POST',
       )!;
+    expect(String(url)).toBe('/api/v2/users/me/portfolio/transactions');
     expect(JSON.parse(String(init?.body))).toEqual({
       assetId: 1,
       type: 'BUY',
@@ -432,6 +435,7 @@ describe('거래 원장 화면', () => {
       tax: 0,
     });
     expect(new Headers(init?.headers).get('X-CSRF-TOKEN')).toBe('test');
+    expect(new Headers(init?.headers).get('Idempotency-Key')).toBeTruthy();
     expect(trackPortfolioEvent).toHaveBeenCalledWith('portfolio_save_succeeded', {
       operation: 'transaction_create',
       storage: 'server',
@@ -442,6 +446,72 @@ describe('거래 원장 화면', () => {
     expect(JSON.stringify(vi.mocked(trackPortfolioEvent).mock.calls)).not.toMatch(
       /삼성|005930|quantity|unitPrice|tradeDate|75000/,
     );
+  });
+  it('빠른 중복 제출을 막고 응답 유실 후 새로 연 화면에서 같은 키로 확인한 뒤 새 매수에는 새 키를 쓴다', async () => {
+    const server = vi.mocked(fetch).getMockImplementation()!;
+    const responses = new Map<string, unknown>();
+    const keys: string[] = [];
+    let loseResponse = true;
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      if (String(input).endsWith('/transactions') && init?.method === 'POST') {
+        const key = new Headers(init.headers).get('Idempotency-Key')!;
+        keys.push(key);
+        if (responses.has(key)) return json(responses.get(key));
+        const result = await server(input, init);
+        responses.set(key, await result.clone().json());
+        if (loseResponse) {
+          loseResponse = false;
+          throw new TypeError('upstream committed; response disconnected');
+        }
+        return result;
+      }
+      return server(input, init);
+    });
+    const screen = () =>
+      render(
+        <AuthContext.Provider
+          value={{ memberId: 77, isLoggedIn: true, loading: false, role: 'USER' }}
+        >
+          <PortfolioPage />
+        </AuthContext.Provider>,
+      );
+    async function openTrade(view: ReturnType<typeof screen>) {
+      await view.findByRole('button', { name: '보유 자산 1' });
+      fireEvent.click(view.getByRole('button', { name: '종목 추가' }));
+      fireEvent.click(view.getByRole('button', { name: '한 종목 추가' }));
+      const dialog = view.getByRole('dialog', { name: '거래 기록' });
+      fireEvent.change(within(dialog).getByRole('searchbox'), { target: { value: '삼성' } });
+      fireEvent.click(await within(dialog).findByRole('button', { name: /삼성전자/ }));
+      fill(dialog);
+      return dialog;
+    }
+    const first = screen();
+    const dialog = await openTrade(first);
+    act(() => {
+      fireEvent.submit(dialog.querySelector('form')!);
+      fireEvent.submit(dialog.querySelector('form')!);
+    });
+    await within(dialog).findByRole('alert');
+    expect(keys).toHaveLength(1);
+    expect(histories).toHaveLength(2);
+    first.unmount();
+
+    const restored = screen();
+    fireEvent.click(await restored.findByRole('button', { name: '이전 거래 결과 확인' }));
+    await waitFor(() =>
+      expect(restored.queryByRole('button', { name: '이전 거래 결과 확인' })).toBeNull(),
+    );
+    expect(keys).toHaveLength(2);
+    expect(keys[1]).toBe(keys[0]);
+    expect(histories).toHaveLength(2);
+    expect(sessionStorage.getItem('daynomy:pending-transaction:v1:77')).toBeNull();
+
+    const next = await openTrade(restored);
+    fireEvent.submit(next.querySelector('form')!);
+    await waitFor(() => expect(restored.queryByRole('dialog')).toBeNull());
+    expect(keys).toHaveLength(3);
+    expect(keys[2]).not.toBe(keys[0]);
+    expect(histories).toHaveLength(3);
   });
   it.each(['transaction_create', 'transaction_update'] as const)(
     '%s 저장 실패를 성공으로 세지 않고 재시도 결과를 각각 한 번 기록한다',

@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.common.exception.BusinessException;
 import org.grit.daynomy.common.logging.LogEvent;
+import org.grit.daynomy.common.logging.SanitizedLogException;
 import org.grit.daynomy.person.dto.FeaturedPersonPostCandidateBulkResponse;
 import org.grit.daynomy.person.dto.FeaturedPersonPostCandidateBulkResponse.Failure;
 import org.grit.daynomy.person.dto.FeaturedPersonPostCandidateBulkResponse.Success;
@@ -100,7 +101,7 @@ public class FeaturedPersonPostCandidateBulkService {
         .addKeyValue("candidateId", candidateId)
         .addKeyValue("action", action)
         .addKeyValue("exceptionType", exception.getClass().getSimpleName())
-        .setCause(exception)
+        .setCause(SanitizedLogException.from(exception))
         .log(LogEvent.FEATURED_PERSON_POST_CANDIDATE_PROCESSING_FAILED.message());
   }
 }

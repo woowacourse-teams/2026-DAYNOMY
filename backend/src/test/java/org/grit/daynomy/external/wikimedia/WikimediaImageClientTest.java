@@ -3,31 +3,51 @@ package org.grit.daynomy.external.wikimedia;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import java.time.Duration;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
 import okio.Buffer;
 import org.grit.daynomy.common.exception.BusinessException;
+import org.grit.daynomy.common.logging.LogEvent;
 import org.grit.daynomy.external.ExternalErrorCode;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.mock.http.client.MockClientHttpResponse;
 
 class WikimediaImageClientTest {
 
   private MockWebServer server;
+  private final Logger logger = (Logger) LoggerFactory.getLogger(WikimediaImageClient.class);
+  private final ListAppender<ILoggingEvent> appender = new ListAppender<>();
+  private Level originalLevel;
 
   @BeforeEach
   void setUp() throws Exception {
     server = new MockWebServer();
     server.start();
+    originalLevel = logger.getLevel();
+    logger.setLevel(Level.DEBUG);
+    appender.start();
+    logger.addAppender(appender);
   }
 
   @AfterEach
   void tearDown() throws Exception {
+    logger.detachAppender(appender);
+    logger.setLevel(originalLevel);
+    appender.stop();
     server.shutdown();
   }
 
@@ -89,6 +109,9 @@ class WikimediaImageClientTest {
         new MockResponse().setHeadersDelay(500, TimeUnit.MILLISECONDS).setBody(searchResponse()));
 
     assertWikimediaRequestFailed(() -> newClient(Duration.ofMillis(100)).search("Seoul"));
+    assertThat(keyValues(logEvent(LogEvent.EXTERNAL_API_FAILED)))
+        .containsEntry("failureCategory", "TIMEOUT")
+        .containsEntry("retryable", true);
   }
 
   @Test
@@ -109,6 +132,26 @@ class WikimediaImageClientTest {
     assertThatThrownBy(() -> client.download("File:Seoul skyline.jpg"))
         .isInstanceOf(BusinessException.class)
         .hasMessage(ExternalErrorCode.WIKIMEDIA_IMAGE_REQUEST_FAILED.message());
+  }
+
+  @Test
+  void downloadLogsHttpStatusWhenCandidateLookupFails() {
+    server.enqueue(new MockResponse().setResponseCode(503));
+
+    assertWikimediaRequestFailed(() -> newClient().download("File:Seoul skyline.jpg"));
+
+    assertThat(keyValues(logEvent(LogEvent.EXTERNAL_API_FAILED)))
+        .containsEntry("operation", "downloadImage")
+        .containsEntry("responseStatus", 503);
+  }
+
+  @Test
+  void downloadHttpFailurePreservesResponseStatus() throws Exception {
+    var response = new MockClientHttpResponse(new byte[0], HttpStatus.SERVICE_UNAVAILABLE);
+
+    var exception = WikimediaImageClient.httpFailure(response);
+
+    assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
   }
 
   @Test
@@ -138,6 +181,19 @@ class WikimediaImageClientTest {
             exception ->
                 assertThat(exception.errorCode())
                     .isEqualTo(ExternalErrorCode.WIKIMEDIA_IMAGE_REQUEST_FAILED));
+  }
+
+  private Map<String, Object> keyValues(ILoggingEvent loggingEvent) {
+    Map<String, Object> values = new HashMap<>();
+    loggingEvent.getKeyValuePairs().forEach(pair -> values.put(pair.key, pair.value));
+    return values;
+  }
+
+  private ILoggingEvent logEvent(LogEvent event) {
+    return appender.list.stream()
+        .filter(loggingEvent -> event.code().equals(keyValues(loggingEvent).get("event")))
+        .findFirst()
+        .orElseThrow();
   }
 
   private String searchResponse() {

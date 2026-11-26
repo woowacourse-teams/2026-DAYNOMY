@@ -80,6 +80,19 @@ src/main/java/org/grit/daynomy/
 
 전체 API 계약은 애플리케이션 실행 후 Swagger UI에서 확인할 수 있습니다.
 
+### 공유 링크의 작성자 추가 설명
+
+`PUT /api/users/me/portfolio/analysis/shares/{shareId}/explanation`에
+`{"content":"추가 설명"}`을 보내면 활성 공유 링크의 주인만 공개 설명을 수정할 수 있습니다.
+일반 텍스트 최대 2,000자이며, 빈 내용은 공개 설명을 내립니다. 만료·중단된 링크는 수정할 수 없습니다.
+응답은 기존 작성자 전용 공유 응답이며, `additionalExplanation`과
+`additionalExplanationUpdatedAt`이 추가됩니다. 설명이 없으면 두 값 모두 `null`입니다.
+공개 조회에서도 이 두 필드를 제공하므로 로그인하지 않은 방문자도 설명을 읽을 수 있습니다.
+댓글·답글은 기존처럼 의견 작성자와 포트폴리오 주인에게만 보입니다.
+같은 공유의 링크를 재발급해도 추가 설명은 유지됩니다.
+
+배포 시 V94 마이그레이션을 포함한 백엔드를 먼저 적용한 뒤 프론트엔드를 적용합니다.
+
 ## 포트폴리오 대시보드 장중 지연 시세 (#683)
 
 `PORTFOLIO_DELAYED_QUOTES_ENABLED=true`로 대시보드 계산에 장중 지연 시세를 활성화한다. 기본값은 `false`다.

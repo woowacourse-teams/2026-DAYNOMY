@@ -276,6 +276,15 @@ public final class PortfolioAnalysisEvidence {
     return new PortfolioAnalysisEvidence(merged.byAsset, combined, urls, statuses, negativeUrls);
   }
 
+  /** 대체 검색에서 검증된 문서만 병합한다. 원문 확보 여부와 날짜 검증은 호출자가 확인한다. */
+  PortfolioAnalysisEvidence readableSources() {
+    Map<String, List<String>> readable = new LinkedHashMap<>();
+    byAsset.forEach(
+        (name, quotes) ->
+            readable.put(name, quotes.values().stream().map(Quote::url).distinct().toList()));
+    return from(readable, documents);
+  }
+
   boolean hasUnreadableSources() {
     return requestedUrls.values().stream()
         .flatMap(List::stream)

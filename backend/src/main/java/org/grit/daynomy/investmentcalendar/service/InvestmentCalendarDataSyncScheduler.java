@@ -1,5 +1,7 @@
 package org.grit.daynomy.investmentcalendar.service;
 
+import static org.grit.daynomy.deployment.DeploymentOwnership.wrap;
+
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -28,7 +30,7 @@ public class InvestmentCalendarDataSyncScheduler {
 
   @EventListener(ApplicationReadyEvent.class)
   public void synchronizeOnStartup() {
-    taskScheduler.schedule(this::synchronize, Instant.now());
+    taskScheduler.schedule(wrap(this::synchronize), Instant.now());
   }
 
   @Scheduled(cron = "${investment-calendar.sync.cron}", zone = "Asia/Seoul")

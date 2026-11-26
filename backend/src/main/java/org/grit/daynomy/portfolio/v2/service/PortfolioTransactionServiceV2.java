@@ -1,5 +1,8 @@
 package org.grit.daynomy.portfolio.v2.service;
 
+import static org.grit.daynomy.portfolio.service.PortfolioTransactionTimings.Api.V2;
+import static org.grit.daynomy.portfolio.service.PortfolioTransactionTimings.Phase.*;
+
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
@@ -27,6 +30,8 @@ import org.grit.daynomy.portfolio.repository.PortfolioRepository;
 import org.grit.daynomy.portfolio.service.OriginalPortfolioChanged;
 import org.grit.daynomy.portfolio.service.PortfolioExchangeRateService;
 import org.grit.daynomy.portfolio.service.PortfolioLedgerCalculator;
+import org.grit.daynomy.portfolio.service.PortfolioTransactionIdempotencyService;
+import org.grit.daynomy.portfolio.service.PortfolioTransactionTimings;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -50,30 +55,70 @@ public class PortfolioTransactionServiceV2 {
   private final PortfolioSnapshotServiceV2 snapshotService;
   private final PortfolioExchangeRateService exchangeRates;
   private final PlatformTransactionManager transactionManager;
+  private final PortfolioTransactionIdempotencyService idempotency;
+  private final PortfolioTransactionTimings timings;
   private final ApplicationEventPublisher events;
 
   public PortfolioTransactionResponse transact(Long memberId, PortfolioTransactionRequest request) {
     var rates = exchangeRates.forMember(memberId, request.assetId(), request.tradeDate());
-    return new TransactionTemplate(transactionManager)
-        .execute(status -> transactInTransaction(memberId, request, rates));
+    return timings.record(
+        V2,
+        TRANSACTION_TOTAL,
+        () ->
+            new TransactionTemplate(transactionManager)
+                .execute(status -> transactInTransaction(memberId, request, rates)));
+  }
+
+  public PortfolioTransactionResponse transact(
+      Long memberId, PortfolioTransactionRequest request, String requestKey) {
+    return idempotency.execute(
+        V2,
+        memberId,
+        requestKey,
+        request,
+        () -> exchangeRates.forMember(memberId, request.assetId(), request.tradeDate()),
+        (member, rates) -> transactWithLockedMember(memberId, member, request, rates));
   }
 
   private PortfolioTransactionResponse transactInTransaction(
       Long memberId, PortfolioTransactionRequest request, Map<LocalDate, BigDecimal> rates) {
     Member member =
-        memberRepository
-            .findByIdForUpdate(memberId)
-            .orElseThrow(() -> new BusinessException(MemberErrorCode.MEMBER_NOT_FOUND));
+        timings.record(
+            V2,
+            MEMBER_LOCK_QUERY,
+            () ->
+                memberRepository
+                    .findByIdForUpdate(memberId)
+                    .orElseThrow(() -> new BusinessException(MemberErrorCode.MEMBER_NOT_FOUND)));
+    timings.memberLocked(V2);
+    return transactWithLockedMember(memberId, member, request, rates);
+  }
+
+  private PortfolioTransactionResponse transactWithLockedMember(
+      Long memberId,
+      Member member,
+      PortfolioTransactionRequest request,
+      Map<LocalDate, BigDecimal> rates) {
     Portfolio portfolio =
-        portfolioRepository
-            .findByMemberId(memberId)
-            .map(
-                saved ->
-                    portfolioRepository
-                        .findByIdForUpdate(saved.getId())
-                        .orElseThrow(
-                            () -> new BusinessException(PortfolioErrorCode.PORTFOLIO_NOT_FOUND)))
-            .orElseGet(() -> portfolioRepository.save(Portfolio.create(member)));
+        timings.record(
+            V2,
+            PORTFOLIO_ACCESS,
+            () ->
+                portfolioRepository
+                    .findByMemberId(memberId)
+                    .map(
+                        saved ->
+                            timings.record(
+                                V2,
+                                PORTFOLIO_LOCK_QUERY,
+                                () ->
+                                    portfolioRepository
+                                        .findByIdForUpdate(saved.getId())
+                                        .orElseThrow(
+                                            () ->
+                                                new BusinessException(
+                                                    PortfolioErrorCode.PORTFOLIO_NOT_FOUND))))
+                    .orElseGet(() -> portfolioRepository.save(Portfolio.create(member))));
     Asset asset =
         assetRepository
             .findById(request.assetId())
@@ -108,10 +153,17 @@ public class PortfolioTransactionServiceV2 {
     historyRepository.saveAndFlush(transaction);
 
     List<PortfolioHoldingHistory> histories =
-        historyRepository.findOrderedWithAssetsByPortfolioId(portfolio.getId());
-    PortfolioLedgerCalculator.LedgerResult ledger = ledgerCalculator.replay(histories);
+        timings.record(
+            V2,
+            HISTORY_READ,
+            () -> historyRepository.findOrderedWithAssetsByPortfolioId(portfolio.getId()));
+    PortfolioLedgerCalculator.LedgerResult ledger =
+        timings.record(V2, LEDGER_REPLAY, () -> ledgerCalculator.replay(histories));
     SavedPortfolioHoldingResponse holding = applyPosition(portfolio, asset, current, ledger);
-    snapshotService.refresh(portfolio, histories, request.tradeDate(), rates);
+    timings.run(
+        V2,
+        SNAPSHOT_REFRESH,
+        () -> snapshotService.refresh(portfolio, histories, request.tradeDate(), rates));
     events.publishEvent(new OriginalPortfolioChanged(memberId));
     return new PortfolioTransactionResponse(
         transaction.getId(), holding, ledger.realizedProfitLoss());
