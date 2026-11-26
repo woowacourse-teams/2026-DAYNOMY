@@ -120,7 +120,8 @@ jobs:
           fi
           sudo -n install -m 0755 deployment-source/backend/scripts/deploy_backend.py /usr/local/libexec/daynomy/deploy_backend.py
           sudo -n python3 -B /usr/local/libexec/daynomy/deploy_backend.py \
-            --environment production --artifact "$ARTIFACT" --version "$APP_VERSION"
+            --environment production --artifact "$ARTIFACT" --version "$APP_VERSION" \
+            --verify-existing-release
 
       - name: Verify Nginx proxy
         run: |

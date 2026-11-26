@@ -474,7 +474,7 @@ def retire_pending():
     return True
 
 
-def deploy(artifact, version):
+def deploy(artifact, version, verify_existing_release=False):
     if not re.fullmatch(r'[a-f0-9]{40}(?:-bg[0-9]+)?', version):
         raise RuntimeError('Invalid immutable release version')
     old = (STATE / 'active-slot').read_text().strip()
@@ -494,11 +494,38 @@ def deploy(artifact, version):
         raise RuntimeError('Previous requests or background tasks are still draining')
     if is_active(SLOTS[new][0]):
         raise RuntimeError('Inactive slot unexpectedly runs; refusing to interrupt it')
+    release = APP / 'releases' / ('daynomy-' + version + '.jar')
+    if verify_existing_release:
+        if ENVIRONMENT != 'production':
+            raise RuntimeError('Existing-release verification is production-only')
+        def checksum(path):
+            digest = hashlib.sha256()
+            with path.open('rb') as stream:
+                for chunk in iter(lambda: stream.read(1024 * 1024), b''):
+                    digest.update(chunk)
+            return digest.hexdigest()
+        current_checksum = checksum(old_jar)
+        if current_checksum == checksum(artifact):
+            if release.exists() and checksum(release) != current_checksum:
+                raise RuntimeError('Immutable release version already has different bytes')
+            if ((STATE / 'active-slot').read_text().strip() != old
+                    or ROUTE.read_text() != route(old)
+                    or command('systemctl', 'show', SLOTS[new][0], '-p', 'MainPID', '--value') != '0'):
+                raise RuntimeError('Existing release routing or inactive slot is inconsistent')
+            if available() < RESERVE:
+                raise RuntimeError('Existing release memory reserve breached')
+            probe(old)
+            proxy_probe(old)
+            atomic(STATE / 'last-verification.json', json.dumps({
+                'active': old, 'version': version, 'sha256': current_checksum,
+                'unchanged': True, 'timestamp_ms': time.time_ns() // 1000000,
+            }, indent=2))
+            print(json.dumps({'active': old, 'version': version, 'unchanged': True}), flush=True)
+            return
     if available() < candidate_available_required():
         reclaim_management_memory(lambda: probe(old))
     if available() < candidate_available_required():
         raise RuntimeError('Insufficient available memory to start a candidate safely')
-    release = APP / 'releases' / ('daynomy-' + version + '.jar')
     if release.exists():
         if hashlib.sha256(release.read_bytes()).digest() != hashlib.sha256(artifact.read_bytes()).digest():
             raise RuntimeError('Immutable release version already has different bytes')
@@ -609,6 +636,8 @@ def main():
     parser.add_argument('--owns-slot', choices=SLOTS)
     parser.add_argument('--prepare-slot', choices=SLOTS)
     parser.add_argument('--retire-pending', action='store_true')
+    parser.add_argument('--verify-existing-release', action='store_true',
+                        help='Verify an identical live production JAR without another cutover')
     args = parser.parse_args()
     if os.geteuid() != 0:
         parser.error('Run as root')
@@ -631,7 +660,7 @@ def main():
         parser.error('--artifact and --version are required for deployment')
     with (STATE / 'deploy.lock').open('a+') as stream:
         fcntl.flock(stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        deploy(args.artifact, args.version)
+        deploy(args.artifact, args.version, verify_existing_release=args.verify_existing_release)
 
 
 if __name__ == '__main__':

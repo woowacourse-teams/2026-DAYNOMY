@@ -251,6 +251,71 @@ class DeploymentTest(unittest.TestCase):
             deploy.deploy(self.artifact, 'f' * 40)
         self.assertFalse(self.calls)
 
+    def test_identical_production_retry_verifies_without_restarting_or_reclaiming(self):
+        self.pids['daynomy-green'] = '0'
+        deploy.available.return_value = deploy.RESERVE
+        with patch.object(deploy, 'ENVIRONMENT', 'production'), patch.object(deploy, 'reclaim_management_memory') as reclaim:
+            deploy.deploy(self.old, 'a' * 40, verify_existing_release=True)
+        reclaim.assert_not_called()
+        deploy.candidate_override.assert_not_called()
+        deploy.proxy_probe.assert_called_once_with('blue')
+        self.assertEqual((self.state / 'active-slot').read_text(), 'blue\n')
+        record = json.loads((self.state / 'last-verification.json').read_text())
+        self.assertTrue(record['unchanged'])
+        self.assertFalse(any(call[:2] in [('systemctl', 'start'), ('systemctl', 'stop'), ('systemctl', 'reload')] for call in self.calls))
+
+    def test_identical_retry_refuses_an_unhealthy_public_route(self):
+        self.pids['daynomy-green'] = '0'
+        deploy.proxy_probe.side_effect = RuntimeError('bad public route')
+        with self.assertRaisesRegex(RuntimeError, 'bad public route'):
+            deploy.deploy(self.old, 'a' * 40, verify_existing_release=True)
+        self.assertFalse((self.state / 'last-verification.json').exists())
+
+    def test_identical_retry_refuses_route_or_inactive_pid_inconsistency(self):
+        with self.assertRaisesRegex(RuntimeError, 'inconsistent'):
+            deploy.deploy(self.old, 'a' * 40, verify_existing_release=True)
+        self.pids['daynomy-green'] = '0'
+        self.route.write_text(deploy.route('green'))
+        with self.assertRaisesRegex(RuntimeError, 'inconsistent'):
+            deploy.deploy(self.old, 'a' * 40, verify_existing_release=True)
+        self.assertFalse((self.state / 'last-verification.json').exists())
+
+    def test_different_jar_retry_keeps_the_candidate_memory_gate(self):
+        with zipfile.ZipFile(self.artifact, 'a') as archive:
+            archive.writestr('BOOT-INF/classes/changed.class', b'new implementation')
+        deploy.available.return_value = deploy.RESERVE
+        with patch.object(deploy, 'reclaim_management_memory', return_value=[]), self.assertRaisesRegex(RuntimeError, 'Insufficient available memory'):
+            deploy.deploy(self.artifact, 'a' * 40, verify_existing_release=True)
+        self.assertFalse(self.calls)
+
+    def test_identical_retry_keeps_the_pending_retirement_guard(self):
+        (self.state / 'retirement.json').write_text(json.dumps({'slot': 'green', 'workers': {}}))
+        deploy.wait_tasks.return_value = False
+        with self.assertRaisesRegex(RuntimeError, 'background tasks are still draining'):
+            deploy.deploy(self.old, 'a' * 40, verify_existing_release=True)
+        self.assertFalse((self.state / 'last-verification.json').exists())
+
+    def test_identical_retry_refuses_insufficient_operating_reserve(self):
+        self.pids['daynomy-green'] = '0'
+        deploy.available.return_value = deploy.RESERVE - 1
+        with self.assertRaisesRegex(RuntimeError, 'memory reserve breached'):
+            deploy.deploy(self.old, 'a' * 40, verify_existing_release=True)
+        self.assertFalse((self.state / 'last-verification.json').exists())
+
+    def test_identical_retry_still_requires_the_retirement_timer(self):
+        deploy.is_active.side_effect = None
+        deploy.is_active.return_value = False
+        with self.assertRaisesRegex(RuntimeError, 'retirement timer'):
+            deploy.deploy(self.old, 'a' * 40, verify_existing_release=True)
+        self.assertFalse(self.calls)
+
+    def test_identical_retry_refuses_an_immutable_version_collision(self):
+        self.pids['daynomy-green'] = '0'
+        (self.app / 'releases' / ('daynomy-' + 'a' * 40 + '.jar')).write_bytes(b'other release')
+        with self.assertRaisesRegex(RuntimeError, 'Immutable release version'):
+            deploy.deploy(self.old, 'a' * 40, verify_existing_release=True)
+        self.assertFalse((self.state / 'last-verification.json').exists())
+
 
 class CandidatePriorityTest(unittest.TestCase):
     def test_candidate_restart_is_fenced_until_original_work_retires(self):
