@@ -1,5 +1,6 @@
 """Opt-in SQL lifecycle check against a disposable, already-migrated PostgreSQL only."""
 import argparse
+import json
 import datetime as dt
 import importlib.util
 import os
@@ -45,7 +46,12 @@ class FixedHistoryFixtureTest(unittest.TestCase):
                 owner.reset('synthetic-case')
                 owner.verify(0,False)
                 other.verify(0,False)
+                owner.query("INSERT INTO portfolio_transaction_requests(member_id,request_key,request_hash,response_body) "
+                    f"SELECT id,'backup-json',repeat('0',64),json_build_object('quoted','value')::text FROM members WHERE id IN ({owner.ids()})",write=True)
                 owner.cleanup();owner.members=[]
+                records=[json.loads(line) for line in (owner.output/'portfolio_transaction_requests-backup.jsonl').read_text().splitlines()]
+                self.assertEqual(len(records),3)
+                self.assertTrue(all(json.loads(row['response_body'])=={'quoted':'value'} for row in records))
                 other.verify(0,False)
             finally:
                 for p in probes:

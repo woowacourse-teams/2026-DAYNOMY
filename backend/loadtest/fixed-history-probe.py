@@ -101,8 +101,9 @@ class FixedHistoryProbe(module.Probe):
         cg=subprocess.check_output(['systemctl','show','daynomy-backend-dev.slice','-p','ControlGroup','--value'],text=True).strip()
         events=dict(row.split() for row in (Path('/sys/fs/cgroup')/cg.lstrip('/')/'memory.events').read_text().splitlines())
         oom={k:int(events[k]) for k in ('oom','oom_kill')}
-        keys = 'LEAGUE_AUTO_SYNC_ENABLED STOCK_PRICE_SYNC_ENABLED PORTFOLIO_SNAPSHOT_ENABLED LEAGUE_CALCULATION_ENABLED MARKET_CALENDAR_SYNC_ENABLED US_MARKET_CALENDAR_SYNC_ENABLED STOCK_SYNC_ENABLED US_STOCK_SYNC_ENABLED EXCHANGE_RATE_SYNC_ENABLED INVESTMENT_CALENDAR_SYNC_ENABLED CONTENT_COLLECTION_ENABLED PERSON_POST_COLLECTION_ENABLED KOREAN_NEWS_GENERATION_ENABLED US_NEWS_GENERATION_ENABLED EMAIL_DELIVERY_SCHEDULING_ENABLED'.split()
+        keys = 'LEAGUE_AUTO_SYNC_ENABLED STOCK_PRICE_SYNC_ENABLED PORTFOLIO_SNAPSHOT_ENABLED LEAGUE_CALCULATION_ENABLED MARKET_CALENDAR_SYNC_ENABLED US_MARKET_CALENDAR_SYNC_ENABLED STOCK_SYNC_ENABLED US_STOCK_SYNC_ENABLED EXCHANGE_RATE_SYNC_ENABLED INVESTMENT_CALENDAR_SYNC_ENABLED CONTENT_COLLECTION_ENABLED PERSON_POST_COLLECTION_ENABLED KOREAN_NEWS_GENERATION_ENABLED US_NEWS_GENERATION_ENABLED EMAIL_DELIVERY_SCHEDULING_ENABLED PORTFOLIO_DELAYED_QUOTES_ENABLED EMAIL_AUTO_ANALYSIS_ENABLED'.split()
         assert all(env.get(k.encode())==b'false' for k in keys), 'Schedulers must be explicitly disabled'
+        assert env.get(b'SPRING_SESSION_JDBC_CLEANUP_CRON')==b'-', 'Session cleanup must be isolated'
         with (root/'jobs.lock').open('a+') as lock:
             fcntl.lockf(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
             fcntl.lockf(lock,fcntl.LOCK_UN)
@@ -116,7 +117,7 @@ class FixedHistoryProbe(module.Probe):
             for chunk in iter(lambda:stream.read(1048576),b''): digest.update(chunk)
         sha = digest.hexdigest()
         assert sha == self.args.expected_jar_sha, 'Release changed'
-        return {'slot':slot,'pid':pid,'sha256':sha,'disabledSchedulers':keys,'flags':flags,'slice':limits,'mallocArenaMax':'2','oomEvents':oom,'restarts':int(unit_state['NRestarts'])}
+        return {'slot':slot,'pid':pid,'sha256':sha,'disabledSchedulers':keys,'flags':flags,'slice':limits,'mallocArenaMax':'2','sessionCleanupCron':'-','guestCleanup':'skip minute17 +/-60s','oomEvents':oom,'restarts':int(unit_state['NRestarts'])}
 
     def metrics(self, label, persist=True):
         with urllib.request.urlopen('http://127.0.0.1:8081/actuator/prometheus',timeout=5) as response:
@@ -135,6 +136,38 @@ class FixedHistoryProbe(module.Probe):
                 values[head] = float(value)
         if persist: (self.output/(label+'.json')).write_text(json.dumps(values))
         return values
+
+    def query(self, sql, write=False, env=None):
+        sql=('BEGIN'+('' if write else ' READ ONLY')+"; SET LOCAL statement_timeout='30s'; SET LOCAL lock_timeout='2s'; "+sql+'; COMMIT;')
+        result=subprocess.run(['psql','-X','-q','-A','-t','-v','ON_ERROR_STOP=1','-c',sql],
+            env=env or self.env,capture_output=True,text=True,timeout=40)
+        if result.returncode: raise RuntimeError('Database probe failed; credential-bearing details withheld')
+        return result.stdout.strip()
+
+    def cleanup(self):
+        if not self.members: return
+        self.ownership()
+        ids=self.ids();pids=self.portfolios()
+        tables={'members':f'id IN ({ids})','portfolios':f'member_id IN ({ids})',
+                'portfolio_holdings':f'portfolio_id IN ({pids})',
+                'portfolio_holding_histories':f'portfolio_id IN ({pids})',
+                'portfolio_daily_snapshots':f'portfolio_id IN ({pids})',
+                'portfolio_transaction_requests':f'member_id IN ({ids})'}
+        # Stream up to 300,000 generated rows directly to disk. Do not build a giant Python dict.
+        for table,where in tables.items():
+            path=self.output/(table+'-backup.jsonl')
+            with path.open('xb') as stream:
+                path.chmod(0o600)
+                sql="BEGIN READ ONLY; SET LOCAL statement_timeout='30s'; SELECT row_to_json(t) FROM "+table+' t WHERE '+where+'; COMMIT;'
+                result=subprocess.run(['psql','-X','-q','-A','-t','-v','ON_ERROR_STOP=1','-v','FETCH_COUNT=1000','-c',sql],
+                    env=self.env,stdout=stream,stderr=subprocess.PIPE,timeout=40)
+                if result.returncode:raise RuntimeError('Owned fixture backup failed; no cleanup performed')
+        self.ownership()
+        self.query(f"DELETE FROM portfolios WHERE member_id IN ({ids}); DELETE FROM members WHERE id IN ({ids}) "
+            f"AND provider_id LIKE '{self.run}-%' AND email=provider_id||'@example.invalid'",write=True)
+        assert self.query(f'SELECT count(*) FROM members WHERE id IN ({ids})')=='0'
+        self.report['cleanup']={'membersRemoved':len(self.members),'membersRemaining':0,'backup':'streamed JSONL'}
+        self.save()
 
     def statement_stats(self):
         # Existing pg_stat_statements only; no reset or extension/configuration changes.
@@ -159,7 +192,7 @@ class FixedHistoryProbe(module.Probe):
                  'tomcat_threads_busy_threads','http_server_requests_active_seconds_gcount'}
         while clock()<deadline:
             m = self.metrics('drain-last')
-            assert all(any(head.split('{',1)[0]==name for head in m) for name in ('hikaricp_connections_active','hikaricp_connections_pending')), 'Pool drain metrics absent'
+            assert all(any(head.split('{',1)[0]==name for head in m) for name in names), 'Server drain metrics absent'
             observed = {name:sum(value for head,value in m.items() if head.split('{',1)[0]==name) for name in names}
             if all(value==0 for value in observed.values()): quiet+=1
             else: quiet=0
@@ -252,7 +285,7 @@ class FixedHistoryProbe(module.Probe):
         self.cutoff = int(self.query(f"SELECT max(id) FROM portfolio_holding_histories WHERE portfolio_id IN ({pids})"))
         self.verify(0, False)
 
-    def explain(self):
+    def explain(self, expected_rows):
         if not self.args.history_sql: return
         sql=Path(self.args.history_sql).read_text().strip()
         assert sql.startswith('select ') and sql.count('?')==1 and ';' not in sql
@@ -261,9 +294,9 @@ class FixedHistoryProbe(module.Probe):
         results=[]
         for _ in range(5):
             plan=json.loads(self.query('EXPLAIN (ANALYZE, BUFFERS, SERIALIZE TEXT, FORMAT JSON) '+sql.replace('?',str(portfolio))))
-            assert plan[0]['Plan']['Actual Rows']==self.history_count
+            assert plan[0]['Plan']['Actual Rows']==expected_rows
             results.append(plan)
-        (self.output/f'h{self.history_count}-explain.json').write_text(json.dumps(results))
+        (self.output/f'h{self.history_count}-rows{expected_rows}-explain.json').write_text(json.dumps(results))
 
     def verify(self, increment, keyed):
         pids = self.portfolios()
@@ -294,7 +327,18 @@ class FixedHistoryProbe(module.Probe):
             f"native_average_purchase_price=100 WHERE portfolio_id IN ({pids})", write=True)
         self.verify(0,False)
 
+    def await_maintenance_window(self, rps):
+        # Guest cleanup has a literal hourly :17 cron. Leave it intact and measure outside its window.
+        while True:
+            now=dt.datetime.now(module.ZoneInfo('Asia/Seoul'))
+            position=now.minute*60+now.second
+            center=17*60 if position<=18*60 else 17*60+3600
+            expected_duration=len(self.cohort)/rps+20
+            if position+expected_duration < center-60 or position>center+60:return
+            time.sleep(min(1,center+61-position))
+
     def case(self, rps, keyed, label):
+        self.await_maintenance_window(rps)
         assert self.guard() == self.pin, "Runtime changed"
         self.ownership(); self.verify(0,False)
         assert self.today == dt.datetime.now(module.ZoneInfo("Asia/Seoul")).date().isoformat(), "Midnight crossed"
@@ -337,7 +381,7 @@ class FixedHistoryProbe(module.Probe):
         assert self.guard()==self.pin, 'Runtime changed during case'
         (self.output/(label+'-samples.json')).write_text(json.dumps(samples))
         successful = [r for r in results if r["status"]==201]
-        summary = {"label":label,"historyCount":self.history_count,"rpsTarget":rps,
+        summary = {"label":label,"historyCount":self.history_count,"historyRowsReadPerCreate":self.history_count+1,"rpsTarget":rps,
             "startedUtc":started_utc,"finishedUtc":finished_utc,"scheduled":len(self.cohort),"sent":len(results),"unsent":len(dropped),"elapsedSeconds":elapsed,
             "statuses":{str(status):sum(r["status"]==status for r in results) for status in set(r["status"] for r in results)},
             "latencyMs": {"p50":statistics.median(r["elapsed_ms"] for r in results),
@@ -367,7 +411,9 @@ class FixedHistoryProbe(module.Probe):
             assert body["holding"]["quantity"]==self.history_count+1
             assert float(body["totalRealizedProfitLoss"])==0
         assert summary['phases'].get('history_read',{}).get('calls')==len(results), 'Phase counts differ; other API traffic or missing instrumentation'
-        summary["verifiedDb"] = self.verify(1,keyed);self.save()
+        summary["verifiedDb"] = self.verify(1,keyed)
+        if label.startswith("warmup-"):self.explain(self.history_count+1)
+        self.save()
         print(json.dumps(summary),flush=True)
         self.reset(label)
         assert summary['latencyMs']['p95'] < 1000, 'Development safety stop; p95 >=1000ms (not an SLO)'
@@ -376,7 +422,6 @@ class FixedHistoryProbe(module.Probe):
         # Privacy-checked minimal events only; this pass is excluded from latency comparison.
         self.prepare()
         self.seed(500)
-        self.explain()
         jcmd='/usr/lib/jvm/temurin-21-jdk/bin/jcmd'
         settings=Path(__file__).with_name('profiles')/'history-allocation.jfc'
         assert settings.is_file()
@@ -408,7 +453,6 @@ class FixedHistoryProbe(module.Probe):
         self.prepare()
         for count in self.args.histories:
             self.seed(count)
-            self.explain()
             self.case(20,True,f"warmup-h{count}")
             for repeat in range(self.args.repeats):
                 for rps in self.args.rps:
@@ -434,12 +478,16 @@ def main():
     assert 1<=args.members<=1200 and 1<=args.repeats<=3
     assert all(x in [10,100,500] for x in args.histories)
     assert all(1<=x<=60 for x in args.rps)
-    probe=FixedHistoryProbe(args)
-    try:
-        if args.profile_only: probe.profile()
-        else: probe.run_matrix()
-    finally:
-        probe.ownership() if probe.members else None
-        probe.cleanup()
+    assert Path('/sys/devices/virtual/dmi/id/board_asset_tag').read_text().strip()=='i-0f2e92d9c7bd8fe06', 'Development instance required'
+    # Share the deployment controller lock: a protected deployment cannot overlap this run.
+    with Path('/home/ec2-user/backend/deployment-dev/deploy.lock').open('a+') as deployment_lock:
+        fcntl.lockf(deployment_lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+        probe=FixedHistoryProbe(args)
+        try:
+            if args.profile_only: probe.profile()
+            else: probe.run_matrix()
+        finally:
+            probe.ownership() if probe.members else None
+            probe.cleanup()
 
 if __name__=="__main__":main()

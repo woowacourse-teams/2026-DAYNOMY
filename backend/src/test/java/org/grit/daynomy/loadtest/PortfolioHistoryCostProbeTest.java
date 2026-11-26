@@ -47,6 +47,8 @@ class PortfolioHistoryCostProbeTest extends SharedDatabaseTest {
   @ParameterizedTest
   @ValueSource(ints = {10, 100, 500})
   void separatesServerExecutionMaterializationAndReplay(int count) throws Exception {
+    assertThat(ALLOC.isThreadAllocatedMemorySupported()).isTrue();
+    assertThat(ALLOC.isThreadAllocatedMemoryEnabled()).isTrue();
     String key = UUID.randomUUID().toString();
     Portfolio portfolio =
         em.persist(

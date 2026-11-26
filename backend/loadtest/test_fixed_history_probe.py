@@ -45,7 +45,8 @@ class DrainTest(unittest.TestCase):
         def metrics(label):
             calls.append(label)
             return {'hikaricp_connections_active':1 if len(calls)<3 else 0,
-                    'hikaricp_connections_pending':0}
+                    'hikaricp_connections_pending':0,'tomcat_threads_busy_threads':0,
+                    'http_server_requests_active_seconds_gcount':0}
         probe.metrics=metrics
         self.assertTrue(probe.drain(clock=lambda:0,sleep=lambda seconds:None))
         self.assertEqual(len(calls),12)
