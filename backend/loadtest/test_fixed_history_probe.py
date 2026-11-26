@@ -4,6 +4,7 @@ import threading
 import subprocess
 import sys
 import tempfile
+import os
 import time
 import unittest
 
@@ -71,5 +72,20 @@ with open(sys.argv[1],'a+') as stream:
             def contender():return subprocess.run([sys.executable,'-c',code,str(path)],capture_output=True,timeout=5).returncode
             with fixed.deployment_guard(path): self.assertEqual(contender(),3)
             self.assertEqual(contender(),0)
+
+class RecordingStagingTest(unittest.TestCase):
+    def test_target_jvm_has_private_access_and_recording_is_archived_without_exposing_output_tree(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);settings=root/'source.jfc';settings.write_text('minimal-test-profile')
+            output=root/'result.jfr'
+            with fixed.jfr_staging(settings,output,os.getuid(),os.getgid(),parent=folder) as (config,recording):
+                stage=config.parent
+                self.assertEqual(config.read_text(),'minimal-test-profile')
+                self.assertEqual(stage.stat().st_mode & 0o777,0o700)
+                self.assertEqual(config.stat().st_mode & 0o777,0o400)
+                recording.write_bytes(b'not-a-real-recording')
+            self.assertEqual(output.read_bytes(),b'not-a-real-recording')
+            self.assertEqual(output.stat().st_mode & 0o777,0o600)
+            self.assertFalse(stage.exists())
 
 if __name__=='__main__': unittest.main()

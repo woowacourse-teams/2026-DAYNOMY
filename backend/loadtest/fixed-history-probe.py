@@ -19,6 +19,8 @@ import math
 import resource
 from pathlib import Path
 import ssl
+import shutil
+import tempfile
 import statistics
 import threading
 import subprocess
@@ -68,6 +70,26 @@ def deployment_guard(path):
         yield
 
 
+@contextmanager
+def jfr_staging(settings, destination, uid, gid, parent='/var/tmp'):
+    # The target JVM must traverse every parent and read the JFC under its own uid.
+    stage=Path(tempfile.mkdtemp(prefix='daynomy-history-jfr981-',dir=parent))
+    try:
+        config=stage/'settings.jfc';recording=stage/'recording.jfr'
+        config.write_bytes(Path(settings).read_bytes())
+        for path in (stage,config):
+            stat=path.stat()
+            if stat.st_uid!=uid or stat.st_gid!=gid:os.chown(path,uid,gid)
+        stage.chmod(0o700);config.chmod(0o400)
+        yield config,recording
+    finally:
+        # Retain the private staging path if archiving fails; never overwrite an existing artifact.
+        if 'recording' in locals() and recording.is_file():
+            with recording.open('rb') as source,Path(destination).open('xb') as target:
+                Path(destination).chmod(0o600);shutil.copyfileobj(source,target)
+        shutil.rmtree(stage)
+
+
 def percentile(values, fraction):
     return sorted(values)[max(0, math.ceil(len(values) * fraction) - 1)]
 
@@ -79,12 +101,23 @@ class FixedHistoryProbe(module.Probe):
         self.report.update(run=self.run, protocol="one trade/member/case; restore outside timing",
                            members=args.members, history_sizes=args.histories, rps=args.rps)
         self.args = args
+        self.env['PGAPPNAME']='fixed_history_'+self.run
+        self.report['databaseApplicationName']=self.env['PGAPPNAME']
+        self.report['databaseFingerprint']=hashlib.sha256((self.config['DB_URL']+'\0'+self.config['DB_USERNAME']).encode()).hexdigest()
         self.cohort = []
         self.inflight = False
         self.tls = threading.local()
         self.ssl_context = ssl.create_default_context()
         self.pin = self.guard()
         self.report["release"] = self.pin
+        owner={key:self.report[key] for key in ('run','members','databaseApplicationName','databaseFingerprint')}
+        path=self.output/'fixture-owner.json'
+        with path.open('x') as stream:
+            path.chmod(0o600);json.dump(owner,stream);stream.flush();os.fsync(stream.fileno())
+        directory=os.open(self.output,os.O_RDONLY|os.O_DIRECTORY)
+        try:os.fsync(directory)
+        finally:os.close(directory)
+        self.save()  # Immutable ownership metadata precedes every fixture write.
 
     def guard(self):
         root = Path('/home/ec2-user/backend/deployment-dev')
@@ -434,31 +467,32 @@ class FixedHistoryProbe(module.Probe):
     def profile(self):
         # Privacy-checked minimal events only; this pass is excluded from latency comparison.
         self.prepare()
-        self.seed(500)
+        count=self.args.histories[0] if len(self.args.histories)==1 else 500
+        self.seed(count)
         jcmd='/usr/lib/jvm/temurin-21-jdk/bin/jcmd'
         settings=Path(__file__).with_name('profiles')/'history-allocation.jfc'
         assert settings.is_file()
         destination=(self.output/'history-allocation.jfr').resolve()
-        # Target JVM writes the recording under its own uid, not the attaching root uid.
-        process_owner=(Path('/proc')/str(self.pin['pid'])).stat()
-        os.chown(self.output,process_owner.st_uid,process_owner.st_gid)
-        self.output.chmod(0o700)
-        started=False
-        try:
-            result=subprocess.run([jcmd,str(self.pin['pid']),'JFR.start','name=history981',
-                'settings='+str(settings.resolve()),'filename='+str(destination),'maxsize=64m'],
-                capture_output=True,text=True,timeout=15)
-            assert result.returncode==0 and 'Started recording' in result.stdout, 'JFR start failed (details withheld)'
-            started=True
-            self.case(20,True,'warmup-profile')
-            self.case(20,True,'profile-h500')
-        finally:
-            if started:
-                result=subprocess.run([jcmd,str(self.pin['pid']),'JFR.stop','name=history981'],
+        owner=(Path('/proc')/str(self.pin['pid'])).stat()
+        recording_name='history981-'+self.run.removeprefix('fixed981-')
+        self.report['profileRecordingName']=recording_name
+        with jfr_staging(settings,destination,owner.st_uid,owner.st_gid) as (config,recording):
+            self.report['profileStagingDirectory']=str(recording.parent);self.save()
+            started=False
+            try:
+                result=subprocess.run([jcmd,str(self.pin['pid']),'JFR.start','name='+recording_name,
+                    'settings='+str(config),'filename='+str(recording),'maxsize=64m','duration=10m'],
                     capture_output=True,text=True,timeout=15)
-                assert result.returncode==0, 'JFR stop failed (details withheld)'
+                assert result.returncode==0 and 'Started recording' in result.stdout, 'JFR start failed (details withheld)'
+                started=True
+                self.case(20,True,'warmup-profile')
+                self.case(20,True,f'profile-h{count}')
+            finally:
+                if started:
+                    result=subprocess.run([jcmd,str(self.pin['pid']),'JFR.stop','name='+recording_name],
+                        capture_output=True,text=True,timeout=15)
+                    assert result.returncode==0, 'JFR stop failed (details withheld)'
         assert destination.is_file()
-        destination.chmod(0o600)
         self.report['profileFile']=destination.name
         self.report['completed']=True;self.save()
 
