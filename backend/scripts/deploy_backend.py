@@ -95,26 +95,39 @@ def available():
 
 
 def candidate_available_required():
-    return RESERVE + (480 if ENVIRONMENT=='development' else 400) * 1024 * 1024
+    return RESERVE + 480 * 1024 * 1024
 
 
 def reclaim_development_memory(verify):
+    # Preserve the development-only API used by its explicit memory preparation tool.
+    if ENVIRONMENT != 'development':
+        return []
+    return reclaim_management_memory(verify)
+
+
+def memory_reclaim_units():
+    environment = 'dev' if ENVIRONMENT == 'development' else 'prod'
+    units = (
+        f'actions.runner.woowacourse-teams-2026-DAYNOMY.frontend-{environment}-arm64-server.service',
+        f'actions.runner.woowacourse-teams-2026-DAYNOMY.backend-{environment}-al2023.service',
+        'codedeploy-agent.service',
+    )
+    return units + (('docker.service',) if ENVIRONMENT == 'development' else ())
+
+
+def reclaim_management_memory(verify):
     """Page out cold CI/management memory; never change limits or touch app/security cgroups."""
-    if ENVIRONMENT != 'development' or available() >= RESERVE + 512 * 1024 * 1024:
+    if available() >= RESERVE + 512 * 1024 * 1024:
         return []
     if os.geteuid() != 0:
-        raise RuntimeError('Development memory reclaim requires root')
+        raise RuntimeError('Management memory reclaim requires root')
     require_target_instance()
     memory = {line.split(':')[0]: int(line.split()[1]) * 1024
               for line in (PROC_ROOT / 'meminfo').read_text().splitlines()
               if line.split(':')[0] in ('SwapTotal', 'SwapFree')}
     if memory.get('SwapTotal', 0) < 1024**3 - 4096 or memory.get('SwapFree', 0) < 512 * 1024**2:
         return []
-    units = (
-        'actions.runner.woowacourse-teams-2026-DAYNOMY.frontend-dev-arm64-server.service',
-        'actions.runner.woowacourse-teams-2026-DAYNOMY.backend-dev-al2023.service',
-        'codedeploy-agent.service', 'docker.service',
-    )
+    units = memory_reclaim_units()
     # Modern kernels support per-request swappiness; older kernels use the plain ABI.
     child = '''import errno,sys
 from pathlib import Path
@@ -151,7 +164,7 @@ for payload in (amount+' swappiness=200',amount):
                     try: processes.append((PROC_ROOT / pid / 'comm').read_text().strip())
                     except OSError: pass
                 # Never perturb another frontend deployment or an agent hook.
-                if 'frontend-dev' in unit and 'Runner.Worker' in processes:
+                if 'actions.runner.' in unit and 'Runner.Worker' in processes:
                     continue
                 if unit == 'codedeploy-agent.service' and any(name not in ('ruby', 'codedeploy-agen') for name in processes):
                     continue
@@ -171,7 +184,7 @@ for payload in (amount+' swappiness=200',amount):
                 continue  # Reclaim is best effort; the unchanged RAM gate decides.
             verify()
             samples.append(row)
-            print(json.dumps({'development_memory_reclaim': row}), flush=True)
+            print(json.dumps({'management_memory_reclaim': row}), flush=True)
     return samples
 
 
@@ -480,7 +493,7 @@ def deploy(artifact, version):
     if is_active(SLOTS[new][0]):
         raise RuntimeError('Inactive slot unexpectedly runs; refusing to interrupt it')
     if available() < candidate_available_required():
-        reclaim_development_memory(lambda: probe(old))
+        reclaim_management_memory(lambda: probe(old))
     if available() < candidate_available_required():
         raise RuntimeError('Insufficient available memory to start a candidate safely')
     release = APP / 'releases' / ('daynomy-' + version + '.jar')

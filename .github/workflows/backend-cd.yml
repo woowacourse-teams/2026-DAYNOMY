@@ -92,64 +92,35 @@ jobs:
           name: backend-${{ github.sha }}
           path: ${{ runner.temp }}/daynomy-backend
 
+      - name: Checkout deployment controller
+        uses: actions/checkout@v6
+        with:
+          path: deployment-source
+
+      - name: Test deployment controller
+        run: python3 -B -m unittest discover -s deployment-source/backend/scripts -p 'test_*backend*.py'
+
       - name: Deploy and verify
         env:
           APP_VERSION: ${{ github.sha }}
         run: |
           set -Eeuo pipefail
-
-          APP_DIR="/home/ec2-user/backend"
           ARTIFACT="${RUNNER_TEMP}/daynomy-backend/daynomy-${APP_VERSION}.jar"
-          RELEASE="${APP_DIR}/releases/daynomy-${APP_VERSION}.jar"
-          PREVIOUS="$(readlink -f "${APP_DIR}/current.jar" || true)"
-
-          rollback() {
-            echo "Rolling back backend."
-
-            if [ -n "$PREVIOUS" ] && [ -f "$PREVIOUS" ]; then
-              ln -sfn "$PREVIOUS" "${APP_DIR}/current.jar"
-              sudo -n systemctl restart daynomy
+          STATE="/home/ec2-user/backend/deployment"
+          if [ ! -f "${STATE}/active-slot" ]; then
+            RELEASE="/home/ec2-user/backend/releases/daynomy-${APP_VERSION}.jar"
+            if [ -e "$RELEASE" ]; then
+              cmp --silent "$ARTIFACT" "$RELEASE"
             else
-              echo "Previous release was not found."
+              install -m 0644 "$ARTIFACT" "$RELEASE"
             fi
-          }
-
-          if [ ! -f "$ARTIFACT" ]; then
-            echo "Downloaded JAR was not found: $ARTIFACT"
+            echo "Initial installation requires the reviewed bootstrap procedure and an external API observer."
+            echo "Artifact is ready; no production service has been restarted."
             exit 1
           fi
-
-          install -m 0644 "$ARTIFACT" "$RELEASE"
-          ln -sfn "$RELEASE" "${APP_DIR}/current.jar"
-
-          if ! sudo -n systemctl restart daynomy; then
-            rollback
-            exit 1
-          fi
-
-          HEALTHY=false
-
-          for attempt in $(seq 1 45); do
-            if curl \
-              --fail \
-              --silent \
-              --max-time 5 \
-              http://127.0.0.1:8081/actuator/health \
-              >/dev/null; then
-              HEALTHY=true
-              break
-            fi
-
-            sleep 2
-          done
-
-          if [ "$HEALTHY" != "true" ]; then
-            echo "Backend health check failed."
-            rollback
-            exit 1
-          fi
-
-          echo "Backend deployment completed: ${APP_VERSION}"
+          sudo -n install -m 0755 deployment-source/backend/scripts/deploy_backend.py /usr/local/libexec/daynomy/deploy_backend.py
+          sudo -n python3 -B /usr/local/libexec/daynomy/deploy_backend.py \
+            --environment production --artifact "$ARTIFACT" --version "$APP_VERSION"
 
       - name: Verify Nginx proxy
         run: |

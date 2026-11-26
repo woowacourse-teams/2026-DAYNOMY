@@ -49,15 +49,15 @@ class ReclaimTest(unittest.TestCase):
         self.assertEqual((self.group/'memory.swap.max').read_text(),'max')
         self.assertNotIn('daynomy-dev.service',self.kernel.call_args.args[0])
 
-    def test_production_never_reclaims(self):
+    def test_development_only_entrypoint_never_reclaims_production(self):
         with patch.object(deployment,'ENVIRONMENT','production'):
             self.assertEqual(deployment.reclaim_development_memory(self.verify),[])
         self.kernel.assert_not_called()
 
-    def test_larger_development_candidate_keeps_production_gate_unchanged(self):
+    def test_both_validated_192m_profiles_require_480_mib_candidate_reserve(self):
         self.assertEqual(deployment.candidate_available_required(),736*1024**2)
         with patch.object(deployment,'ENVIRONMENT','production'):
-            self.assertEqual(deployment.candidate_available_required(),656*1024**2)
+            self.assertEqual(deployment.candidate_available_required(),736*1024**2)
 
     def test_missing_swap_keeps_original_memory_gate(self):
         (self.proc/'meminfo').write_text('SwapTotal: 0 kB\nSwapFree: 0 kB\n')

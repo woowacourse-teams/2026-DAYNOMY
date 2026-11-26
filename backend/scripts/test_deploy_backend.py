@@ -247,7 +247,7 @@ class DeploymentTest(unittest.TestCase):
 
     def test_low_memory_is_rejected_before_start(self):
         deploy.available.return_value = deploy.RESERVE
-        with self.assertRaisesRegex(RuntimeError, 'Insufficient available memory'):
+        with patch.object(deploy, 'reclaim_management_memory', return_value=[]), self.assertRaisesRegex(RuntimeError, 'Insufficient available memory'):
             deploy.deploy(self.artifact, 'f' * 40)
         self.assertFalse(self.calls)
 
@@ -313,6 +313,38 @@ class TaskStatusTest(unittest.TestCase):
     def test_unavailable_management_endpoint_keeps_the_jvm_running(self):
         with patch.object(deploy, 'tasks_idle', side_effect=OSError('unreachable')):
             self.assertFalse(deploy.wait_tasks('blue', timeout=0))
+
+
+
+class ProductionMemoryAllowlistTest(unittest.TestCase):
+    def test_reclaim_excludes_app_frontend_containers_and_security_services(self):
+        with patch.object(deploy, 'ENVIRONMENT', 'production'):
+            self.assertEqual(deploy.memory_reclaim_units(), (
+                'actions.runner.woowacourse-teams-2026-DAYNOMY.frontend-prod-arm64-server.service',
+                'actions.runner.woowacourse-teams-2026-DAYNOMY.backend-prod-al2023.service',
+                'codedeploy-agent.service',
+            ))
+
+    def test_active_ci_worker_is_never_paged_out(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder)
+            proc=root/'proc'; proc.mkdir()
+            (proc/'meminfo').write_text('SwapTotal: 2097148 kB\nSwapFree: 2097148 kB\n')
+            worker=proc/'1';worker.mkdir();(worker/'comm').write_text('Runner.Worker')
+            unit='actions.runner.woowacourse-teams-2026-DAYNOMY.backend-prod-al2023.service'
+            cg='/system.slice/'+unit
+            group=root/cg.lstrip('/');group.mkdir(parents=True)
+            (group/'memory.swap.max').write_text('max')
+            (group/'memory.reclaim').touch();(group/'cgroup.procs').write_text('1')
+            with patch.object(deploy,'PROC_ROOT',proc), patch.object(deploy,'CGROUP_ROOT',root), patch.object(deploy,'available',return_value=0), patch.object(deploy.os,'geteuid',return_value=0), patch.object(deploy,'require_target_instance'), patch.object(deploy,'memory_reclaim_units',return_value=(unit,)), patch.object(deploy,'command',return_value=cg), patch.object(deploy.subprocess,'run') as reclaim:
+                self.assertEqual(deploy.reclaim_management_memory(lambda:None),[])
+                reclaim.assert_not_called()
+
+    def test_wrong_instance_never_receives_reclaim_request(self):
+        with patch.object(deploy,'available',return_value=0), patch.object(deploy.os,'geteuid',return_value=0), patch.object(deploy,'require_target_instance',side_effect=RuntimeError('wrong instance')), patch.object(deploy.subprocess,'run') as reclaim:
+            with self.assertRaisesRegex(RuntimeError,'wrong instance'):
+                deploy.reclaim_management_memory(lambda:None)
+            reclaim.assert_not_called()
 
 
 if __name__ == '__main__': unittest.main()

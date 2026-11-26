@@ -52,7 +52,7 @@ class BootstrapTest(unittest.TestCase):
         self.assertIn('ExecStartPre=+/usr/bin/python3 ',self.unit.read_text())
         self.assertIn('User=ec2-user',self.unit.read_text())
         self.assertNotIn('ExecStart=+',self.unit.read_text())
-        self.assertIn('MemoryMax=800M',(self.systemd/'daynomy-backend.slice').read_text())
+        self.assertIn('MemoryMax=1024M',(self.systemd/'daynomy-backend.slice').read_text())
         self.assertIn('SYSLOG_IDENTIFIER=daynomy',self.alloy.read_text())
         self.assertEqual((self.app/'deployment/active-slot').read_text(),'blue\n')
 
@@ -217,6 +217,18 @@ class BootstrapTest(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError,'Schema migration mismatch'):
                 bootstrap.validate_initial_migrations(before,after,True)
 
+class OriginalWorkTest(unittest.TestCase):
+    def test_running_async_work_prevents_first_install(self):
+        dump='"scheduling-1"\nScheduledThreadPoolExecutor$DelayedWorkQueue.take\n"analysis-1"\norg.grit.daynomy.portfolio.Analysis.execute'
+        with patch.object(bootstrap.deployment,'command',side_effect=['10',dump]):
+            with self.assertRaisesRegex(RuntimeError,'application work is still running'):
+                bootstrap.idle_original_jobs()
+
+    def test_idle_scheduler_allows_first_install(self):
+        with patch.object(bootstrap.deployment,'command',side_effect=['10','"scheduling-1"\nScheduledThreadPoolExecutor$DelayedWorkQueue.take']):
+            bootstrap.idle_original_jobs()
+
+
 class RecalculationCompletionTest(unittest.TestCase):
     def metrics(self,succeeded=10,target=10,failed=0,last=123,run_failed=0):
         return ('daynomy_league_calculation_latest_profiles{application="daynomy",outcome="target"} '+str(target)+'\n'
@@ -289,7 +301,8 @@ class DevelopmentTargetTest(unittest.TestCase):
         self.assertNotEqual(bootstrap.deployment.STATE, development_state)
         self.assertEqual(bootstrap.deployment.PUBLIC_ORIGIN, 'https://daynomy.com')
         self.assertIn('--environment production --owns-slot blue', bootstrap.unit('blue'))
-        self.assertNotIn('UseSerialGC',bootstrap.unit('blue'))
+        self.assertIn('-Xmx192m',bootstrap.unit('blue'))
+        self.assertIn('-XX:+UseSerialGC',bootstrap.unit('blue'))
 
 
 if __name__=='__main__':unittest.main()
