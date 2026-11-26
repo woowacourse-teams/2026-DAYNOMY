@@ -6,7 +6,7 @@
 
 Blue는 8080/8181, Green은 8082/8182를 사용한다. API와 관리 포트는 loopback에 바인딩한다. Nginx가 새 버전의 readiness를 확인한 뒤 API 경로를 전환한다. 이전 JVM의 진행 중 요청·예약 배치·분석 작업이 끝날 때까지 이전 JVM을 유지하고 retirement timer가 종료한다. 이 기간에는 다음 배포를 거부한다.
 
-앱 두 개의 합계 메모리 한도는 1GiB, 각 JVM은 `-Xmx192m -XX:TieredStopAtLevel=1 -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError`, `MALLOC_ARENA_MAX=2`다. 앱 swap은 허용하지 않는다. 호스트의 기존 swap은 바꾸지 않는다. 후보 기동 전 여유 RAM 736MiB, 기동 후 256MiB를 요구한다. 필요하면 유휴 CI runner와 CodeDeploy 에이전트의 cold page만 기존 swap으로 회수한다. 앱·실행 중 runner·프론트 컨테이너·보안 에이전트는 회수 대상이 아니다. 자원이 부족하면 전환을 거부한다.
+앱 두 개의 합계 메모리 한도는 1GiB, 각 JVM은 `-Xmx192m -XX:TieredStopAtLevel=1 -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError`, `MALLOC_ARENA_MAX=2`다. 앱 swap은 허용하지 않는다. 호스트의 기존 swap은 바꾸지 않는다. 후보 기동 전 여유 RAM 736MiB, 기동 후 256MiB를 요구한다. 필요하면 유휴 CI runner와 CodeDeploy 에이전트의 cold page만 기존 swap으로 회수한다. 앱·실행 중 runner·프론트 컨테이너·보안 에이전트는 회수 대상이 아니다. 자원이 부족하면 전환을 거부한다. 개발 환경은 기존 backend CD 자체 runner의 cold page 회수 경로를 유지하며, 다른 실행 중 frontend runner는 제외한다.
 
 이 구성은 배포 시 기동 공백을 줄이기 위한 것이다. EC2·Nginx 장애, DB의 비호환 스키마 변경, 새 버전의 업무 오류를 해결하지 않는다. 트래픽 전환 후에는 새 버전의 오류가 전체 요청에 영향을 줄 수 있다. DB 변경은 자동 전환에서 허용하지 않으며, 양쪽 앱이 호환되는 별도 이관을 먼저 검토해야 한다.
 

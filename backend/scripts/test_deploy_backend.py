@@ -336,7 +336,7 @@ class ProductionMemoryAllowlistTest(unittest.TestCase):
             group=root/cg.lstrip('/');group.mkdir(parents=True)
             (group/'memory.swap.max').write_text('max')
             (group/'memory.reclaim').touch();(group/'cgroup.procs').write_text('1')
-            with patch.object(deploy,'PROC_ROOT',proc), patch.object(deploy,'CGROUP_ROOT',root), patch.object(deploy,'available',return_value=0), patch.object(deploy.os,'geteuid',return_value=0), patch.object(deploy,'require_target_instance'), patch.object(deploy,'memory_reclaim_units',return_value=(unit,)), patch.object(deploy,'command',return_value=cg), patch.object(deploy.subprocess,'run') as reclaim:
+            with patch.object(deploy,'ENVIRONMENT','production'), patch.object(deploy,'PROC_ROOT',proc), patch.object(deploy,'CGROUP_ROOT',root), patch.object(deploy,'available',return_value=0), patch.object(deploy.os,'geteuid',return_value=0), patch.object(deploy,'require_target_instance'), patch.object(deploy,'memory_reclaim_units',return_value=(unit,)), patch.object(deploy,'command',return_value=cg), patch.object(deploy.subprocess,'run') as reclaim:
                 self.assertEqual(deploy.reclaim_management_memory(lambda:None),[])
                 reclaim.assert_not_called()
 

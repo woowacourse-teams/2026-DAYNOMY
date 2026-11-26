@@ -163,8 +163,10 @@ for payload in (amount+' swappiness=200',amount):
                 for pid in (root / 'cgroup.procs').read_text().split():
                     try: processes.append((PROC_ROOT / pid / 'comm').read_text().strip())
                     except OSError: pass
-                # Never perturb another frontend deployment or an agent hook.
-                if 'actions.runner.' in unit and 'Runner.Worker' in processes:
+                # Production excludes every busy runner. Keep the existing development
+                # backend self-reclaim path; another frontend deployment stays protected.
+                busy_runner = 'actions.runner.' in unit and 'Runner.Worker' in processes
+                if busy_runner and (ENVIRONMENT == 'production' or 'frontend-dev' in unit):
                     continue
                 if unit == 'codedeploy-agent.service' and any(name not in ('ruby', 'codedeploy-agen') for name in processes):
                     continue
