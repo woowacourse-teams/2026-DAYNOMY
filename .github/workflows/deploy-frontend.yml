@@ -276,9 +276,30 @@ jobs:
           docker tag "$IMAGE_NAME:$IMAGE_TAG" "$IMAGE_NAME:$GITHUB_REF_NAME"
           docker push "$IMAGE_NAME:$GITHUB_REF_NAME"
 
+  backend-ready:
+    name: Require production backend before frontend
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Checkout release history
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Test release ordering
+        run: python3 -B -m unittest discover -s backend/scripts -p 'test_release_order_backend.py'
+      - name: Wait for the same production backend commit
+        if: github.ref == 'refs/heads/main'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_BEFORE: ${{ github.event.before }}
+        run: python3 -B backend/scripts/wait_for_production_backend.py
+
   deploy:
     if: github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main'
-    needs: build-and-publish
+    needs: [build-and-publish, backend-ready]
     runs-on:
       - self-hosted
       - linux

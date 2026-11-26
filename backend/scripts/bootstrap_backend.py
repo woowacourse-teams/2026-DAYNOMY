@@ -36,7 +36,7 @@ def configure_environment(environment):
 
 def unit(slot):
     _, api, management = deployment.SLOTS[slot]
-    flags=(DEVELOPMENT_JVM_FLAGS+' -XX:+UseSerialGC') if deployment.ENVIRONMENT=='development' else '-Xmx128m -XX:TieredStopAtLevel=1 -XX:+ExitOnOutOfMemoryError'
+    flags=DEVELOPMENT_JVM_FLAGS+' -XX:+UseSerialGC'
     return f'''[Unit]
 Description=DAYNOMY backend {slot}
 After=network-online.target nginx.service
@@ -99,6 +99,8 @@ def idle_original_jobs():
                             'jdk.jcmd/sun.tools.jcmd.JCmd',pid,'Thread.print')
     schedulers=[block for block in re.split(r'\n(?=")',dump)
                 if block.startswith(('"scheduling-','"email-delivery-'))]
+    if any('org.grit.daynomy.' in block for block in re.split(r'\n(?=")',dump)):
+        raise RuntimeError('Original application work is still running; retry after it finishes')
     if not schedulers or any('ScheduledThreadPoolExecutor$DelayedWorkQueue.take' not in block
                              for block in schedulers):
         raise RuntimeError('Original scheduled jobs are not confirmed idle; retry outside a batch window')
@@ -132,10 +134,28 @@ def validate_initial_migrations(before, after, allow_shared_state_migration=Fals
     added = set(after) - set(before)
     shared_state = 'BOOT-INF/classes/db/migration/V99__share_sessions_and_guest_analysis_trials.sql'
     existing_trade = 'BOOT-INF/classes/db/migration/V98__create_portfolio_transaction_requests.sql'
+    # Production main is V90. Preserve the already-reviewed dev migration order
+    # instead of applying V99 first and stranding future V91..98 migrations.
+    production_additions = {
+        'BOOT-INF/classes/db/migration/' + name for name in (
+            'V91__create_portfolio_analysis_shares.sql',
+            'V92__allow_short_portfolio_analysis_share_questions.sql',
+            'V93__serialize_analysisless_portfolio_shares.sql',
+            'V94__add_portfolio_share_explanation.sql',
+            'V95__separate_portfolio_analysis_share_issuances.sql',
+            'V96__create_portfolio_review_proposals.sql',
+            'V97__store_encrypted_portfolio_share_tokens.sql',
+            'V98__create_portfolio_transaction_requests.sql',
+            'V99__share_sessions_and_guest_analysis_trials.sql',
+        )
+    }
     reviewed = ({shared_state}, {existing_trade, shared_state})
+    if deployment.ENVIRONMENT == 'production':
+        reviewed = (*reviewed, production_additions)
+
     unchanged = all(after.get(name) == checksum for name, checksum in before.items())
     if not (allow_shared_state_migration and unchanged and added in reviewed):
-        raise RuntimeError('Schema migration mismatch; only the explicitly reviewed shared-state addition is allowed')
+        raise RuntimeError('Schema migration mismatch; only explicitly reviewed deployment migration additions are allowed')
 
 
 def routing_files(site):
@@ -278,7 +298,7 @@ def apply(artifact,expected_sha256,allow_shared_state_migration=False,reuse_init
         deployment.command('systemctl','stop',deployment.SLOTS['blue'][0])
         deployment.atomic(SYSTEMD/(deployment.SLOTS['blue'][0]+'.service'),unit('blue'))
         deployment.atomic(SYSTEMD/(deployment.SLOTS['green'][0]+'.service'),unit('green'))
-        budget=DEVELOPMENT_PAIR_MEMORY_MIB if deployment.ENVIRONMENT=='development' else 800
+        budget=DEVELOPMENT_PAIR_MEMORY_MIB if deployment.ENVIRONMENT=='development' else 1024
         deployment.atomic(SYSTEMD/deployment.SLICE,f'[Unit]\nDescription=Combined backend JVM memory budget\n[Slice]\nMemoryMax={budget}M\nMemorySwapMax=0\n')
         for path,text in routes.items():
             deployment.atomic(path,text.replace('proxy_pass http://127.0.0.1:8080;','proxy_pass http://daynomy_backend;'))
@@ -368,7 +388,7 @@ def main():
     parser.add_argument('--apply',action='store_true')
     parser.add_argument('--expected-current-sha256')
     parser.add_argument('--allow-shared-state-migration',action='store_true',
-                        help='First install only: allow the reviewed additive V99 session/task tables')
+                        help='First install only: allow reviewed V99 state tables (production: exact V91-V99 sequence)')
     args=parser.parse_args()
     configure_environment(args.environment)
     deployment.require_target_instance()
