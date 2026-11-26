@@ -32,6 +32,8 @@ class FixedHistoryFixtureTest(unittest.TestCase):
                     p.asset=int(p.query("SELECT id FROM assets WHERE listed=true AND market='KOSPI' ORDER BY id LIMIT 1"))
                     p.authenticate=lambda member:{'member':member}
                     probes.append(p);p.prepare();p.seed(10)
+                    self.assertEqual(p.query(f'SELECT count(*) FROM portfolio_holding_histories WHERE portfolio_id IN ({p.portfolios()}) AND native_average_purchase_price IS NOT NULL'),'0')
+                    self.assertEqual(p.query(f'SELECT count(*) FROM portfolio_holding_histories WHERE portfolio_id IN ({p.portfolios()}) AND quantity=0 AND average_purchase_price=0'),'3')
                 owner,other=probes
                 pids=owner.portfolios()
                 owner.query("INSERT INTO portfolio_holding_histories(portfolio_id,asset_id,change_type,quantity,"

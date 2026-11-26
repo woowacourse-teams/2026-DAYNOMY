@@ -285,7 +285,7 @@ class FixedHistoryProbe(module.Probe):
             "INSERT INTO portfolio_holding_histories(portfolio_id,asset_id,change_type,quantity,"
             "average_purchase_price,native_average_purchase_price,effective_date,transaction_quantity,"
             "unit_price,fee,tax,exchange_rate,created_at,updated_at) "
-            f"SELECT p.id,{self.asset},'BUY',g.i-1,100,100,DATE '{self.today}',1,100,0,0,1,"
+            f"SELECT p.id,{self.asset},'BUY',g.i-1,CASE WHEN g.i=1 THEN 0 ELSE 100 END,NULL,DATE '{self.today}',1,100,0,0,1,"
             f"now()-interval '1 hour'+g.i*interval '1 microsecond',now() FROM portfolios p "
             f"CROSS JOIN generate_series(1,{history_count}) g(i) WHERE p.member_id IN ({self.ids()}); "
             "INSERT INTO portfolio_holdings(portfolio_id,asset_id,quantity,average_purchase_price,"
