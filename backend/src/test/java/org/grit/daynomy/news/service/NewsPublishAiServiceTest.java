@@ -3,12 +3,15 @@ package org.grit.daynomy.news.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -18,6 +21,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.grit.daynomy.common.exception.BusinessException;
@@ -35,6 +39,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.HttpServerErrorException;
 
 @ExtendWith(MockitoExtension.class)
 class NewsPublishAiServiceTest {
@@ -77,7 +85,7 @@ class NewsPublishAiServiceTest {
             });
 
     try (var executor = Executors.newFixedThreadPool(2)) {
-      var service = new NewsPublishAiService(keywordAiClient, marketAnalysisAiClient, executor);
+      var service = service(executor);
 
       NewsPublishAiService.Analysis result = service.analyze("뉴스 본문");
 
@@ -87,11 +95,16 @@ class NewsPublishAiServiceTest {
   }
 
   @Test
-  void aiFailureIsPropagatedWithoutDuplicateLoggingAfterBothCallsFinish() throws Exception {
+  void aiFailureCancelsOtherTaskAndIsPropagatedWithoutDuplicateLogging() throws Exception {
     RuntimeException failure = new RuntimeException("keyword failed");
     CountDownLatch marketStarted = new CountDownLatch(1);
     CountDownLatch releaseMarket = new CountDownLatch(1);
-    given(keywordAiClient.extractKeywords("뉴스 본문")).willThrow(failure);
+    given(keywordAiClient.extractKeywords("뉴스 본문"))
+        .willAnswer(
+            invocation -> {
+              assertThat(marketStarted.await(1, TimeUnit.SECONDS)).isTrue();
+              throw failure;
+            });
     given(marketAnalysisAiClient.analyze("뉴스 본문"))
         .willAnswer(
             invocation -> {
@@ -101,7 +114,7 @@ class NewsPublishAiServiceTest {
             });
 
     try (var executor = Executors.newFixedThreadPool(2)) {
-      var service = new NewsPublishAiService(keywordAiClient, marketAnalysisAiClient, executor);
+      var service = service(executor);
       CompletableFuture<Throwable> result =
           CompletableFuture.supplyAsync(
               () -> {
@@ -115,11 +128,10 @@ class NewsPublishAiServiceTest {
 
       try {
         assertThat(marketStarted.await(1, TimeUnit.SECONDS)).isTrue();
-        assertThat(result.isDone()).isFalse();
+        assertThat(result.get(1, TimeUnit.SECONDS)).isSameAs(failure);
       } finally {
         releaseMarket.countDown();
       }
-      assertThat(result.get(1, TimeUnit.SECONDS)).isSameAs(failure);
     }
 
     verify(marketAnalysisAiClient).analyze("뉴스 본문");
@@ -129,6 +141,103 @@ class NewsPublishAiServiceTest {
                 LogEvent.AI_NEWS_GENERATION_FAILED
                     .code()
                     .equals(keyValues(loggingEvent).get("event")));
+  }
+
+  @Test
+  void retriesRetryableFailureOnceAndReturnsSuccessfulResult() {
+    List<NewsKeyword> keywords =
+        List.of(new NewsKeyword(KeywordCategory.POLICY, "금리", "정의", "맥락", "관찰점"));
+    NewsMarketAnalysis marketAnalysis = new NewsMarketAnalysis("시장 분석");
+    var failure =
+        HttpServerErrorException.create(
+            HttpStatus.SERVICE_UNAVAILABLE,
+            "unavailable",
+            HttpHeaders.EMPTY,
+            new byte[0],
+            StandardCharsets.UTF_8);
+    given(keywordAiClient.extractKeywords("뉴스 본문")).willThrow(failure).willReturn(keywords);
+    given(marketAnalysisAiClient.analyze("뉴스 본문")).willReturn(marketAnalysis);
+
+    NewsPublishAiService.Analysis result = service(Runnable::run).analyze("뉴스 본문");
+
+    assertThat(result.keywords()).isEqualTo(keywords);
+    assertThat(result.marketAnalysis()).isSameAs(marketAnalysis);
+    verify(keywordAiClient, times(2)).extractKeywords("뉴스 본문");
+    verify(marketAnalysisAiClient).analyze("뉴스 본문");
+  }
+
+  @Test
+  void retryableFailureIsPropagatedAfterRetryIsExhausted() {
+    var failure =
+        HttpServerErrorException.create(
+            HttpStatus.SERVICE_UNAVAILABLE,
+            "unavailable",
+            HttpHeaders.EMPTY,
+            new byte[0],
+            StandardCharsets.UTF_8);
+    given(keywordAiClient.extractKeywords("뉴스 본문")).willThrow(failure);
+    given(marketAnalysisAiClient.analyze("뉴스 본문"))
+        .willReturn(new NewsMarketAnalysis("시장 분석"));
+
+    assertThatThrownBy(() -> service(Runnable::run).analyze("뉴스 본문")).isSameAs(failure);
+
+    verify(keywordAiClient, times(2)).extractKeywords("뉴스 본문");
+  }
+
+  @Test
+  void doesNotRetryPermanentFailure() {
+    var failure =
+        HttpClientErrorException.create(
+            HttpStatus.UNAUTHORIZED,
+            "unauthorized",
+            HttpHeaders.EMPTY,
+            new byte[0],
+            StandardCharsets.UTF_8);
+    given(keywordAiClient.extractKeywords("뉴스 본문")).willThrow(failure);
+    given(marketAnalysisAiClient.analyze("뉴스 본문"))
+        .willReturn(new NewsMarketAnalysis("시장 분석"));
+
+    assertThatThrownBy(() -> service(Runnable::run).analyze("뉴스 본문")).isSameAs(failure);
+
+    verify(keywordAiClient).extractKeywords("뉴스 본문");
+  }
+
+  @Test
+  void timeoutCancelsAiTasksAndReturnsAiFailure() {
+    CountDownLatch release = new CountDownLatch(1);
+    given(keywordAiClient.extractKeywords("뉴스 본문"))
+        .willAnswer(
+            invocation -> {
+              release.await(1, TimeUnit.SECONDS);
+              return List.of();
+            });
+    given(marketAnalysisAiClient.analyze("뉴스 본문"))
+        .willAnswer(
+            invocation -> {
+              release.await(1, TimeUnit.SECONDS);
+              return new NewsMarketAnalysis("시장 분석");
+            });
+
+    try (var executor = Executors.newFixedThreadPool(2)) {
+      var service = service(executor, Duration.ofMillis(50));
+      try {
+        assertThatThrownBy(() -> service.analyze("뉴스 본문"))
+            .isInstanceOfSatisfying(
+                BusinessException.class,
+                exception ->
+                    assertThat(exception.errorCode())
+                        .isEqualTo(ExternalErrorCode.AI_NEWS_GENERATION_FAILED));
+      } finally {
+        release.countDown();
+      }
+    }
+
+    ILoggingEvent log = logEvent(LogEvent.AI_NEWS_GENERATION_FAILED);
+    assertThat(keyValues(log))
+        .containsEntry("operation", "news-publish-analysis")
+        .containsEntry("reasonCode", "TIMEOUT")
+        .containsEntry("errorType", TimeoutException.class.getSimpleName())
+        .containsKey("durationMs");
   }
 
   @Test
@@ -143,7 +252,7 @@ class NewsPublishAiServiceTest {
           }
           throw new RejectedExecutionException("queue full");
         };
-    var service = new NewsPublishAiService(keywordAiClient, marketAnalysisAiClient, executor);
+    var service = service(executor);
 
     assertThatThrownBy(() -> service.analyze("뉴스 본문"))
         .isInstanceOfSatisfying(
@@ -161,6 +270,15 @@ class NewsPublishAiServiceTest {
         .containsEntry("reasonCode", "EXECUTOR_REJECTED")
         .containsEntry("errorType", RejectedExecutionException.class.getSimpleName())
         .containsKey("durationMs");
+  }
+
+  private NewsPublishAiService service(Executor executor) {
+    return service(executor, Duration.ofSeconds(1));
+  }
+
+  private NewsPublishAiService service(Executor executor, Duration timeout) {
+    return new NewsPublishAiService(
+        keywordAiClient, marketAnalysisAiClient, executor, timeout, Duration.ZERO);
   }
 
   private ILoggingEvent logEvent(LogEvent event) {
