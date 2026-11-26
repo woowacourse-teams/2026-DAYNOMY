@@ -1,9 +1,11 @@
 package org.grit.daynomy.portfolio.repository;
 
 import jakarta.persistence.LockModeType;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.grit.daynomy.portfolio.domain.PortfolioAnalysisComment;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
@@ -23,11 +25,15 @@ public interface PortfolioAnalysisCommentRepository
 
   Optional<PortfolioAnalysisComment> findByIdAndAuthorId(Long id, Long authorId);
 
-  List<PortfolioAnalysisComment> findAllByShareIdAndParentIsNullOrderByCreatedAtAscIdAsc(
-      Long shareId);
+  @EntityGraph(attributePaths = {"author", "share", "share.owner"})
+  List<PortfolioAnalysisComment> findAllByShareIdInAndParentIsNullOrderByCreatedAtAscIdAsc(
+      Collection<Long> shareIds);
 
+  @EntityGraph(attributePaths = {"author", "share", "share.owner"})
   List<PortfolioAnalysisComment> findAllByShareIdAndAuthorIdAndParentIsNullOrderByCreatedAtAscIdAsc(
       Long shareId, Long authorId);
 
-  List<PortfolioAnalysisComment> findAllByParentIdOrderByCreatedAtAscIdAsc(Long parentId);
+  @EntityGraph(attributePaths = "author")
+  List<PortfolioAnalysisComment> findAllByParentIdInOrderByCreatedAtAscIdAsc(
+      Collection<Long> parentIds);
 }
