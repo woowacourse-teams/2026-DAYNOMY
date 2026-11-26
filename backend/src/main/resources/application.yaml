@@ -192,6 +192,10 @@ ai:
     model: ${OPENAI_MODEL:gpt-5-mini}
 
 news:
+  publish:
+    ai:
+      timeout: ${NEWS_PUBLISH_AI_TIMEOUT:120s}
+      retry-delay: ${NEWS_PUBLISH_AI_RETRY_DELAY:250ms}
   generation:
     korea:
       enabled: ${KOREAN_NEWS_GENERATION_ENABLED:${ECONOMY_NEWS_GENERATION_ENABLED:${news.generation.economy.enabled:false}}}
