@@ -47,7 +47,8 @@ public class PortfolioAnalysisShareResponseFactory {
 
   public PortfolioAnalysisShareDto.PublicResponse publicResponse(
       PortfolioAnalysisShare share, Long viewerMemberId, Instant now) {
-    boolean owner = share.getOwner().getId().equals(viewerMemberId);
+    Long ownerMemberId = share.getOwner().getId();
+    boolean owner = ownerMemberId.equals(viewerMemberId);
     List<PortfolioAnalysisComment> myRoots =
         viewerMemberId == null || owner
             ? List.of()
@@ -62,7 +63,7 @@ public class PortfolioAnalysisShareResponseFactory {
         share.getExpiresAt(),
         PortfolioAnalysisShareDto.SnapshotResponse.from(share.getSnapshot()),
         viewerMemberId != null && !owner,
-        commentResponses(myRoots, viewerMemberId, myReplies),
+        commentResponses(myRoots, ownerMemberId, viewerMemberId, myReplies),
         owner ? ownerResponse(share, now) : null);
   }
 
@@ -70,6 +71,7 @@ public class PortfolioAnalysisShareResponseFactory {
       PortfolioAnalysisComment comment, Long viewerMemberId) {
     return commentResponse(
         comment,
+        comment.getShare().getOwner().getId(),
         viewerMemberId,
         comments.findAllByParentIdInOrderByCreatedAtAscIdAsc(List.of(comment.getId())).stream()
             .collect(Collectors.groupingBy(reply -> reply.getParent().getId())));
@@ -80,6 +82,7 @@ public class PortfolioAnalysisShareResponseFactory {
       Instant now,
       List<PortfolioAnalysisComment> roots,
       Map<Long, List<PortfolioAnalysisComment>> repliesByParent) {
+    Long ownerMemberId = share.getOwner().getId();
     return new PortfolioAnalysisShareDto.OwnerResponse(
         share.getId(),
         recoverToken(share, now),
@@ -97,20 +100,22 @@ public class PortfolioAnalysisShareResponseFactory {
                     new PortfolioAnalysisShareDto.AssetResponse(
                         impact.assetName(), impact.weight()))
             .toList(),
-        commentResponses(roots, share.getOwner().getId(), repliesByParent));
+        commentResponses(roots, ownerMemberId, ownerMemberId, repliesByParent));
   }
 
   private List<PortfolioAnalysisShareDto.CommentResponse> commentResponses(
       List<PortfolioAnalysisComment> roots,
+      Long ownerMemberId,
       Long viewerMemberId,
       Map<Long, List<PortfolioAnalysisComment>> repliesByParent) {
     return roots.stream()
-        .map(comment -> commentResponse(comment, viewerMemberId, repliesByParent))
+        .map(comment -> commentResponse(comment, ownerMemberId, viewerMemberId, repliesByParent))
         .toList();
   }
 
   private PortfolioAnalysisShareDto.CommentResponse commentResponse(
       PortfolioAnalysisComment comment,
+      Long ownerMemberId,
       Long viewerMemberId,
       Map<Long, List<PortfolioAnalysisComment>> repliesByParent) {
     return new PortfolioAnalysisShareDto.CommentResponse(
@@ -126,7 +131,7 @@ public class PortfolioAnalysisShareResponseFactory {
                         reply.getId(),
                         reply.getAuthor().getNickname(),
                         reply.getContent(),
-                        reply.getAuthor().getId().equals(comment.getShare().getOwner().getId()),
+                        reply.getAuthor().getId().equals(ownerMemberId),
                         reply.getAuthor().getId().equals(viewerMemberId),
                         reply.getCreatedAt(),
                         reply.getUpdatedAt()))

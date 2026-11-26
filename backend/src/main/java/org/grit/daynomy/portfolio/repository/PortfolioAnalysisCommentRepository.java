@@ -25,11 +25,11 @@ public interface PortfolioAnalysisCommentRepository
 
   Optional<PortfolioAnalysisComment> findByIdAndAuthorId(Long id, Long authorId);
 
-  @EntityGraph(attributePaths = {"author", "share", "share.owner"})
+  @EntityGraph(attributePaths = "author")
   List<PortfolioAnalysisComment> findAllByShareIdInAndParentIsNullOrderByCreatedAtAscIdAsc(
       Collection<Long> shareIds);
 
-  @EntityGraph(attributePaths = {"author", "share", "share.owner"})
+  @EntityGraph(attributePaths = "author")
   List<PortfolioAnalysisComment> findAllByShareIdAndAuthorIdAndParentIsNullOrderByCreatedAtAscIdAsc(
       Long shareId, Long authorId);
 

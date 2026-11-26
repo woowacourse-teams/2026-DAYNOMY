@@ -52,10 +52,18 @@ class PortfolioAnalysisCommentRepositoryTest extends SharedDatabaseTest {
     var replies =
         comments.findAllByParentIdInOrderByCreatedAtAscIdAsc(
             List.of(firstRoot.getId(), secondRoot.getId()));
+    var persistenceUnit =
+        entityManager.getEntityManager().getEntityManagerFactory().getPersistenceUnitUtil();
 
     assertThat(roots)
         .extracting(PortfolioAnalysisComment::getId)
         .containsExactly(firstRoot.getId(), secondRoot.getId());
+    assertThat(roots)
+        .allSatisfy(
+            root -> {
+              assertThat(persistenceUnit.isLoaded(root, "author")).isTrue();
+              assertThat(persistenceUnit.isLoaded(root, "share")).isFalse();
+            });
     assertThat(replies)
         .extracting(PortfolioAnalysisComment::getId)
         .containsExactly(firstReply.getId(), secondReply.getId());

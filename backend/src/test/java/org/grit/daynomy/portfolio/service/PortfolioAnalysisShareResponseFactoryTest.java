@@ -2,6 +2,7 @@ package org.grit.daynomy.portfolio.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -30,7 +31,8 @@ class PortfolioAnalysisShareResponseFactoryTest {
     Member reviewer = member(2L, "검토자");
     PortfolioAnalysisShare first = share(10L, owner, now);
     PortfolioAnalysisShare second = share(20L, owner, now);
-    PortfolioAnalysisComment firstRoot = comment(100L, first, reviewer, null, "첫 번째 의견");
+    PortfolioAnalysisShare firstReference = shareReference(10L);
+    PortfolioAnalysisComment firstRoot = comment(100L, firstReference, reviewer, null, "첫 번째 의견");
     PortfolioAnalysisComment secondRoot = comment(200L, second, reviewer, null, "두 번째 의견");
     PortfolioAnalysisComment reply = comment(300L, first, owner, firstRoot, "첫 번째 답글");
     when(comments.findAllByShareIdInAndParentIsNullOrderByCreatedAtAscIdAsc(List.of(10L, 20L)))
@@ -48,6 +50,13 @@ class PortfolioAnalysisShareResponseFactoryTest {
     verify(comments, times(1))
         .findAllByShareIdInAndParentIsNullOrderByCreatedAtAscIdAsc(List.of(10L, 20L));
     verify(comments, times(1)).findAllByParentIdInOrderByCreatedAtAscIdAsc(List.of(100L, 200L));
+    verify(firstReference, never()).getOwner();
+  }
+
+  private PortfolioAnalysisShare shareReference(Long id) {
+    PortfolioAnalysisShare share = mock(PortfolioAnalysisShare.class);
+    when(share.getId()).thenReturn(id);
+    return share;
   }
 
   private PortfolioAnalysisShare share(Long id, Member owner, Instant now) {
