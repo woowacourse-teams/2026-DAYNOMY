@@ -176,8 +176,7 @@ class NewsPublishAiServiceTest {
             new byte[0],
             StandardCharsets.UTF_8);
     given(keywordAiClient.extractKeywords("뉴스 본문")).willThrow(failure);
-    given(marketAnalysisAiClient.analyze("뉴스 본문"))
-        .willReturn(new NewsMarketAnalysis("시장 분석"));
+    given(marketAnalysisAiClient.analyze("뉴스 본문")).willReturn(new NewsMarketAnalysis("시장 분석"));
 
     assertThatThrownBy(() -> service(Runnable::run).analyze("뉴스 본문")).isSameAs(failure);
 
@@ -194,8 +193,7 @@ class NewsPublishAiServiceTest {
             new byte[0],
             StandardCharsets.UTF_8);
     given(keywordAiClient.extractKeywords("뉴스 본문")).willThrow(failure);
-    given(marketAnalysisAiClient.analyze("뉴스 본문"))
-        .willReturn(new NewsMarketAnalysis("시장 분석"));
+    given(marketAnalysisAiClient.analyze("뉴스 본문")).willReturn(new NewsMarketAnalysis("시장 분석"));
 
     assertThatThrownBy(() -> service(Runnable::run).analyze("뉴스 본문")).isSameAs(failure);
 
