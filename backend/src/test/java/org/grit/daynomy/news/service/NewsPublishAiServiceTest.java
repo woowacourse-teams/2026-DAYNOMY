@@ -167,6 +167,40 @@ class NewsPublishAiServiceTest {
   }
 
   @Test
+  void peerFailureDuringRetryDelayPreventsRetryRequest() {
+    CountDownLatch keywordFailed = new CountDownLatch(1);
+    var retryableFailure =
+        HttpServerErrorException.create(
+            HttpStatus.SERVICE_UNAVAILABLE,
+            "unavailable",
+            HttpHeaders.EMPTY,
+            new byte[0],
+            StandardCharsets.UTF_8);
+    RuntimeException peerFailure = new RuntimeException("market analysis failed");
+    given(keywordAiClient.extractKeywords("뉴스 본문"))
+        .willAnswer(
+            invocation -> {
+              keywordFailed.countDown();
+              throw retryableFailure;
+            });
+    given(marketAnalysisAiClient.analyze("뉴스 본문"))
+        .willAnswer(
+            invocation -> {
+              assertThat(keywordFailed.await(1, TimeUnit.SECONDS)).isTrue();
+              throw peerFailure;
+            });
+
+    try (var executor = Executors.newFixedThreadPool(2)) {
+      assertThatThrownBy(
+              () ->
+                  service(executor, Duration.ofSeconds(1), Duration.ofMillis(100)).analyze("뉴스 본문"))
+          .isSameAs(peerFailure);
+    }
+
+    verify(keywordAiClient).extractKeywords("뉴스 본문");
+  }
+
+  @Test
   void retryableFailureIsPropagatedAfterRetryIsExhausted() {
     var failure =
         HttpServerErrorException.create(
@@ -239,6 +273,50 @@ class NewsPublishAiServiceTest {
   }
 
   @Test
+  void timeoutDuringRetryDelayPreventsRetryRequest() {
+    AtomicInteger keywordAttempts = new AtomicInteger();
+    CountDownLatch releaseMarket = new CountDownLatch(1);
+    var retryableFailure =
+        HttpServerErrorException.create(
+            HttpStatus.SERVICE_UNAVAILABLE,
+            "unavailable",
+            HttpHeaders.EMPTY,
+            new byte[0],
+            StandardCharsets.UTF_8);
+    given(keywordAiClient.extractKeywords("뉴스 본문"))
+        .willAnswer(
+            invocation -> {
+              if (keywordAttempts.incrementAndGet() == 1) {
+                Thread.sleep(Duration.ofMillis(400));
+                throw retryableFailure;
+              }
+              return List.of();
+            });
+    given(marketAnalysisAiClient.analyze("뉴스 본문"))
+        .willAnswer(
+            invocation -> {
+              releaseMarket.await(1, TimeUnit.SECONDS);
+              return new NewsMarketAnalysis("시장 분석");
+            });
+
+    try (var executor = Executors.newFixedThreadPool(2)) {
+      var service = service(executor, Duration.ofMillis(500), Duration.ofMillis(200));
+      try {
+        assertThatThrownBy(() -> service.analyze("뉴스 본문"))
+            .isInstanceOfSatisfying(
+                BusinessException.class,
+                exception ->
+                    assertThat(exception.errorCode())
+                        .isEqualTo(ExternalErrorCode.AI_NEWS_GENERATION_FAILED));
+      } finally {
+        releaseMarket.countDown();
+      }
+    }
+
+    assertThat(keywordAttempts).hasValue(1);
+  }
+
+  @Test
   void secondTaskRejectionCancelsFirstTaskAndReturnsAiFailure() {
     AtomicInteger submissions = new AtomicInteger();
     AtomicReference<Runnable> accepted = new AtomicReference<>();
@@ -275,8 +353,12 @@ class NewsPublishAiServiceTest {
   }
 
   private NewsPublishAiService service(Executor executor, Duration timeout) {
+    return service(executor, timeout, Duration.ZERO);
+  }
+
+  private NewsPublishAiService service(Executor executor, Duration timeout, Duration retryDelay) {
     return new NewsPublishAiService(
-        keywordAiClient, marketAnalysisAiClient, executor, timeout, Duration.ZERO);
+        keywordAiClient, marketAnalysisAiClient, executor, timeout, retryDelay);
   }
 
   private ILoggingEvent logEvent(LogEvent event) {

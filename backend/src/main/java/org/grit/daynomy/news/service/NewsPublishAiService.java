@@ -2,6 +2,7 @@ package org.grit.daynomy.news.service;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
@@ -9,6 +10,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.common.exception.BusinessException;
@@ -61,35 +63,38 @@ public class NewsPublishAiService {
 
   Analysis analyze(String content) {
     long startedAt = System.nanoTime();
+    var cancelled = new AtomicBoolean();
     CompletableFuture<List<NewsKeyword>> keywords;
     CompletableFuture<NewsMarketAnalysis> marketAnalysis;
     try {
       keywords =
           CompletableFuture.supplyAsync(
-              () -> retry(() -> keywordAiClient.extractKeywords(content)), executor);
+              () -> retry(() -> keywordAiClient.extractKeywords(content), cancelled), executor);
       try {
         marketAnalysis =
             CompletableFuture.supplyAsync(
-                () -> retry(() -> marketAnalysisAiClient.analyze(content)), executor);
+                () -> retry(() -> marketAnalysisAiClient.analyze(content), cancelled), executor);
       } catch (RejectedExecutionException exception) {
+        cancelled.set(true);
         keywords.cancel(true);
         throw exception;
       }
     } catch (RejectedExecutionException exception) {
+      cancelled.set(true);
       logFailure("EXECUTOR_REJECTED", exception, startedAt);
       throw new BusinessException(ExternalErrorCode.AI_NEWS_GENERATION_FAILED);
     }
 
-    CompletableFuture<Analysis> combined = failFast(keywords, marketAnalysis);
+    CompletableFuture<Analysis> combined = failFast(keywords, marketAnalysis, cancelled);
     try {
       return combined.get(timeoutMillis, TimeUnit.MILLISECONDS);
     } catch (InterruptedException exception) {
-      cancelAll(combined, keywords, marketAnalysis);
+      cancelAll(combined, keywords, marketAnalysis, cancelled);
       Thread.currentThread().interrupt();
       logFailure("INTERRUPTED", exception, startedAt);
       throw new BusinessException(ExternalErrorCode.AI_NEWS_GENERATION_FAILED);
     } catch (TimeoutException exception) {
-      cancelAll(combined, keywords, marketAnalysis);
+      cancelAll(combined, keywords, marketAnalysis, cancelled);
       logFailure("TIMEOUT", exception, startedAt);
       throw new BusinessException(ExternalErrorCode.AI_NEWS_GENERATION_FAILED);
     } catch (ExecutionException exception) {
@@ -98,16 +103,25 @@ public class NewsPublishAiService {
     }
   }
 
-  private <T> T retry(Supplier<T> operation) {
+  private <T> T retry(Supplier<T> operation, AtomicBoolean cancelled) {
     for (int attempt = 1; ; attempt++) {
+      ensureActive(cancelled);
       try {
         return operation.get();
       } catch (RuntimeException exception) {
         if (attempt >= MAX_ATTEMPTS || !isRetryable(exception)) {
           throw exception;
         }
+        ensureActive(cancelled);
         waitBeforeRetry();
+        ensureActive(cancelled);
       }
+    }
+  }
+
+  private void ensureActive(AtomicBoolean cancelled) {
+    if (cancelled.get()) {
+      throw new CancellationException("News publish AI analysis was cancelled.");
     }
   }
 
@@ -132,11 +146,13 @@ public class NewsPublishAiService {
 
   private CompletableFuture<Analysis> failFast(
       CompletableFuture<List<NewsKeyword>> keywords,
-      CompletableFuture<NewsMarketAnalysis> marketAnalysis) {
+      CompletableFuture<NewsMarketAnalysis> marketAnalysis,
+      AtomicBoolean cancelled) {
     var combined = new CompletableFuture<Analysis>();
     keywords.whenComplete(
         (result, failure) -> {
           if (failure != null) {
+            cancelled.set(true);
             if (combined.completeExceptionally(unwrap(failure))) {
               marketAnalysis.cancel(true);
             }
@@ -147,6 +163,7 @@ public class NewsPublishAiService {
     marketAnalysis.whenComplete(
         (result, failure) -> {
           if (failure != null) {
+            cancelled.set(true);
             if (combined.completeExceptionally(unwrap(failure))) {
               keywords.cancel(true);
             }
@@ -167,7 +184,9 @@ public class NewsPublishAiService {
   private void cancelAll(
       CompletableFuture<Analysis> combined,
       CompletableFuture<List<NewsKeyword>> keywords,
-      CompletableFuture<NewsMarketAnalysis> marketAnalysis) {
+      CompletableFuture<NewsMarketAnalysis> marketAnalysis,
+      AtomicBoolean cancelled) {
+    cancelled.set(true);
     combined.cancel(true);
     keywords.cancel(true);
     marketAnalysis.cancel(true);
