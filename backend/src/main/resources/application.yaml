@@ -4,6 +4,11 @@ spring:
   application:
     name: daynomy
 
+  session:
+    jdbc:
+      initialize-schema: never
+      flush-mode: immediate
+
   datasource:
     url: ${DB_URL}
     username: ${DB_USERNAME}
@@ -271,3 +276,9 @@ logging:
   structured:
     format:
       console: logstash
+
+server:
+  servlet:
+    session:
+      cookie:
+        name: JSESSIONID

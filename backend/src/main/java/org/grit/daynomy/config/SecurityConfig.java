@@ -74,7 +74,8 @@ public class SecurityConfig {
       "/actuator",
       "/actuator/health",
       "/actuator/health/**",
-      "/actuator/prometheus"
+      "/actuator/prometheus",
+      "/actuator/deploymenttasks"
     };
 
     http.cors(cors -> cors.configurationSource(corsConfigurationSource))
