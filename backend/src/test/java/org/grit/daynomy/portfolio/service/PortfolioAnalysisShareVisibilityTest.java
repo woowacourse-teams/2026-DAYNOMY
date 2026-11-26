@@ -47,12 +47,15 @@ class PortfolioAnalysisShareVisibilityTest {
                 0, 0, true, false, null, null, null, null, null, "", List.of(), List.of(),
                 List.of()));
     when(comment.getId()).thenReturn(20L);
+    when(comment.getShare()).thenReturn(share);
     when(comment.getAuthor()).thenReturn(reviewer);
     when(comment.getContent()).thenReturn("리뷰어의 비공개 의견");
-    when(comments.findAllByShareIdAndParentIsNullOrderByCreatedAtAscIdAsc(10L))
+    when(comments.findAllByShareIdInAndParentIsNullOrderByCreatedAtAscIdAsc(List.of(10L)))
         .thenReturn(List.of(comment));
     when(comments.findAllByShareIdAndAuthorIdAndParentIsNullOrderByCreatedAtAscIdAsc(10L, 2L))
         .thenReturn(List.of(comment));
+    var cipher = mock(PortfolioShareTokenCipher.class);
+    var responses = new PortfolioAnalysisShareResponseFactory(comments, cipher);
     var service =
         new PortfolioAnalysisShareService(
             shares,
@@ -62,11 +65,12 @@ class PortfolioAnalysisShareVisibilityTest {
             null,
             null,
             null,
-            null,
             mock(PortfolioAnalysisShareRateLimiter.class),
-            mock(PortfolioShareTokenCipher.class),
+            cipher,
             Clock.fixed(now, ZoneOffset.UTC),
-            null);
+            null,
+            mock(PortfolioAnalysisShareSnapshotFactory.class),
+            responses);
     var response = service.getPublic("test-token", viewerId, "127.0.0.1");
     assertThat(response.additionalExplanation()).isEqualTo("링크를 가진 모두에게 공개하는 투자 배경");
     assertThat(response.additionalExplanationUpdatedAt()).isEqualTo(now);
@@ -78,7 +82,8 @@ class PortfolioAnalysisShareVisibilityTest {
       assertThat(response.canComment()).isFalse();
     } else {
       assertThat(response.ownerShare()).isNull();
-      verify(comments, never()).findAllByShareIdAndParentIsNullOrderByCreatedAtAscIdAsc(10L);
+      verify(comments, never())
+          .findAllByShareIdInAndParentIsNullOrderByCreatedAtAscIdAsc(List.of(10L));
     }
     assertThat(response.myComments()).hasSize(Long.valueOf(2).equals(viewerId) ? 1 : 0);
   }
