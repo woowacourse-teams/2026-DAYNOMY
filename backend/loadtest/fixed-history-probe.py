@@ -22,6 +22,7 @@ import statistics
 import threading
 import subprocess
 import re
+import os
 import fcntl
 import time
 import urllib.request
@@ -84,7 +85,8 @@ class FixedHistoryProbe(module.Probe):
         assert slot in ('blue','green')
         unit = 'daynomy-dev' if slot=='blue' else 'daynomy-dev-green'
         other = 'daynomy-dev-green' if slot=='blue' else 'daynomy-dev'
-        pid = int(subprocess.check_output(['systemctl','show',unit,'-p','MainPID','--value'],text=True))
+        unit_state=dict(row.split('=',1) for row in subprocess.check_output(['systemctl','show',unit,'-p','MainPID','-p','NRestarts'],text=True).splitlines())
+        pid = int(unit_state['MainPID'])
         assert pid > 0
         assert int(subprocess.check_output(['systemctl','show',other,'-p','MainPID','--value'],text=True)) == 0
         raw_flags = (Path('/proc')/str(pid)/'cmdline').read_bytes().decode().split('\0')
@@ -96,6 +98,9 @@ class FixedHistoryProbe(module.Probe):
         assert env.get(b'MALLOC_ARENA_MAX')==b'2'
         limits = dict(x.split('=',1) for x in subprocess.check_output(['systemctl','show','daynomy-backend-dev.slice','-p','MemoryMax','-p','MemorySwapMax'],text=True).splitlines())
         assert limits == {'MemoryMax':'1073741824','MemorySwapMax':'0'}
+        cg=subprocess.check_output(['systemctl','show','daynomy-backend-dev.slice','-p','ControlGroup','--value'],text=True).strip()
+        events=dict(row.split() for row in (Path('/sys/fs/cgroup')/cg.lstrip('/')/'memory.events').read_text().splitlines())
+        oom={k:int(events[k]) for k in ('oom','oom_kill')}
         keys = 'LEAGUE_AUTO_SYNC_ENABLED STOCK_PRICE_SYNC_ENABLED PORTFOLIO_SNAPSHOT_ENABLED LEAGUE_CALCULATION_ENABLED MARKET_CALENDAR_SYNC_ENABLED US_MARKET_CALENDAR_SYNC_ENABLED STOCK_SYNC_ENABLED US_STOCK_SYNC_ENABLED EXCHANGE_RATE_SYNC_ENABLED INVESTMENT_CALENDAR_SYNC_ENABLED CONTENT_COLLECTION_ENABLED PERSON_POST_COLLECTION_ENABLED KOREAN_NEWS_GENERATION_ENABLED US_NEWS_GENERATION_ENABLED EMAIL_DELIVERY_SCHEDULING_ENABLED'.split()
         assert all(env.get(k.encode())==b'false' for k in keys), 'Schedulers must be explicitly disabled'
         with (root/'jobs.lock').open('a+') as lock:
@@ -111,7 +116,7 @@ class FixedHistoryProbe(module.Probe):
             for chunk in iter(lambda:stream.read(1048576),b''): digest.update(chunk)
         sha = digest.hexdigest()
         assert sha == self.args.expected_jar_sha, 'Release changed'
-        return {'slot':slot,'pid':pid,'sha256':sha,'disabledSchedulers':keys,'flags':flags,'slice':limits,'mallocArenaMax':'2'}
+        return {'slot':slot,'pid':pid,'sha256':sha,'disabledSchedulers':keys,'flags':flags,'slice':limits,'mallocArenaMax':'2','oomEvents':oom,'restarts':int(unit_state['NRestarts'])}
 
     def metrics(self, label, persist=True):
         with urllib.request.urlopen('http://127.0.0.1:8081/actuator/prometheus',timeout=5) as response:
@@ -130,6 +135,22 @@ class FixedHistoryProbe(module.Probe):
                 values[head] = float(value)
         if persist: (self.output/(label+'.json')).write_text(json.dumps(values))
         return values
+
+    def statement_stats(self):
+        # Existing pg_stat_statements only; no reset or extension/configuration changes.
+        return json.loads(self.query("SELECT coalesce(json_agg(json_build_object("
+            "'queryId',queryid::text,'calls',calls,'execMs',total_exec_time,'rows',rows,"
+            "'sharedHits',shared_blks_hit,'sharedReads',shared_blks_read,'walBytes',wal_bytes,"
+            "'category',CASE WHEN query LIKE '%portfolio_transaction_requests%' THEN 'idempotency' "
+            "WHEN query LIKE '%portfolio_holding_histories%' AND query LIKE '%join assets%' THEN 'history_fetch' "
+            "WHEN query LIKE '%portfolio_holding_histories%' THEN 'history_other' "
+            "WHEN query LIKE '%portfolio_holdings%' THEN 'holdings' "
+            "WHEN query LIKE '%members%' THEN 'member' ELSE 'portfolio' END)),'[]'::json) "
+            "FROM pg_stat_statements WHERE dbid=(SELECT oid FROM pg_database WHERE datname=current_database()) "
+            "AND userid=(SELECT oid FROM pg_roles WHERE rolname=current_user) "
+            "AND query NOT LIKE '%pg_stat_statements%' "
+            "AND (query LIKE '%portfolio_transaction_requests%' OR query LIKE '%portfolio_holding_histories%' "
+            "OR query LIKE '%portfolio_holdings%' OR query LIKE '%members%' OR query LIKE '%portfolios%')"))
 
     def drain(self, clock=time.monotonic, sleep=time.sleep):
         quiet = 0
@@ -239,7 +260,7 @@ class FixedHistoryProbe(module.Probe):
         portfolio=int(self.query(f'SELECT min(id) FROM portfolios WHERE member_id IN ({self.ids()})'))
         results=[]
         for _ in range(5):
-            plan=json.loads(self.query('EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) '+sql.replace('?',str(portfolio))))
+            plan=json.loads(self.query('EXPLAIN (ANALYZE, BUFFERS, SERIALIZE TEXT, FORMAT JSON) '+sql.replace('?',str(portfolio))))
             assert plan[0]['Plan']['Actual Rows']==self.history_count
             results.append(plan)
         (self.output/f'h{self.history_count}-explain.json').write_text(json.dumps(results))
@@ -280,6 +301,7 @@ class FixedHistoryProbe(module.Probe):
         for fixture in self.cohort:
             fixture["cookie"] = "access_token="+self.token(fixture["member"])+"; "+fixture["cookie"].split("; ",1)[1]
         before = self.metrics(label+"-before")
+        sql_before=self.statement_stats()
         samples=[]
         stop=threading.Event()
         def sample():
@@ -294,6 +316,7 @@ class FixedHistoryProbe(module.Probe):
                 except Exception as error:
                     samples.append({'sampleError':type(error).__name__})
         began=time.monotonic()
+        started_utc=dt.datetime.now(dt.timezone.utc).isoformat()
         driver_before=resource.getrusage(resource.RUSAGE_SELF)
         monitor=threading.Thread(target=sample)
         monitor.start()
@@ -301,6 +324,7 @@ class FixedHistoryProbe(module.Probe):
         try:
             results,dropped,elapsed = drive(self.cohort,rps,
                 lambda fixture:self.send(fixture,module.V2,str(uuid.uuid4()) if keyed else None))
+            finished_utc=dt.datetime.now(dt.timezone.utc).isoformat()
         finally:
             stop.set();monitor.join(timeout=10)
             # Client completion alone cannot prove a timed-out server request has stopped.
@@ -309,17 +333,20 @@ class FixedHistoryProbe(module.Probe):
             self.inflight = False
         driver_after=resource.getrusage(resource.RUSAGE_SELF)
         after = self.metrics(label+"-after")
+        sql_after=self.statement_stats()
         assert self.guard()==self.pin, 'Runtime changed during case'
         (self.output/(label+'-samples.json')).write_text(json.dumps(samples))
         successful = [r for r in results if r["status"]==201]
         summary = {"label":label,"historyCount":self.history_count,"rpsTarget":rps,
-            "scheduled":len(self.cohort),"sent":len(results),"unsent":len(dropped),"elapsedSeconds":elapsed,
+            "startedUtc":started_utc,"finishedUtc":finished_utc,"scheduled":len(self.cohort),"sent":len(results),"unsent":len(dropped),"elapsedSeconds":elapsed,
             "statuses":{str(status):sum(r["status"]==status for r in results) for status in set(r["status"] for r in results)},
             "latencyMs": {"p50":statistics.median(r["elapsed_ms"] for r in results),
                           "p95":percentile([r["elapsed_ms"] for r in results],.95),
                           "p99":percentile([r["elapsed_ms"] for r in results],.99)},
             "maxScheduleLagMs":max(r["schedule_lag_ms"] for r in results),
             "keyed":keyed,"profiled":self.args.profile_only,"warmup":label.startswith("warmup-"),"metricsBefore":before,"metricsAfter":after}
+        summary['statementStatsBefore']=sql_before
+        summary['statementStatsAfter']=sql_after
         summary['driverCpuSeconds']=driver_after.ru_utime+driver_after.ru_stime-driver_before.ru_utime-driver_before.ru_stime
         summary['poolPendingMax']=max([0]+[row.get('hikaricp_connections_pending',0) for row in samples])
         summary['phases']={}
@@ -350,11 +377,14 @@ class FixedHistoryProbe(module.Probe):
         self.prepare()
         self.seed(500)
         self.explain()
-        self.case(20, True, 'warmup-profile')
         jcmd='/usr/lib/jvm/temurin-21-jdk/bin/jcmd'
         settings=Path(__file__).with_name('profiles')/'history-allocation.jfc'
         assert settings.is_file()
         destination=(self.output/'history-allocation.jfr').resolve()
+        # Target JVM writes the recording under its own uid, not the attaching root uid.
+        process_owner=(Path('/proc')/str(self.pin['pid'])).stat()
+        os.chown(self.output,process_owner.st_uid,process_owner.st_gid)
+        self.output.chmod(0o700)
         started=False
         try:
             result=subprocess.run([jcmd,str(self.pin['pid']),'JFR.start','name=history981',
@@ -362,6 +392,7 @@ class FixedHistoryProbe(module.Probe):
                 capture_output=True,text=True,timeout=15)
             assert result.returncode==0 and 'Started recording' in result.stdout, 'JFR start failed (details withheld)'
             started=True
+            self.case(20,True,'warmup-profile')
             self.case(20,True,'profile-h500')
         finally:
             if started:

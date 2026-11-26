@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Summarize a JSON export of the minimal allocation JFR. Never exports allocated contents."""
 import argparse
+from datetime import datetime
 from collections import Counter
 import json
 from pathlib import Path
@@ -8,12 +9,15 @@ from pathlib import Path
 ALLOWED={'jdk.ObjectAllocationSample','jdk.ExecutionSample','jdk.GarbageCollection',
          'jdk.GCHeapSummary','jdk.ThreadAllocationStatistics','jdk.Metadata','jdk.CheckPoint'}
 
-def summarize(data):
+def summarize(data, window=None):
     counts=Counter();components=Counter();classes=Counter();application=Counter()
     samples=0
     for event in data['recording']['events']:
         kind=event['type']
         assert kind in ALLOWED, 'Unexpected event type; do not publish profile'
+        if window:
+            stamp=datetime.fromisoformat(event['values']['startTime'])
+            if not (datetime.fromisoformat(window['start']) <= stamp <= datetime.fromisoformat(window['end'])):continue
         counts[kind]+=1
         if kind!='jdk.ObjectAllocationSample':continue
         value=event['values'];weight=value['weight'];samples+=1
@@ -37,7 +41,7 @@ def summarize(data):
 
 if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('input');parser.add_argument('output');args=parser.parse_args()
-    result=summarize(json.loads(Path(args.input).read_text()))
+    parser.add_argument('input');parser.add_argument('output');parser.add_argument('--window');args=parser.parse_args()
+    result=summarize(json.loads(Path(args.input).read_text()),json.loads(Path(args.window).read_text()) if args.window else None)
     Path(args.output).write_text(json.dumps(result,indent=2))
     print(json.dumps({'samples':result['allocationSamples'],'components':result['components']}))

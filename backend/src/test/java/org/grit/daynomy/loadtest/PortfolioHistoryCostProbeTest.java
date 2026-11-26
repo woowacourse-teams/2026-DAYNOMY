@@ -136,6 +136,30 @@ class PortfolioHistoryCostProbeTest extends SharedDatabaseTest {
         replay.add(calculation);
       }
     }
+    if (count == 500 && "true".equals(System.getenv("HISTORY_LOCAL_JFR"))) {
+      java.nio.file.Path destination = java.nio.file.Path.of("build", "history-jpa-only.jfr");
+      var configuration =
+          jdk.jfr.Configuration.create(
+              java.nio.file.Path.of("loadtest", "profiles", "history-allocation.jfc"));
+      try (var recording = new jdk.jfr.Recording(configuration)) {
+        recording.start();
+        for (int i = 0; i < 250; i++) {
+          em.clear();
+          assertThat(repository.findOrderedWithAssetsByPortfolioId(id)).hasSize(count);
+        }
+        java.time.Instant profileStart = java.time.Instant.now();
+        for (int i = 0; i < 250; i++) {
+          em.clear();
+          assertThat(repository.findOrderedWithAssetsByPortfolioId(id)).hasSize(count);
+        }
+        java.time.Instant profileEnd = java.time.Instant.now();
+        recording.stop();
+        recording.dump(destination);
+        java.nio.file.Files.writeString(
+            java.nio.file.Path.of("build", "history-jpa-window.json"),
+            "{\"start\":\"" + profileStart + "\",\"end\":\"" + profileEnd + "\"}");
+      }
+    }
     System.out.println("HISTORY_SQL " + sql);
     System.out.println(
         "HISTORY_COST {\"historyCount\":"

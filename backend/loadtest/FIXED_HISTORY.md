@@ -24,7 +24,7 @@
 ```sh
 python3 -m unittest discover -s backend/loadtest -p 'test_fixed_history_probe.py'
 cd backend
-HISTORY_COST_PROBE=true ./gradlew test --tests '*PortfolioHistoryCostProbeTest'
+HISTORY_COST_PROBE=true ./gradlew test --rerun-tasks --tests '*PortfolioHistoryCostProbeTest'
 ```
 
 로컬 진단은 폐기 가능한 PostgreSQL Testcontainers에서 실행한다.5회 워밍업 후20회의 중앙값으로
@@ -60,3 +60,16 @@ JFR 할당 샘플의 weight는 추정치다. 정확한 피크 메모리나 전�
 오류·누락·정합성 불일치가 있으면 더 높은 부하를 시작하지 않는다. 개인정보 없는 실패 요약과 소유 데이터 백업을
 남기고 정리한다. 원래 예약 설정을 정확히 복원하고 정상 설정의 단일 JVM이 유휴 상태임을 확인한 뒤 서버를 인계한다.
 원인이 확인되기 전에는 거래 잠금·멱등성 기록·계산 규칙을 수정하지 않는다.
+
+개발 DB의 기존 `pg_stat_statements`에서 관련 도메인 SQL의 queryId·호출 수·실행 시간·반환 행 수·버퍼·WAL의
+전후 누적 차이를 수집한다. 원문 SQL이나 실제 바인딩 값은 저장하지 않고 전역 통계도 초기화하지 않는다.
+이 값은 관련 테이블을 참조하는 SQL 집계이며 모든 프로토콜/트랜잭션 제어문의 수를 포함하지 않는다.
+개발 PostgreSQL18에서는 `EXPLAIN ... SERIALIZE TEXT`도 별도5회 수집한다.
+이는 결과를 전송 형식으로 바꾸는 비용이며 네트워크 전송은 포함하지 않는다.
+근거: [PostgreSQL18 EXPLAIN](https://www.postgresql.org/docs/18/sql-explain.html).
+
+할당 프로파일도 시작 직후600건을 워밍업으로 버린 뒤 다음600건만 해석한다.
+`results.json`의 `profile-h500` 시작/종료 시각을 `{"start":"...","end":"..."}`로 저장해
+`summarize-history-jfr.py ... --window WINDOW_FILE`로 구간을 제한한다.
+로컬의 선택형 `HISTORY_LOCAL_JFR=true`는 조회250회 워밍업 후250회 구간을 별도 기록하며
+`build/history-jpa-window.json`에 동일 형식의 시각을 남긴다. 로컬 JFR을 개발 API 결과로 표기하지 않는다.
