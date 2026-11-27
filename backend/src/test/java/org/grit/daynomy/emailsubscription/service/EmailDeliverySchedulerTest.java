@@ -1,14 +1,18 @@
 package org.grit.daynomy.emailsubscription.service;
 
 import static org.assertj.core.api.Assertions.*;
+import static org.awaitility.Awaitility.await;
 import static org.grit.daynomy.emailsubscription.EmailFixtures.*;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 import java.time.*;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.grit.daynomy.emailsubscription.repository.*;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -115,6 +119,95 @@ class EmailDeliverySchedulerTest {
   @Configuration(proxyBeanMethods = false)
   @EnableScheduling
   static class Scheduling {}
+
+  @Test
+  void closesContextWithoutWaitingForFutureEmailReservations() {
+    new ApplicationContextRunner()
+        .withConfiguration(AutoConfigurations.of(TaskSchedulingAutoConfiguration.class))
+        .withUserConfiguration(Scheduling.class, EmailDeliveryScheduler.class)
+        .withBean(EmailSubscriptionRepository.class, () -> subscriptions)
+        .withBean(EmailDeliveryService.class, () -> deliveries)
+        .withBean(EmailDeliveryRepository.class, () -> jobs)
+        .withBean(EmailSendingService.class, () -> sending)
+        .withPropertyValues("email.delivery.enabled=true", "email.delivery.scheduling-enabled=true")
+        .run(
+            context -> {
+              var executor =
+                  context.getBean(
+                      "emailDeliveryTaskScheduler",
+                      org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler.class);
+              var future =
+                  executor.schedule(
+                      () -> sending.send(UUID.randomUUID()), Instant.now().plusSeconds(86400));
+              try {
+                assertTimeoutPreemptively(Duration.ofSeconds(5), context::close);
+                assertThat(executor.getScheduledThreadPoolExecutor().isTerminated()).isTrue();
+                assertThat(future.isCancelled()).isTrue();
+                verifyNoInteractions(sending);
+              } finally {
+                executor.getScheduledThreadPoolExecutor().shutdownNow();
+              }
+            });
+  }
+
+  @Test
+  void shutdownWaitsForInFlightEmailAndItsResultWithoutInterruptingIt() throws Exception {
+    var started = new CountDownLatch(1);
+    var release = new CountDownLatch(1);
+    var completed = new AtomicBoolean();
+    var interrupted = new AtomicBoolean();
+    var scheduler = scheduler(NOW);
+    var executor = scheduler.emailDeliveryTaskScheduler();
+    var id = UUID.randomUUID();
+    when(jobs.findDueIds(eq(MAIL_DATE), eq(NOW), anyList(), any())).thenReturn(List.of(id));
+    doAnswer(
+            invocation -> {
+              started.countDown();
+              try {
+                if (!release.await(10, TimeUnit.SECONDS))
+                  throw new IllegalStateException("test did not release email sending");
+                completed.set(true);
+              } catch (InterruptedException failure) {
+                interrupted.set(true);
+                throw failure;
+              }
+              return null;
+            })
+        .when(sending)
+        .send(id);
+    var shutdown =
+        new FutureTask<Void>(
+            () -> {
+              executor.shutdown();
+              return null;
+            });
+    var closer = new Thread(shutdown);
+    executor.initialize();
+    var future = executor.schedule(scheduler::prepareDaily, Instant.now().plusSeconds(86400));
+    try {
+      executor.execute(scheduler::sendDue);
+      assertThat(started.await(5, TimeUnit.SECONDS)).isTrue();
+      closer.start();
+      await()
+          .atMost(Duration.ofSeconds(5))
+          .until(executor.getScheduledThreadPoolExecutor()::isShutdown);
+      assertThat(shutdown.isDone()).isFalse();
+      assertThat(interrupted).isFalse();
+      assertThat(completed).isFalse();
+      release.countDown();
+      shutdown.get(5, TimeUnit.SECONDS);
+      assertThat(completed).isTrue();
+      assertThat(interrupted).isFalse();
+      assertThat(future.isCancelled()).isTrue();
+      assertThat(executor.getScheduledThreadPoolExecutor().isTerminated()).isTrue();
+      verify(sending, times(1)).send(id);
+      verifyNoInteractions(deliveries, subscriptions);
+    } finally {
+      release.countDown();
+      executor.getScheduledThreadPoolExecutor().shutdownNow();
+      closer.join(5000);
+    }
+  }
 
   private EmailDeliveryScheduler scheduler(Instant at) {
     return new EmailDeliveryScheduler(
