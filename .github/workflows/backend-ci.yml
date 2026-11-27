@@ -81,6 +81,7 @@ jobs:
         run: |
           node --experimental-vm-modules --test loadtest/tests/*.test.mjs ../loadtest/portfolio/tests/*.test.mjs
           python3 -m unittest discover -s ../loadtest/portfolio/tests -p 'test_*.py'
+          python3 -m unittest discover -s loadtest -p 'test_fixed_history*.py'
 
       - name: Validate Monitoring Rules
         if: matrix.suite == 'main'
