@@ -13,6 +13,7 @@ import org.grit.daynomy.portfolio.dto.PortfolioAnalysisRequest;
 import org.grit.daynomy.portfolio.dto.PortfolioAnalysisResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioAnalysisShareDto;
 import org.grit.daynomy.portfolio.dto.PortfolioReviewProposalDto;
+import org.grit.daynomy.portfolio.service.PortfolioAnalysisCommentService;
 import org.grit.daynomy.portfolio.service.PortfolioAnalysisShareService;
 import org.grit.daynomy.portfolio.service.PortfolioReviewProposalService;
 import org.grit.daynomy.portfolio.service.PortfolioReviewSimulationService;
@@ -37,6 +38,7 @@ public class PortfolioAnalysisShareController {
   private static final String SHARE_TOKEN_HEADER = "X-Portfolio-Share-Token";
 
   private final PortfolioAnalysisShareService service;
+  private final PortfolioAnalysisCommentService comments;
   private final PortfolioReviewSimulationService simulation;
   private final PortfolioReviewProposalService proposals;
 
@@ -159,7 +161,7 @@ public class PortfolioAnalysisShareController {
       @Size(max = 100) @RequestHeader(SHARE_TOKEN_HEADER) String token,
       @AuthenticationPrincipal AuthenticatedMember member,
       @Valid @RequestBody PortfolioAnalysisShareDto.CommentRequest request) {
-    return service.createComment(token, member.memberId(), request);
+    return comments.create(token, member.memberId(), request);
   }
 
   @Operation(summary = "공유된 분석 결과에서 내 댓글 수정")
@@ -169,7 +171,7 @@ public class PortfolioAnalysisShareController {
       @AuthenticationPrincipal AuthenticatedMember member,
       @Positive @PathVariable Long commentId,
       @Valid @RequestBody PortfolioAnalysisShareDto.CommentRequest request) {
-    return service.updateComment(token, member.memberId(), commentId, request);
+    return comments.update(token, member.memberId(), commentId, request);
   }
 
   @Operation(summary = "공유된 분석 결과에서 내 댓글 삭제")
@@ -178,7 +180,7 @@ public class PortfolioAnalysisShareController {
       @Size(max = 100) @RequestHeader(SHARE_TOKEN_HEADER) String token,
       @AuthenticationPrincipal AuthenticatedMember member,
       @Positive @PathVariable Long commentId) {
-    service.deleteComment(token, member.memberId(), commentId);
+    comments.delete(token, member.memberId(), commentId);
     return ResponseEntity.noContent().build();
   }
 
@@ -189,7 +191,7 @@ public class PortfolioAnalysisShareController {
       @Positive @PathVariable Long shareId,
       @Positive @PathVariable Long commentId,
       @Valid @RequestBody PortfolioAnalysisShareDto.CommentRequest request) {
-    return service.saveOwnerReply(member.memberId(), shareId, commentId, request);
+    return comments.saveOwnerReply(member.memberId(), shareId, commentId, request);
   }
 
   @Operation(summary = "내 댓글에 대댓글 작성")
@@ -199,7 +201,7 @@ public class PortfolioAnalysisShareController {
       @AuthenticationPrincipal AuthenticatedMember member,
       @Positive @PathVariable Long commentId,
       @Valid @RequestBody PortfolioAnalysisShareDto.CommentRequest request) {
-    return service.createCommenterReply(token, member.memberId(), commentId, request);
+    return comments.createCommenterReply(token, member.memberId(), commentId, request);
   }
 
   @Operation(summary = "내 대댓글 수정")
@@ -208,13 +210,13 @@ public class PortfolioAnalysisShareController {
       @AuthenticationPrincipal AuthenticatedMember member,
       @Positive @PathVariable Long replyId,
       @Valid @RequestBody PortfolioAnalysisShareDto.CommentRequest request) {
-    return service.updateReply(member.memberId(), replyId, request);
+    return comments.updateReply(member.memberId(), replyId, request);
   }
 
   @Operation(summary = "내 대댓글 삭제")
   @DeleteMapping("/api/users/me/portfolio/analysis/comment-replies/{replyId}")
   public PortfolioAnalysisShareDto.CommentResponse deleteReply(
       @AuthenticationPrincipal AuthenticatedMember member, @Positive @PathVariable Long replyId) {
-    return service.deleteReply(member.memberId(), replyId);
+    return comments.deleteReply(member.memberId(), replyId);
   }
 }

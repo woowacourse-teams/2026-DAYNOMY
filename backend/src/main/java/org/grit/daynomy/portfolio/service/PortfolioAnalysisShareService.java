@@ -12,33 +12,24 @@ import java.time.LocalDate;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.HexFormat;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.IntStream;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.grit.daynomy.common.exception.BusinessException;
-import org.grit.daynomy.common.logging.LogEvent;
-import org.grit.daynomy.common.logging.SanitizedLogException;
 import org.grit.daynomy.member.domain.Member;
 import org.grit.daynomy.member.exception.MemberErrorCode;
 import org.grit.daynomy.member.repository.MemberRepository;
 import org.grit.daynomy.portfolio.domain.PortfolioAnalysis;
-import org.grit.daynomy.portfolio.domain.PortfolioAnalysisComment;
 import org.grit.daynomy.portfolio.domain.PortfolioAnalysisPublicSnapshot;
 import org.grit.daynomy.portfolio.domain.PortfolioAnalysisShare;
 import org.grit.daynomy.portfolio.domain.PortfolioHolding;
 import org.grit.daynomy.portfolio.domain.PortfolioHoldingChangeType;
-import org.grit.daynomy.portfolio.dto.PortfolioAnalysisResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioAnalysisShareDto;
-import org.grit.daynomy.portfolio.dto.PortfolioAssetImpactResponse;
 import org.grit.daynomy.portfolio.dto.PortfolioCalculateRequest;
 import org.grit.daynomy.portfolio.dto.PortfolioHoldingRequest;
 import org.grit.daynomy.portfolio.dto.PortfolioHoldingResponse;
 import org.grit.daynomy.portfolio.exception.PortfolioErrorCode;
 import org.grit.daynomy.portfolio.repository.PortfolioAnalysisCommentRepository;
-import org.grit.daynomy.portfolio.repository.PortfolioAnalysisEvidenceRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioAnalysisRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioAnalysisShareRepository;
 import org.grit.daynomy.portfolio.repository.PortfolioHoldingHistoryRepository;
@@ -49,7 +40,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 @RequiredArgsConstructor
-@Slf4j
 @Service
 public class PortfolioAnalysisShareService {
 
@@ -59,7 +49,6 @@ public class PortfolioAnalysisShareService {
   private final PortfolioAnalysisShareRepository shares;
   private final PortfolioAnalysisCommentRepository comments;
   private final PortfolioAnalysisRepository analyses;
-  private final PortfolioAnalysisEvidenceRepository evidence;
   private final PortfolioHoldingRepository holdings;
   private final PortfolioHoldingHistoryRepository holdingHistories;
   private final PortfolioCalculationService calculation;
@@ -68,6 +57,8 @@ public class PortfolioAnalysisShareService {
   private final PortfolioShareTokenCipher tokenCipher;
   private final Clock clock;
   private final PlatformTransactionManager transactionManager;
+  private final PortfolioAnalysisShareSnapshotFactory snapshots;
+  private final PortfolioAnalysisShareResponseFactory responses;
 
   public PortfolioAnalysisShareDto.CreatedResponse create(
       Long memberId, PortfolioAnalysisShareDto.CreateRequest request) {
@@ -101,8 +92,10 @@ public class PortfolioAnalysisShareService {
     ShareablePortfolio shareablePortfolio = shareablePortfolio(analysis == null, portfolio);
     PortfolioAnalysisPublicSnapshot publicSnapshot =
         analysis == null
-            ? portfolioSnapshot(shareablePortfolio, request.assetNames())
-            : publicSnapshot(memberId, analysis, shareablePortfolio, request.assetNames());
+            ? snapshots.fromPortfolio(
+                shareablePortfolio.holdings(), shareablePortfolio.details(), request.assetNames())
+            : snapshots.fromAnalysis(
+                memberId, analysis, shareablePortfolio.details(), request.assetNames());
     PortfolioAnalysisShare share =
         PortfolioAnalysisShare.create(
             owner,
@@ -113,15 +106,15 @@ public class PortfolioAnalysisShareService {
             publicSnapshot,
             now.plus(SHARE_DURATION));
     PortfolioAnalysisShare saved = shares.save(share);
-    return new PortfolioAnalysisShareDto.CreatedResponse(ownerResponse(saved, now), rawToken);
+    return new PortfolioAnalysisShareDto.CreatedResponse(
+        responses.ownerResponse(saved, now), rawToken);
   }
 
   @Transactional(readOnly = true)
   public List<PortfolioAnalysisShareDto.OwnerResponse> list(Long memberId) {
     Instant now = clock.instant();
-    return shares.findAllByOwnerIdOrderByCreatedAtDescIdDesc(memberId).stream()
-        .map(share -> ownerResponse(share, now))
-        .toList();
+    return responses.ownerResponses(
+        shares.findAllByOwnerIdOrderByCreatedAtDescIdDesc(memberId), now);
   }
 
   @Transactional
@@ -131,7 +124,8 @@ public class PortfolioAnalysisShareService {
     Instant now = clock.instant();
     String rawToken = newToken();
     share.reissue(hash(rawToken), tokenCipher.encrypt(rawToken), now.plus(SHARE_DURATION));
-    return new PortfolioAnalysisShareDto.CreatedResponse(ownerResponse(share, now), rawToken);
+    return new PortfolioAnalysisShareDto.CreatedResponse(
+        responses.ownerResponse(share, now), rawToken);
   }
 
   @Transactional
@@ -142,7 +136,7 @@ public class PortfolioAnalysisShareService {
     Instant now = clock.instant();
     requireAccessible(share, now);
     share.updateAdditionalExplanation(request.content(), now);
-    return ownerResponse(share, now);
+    return responses.ownerResponse(share, now);
   }
 
   @Transactional
@@ -150,7 +144,7 @@ public class PortfolioAnalysisShareService {
     PortfolioAnalysisShare share = ownedShare(memberId, shareId);
     Instant now = clock.instant();
     share.revoke(now);
-    return ownerResponse(share, now);
+    return responses.ownerResponse(share, now);
   }
 
   @Transactional
@@ -160,160 +154,38 @@ public class PortfolioAnalysisShareService {
 
   @Transactional(readOnly = true)
   public PortfolioAnalysisShareDto.PublicResponse getOwnerPreview(Long memberId, Long shareId) {
-    return publicResponse(ownedShare(memberId, shareId), memberId, clock.instant());
+    return responses.publicResponse(ownedShare(memberId, shareId), memberId, clock.instant());
   }
 
   @Transactional(readOnly = true)
   public PortfolioAnalysisShareDto.PublicResponse getPublic(
       String rawToken, Long viewerMemberId, String remoteAddress) {
     rateLimiter.acquireRead(remoteAddress);
+    PortfolioAnalysisShare share = requirePublicAccess(rawToken);
+    return responses.publicResponse(share, viewerMemberId, clock.instant());
+  }
+
+  PortfolioAnalysisShare requirePublicAccessForUpdate(String rawToken) {
+    PortfolioAnalysisShare share = findPublicForUpdate(rawToken);
+    requireAccessible(share, clock.instant());
+    return share;
+  }
+
+  PortfolioAnalysisShare findPublicForUpdate(String rawToken) {
+    return shares
+        .findByTokenHashForUpdate(hash(rawToken))
+        .orElseThrow(
+            () -> new BusinessException(PortfolioErrorCode.PORTFOLIO_ANALYSIS_SHARE_NOT_FOUND));
+  }
+
+  private PortfolioAnalysisShare requirePublicAccess(String rawToken) {
     PortfolioAnalysisShare share =
         shares
             .findByTokenHash(hash(rawToken))
             .orElseThrow(
                 () -> new BusinessException(PortfolioErrorCode.PORTFOLIO_ANALYSIS_SHARE_NOT_FOUND));
     requireAccessible(share, clock.instant());
-    return publicResponse(share, viewerMemberId, clock.instant());
-  }
-
-  private PortfolioAnalysisShareDto.PublicResponse publicResponse(
-      PortfolioAnalysisShare share, Long viewerMemberId, Instant now) {
-    List<PortfolioAnalysisShareDto.CommentResponse> myComments =
-        viewerMemberId == null
-            ? List.of()
-            : comments
-                .findAllByShareIdAndAuthorIdAndParentIsNullOrderByCreatedAtAscIdAsc(
-                    share.getId(), viewerMemberId)
-                .stream()
-                .map(comment -> commentResponse(comment, viewerMemberId))
-                .toList();
-    return new PortfolioAnalysisShareDto.PublicResponse(
-        share.getOwner().getNickname(),
-        share.getQuestion(),
-        share.getAdditionalExplanation(),
-        share.getAdditionalExplanationUpdatedAt(),
-        share.getExpiresAt(),
-        PortfolioAnalysisShareDto.SnapshotResponse.from(share.getSnapshot()),
-        viewerMemberId != null && !share.getOwner().getId().equals(viewerMemberId),
-        myComments,
-        share.getOwner().getId().equals(viewerMemberId) ? ownerResponse(share, now) : null);
-  }
-
-  @Transactional
-  public PortfolioAnalysisShareDto.CommentResponse createComment(
-      String rawToken, Long memberId, PortfolioAnalysisShareDto.CommentRequest request) {
-    rateLimiter.acquireWrite(memberId);
-    PortfolioAnalysisShare share =
-        shares
-            .findByTokenHashForUpdate(hash(rawToken))
-            .orElseThrow(
-                () -> new BusinessException(PortfolioErrorCode.PORTFOLIO_ANALYSIS_SHARE_NOT_FOUND));
-    requireAccessible(share, clock.instant());
-    if (share.getOwner().getId().equals(memberId)) {
-      throw new BusinessException(
-          PortfolioErrorCode.PORTFOLIO_ANALYSIS_SHARE_OWNER_COMMENT_FORBIDDEN);
-    }
-    PortfolioAnalysisComment comment =
-        PortfolioAnalysisComment.root(share, members.getReferenceById(memberId), request.content());
-    return commentResponse(comments.save(comment), memberId);
-  }
-
-  @Transactional
-  public PortfolioAnalysisShareDto.CommentResponse updateComment(
-      String rawToken,
-      Long memberId,
-      Long commentId,
-      PortfolioAnalysisShareDto.CommentRequest request) {
-    rateLimiter.acquireWrite(memberId);
-    PortfolioAnalysisShare share =
-        shares
-            .findByTokenHashForUpdate(hash(rawToken))
-            .orElseThrow(
-                () -> new BusinessException(PortfolioErrorCode.PORTFOLIO_ANALYSIS_SHARE_NOT_FOUND));
-    requireAccessible(share, clock.instant());
-    PortfolioAnalysisComment comment = ownedRootComment(memberId, commentId, share.getId());
-    comment.update(request.content());
-    return commentResponse(comment, memberId);
-  }
-
-  @Transactional
-  public void deleteComment(String rawToken, Long memberId, Long commentId) {
-    rateLimiter.acquireWrite(memberId);
-    PortfolioAnalysisShare share =
-        shares
-            .findByTokenHashForUpdate(hash(rawToken))
-            .orElseThrow(
-                () -> new BusinessException(PortfolioErrorCode.PORTFOLIO_ANALYSIS_SHARE_NOT_FOUND));
-    PortfolioAnalysisComment comment = ownedRootComment(memberId, commentId, share.getId());
-    comments.delete(comment);
-  }
-
-  @Transactional
-  public PortfolioAnalysisShareDto.CommentResponse saveOwnerReply(
-      Long memberId,
-      Long shareId,
-      Long commentId,
-      PortfolioAnalysisShareDto.CommentRequest request) {
-    rateLimiter.acquireWrite(memberId);
-    PortfolioAnalysisShare share = ownedShare(memberId, shareId);
-    requireAccessible(share, clock.instant());
-    PortfolioAnalysisComment comment =
-        comments
-            .findByIdAndShareId(commentId, shareId)
-            .filter(candidate -> !candidate.isReply())
-            .orElseThrow(
-                () ->
-                    new BusinessException(PortfolioErrorCode.PORTFOLIO_ANALYSIS_COMMENT_NOT_FOUND));
-    comments.save(
-        PortfolioAnalysisComment.reply(
-            comment, members.getReferenceById(memberId), request.content()));
-    return commentResponse(comment, memberId);
-  }
-
-  @Transactional
-  public PortfolioAnalysisShareDto.CommentResponse createCommenterReply(
-      String rawToken,
-      Long memberId,
-      Long commentId,
-      PortfolioAnalysisShareDto.CommentRequest request) {
-    rateLimiter.acquireWrite(memberId);
-    PortfolioAnalysisShare share =
-        shares
-            .findByTokenHashForUpdate(hash(rawToken))
-            .orElseThrow(
-                () -> new BusinessException(PortfolioErrorCode.PORTFOLIO_ANALYSIS_SHARE_NOT_FOUND));
-    requireAccessible(share, clock.instant());
-    PortfolioAnalysisComment comment =
-        comments
-            .findByIdAndShareId(commentId, share.getId())
-            .filter(candidate -> !candidate.isReply())
-            .filter(candidate -> candidate.getAuthor().getId().equals(memberId))
-            .orElseThrow(
-                () ->
-                    new BusinessException(PortfolioErrorCode.PORTFOLIO_ANALYSIS_COMMENT_NOT_FOUND));
-    comments.save(
-        PortfolioAnalysisComment.reply(
-            comment, members.getReferenceById(memberId), request.content()));
-    return commentResponse(comment, memberId);
-  }
-
-  @Transactional
-  public PortfolioAnalysisShareDto.CommentResponse updateReply(
-      Long memberId, Long replyId, PortfolioAnalysisShareDto.CommentRequest request) {
-    rateLimiter.acquireWrite(memberId);
-    PortfolioAnalysisComment reply = ownedReply(memberId, replyId);
-    reply.update(request.content());
-    return commentResponse(reply.getParent(), memberId);
-  }
-
-  @Transactional
-  public PortfolioAnalysisShareDto.CommentResponse deleteReply(Long memberId, Long replyId) {
-    rateLimiter.acquireWrite(memberId);
-    PortfolioAnalysisComment reply = ownedReply(memberId, replyId);
-    PortfolioAnalysisComment parent = reply.getParent();
-    comments.delete(reply);
-    comments.flush();
-    return commentResponse(parent, memberId);
+    return share;
   }
 
   private PortfolioAnalysisShare ownedShare(Long memberId, Long shareId) {
@@ -376,216 +248,6 @@ public class PortfolioAnalysisShareService {
                     holding.category(),
                     holding.evaluationAmount()))
         .toList();
-  }
-
-  private PortfolioAnalysisComment ownedRootComment(Long memberId, Long commentId, Long shareId) {
-    return comments
-        .findByIdAndAuthorId(commentId, memberId)
-        .filter(comment -> !comment.isReply())
-        .filter(comment -> comment.getShare().getId().equals(shareId))
-        .orElseThrow(
-            () -> new BusinessException(PortfolioErrorCode.PORTFOLIO_ANALYSIS_COMMENT_NOT_FOUND));
-  }
-
-  private PortfolioAnalysisComment ownedReply(Long memberId, Long replyId) {
-    return comments
-        .findByIdAndAuthorId(replyId, memberId)
-        .filter(PortfolioAnalysisComment::isReply)
-        .orElseThrow(
-            () ->
-                new BusinessException(
-                    PortfolioErrorCode.PORTFOLIO_ANALYSIS_COMMENT_REPLY_NOT_FOUND));
-  }
-
-  private PortfolioAnalysisShareDto.OwnerResponse ownerResponse(
-      PortfolioAnalysisShare share, Instant now) {
-    List<PortfolioAnalysisShareDto.CommentResponse> commentResponses =
-        comments.findAllByShareIdAndParentIsNullOrderByCreatedAtAscIdAsc(share.getId()).stream()
-            .map(comment -> commentResponse(comment, share.getOwner().getId()))
-            .toList();
-    return new PortfolioAnalysisShareDto.OwnerResponse(
-        share.getId(),
-        recoverToken(share, now),
-        share.getAnalysisId(),
-        share.getQuestion(),
-        share.getAdditionalExplanation(),
-        share.getAdditionalExplanationUpdatedAt(),
-        share.status(now),
-        share.getExpiresAt(),
-        share.getCreatedAt(),
-        share.getSnapshot().allAssetsShared(),
-        share.getSnapshot().impacts().stream()
-            .map(
-                impact ->
-                    new PortfolioAnalysisShareDto.AssetResponse(
-                        impact.assetName(), impact.weight()))
-            .toList(),
-        commentResponses);
-  }
-
-  private String recoverToken(PortfolioAnalysisShare share, Instant now) {
-    if (share.status(now) != PortfolioAnalysisShare.Status.ACTIVE
-        || share.getEncryptedToken() == null) {
-      return null;
-    }
-    try {
-      return tokenCipher.decrypt(share.getEncryptedToken());
-    } catch (IllegalStateException exception) {
-      log.atWarn()
-          .setCause(SanitizedLogException.from(exception))
-          .addKeyValue("event", LogEvent.PORTFOLIO_ANALYSIS_SHARE_TOKEN_RECOVERY_FAILED.code())
-          .addKeyValue("shareId", share.getId())
-          .addKeyValue("errorType", exception.getClass().getSimpleName())
-          .log(LogEvent.PORTFOLIO_ANALYSIS_SHARE_TOKEN_RECOVERY_FAILED.message());
-      return null;
-    }
-  }
-
-  private PortfolioAnalysisShareDto.CommentResponse commentResponse(
-      PortfolioAnalysisComment comment, Long viewerMemberId) {
-    return new PortfolioAnalysisShareDto.CommentResponse(
-        comment.getId(),
-        comment.getAuthor().getNickname(),
-        comment.getContent(),
-        comment.getCreatedAt(),
-        comment.getUpdatedAt(),
-        comments.findAllByParentIdOrderByCreatedAtAscIdAsc(comment.getId()).stream()
-            .map(
-                reply ->
-                    new PortfolioAnalysisShareDto.ReplyResponse(
-                        reply.getId(),
-                        reply.getAuthor().getNickname(),
-                        reply.getContent(),
-                        reply.getAuthor().getId().equals(comment.getShare().getOwner().getId()),
-                        reply.getAuthor().getId().equals(viewerMemberId),
-                        reply.getCreatedAt(),
-                        reply.getUpdatedAt()))
-            .toList());
-  }
-
-  private PortfolioAnalysisPublicSnapshot publicSnapshot(
-      Long memberId,
-      PortfolioAnalysis analysis,
-      ShareablePortfolio portfolio,
-      List<String> requestedAssetNames) {
-    PortfolioAnalysisResponse response =
-        PortfolioAnalysisResponse.from(
-            analysis,
-            evidence.findAllByAnalysisIdAndAnalysisPortfolioMemberIdOrderById(
-                analysis.getId(), memberId));
-    LinkedHashSet<String> assetNames = new LinkedHashSet<>();
-    for (String assetName : requestedAssetNames) assetNames.add(assetName.strip());
-    List<PortfolioAssetImpactResponse> selectedImpacts =
-        response.impacts().stream()
-            .filter(impact -> assetNames.contains(impact.assetName()))
-            .toList();
-    if (assetNames.size() != requestedAssetNames.size()
-        || selectedImpacts.size() != assetNames.size()) {
-      throw new BusinessException(PortfolioErrorCode.PORTFOLIO_ANALYSIS_SHARE_INVALID_ASSETS);
-    }
-    boolean allAssetsShared =
-        selectedImpacts.size() == response.impacts().size() && response.excludedAssets().isEmpty();
-    return new PortfolioAnalysisPublicSnapshot(
-        selectedImpacts.size(),
-        selectedImpacts.size(),
-        allAssetsShared,
-        true,
-        allAssetsShared ? response.overallDirection() : null,
-        allAssetsShared ? response.overallScore() : null,
-        allAssetsShared ? response.positiveImpactScore() : BigDecimal.ZERO,
-        allAssetsShared ? response.negativeImpactScore() : BigDecimal.ZERO,
-        response.analyzedAt(),
-        allAssetsShared ? response.overallImpact() : "",
-        selectedImpacts.stream()
-            .map(
-                impact ->
-                    new PortfolioAnalysisPublicSnapshot.AssetImpact(
-                        impact.assetName(),
-                        impact.weight(),
-                        impact.direction(),
-                        impact.impactLevel(),
-                        impact.issueSummary(),
-                        impact.expectedReaction(),
-                        impact.outlook(),
-                        impact.reason(),
-                        impact.evidenceSentence(),
-                        impact.sources().stream()
-                            .map(
-                                source ->
-                                    new PortfolioAnalysisPublicSnapshot.Source(
-                                        source.title(),
-                                        source.url(),
-                                        source.publishedOn(),
-                                        source.occurredOn(),
-                                        source.excerpt(),
-                                        source.factQuote()))
-                            .toList(),
-                        portfolio.details().get(impact.assetName()),
-                        impact.rank()))
-            .toList(),
-        selectedImpacts.stream()
-            .flatMap(impact -> impact.sources().stream())
-            .distinct()
-            .map(
-                source ->
-                    new PortfolioAnalysisPublicSnapshot.Source(
-                        source.title(),
-                        source.url(),
-                        source.publishedOn(),
-                        source.occurredOn(),
-                        source.excerpt(),
-                        source.factQuote()))
-            .toList(),
-        List.of());
-  }
-
-  private PortfolioAnalysisPublicSnapshot portfolioSnapshot(
-      ShareablePortfolio portfolio, List<String> requestedAssetNames) {
-    LinkedHashSet<String> assetNames = new LinkedHashSet<>();
-    requestedAssetNames.forEach(assetName -> assetNames.add(assetName.strip()));
-    var available =
-        portfolio.holdings().stream()
-            .filter(holding -> holding.priceAvailable() && holding.weight() != null)
-            .toList();
-    var selected =
-        available.stream().filter(holding -> assetNames.contains(holding.name())).toList();
-    if (assetNames.size() != requestedAssetNames.size() || selected.size() != assetNames.size()) {
-      throw new BusinessException(PortfolioErrorCode.PORTFOLIO_ANALYSIS_SHARE_INVALID_ASSETS);
-    }
-    var impacts =
-        IntStream.range(0, selected.size())
-            .mapToObj(
-                index -> {
-                  var holding = selected.get(index);
-                  return new PortfolioAnalysisPublicSnapshot.AssetImpact(
-                      holding.name(),
-                      holding.weight(),
-                      null,
-                      null,
-                      "",
-                      "",
-                      "",
-                      "",
-                      "",
-                      List.of(),
-                      portfolio.details().get(holding.name()),
-                      index + 1);
-                })
-            .toList();
-    return new PortfolioAnalysisPublicSnapshot(
-        impacts.size(),
-        0,
-        impacts.size() == portfolio.holdings().size(),
-        false,
-        null,
-        null,
-        BigDecimal.ZERO,
-        BigDecimal.ZERO,
-        null,
-        "",
-        impacts,
-        List.of(),
-        List.of());
   }
 
   private PreparedShareablePortfolio prepareShareablePortfolio(Long memberId, boolean required) {

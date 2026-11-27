@@ -56,11 +56,12 @@ class PortfolioReviewSimulationServiceTest {
           null,
           null,
           null,
-          null,
           limiter,
           mock(PortfolioShareTokenCipher.class),
           Clock.fixed(now, ZoneOffset.UTC),
-          transactions);
+          transactions,
+          mock(PortfolioAnalysisShareSnapshotFactory.class),
+          mock(PortfolioAnalysisShareResponseFactory.class));
   private final PortfolioReviewSimulationService service =
       new PortfolioReviewSimulationService(access, analysis, limiter);
 
@@ -107,7 +108,6 @@ class PortfolioReviewSimulationServiceTest {
             shares,
             comments,
             null,
-            null,
             holdings,
             histories,
             calculation,
@@ -115,7 +115,9 @@ class PortfolioReviewSimulationServiceTest {
             limiter,
             mock(PortfolioShareTokenCipher.class),
             Clock.fixed(now, ZoneOffset.UTC),
-            transactions);
+            transactions,
+            mock(PortfolioAnalysisShareSnapshotFactory.class),
+            mock(PortfolioAnalysisShareResponseFactory.class));
     if (new BigDecimal(amount).signum() <= 0) {
       assertThatThrownBy(() -> snapshots.simulationAssets(1L, 3L, 9L))
           .isInstanceOf(BusinessException.class);
