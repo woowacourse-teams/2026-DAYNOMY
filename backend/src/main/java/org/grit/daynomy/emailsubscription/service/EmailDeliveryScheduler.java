@@ -57,6 +57,7 @@ public class EmailDeliveryScheduler {
     scheduler.setThreadNamePrefix("email-delivery-");
     scheduler.setWaitForTasksToCompleteOnShutdown(true);
     scheduler.setAwaitTerminationSeconds(30);
+    scheduler.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
     return scheduler;
   }
 
